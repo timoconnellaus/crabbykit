@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { Message, Model } from "@claw-for-cloudflare/ai";
+import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
@@ -408,18 +408,43 @@ export abstract class AgentDO extends DurableObject {
 
     this.broadcastToSession(sessionId, serverMsg);
 
-    // Persist completed messages
+    // Persist completed messages and emit inference costs
     if (event.type === "message_end") {
       const msg = event.message;
       if ("role" in msg && msg.role === "assistant") {
+        const assistantMsg = msg as AssistantMessage;
+
         this.sessionStore.appendEntry(sessionId, {
           type: "message",
           data: {
             role: "assistant",
-            content: msg.content,
+            content: assistantMsg.content,
             timestamp: Date.now(),
           },
         });
+
+        // Emit LLM inference cost if non-zero
+        if (assistantMsg.usage?.cost?.total > 0) {
+          this.handleCostEvent(
+            {
+              capabilityId: "llm-inference",
+              amount: assistantMsg.usage.cost.total,
+              currency: "USD",
+              detail: `${assistantMsg.provider}/${assistantMsg.model}`,
+              metadata: {
+                provider: assistantMsg.provider,
+                model: assistantMsg.model,
+                inputTokens: assistantMsg.usage.input,
+                outputTokens: assistantMsg.usage.output,
+                cacheReadTokens: assistantMsg.usage.cacheRead,
+                cacheWriteTokens: assistantMsg.usage.cacheWrite,
+                inputCost: assistantMsg.usage.cost.input,
+                outputCost: assistantMsg.usage.cost.output,
+              },
+            },
+            sessionId,
+          );
+        }
       }
     }
 
