@@ -1,0 +1,200 @@
+/*
+ * Default styles for @dexfi/agent-ui.
+ * Import this for a reasonable starting point, or ignore it and style
+ * entirely via data-agent-ui selectors.
+ *
+ * All selectors use [data-agent-ui="..."] so they won't collide with
+ * your app's styles and are easy to override.
+ */
+
+[data-agent-ui="chat-panel"] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* --- Message list --- */
+
+[data-agent-ui="message-list-root"] {
+  flex: 1;
+  overflow: hidden;
+}
+
+[data-agent-ui="message-list-viewport"] {
+  height: 100%;
+  padding: 1rem;
+}
+
+[data-agent-ui="message-list-scrollbar"] {
+  width: 8px;
+  padding: 2px;
+}
+
+[data-agent-ui="message-list-thumb"] {
+  background: rgba(128, 128, 128, 0.4);
+  border-radius: 4px;
+}
+
+/* --- Message --- */
+
+[data-agent-ui="message"] {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  max-width: 80%;
+}
+
+[data-agent-ui="message"][data-role="user"] {
+  margin-left: auto;
+  background: #e3f2fd;
+}
+
+[data-agent-ui="message"][data-role="assistant"] {
+  margin-right: auto;
+  background: #f5f5f5;
+}
+
+[data-agent-ui="message"][data-streaming] {
+  opacity: 0.85;
+}
+
+[data-agent-ui="message-role"] {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 0.25rem;
+}
+
+[data-agent-ui="message-content"] {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* --- Tool calls / results --- */
+
+[data-agent-ui="tool-call"],
+[data-agent-ui="tool-result"] {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.85rem;
+}
+
+[data-agent-ui="tool-call-name"],
+[data-agent-ui="tool-result-name"] {
+  font-weight: 600;
+  font-family: monospace;
+}
+
+[data-agent-ui="tool-call-args"],
+[data-agent-ui="tool-result-content"] {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  font-family: monospace;
+  overflow-x: auto;
+}
+
+[data-agent-ui="tool-result"][data-error] {
+  background: #fdecea;
+  color: #c62828;
+}
+
+/* --- Input --- */
+
+[data-agent-ui="chat-input"] {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+[data-agent-ui="chat-input-textarea"] {
+  flex: 1;
+  resize: none;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  outline: none;
+}
+
+[data-agent-ui="chat-input-textarea"]:focus {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
+}
+
+[data-agent-ui="chat-input-submit"] {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: #1976d2;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+[data-agent-ui="chat-input-submit"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Status bar --- */
+
+[data-agent-ui="status-bar"] {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.75rem;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+[data-agent-ui="status-bar"][data-connection="connected"] [data-agent-ui="status-connection"] {
+  color: #2e7d32;
+}
+
+[data-agent-ui="status-bar"][data-connection="disconnected"] [data-agent-ui="status-connection"],
+[data-agent-ui="status-bar"][data-connection="reconnecting"] [data-agent-ui="status-connection"] {
+  color: #c62828;
+}
+
+/* --- Session list --- */
+
+[data-agent-ui="session-list"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+
+[data-agent-ui="session-item"] {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.375rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+[data-agent-ui="session-item"][data-active] {
+  background: #e3f2fd;
+  border-color: #1976d2;
+}
+
+[data-agent-ui="session-new"] {
+  padding: 0.4rem 0.75rem;
+  border: 1px dashed #ccc;
+  border-radius: 0.375rem;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #666;
+}

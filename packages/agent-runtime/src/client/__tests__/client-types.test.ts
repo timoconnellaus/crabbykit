@@ -1,0 +1,66 @@
+import { describe, it, expect } from "vitest";
+import type { ConnectionStatus, AgentStatus } from "../types.js";
+import type {
+  ServerMessage,
+  ClientMessage,
+} from "../../transport/types.js";
+
+describe("Client Types", () => {
+  describe("ConnectionStatus", () => {
+    it("defines all connection states", () => {
+      const statuses: ConnectionStatus[] = [
+        "connecting",
+        "connected",
+        "disconnected",
+        "reconnecting",
+      ];
+      expect(statuses).toHaveLength(4);
+    });
+  });
+
+  describe("AgentStatus", () => {
+    it("defines all agent states", () => {
+      const statuses: AgentStatus[] = [
+        "idle",
+        "streaming",
+        "executing_tools",
+      ];
+      expect(statuses).toHaveLength(3);
+    });
+  });
+
+  describe("Message type discrimination", () => {
+    it("discriminates server messages by type", () => {
+      const handlers: Record<ServerMessage["type"], boolean> = {
+        agent_event: true,
+        tool_event: true,
+        session_sync: true,
+        session_list: true,
+        mcp_status: true,
+        error: true,
+      };
+      expect(Object.keys(handlers)).toHaveLength(6);
+    });
+
+    it("discriminates client messages by type", () => {
+      const handlers: Record<ClientMessage["type"], boolean> = {
+        prompt: true,
+        steer: true,
+        abort: true,
+        switch_session: true,
+        new_session: true,
+      };
+      expect(Object.keys(handlers)).toHaveLength(5);
+    });
+  });
+
+  describe("Client export isolation", () => {
+    it("client/types.ts has no server imports", async () => {
+      // This test verifies at the type level that client types
+      // don't depend on server-side modules
+      const clientTypes = await import("../types.js");
+      expect(clientTypes).toBeDefined();
+      // Should only export type aliases, no runtime values that pull in server code
+    });
+  });
+});

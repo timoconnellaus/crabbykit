@@ -1,0 +1,34 @@
+{
+  "model": "google/gemini-3.1-flash-lite-preview",
+  "generatedAt": "2026-03-26T02:43:15.499Z",
+  "eventTypes": [
+    "start",
+    "text_start",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_delta",
+    "text_end",
+    "done"
+  ],
+  "summaryText": "* **Task:** Implement GET endpoint `/api/agents/:id/config` for agent `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.\n* **File Path:** Development located at `/workspace/src/routes/api/agents/config.ts`.\n* **Requirements:**\n    * Use `validateConfigAuth` from `src/server/auth.ts` to verify the `x-agent-id` header.\n    * Retrieve config from the associated Durable Object.\n    * Return JSON response containing `model`, `tools`, and `capabilities`.\n* **Context:** Assistant is currently reviewing existing route structures before implementation.",
+  "inputMessageCount": 1,
+  "validation": {
+    "hasUuid": true,
+    "hasFilePath": true,
+    "summaryLength": 538
+  }
+}
