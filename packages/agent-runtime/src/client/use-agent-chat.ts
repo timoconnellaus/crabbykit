@@ -87,23 +87,12 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
   const handleMessage = useCallback((event: MessageEvent) => {
     // Ignore events from stale WebSocket connections (StrictMode double-mount, HMR, reconnection overlap)
-    if (event.target !== wsRef.current) {
-      console.warn("[useAgentChat] Ignoring message from stale WebSocket", {
-        isCurrentWs: event.target === wsRef.current,
-      });
-      return;
-    }
+    if (event.target !== wsRef.current) return;
 
     const msg: ServerMessage = JSON.parse(event.data);
-    console.log("[useAgentChat] received:", msg.type, "sessionId" in msg ? msg.sessionId : "");
 
     switch (msg.type) {
       case "session_sync": {
-        console.log("[useAgentChat] session_sync", {
-          sessionId: msg.sessionId,
-          messageCount: msg.messages.length,
-          hasStreamMessage: !!msg.streamMessage,
-        });
         // Include in-flight streaming message in the array so subsequent
         // message_update/message_end events find a _streaming placeholder to replace.
         const syncMessages = msg.streamMessage
@@ -137,10 +126,6 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         if (agentEvent.type === "message_start") {
           const msg = agentEvent.message;
           const isAssistant = msg && "role" in msg && msg.role === "assistant";
-          console.log("[useAgentChat] message_start", {
-            isAssistant,
-            role: msg && "role" in msg ? msg.role : "unknown",
-          });
           if (isAssistant) {
             setAgentStatus("streaming");
             streamMessageRef.current = msg;
@@ -191,10 +176,6 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           const finalMessage = agentEvent.message;
           const isAssistant =
             finalMessage && "role" in finalMessage && finalMessage.role === "assistant";
-          console.log("[useAgentChat] message_end", {
-            isAssistant,
-            role: finalMessage && "role" in finalMessage ? finalMessage.role : "unknown",
-          });
           if (!isAssistant) break;
 
           streamMessageRef.current = null;
@@ -214,7 +195,6 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         }
 
         if (agentEvent.type === "agent_end") {
-          console.log("[useAgentChat] agent_end");
           setAgentStatus("idle");
           setThinking(null);
           setToolStates(new Map());
@@ -330,16 +310,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
   const sendMessage = useCallback(
     (text: string) => {
-      console.log("[useAgentChat] sendMessage", {
-        text,
-        currentSessionId,
-        agentStatus,
-        wsReadyState: wsRef.current?.readyState,
-      });
       if (!currentSessionId) return;
       setError(null);
       const type = agentStatus === "idle" ? "prompt" : "steer";
-      console.log("[useAgentChat] sending as:", type);
       send({ type, sessionId: currentSessionId, text } as ClientMessage);
 
       // Optimistically add user message

@@ -279,18 +279,9 @@ export abstract class AgentDO extends DurableObject {
       const attachment = ws.deserializeAttachment() as { sessionId: string } | null;
       if (attachment?.sessionId) {
         this.connections.set(ws, { sessionId: attachment.sessionId });
-        // Re-sync client with current session state
-        const session = this.sessionStore.get(attachment.sessionId);
-        if (session) {
-          this.sendToSocket(ws, {
-            type: "session_sync",
-            sessionId: attachment.sessionId,
-            session,
-            messages: this.sessionStore.buildContext(attachment.sessionId),
-            streamMessage: this.agent?.state.streamMessage ?? null,
-          });
-          this.sendSessionList(ws);
-        }
+        // Don't send session_sync here — the client's state is still intact
+        // (the WS stayed open through hibernation). Sending a sync now would
+        // race with any in-flight prompt and wipe the optimistic user message.
       }
     }
 
@@ -320,15 +311,12 @@ export abstract class AgentDO extends DurableObject {
   }
 
   private async handleClientMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
-    console.log("[AgentDO] handleClientMessage:", msg.type, "sessionId" in msg ? msg.sessionId : "");
     switch (msg.type) {
       case "prompt":
-        console.log("[AgentDO] handling prompt, agent exists:", !!this.agent, "isStreaming:", this.agent?.state?.isStreaming);
         await this.handlePrompt(msg.sessionId, msg.text);
         break;
 
       case "steer":
-        console.log("[AgentDO] handling steer, agent exists:", !!this.agent);
         this.handleSteer(msg.sessionId, msg.text);
         break;
 
@@ -404,7 +392,6 @@ export abstract class AgentDO extends DurableObject {
   private static readonly MAX_SESSION_NAME_LENGTH = 50;
 
   private async handlePrompt(sessionId: string, text: string): Promise<void> {
-    console.log("[AgentDO] handlePrompt:", { sessionId, text: text.slice(0, 50) });
     // Auto-name untitled sessions from first message
     const session = this.sessionStore.get(sessionId);
     if (session && !session.name) {
@@ -430,16 +417,13 @@ export abstract class AgentDO extends DurableObject {
     }
 
     if (this.agent.state.isStreaming) {
-      console.log("[AgentDO] agent is streaming, steering instead");
       // Agent is busy — steer instead
       this.handleSteer(sessionId, text);
       return;
     }
 
-    console.log("[AgentDO] calling agent.prompt()");
     try {
       await this.agent.prompt(text);
-      console.log("[AgentDO] agent.prompt() resolved");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("[AgentDO] prompt failed:", message);
@@ -562,7 +546,6 @@ export abstract class AgentDO extends DurableObject {
   }
 
   private handleAgentEvent(event: AgentEvent, sessionId: string): void {
-    console.log("[AgentDO] handleAgentEvent:", event.type, { sessionId, connectionCount: this.connections.size });
     // Broadcast to connected clients on this session
     const serverMsg: ServerMessage =
       event.type === "tool_execution_start" ||
@@ -868,17 +851,9 @@ export abstract class AgentDO extends DurableObject {
   // --- Broadcasting ---
 
   private broadcastToSession(sessionId: string, msg: ServerMessage): void {
-    let sentCount = 0;
     for (const [ws, state] of this.connections) {
       if (state.sessionId === sessionId) {
         this.sendToSocket(ws, msg);
-        sentCount++;
-      }
-    }
-    if (sentCount === 0) {
-      console.warn("[AgentDO] broadcastToSession: no connections for session", sessionId, "total connections:", this.connections.size);
-      for (const [, state] of this.connections) {
-        console.warn("[AgentDO]   connection sessionId:", state.sessionId);
       }
     }
   }
