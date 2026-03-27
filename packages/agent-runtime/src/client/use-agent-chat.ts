@@ -40,6 +40,17 @@ export interface UseAgentChatReturn {
   toolStates: Map<string, ToolState>;
   /** Accumulated cost events for the current session. */
   costs: CostEvent[];
+  /** Active schedules. Updated when schedules change. */
+  schedules: Array<{
+    id: string;
+    name: string;
+    cron: string;
+    enabled: boolean;
+    status: string;
+    nextFireAt: string | null;
+    expiresAt: string | null;
+    lastFiredAt: string | null;
+  }>;
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
   sendMessage: (text: string) => void;
@@ -58,12 +69,15 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const [thinking, setThinking] = useState<string | null>(null);
   const [toolStates, setToolStates] = useState<Map<string, ToolState>>(new Map());
   const [costs, setCosts] = useState<CostEvent[]>([]);
+  const [schedules, setSchedules] = useState<UseAgentChatReturn["schedules"]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamMessageRef = useRef<AgentMessage | null>(null);
+  /** Set to true by effect cleanup to suppress reconnect from stale onclose handlers. */
+  const disposedRef = useRef(false);
 
   const send = useCallback((msg: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -72,11 +86,37 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   }, []);
 
   const handleMessage = useCallback((event: MessageEvent) => {
+    // Ignore events from stale WebSocket connections (StrictMode double-mount, HMR, reconnection overlap)
+    if (event.target !== wsRef.current) {
+      console.warn("[useAgentChat] Ignoring message from stale WebSocket", {
+        isCurrentWs: event.target === wsRef.current,
+      });
+      return;
+    }
+
     const msg: ServerMessage = JSON.parse(event.data);
+    console.log("[useAgentChat] received:", msg.type, "sessionId" in msg ? msg.sessionId : "");
 
     switch (msg.type) {
-      case "session_sync":
-        setMessages(msg.messages);
+      case "session_sync": {
+        console.log("[useAgentChat] session_sync", {
+          sessionId: msg.sessionId,
+          messageCount: msg.messages.length,
+          hasStreamMessage: !!msg.streamMessage,
+        });
+        // Include in-flight streaming message in the array so subsequent
+        // message_update/message_end events find a _streaming placeholder to replace.
+        const syncMessages = msg.streamMessage
+          ? [
+              ...msg.messages,
+              {
+                ...msg.streamMessage,
+                // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
+                _streaming: true,
+              } as StreamableMessage,
+            ]
+          : msg.messages;
+        setMessages(syncMessages);
         setCurrentSessionId(msg.sessionId);
         setToolStates(new Map());
         setCosts([]);
@@ -85,6 +125,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           setAgentStatus("streaming");
         }
         break;
+      }
 
       case "session_list":
         setSessions(msg.sessions);
@@ -96,6 +137,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         if (agentEvent.type === "message_start") {
           const msg = agentEvent.message;
           const isAssistant = msg && "role" in msg && msg.role === "assistant";
+          console.log("[useAgentChat] message_start", {
+            isAssistant,
+            role: msg && "role" in msg ? msg.role : "unknown",
+          });
           if (isAssistant) {
             setAgentStatus("streaming");
             streamMessageRef.current = msg;
@@ -146,26 +191,30 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           const finalMessage = agentEvent.message;
           const isAssistant =
             finalMessage && "role" in finalMessage && finalMessage.role === "assistant";
+          console.log("[useAgentChat] message_end", {
+            isAssistant,
+            role: finalMessage && "role" in finalMessage ? finalMessage.role : "unknown",
+          });
           if (!isAssistant) break;
 
           streamMessageRef.current = null;
-          // Finalize: replace streaming placeholder with final content, or add if missing
+          // Finalize: replace the _streaming placeholder with the completed message.
+          // If no placeholder exists, this is a no-op — safer than blindly pushing a
+          // potential duplicate. agent-core guarantees message_start before message_end.
           setMessages((prev) => {
             const next = [...prev];
             if (next.length > 0) {
               const last = next[next.length - 1] as StreamableMessage;
               if (last._streaming) {
                 next[next.length - 1] = finalMessage as AgentMessage;
-                return next;
               }
             }
-            // No streaming message found — add the final message directly
-            next.push(finalMessage as AgentMessage);
             return next;
           });
         }
 
         if (agentEvent.type === "agent_end") {
+          console.log("[useAgentChat] agent_end");
           setAgentStatus("idle");
           setThinking(null);
           setToolStates(new Map());
@@ -206,6 +255,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         setCosts((prev) => [...prev, msg.event]);
         break;
 
+      case "schedule_list":
+        setSchedules(msg.schedules);
+        break;
+
       case "mcp_status":
         // Could expose this, keeping it simple for now
         break;
@@ -242,6 +295,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       setConnectionStatus("disconnected");
       wsRef.current = null;
 
+      // Don't reconnect if the effect was cleaned up (HMR / unmount)
+      if (disposedRef.current) return;
+
       if (config.autoReconnect !== false) {
         const delay = Math.min(
           1000 * RECONNECT_BACKOFF_BASE ** reconnectAttemptRef.current,
@@ -261,8 +317,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   }, [config.url, config.getToken, config.autoReconnect, config.maxReconnectDelay, handleMessage]);
 
   useEffect(() => {
+    disposedRef.current = false;
     connect();
     return () => {
+      disposedRef.current = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
       }
@@ -272,9 +330,16 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
   const sendMessage = useCallback(
     (text: string) => {
+      console.log("[useAgentChat] sendMessage", {
+        text,
+        currentSessionId,
+        agentStatus,
+        wsReadyState: wsRef.current?.readyState,
+      });
       if (!currentSessionId) return;
       setError(null);
       const type = agentStatus === "idle" ? "prompt" : "steer";
+      console.log("[useAgentChat] sending as:", type);
       send({ type, sessionId: currentSessionId, text } as ClientMessage);
 
       // Optimistically add user message
@@ -322,6 +387,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     thinking,
     toolStates,
     costs,
+    schedules,
     error,
     sendMessage,
     abort,
