@@ -1,6 +1,6 @@
+import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { SummarizeFn } from "@claw-for-cloudflare/agent-runtime";
 import { buildSummarizationPrompt } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 
 // Lazy-load pi-ai to avoid CJS issues in Workers test pool
 // biome-ignore lint/suspicious/noExplicitAny: pi-ai module is dynamically imported; no static types available
@@ -9,7 +9,7 @@ let _streamSimple: any;
 let _getModel: any;
 async function loadPiAi() {
   if (!_streamSimple) {
-    const ai = await import("@mariozechner/pi-ai");
+    const ai = await import("@claw-for-cloudflare/ai");
     _streamSimple = ai.streamSimple;
     _getModel = ai.getModel;
   }

@@ -1,10 +1,21 @@
-import type { ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, useMemo } from "react";
 import { useChat } from "./chat-provider";
 
 export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {}
 
 export function StatusBar(props: StatusBarProps) {
-  const { connectionStatus, agentStatus, thinking } = useChat();
+  const { connectionStatus, agentStatus, thinking, costs } = useChat();
+
+  const totalCost = useMemo(() => {
+    if (costs.length === 0) return null;
+    const byCurrency = new Map<string, number>();
+    for (const c of costs) {
+      byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + c.amount);
+    }
+    return Array.from(byCurrency.entries())
+      .map(([currency, amount]) => `${amount.toFixed(4)} ${currency}`)
+      .join(", ");
+  }, [costs]);
 
   return (
     <div
@@ -20,6 +31,8 @@ export function StatusBar(props: StatusBarProps) {
       )}
 
       {thinking && <span data-agent-ui="status-thinking">Thinking...</span>}
+
+      {totalCost && <span data-agent-ui="status-cost">{totalCost}</span>}
     </div>
   );
 }

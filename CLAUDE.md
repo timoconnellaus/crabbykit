@@ -99,6 +99,33 @@ Consumers implement `getConfig()`, `getTools()`, `buildSystemPrompt()`, and opti
 - Never catch an error just to log it — either handle it meaningfully or let it propagate
 - Error messages sent to clients use `ErrorMessage` with a machine-readable `code` field
 
+## Cost Tracking
+
+Capabilities that incur per-call costs (paid APIs, metered services) emit costs via `context.emitCost()`. The framework handles persistence (as custom session entries) and real-time broadcast (as `cost_event` transport messages).
+
+### How to emit costs
+
+In a capability's `tools(context)` factory, pass `context` to tool creators. In the tool's `execute` function, call `context.emitCost()` after a successful paid API call:
+
+```ts
+context.emitCost({
+  capabilityId: "my-capability",  // Must match the capability's id field
+  toolName: "my_tool",            // The tool that incurred the cost
+  amount: 0.01,                   // Monetary amount
+  currency: "USD",                // ISO 4217 currency code
+  detail: "Human-readable note",  // Optional
+  metadata: { key: "value" },     // Optional
+});
+```
+
+### Rules
+
+- Only emit costs for paid external API calls, not free operations
+- Emit after successful execution, not on error (don't charge for failed calls)
+- Use a named constant for the cost amount (e.g., `TAVILY_SEARCH_COST_USD = 0.01`)
+- The `capabilityId` must match the capability's `id` field
+- Costs are persisted as custom session entries with `customType: "cost"` and broadcast as `cost_event` messages
+
 ## Testing Rules
 
 ### Coverage thresholds (agent-runtime)

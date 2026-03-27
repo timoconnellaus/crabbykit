@@ -9,7 +9,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getModel, streamSimple } from "@mariozechner/pi-ai";
+import { getModel, streamSimple } from "@claw-for-cloudflare/ai";
 import { describe, expect, it } from "vitest";
 
 const SHOULD_RUN = process.env.GENERATE_FIXTURES === "1" && process.env.OPENROUTER_API_KEY;

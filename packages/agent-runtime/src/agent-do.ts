@@ -1,10 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import type { AgentEvent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
-import type { Message, Model } from "@mariozechner/pi-ai";
+import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { Message, Model } from "@claw-for-cloudflare/ai";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
 import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
+import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import { SessionStore } from "./session/session-store.js";
 import { ErrorCodes } from "./transport/error-codes.js";
@@ -17,9 +18,9 @@ let _PiAgent: any;
 let _getModel: any;
 async function loadPiSdk() {
   if (!_PiAgent) {
-    const core = await import("@mariozechner/pi-agent-core");
+    const core = await import("@claw-for-cloudflare/agent-core");
     _PiAgent = core.Agent;
-    const ai = await import("@mariozechner/pi-ai");
+    const ai = await import("@claw-for-cloudflare/ai");
     _getModel = ai.getModel;
   }
   return { piAgent: _PiAgent, getModel: _getModel };
@@ -44,6 +45,8 @@ export interface AgentConfig {
 export interface AgentContext {
   sessionId: string;
   stepNumber: number;
+  /** Emit a cost event. Persisted to session and broadcast to clients. */
+  emitCost: (cost: CostEvent) => void;
 }
 
 /**
@@ -214,12 +217,53 @@ export abstract class AgentDO extends DurableObject {
         this.broadcastSessionList();
         break;
       }
+
+      case "delete_session": {
+        // Don't delete the session if it's the only one
+        const allSessions = this.sessionStore.list();
+        if (allSessions.length <= 1) break;
+
+        this.sessionStore.delete(msg.sessionId);
+
+        // If the client was on the deleted session, switch them to another
+        const conn = this.connections.get(ws);
+        if (conn?.sessionId === msg.sessionId) {
+          const remaining = this.sessionStore.list();
+          if (remaining.length > 0) {
+            const target = remaining[0];
+            this.connections.set(ws, { sessionId: target.id });
+            this.sendToSocket(ws, {
+              type: "session_sync",
+              sessionId: target.id,
+              session: target,
+              messages: this.sessionStore.buildContext(target.id),
+              streamMessage: null,
+            });
+          }
+        }
+
+        this.broadcastSessionList();
+        break;
+      }
     }
   }
 
   // --- Agent loop ---
 
+  private static readonly MAX_SESSION_NAME_LENGTH = 50;
+
   private async handlePrompt(sessionId: string, text: string): Promise<void> {
+    // Auto-name untitled sessions from first message
+    const session = this.sessionStore.get(sessionId);
+    if (session && !session.name) {
+      const name =
+        text.length > AgentDO.MAX_SESSION_NAME_LENGTH
+          ? `${text.slice(0, AgentDO.MAX_SESSION_NAME_LENGTH)}...`
+          : text;
+      this.sessionStore.rename(sessionId, name);
+      this.broadcastSessionList();
+    }
+
     // Persist user message
     this.sessionStore.appendEntry(sessionId, {
       type: "message",
@@ -239,7 +283,17 @@ export abstract class AgentDO extends DurableObject {
       return;
     }
 
-    await this.agent.prompt(text);
+    try {
+      await this.agent.prompt(text);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[AgentDO] prompt failed:", message);
+      this.broadcastToSession(sessionId, {
+        type: "error",
+        code: ErrorCodes.INTERNAL_ERROR,
+        message: `Agent error: ${message}`,
+      });
+    }
   }
 
   private handleSteer(sessionId: string, text: string): void {
@@ -261,7 +315,11 @@ export abstract class AgentDO extends DurableObject {
   protected async ensureAgent(sessionId: string): Promise<void> {
     const { piAgent, getModel } = await loadPiSdk();
     const config = this.getConfig();
-    const context: AgentContext = { sessionId, stepNumber: 0 };
+    const context: AgentContext = {
+      sessionId,
+      stepNumber: 0,
+      emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+    };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
 
@@ -371,7 +429,8 @@ export abstract class AgentDO extends DurableObject {
         type: "message",
         data: {
           role: "toolResult",
-          content: JSON.stringify(event.result),
+          content: event.result.content,
+          details: event.result.details ?? null,
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           isError: event.isError,
@@ -387,6 +446,24 @@ export abstract class AgentDO extends DurableObject {
     if (event.type === "agent_end") {
       this.onAgentEnd?.(event.messages);
     }
+  }
+
+  private handleCostEvent(cost: CostEvent, sessionId: string): void {
+    // Persist as custom session entry
+    this.sessionStore.appendEntry(sessionId, {
+      type: "custom",
+      data: {
+        customType: "cost",
+        payload: cost,
+      },
+    });
+
+    // Broadcast to connected clients
+    this.broadcastToSession(sessionId, {
+      type: "cost_event",
+      sessionId,
+      event: cost,
+    });
   }
 
   // --- HTTP fallback ---

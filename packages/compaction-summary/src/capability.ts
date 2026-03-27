@@ -1,10 +1,10 @@
+import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type {
   Capability,
   CapabilityHookContext,
   CompactionConfig,
 } from "@claw-for-cloudflare/agent-runtime";
 import { compactSession, estimateMessagesTokens } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { createLlmSummarizer } from "./summarize.js";
 
 const DEFAULT_COMPACTION_THRESHOLD = 0.75;

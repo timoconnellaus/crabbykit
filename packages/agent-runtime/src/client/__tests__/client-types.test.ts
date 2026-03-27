@@ -30,9 +30,10 @@ describe("Client Types", () => {
         session_sync: true,
         session_list: true,
         mcp_status: true,
+        cost_event: true,
         error: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(6);
+      expect(Object.keys(handlers)).toHaveLength(7);
     });
 
     it("discriminates client messages by type", () => {
@@ -42,8 +43,9 @@ describe("Client Types", () => {
         abort: true,
         switch_session: true,
         new_session: true,
+        delete_session: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(5);
+      expect(Object.keys(handlers)).toHaveLength(6);
     });
   });
 

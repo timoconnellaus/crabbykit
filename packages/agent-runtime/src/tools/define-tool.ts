@@ -2,7 +2,7 @@ import type {
   AgentTool,
   AgentToolResult,
   AgentToolUpdateCallback,
-} from "@mariozechner/pi-agent-core";
+} from "@claw-for-cloudflare/agent-core";
 import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox";
 
 /**

@@ -276,7 +276,7 @@ describe("AgentDO Integration", () => {
       // The tool result should contain the mock MCP response
       const toolResult = toolResultEntries[0];
       expect(toolResult.data.toolName).toBe("weather_lookup");
-      expect(toolResult.data.content).toContain("MCP result for: San Francisco");
+      expect(JSON.stringify(toolResult.data.content)).toContain("MCP result for: San Francisco");
     });
   });
 });

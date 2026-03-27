@@ -6,10 +6,12 @@ import type {
 } from "@claw-for-cloudflare/agent-runtime";
 import { AgentDO, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
+import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 
 interface Env {
   AGENT: DurableObjectNamespace;
   OPENROUTER_API_KEY: string;
+  TAVILY_API_KEY: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export class BasicAgent extends AgentDO {
     const env = this.env as unknown as Env;
     return {
       provider: "openrouter",
-      modelId: "google/gemini-2.5-flash",
+      modelId: "minimax/minimax-m2.7",
       apiKey: env.OPENROUTER_API_KEY,
     };
   }
@@ -33,6 +35,9 @@ export class BasicAgent extends AgentDO {
         provider: "openrouter",
         modelId: "google/gemini-2.0-flash-001",
         getApiKey: () => env.OPENROUTER_API_KEY,
+      }),
+      tavilyWebSearch({
+        tavilyApiKey: () => env.TAVILY_API_KEY,
       }),
     ];
   }
@@ -75,7 +80,7 @@ export class BasicAgent extends AgentDO {
   }
 
   buildSystemPrompt(_context: AgentContext): string {
-    return "You are a helpful assistant. You can tell the time and do math.";
+    return "You are a helpful assistant. You can tell the time, do math, search the web, and fetch web pages.";
   }
 }
 

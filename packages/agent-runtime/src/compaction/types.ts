@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 
 export interface CompactionConfig {
   /** Fraction of context window that triggers compaction (default 0.75) */

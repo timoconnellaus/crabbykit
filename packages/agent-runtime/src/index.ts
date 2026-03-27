@@ -12,8 +12,8 @@ export type {
   BeforeToolCallContext,
   BeforeToolCallResult,
   ThinkingLevel,
-} from "@mariozechner/pi-agent-core";
-export type { Model } from "@mariozechner/pi-ai";
+} from "@claw-for-cloudflare/agent-core";
+export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export type { AgentConfig, AgentContext } from "./agent-do.js";
@@ -46,6 +46,8 @@ export type {
   CompactionResult,
   SummarizeFn,
 } from "./compaction/types.js";
+// Costs
+export type { CostEvent } from "./costs/index.js";
 // MCP client
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
@@ -61,13 +63,14 @@ export type {
 } from "./session/types.js";
 // Tool system
 export { defineTool, mcpToolToAgentTool } from "./tools/define-tool.js";
+export type { ErrorCode } from "./transport/error-codes.js";
 // Transport
 export { ErrorCodes } from "./transport/error-codes.js";
-export type { ErrorCode } from "./transport/error-codes.js";
 export type {
   AbortMessage,
   AgentEventMessage,
   ClientMessage,
+  CostEventMessage,
   ErrorMessage,
   McpStatusMessage,
   NewSessionMessage,

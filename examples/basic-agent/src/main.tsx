@@ -1,5 +1,11 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
-import { ChatPanel } from "@claw-for-cloudflare/agent-ui";
+import {
+  ChatInput,
+  ChatPanel,
+  MessageList,
+  SessionList,
+  StatusBar,
+} from "@claw-for-cloudflare/agent-ui";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@claw-for-cloudflare/agent-ui/styles.css";
@@ -9,7 +15,16 @@ function App() {
     url: `ws://${window.location.host}/agent`,
   });
 
-  return <ChatPanel chat={chat} />;
+  return (
+    <ChatPanel chat={chat} style={{ flexDirection: "row" }}>
+      <SessionList />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+        <StatusBar />
+        <MessageList />
+        <ChatInput />
+      </div>
+    </ChatPanel>
+  );
 }
 
 const rootEl = document.getElementById("root");

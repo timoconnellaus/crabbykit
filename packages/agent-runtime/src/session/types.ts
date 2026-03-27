@@ -22,6 +22,8 @@ export interface SessionEntry {
 export interface MessageEntryData {
   role: "user" | "assistant" | "toolResult";
   content: unknown;
+  /** Structured metadata from tool execution (e.g. query params, result counts). */
+  details?: unknown;
   toolCallId?: string;
   toolName?: string;
   isError?: boolean;

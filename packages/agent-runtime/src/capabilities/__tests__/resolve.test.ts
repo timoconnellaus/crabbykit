@@ -1,10 +1,10 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentContext } from "../../agent-do.js";
 import { resolveCapabilities } from "../resolve.js";
 import type { Capability } from "../types.js";
 
-const ctx: AgentContext = { sessionId: "s1", stepNumber: 0 };
+const ctx: AgentContext = { sessionId: "s1", stepNumber: 0, emitCost: () => {} };
 
 function makeTool(name: string): AgentTool {
   return {

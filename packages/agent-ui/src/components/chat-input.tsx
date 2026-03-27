@@ -19,7 +19,8 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   { placeholder = "Type a message...", onSend, ...props },
   ref,
 ) {
-  const { sendMessage, agentStatus } = useChat();
+  const { sendMessage, abort, agentStatus } = useChat();
+  const isRunning = agentStatus !== "idle";
   const [text, setText] = useState("");
 
   const submit = useCallback(() => {
@@ -64,9 +65,15 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
         placeholder={placeholder}
         rows={1}
       />
-      <button data-agent-ui="chat-input-submit" type="submit" disabled={!text.trim()}>
-        Send
-      </button>
+      {isRunning ? (
+        <button data-agent-ui="chat-input-abort" type="button" onClick={abort}>
+          Stop
+        </button>
+      ) : (
+        <button data-agent-ui="chat-input-submit" type="submit" disabled={!text.trim()}>
+          Send
+        </button>
+      )}
     </form>
   );
 });

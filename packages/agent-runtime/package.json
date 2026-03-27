@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@mariozechner/pi-ai": "^0.62.0",
-    "@mariozechner/pi-agent-core": "^0.62.0",
+    "@claw-for-cloudflare/ai": "workspace:*",
+    "@claw-for-cloudflare/agent-core": "workspace:*",
     "@sinclair/typebox": "^0.34.0",
     "nanoid": "^5.1.5"
   },

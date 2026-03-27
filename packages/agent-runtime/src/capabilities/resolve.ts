@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AgentContext } from "../agent-do.js";
 import type { McpServerConfig } from "../mcp/types.js";
 import type { Capability, CapabilityHookContext } from "./types.js";

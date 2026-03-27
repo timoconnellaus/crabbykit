@@ -3,7 +3,7 @@
  * Bypasses pi-ai entirely to avoid partial-json CJS issue in Workers test pool.
  */
 
-import type { AgentEvent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
 import { Type } from "@sinclair/typebox";
 import type { AgentConfig, AgentContext } from "../agent-do.js";
 import { AgentDO } from "../agent-do.js";
@@ -473,7 +473,11 @@ export class TestAgentDO extends AgentDO {
    */
   protected async ensureAgent(sessionId: string): Promise<void> {
     const agentField = "agent" as any;
-    const context: AgentContext = { sessionId, stepNumber: 0 };
+    const context: AgentContext = {
+      sessionId,
+      stepNumber: 0,
+      emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),
+    };
 
     // Resolve capabilities (same as base class)
     const resolved = resolveCapabilities(this.getCapabilities(), context);

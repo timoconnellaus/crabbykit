@@ -1,4 +1,5 @@
-import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { CostEvent } from "../costs/types.js";
 import type { Session } from "../session/types.js";
 import type { ErrorCode } from "./error-codes.js";
 
@@ -53,6 +54,12 @@ export interface McpStatusMessage {
   }>;
 }
 
+export interface CostEventMessage {
+  type: "cost_event";
+  sessionId: string;
+  event: CostEvent;
+}
+
 export interface ErrorMessage {
   type: "error";
   code: ErrorCode;
@@ -65,6 +72,7 @@ export type ServerMessage =
   | SessionSyncMessage
   | SessionListMessage
   | McpStatusMessage
+  | CostEventMessage
   | ErrorMessage;
 
 // --- Client → Server messages ---
@@ -96,9 +104,15 @@ export interface NewSessionMessage {
   name?: string;
 }
 
+export interface DeleteSessionMessage {
+  type: "delete_session";
+  sessionId: string;
+}
+
 export type ClientMessage =
   | PromptMessage
   | SteerMessage
   | AbortMessage
   | SwitchSessionMessage
-  | NewSessionMessage;
+  | NewSessionMessage
+  | DeleteSessionMessage;

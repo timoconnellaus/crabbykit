@@ -5,6 +5,8 @@ export type {
   AbortMessage,
   AgentEventMessage,
   ClientMessage,
+  CostEventMessage,
+  DeleteSessionMessage,
   ErrorMessage,
   McpStatusMessage,
   NewSessionMessage,
@@ -21,5 +23,5 @@ export type {
   AgentStatus,
   ConnectionStatus,
 } from "./types.js";
-export type { UseAgentChatConfig, UseAgentChatReturn } from "./use-agent-chat.js";
+export type { ToolState, UseAgentChatConfig, UseAgentChatReturn } from "./use-agent-chat.js";
 export { useAgentChat } from "./use-agent-chat.js";

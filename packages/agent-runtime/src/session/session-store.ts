@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import { nanoid } from "nanoid";
 import type {
   CompactionEntryData,
@@ -86,6 +86,14 @@ export class SessionStore {
   delete(sessionId: string): void {
     // Entries deleted via CASCADE
     this.sql.exec("DELETE FROM sessions WHERE id = ?", sessionId);
+  }
+
+  rename(sessionId: string, name: string): void {
+    this.sql.exec(
+      "UPDATE sessions SET name = ?, updated_at = datetime('now') WHERE id = ?",
+      name,
+      sessionId,
+    );
   }
 
   // --- Entry operations ---

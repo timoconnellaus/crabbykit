@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CompactionConfig, CompactionResult, SummarizeFn } from "./types.js";
 
 const SAFETY_MARGIN = 1.2;

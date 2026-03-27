@@ -6,6 +6,7 @@
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-ui": "workspace:*",
     "@claw-for-cloudflare/compaction-summary": "workspace:*",
+    "@claw-for-cloudflare/tavily-web-search": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
