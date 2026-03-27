@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
 import { Type } from "@sinclair/typebox";
+import { describe, expect, it, vi } from "vitest";
 import { defineTool, mcpToolToAgentTool } from "../define-tool.js";
 
 describe("defineTool", () => {
@@ -44,17 +44,12 @@ describe("defineTool", () => {
         limit: Type.Optional(Type.Number()),
       }),
       execute: async (_id, args) => ({
-        content: [
-          { type: "text" as const, text: `${args.path}:${args.limit}` },
-        ],
+        content: [{ type: "text" as const, text: `${args.path}:${args.limit}` }],
         details: args,
       }),
     });
 
-    const result = await tool.execute(
-      "call_1",
-      { path: "/test.ts", limit: 10 },
-    );
+    const result = await tool.execute("call_1", { path: "/test.ts", limit: 10 });
     expect(result.content[0]).toEqual({
       type: "text",
       text: "/test.ts:10",

@@ -1,12 +1,14 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { nanoid } from "nanoid";
 import type {
+  CompactionEntryData,
+  MessageEntryData,
   Session,
   SessionEntry,
   SessionEntryType,
-  CompactionEntryData,
-  MessageEntryData,
 } from "./types.js";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+
+const DEFAULT_SESSION_SOURCE = "websocket";
 
 /**
  * Session store backed by Durable Object SQLite.
@@ -56,22 +58,19 @@ export class SessionStore {
   create(opts: { name?: string; source?: string } = {}): Session {
     const id = nanoid();
     const name = opts.name ?? "";
-    const source = opts.source ?? "websocket";
+    const source = opts.source ?? DEFAULT_SESSION_SOURCE;
 
-    this.sql.exec(
-      "INSERT INTO sessions (id, name, source) VALUES (?, ?, ?)",
-      id,
-      name,
-      source,
-    );
+    this.sql.exec("INSERT INTO sessions (id, name, source) VALUES (?, ?, ?)", id, name, source);
 
-    return this.get(id)!;
+    const session = this.get(id);
+    if (!session) {
+      throw new Error(`Failed to retrieve session immediately after creation: ${id}`);
+    }
+    return session;
   }
 
   get(sessionId: string): Session | null {
-    const row = this.sql
-      .exec("SELECT * FROM sessions WHERE id = ?", sessionId)
-      .one();
+    const row = this.sql.exec("SELECT * FROM sessions WHERE id = ?", sessionId).one();
 
     if (!row) return null;
 
@@ -79,9 +78,7 @@ export class SessionStore {
   }
 
   list(): Session[] {
-    const rows = this.sql
-      .exec("SELECT * FROM sessions ORDER BY updated_at DESC")
-      .toArray();
+    const rows = this.sql.exec("SELECT * FROM sessions ORDER BY updated_at DESC").toArray();
 
     return rows.map((row) => this.rowToSession(row));
   }
@@ -152,10 +149,7 @@ export class SessionStore {
 
   getEntries(sessionId: string): SessionEntry[] {
     const rows = this.sql
-      .exec(
-        "SELECT * FROM session_entries WHERE session_id = ? ORDER BY seq",
-        sessionId,
-      )
+      .exec("SELECT * FROM session_entries WHERE session_id = ? ORDER BY seq", sessionId)
       .toArray();
 
     return rows.map((row) => this.rowToEntry(row));
@@ -167,7 +161,7 @@ export class SessionStore {
    */
   buildContext(sessionId: string): AgentMessage[] {
     const session = this.get(sessionId);
-    if (!session || !session.leafId) return [];
+    if (!session?.leafId) return [];
 
     const entries = this.getEntries(sessionId);
     if (entries.length === 0) return [];
@@ -183,9 +177,7 @@ export class SessionStore {
     let current: SessionEntry | undefined = entryMap.get(session.leafId);
     while (current) {
       path.unshift(current);
-      current = current.parentId
-        ? entryMap.get(current.parentId)
-        : undefined;
+      current = current.parentId ? entryMap.get(current.parentId) : undefined;
     }
 
     // Resolve compaction boundaries - find the most recent compaction entry
@@ -197,9 +189,7 @@ export class SessionStore {
         const data = path[i].data as CompactionEntryData;
         compactionSummary = data.summary;
         // Find the index of firstKeptEntryId in the path
-        const keptIndex = path.findIndex(
-          (e) => e.id === data.firstKeptEntryId,
-        );
+        const keptIndex = path.findIndex((e) => e.id === data.firstKeptEntryId);
         startIndex = keptIndex >= 0 ? keptIndex : i + 1;
         break;
       }
@@ -225,10 +215,12 @@ export class SessionStore {
         if (data.role === "toolResult") {
           messages.push({
             role: "toolResult",
-            content: typeof data.content === "string"
-              ? [{ type: "text", text: data.content }]
-              : (data.content as any),
-            toolCallId: data.toolCallId!,
+            content:
+              typeof data.content === "string"
+                ? [{ type: "text", text: data.content }]
+                : // biome-ignore lint/suspicious/noExplicitAny: SQL deserialization boundary — content shape is not statically known
+                  (data.content as any),
+            toolCallId: data.toolCallId ?? "",
             toolName: data.toolName,
             isError: data.isError,
             timestamp: data.timestamp ?? Date.now(),
@@ -236,6 +228,7 @@ export class SessionStore {
         } else {
           messages.push({
             role: data.role as "user" | "assistant",
+            // biome-ignore lint/suspicious/noExplicitAny: SQL deserialization boundary — content shape is not statically known
             content: data.content as any,
             timestamp: data.timestamp ?? Date.now(),
           } as AgentMessage);
@@ -260,9 +253,7 @@ export class SessionStore {
       .one();
 
     if (!entry) {
-      throw new Error(
-        `Entry not found: ${fromEntryId} in session ${sessionId}`,
-      );
+      throw new Error(`Entry not found: ${fromEntryId} in session ${sessionId}`);
     }
 
     this.sql.exec(

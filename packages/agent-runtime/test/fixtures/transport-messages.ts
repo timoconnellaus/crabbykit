@@ -2,7 +2,8 @@
  * Test fixtures for transport wire format messages.
  */
 
-import type { ServerMessage, ClientMessage } from "../../src/transport/types.js";
+import { ErrorCodes } from "../../src/transport/error-codes.js";
+import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
 import { createAssistantMessage, createUserMessage } from "./agent-events.js";
 
 // --- Server → Client fixtures ---
@@ -18,10 +19,7 @@ export const sessionSyncMessage: ServerMessage = {
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T01:00:00Z",
   },
-  messages: [
-    createUserMessage("Hello"),
-    createAssistantMessage("Hi there!"),
-  ],
+  messages: [createUserMessage("Hello"), createAssistantMessage("Hi there!")],
   streamMessage: null,
 };
 
@@ -63,7 +61,7 @@ export const mcpStatusMessage: ServerMessage = {
 
 export const errorMessage: ServerMessage = {
   type: "error",
-  code: "AGENT_ERROR",
+  code: ErrorCodes.AGENT_INIT_ERROR,
   message: "Context window exceeded",
 };
 

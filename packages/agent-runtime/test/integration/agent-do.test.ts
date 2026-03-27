@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  setMockResponses,
+  clearCompactionOverrides,
   clearMockResponses,
   setCompactionOverride,
-  clearCompactionOverrides,
+  setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
 
 function getStub(name = "test-agent") {
@@ -12,11 +12,7 @@ function getStub(name = "test-agent") {
   return env.AGENT.get(id);
 }
 
-async function prompt(
-  stub: DurableObjectStub,
-  text: string,
-  sessionId?: string,
-) {
+async function prompt(stub: DurableObjectStub, text: string, sessionId?: string) {
   const body: Record<string, string> = { text };
   if (sessionId) body.sessionId = sessionId;
 
@@ -29,9 +25,7 @@ async function prompt(
 }
 
 async function getEntries(stub: DurableObjectStub, sessionId?: string) {
-  const url = sessionId
-    ? `http://fake/entries?sessionId=${sessionId}`
-    : "http://fake/entries";
+  const url = sessionId ? `http://fake/entries?sessionId=${sessionId}` : "http://fake/entries";
   const res = await stub.fetch(url);
   return res.json() as Promise<{ entries: any[] }>;
 }
@@ -93,10 +87,7 @@ describe("AgentDO Integration", () => {
 
     it("messages persist across requests", async () => {
       const stub = getStub("persist-test");
-      setMockResponses([
-        { text: "First response" },
-        { text: "Second response" },
-      ]);
+      setMockResponses([{ text: "First response" }, { text: "Second response" }]);
 
       await prompt(stub, "Message 1");
       const result = await prompt(stub, "Message 2");
@@ -127,10 +118,7 @@ describe("AgentDO Integration", () => {
   describe("9.4 Multi-session", () => {
     it("sessions are isolated", async () => {
       const stub = getStub("multi-session");
-      setMockResponses([
-        { text: "Response A" },
-        { text: "Response B" },
-      ]);
+      setMockResponses([{ text: "Response A" }, { text: "Response B" }]);
 
       // Create session A implicitly (first prompt creates a session)
       const resultA = await prompt(stub, "Hello session A");
@@ -184,9 +172,7 @@ describe("AgentDO Integration", () => {
 
       // Check entries — should include a compaction entry
       const { entries } = await getEntries(stub);
-      const compactionEntries = entries.filter(
-        (e: any) => e.type === "compaction",
-      );
+      const compactionEntries = entries.filter((e: any) => e.type === "compaction");
       expect(compactionEntries.length).toBeGreaterThanOrEqual(1);
 
       // Verify compaction entry has expected shape
@@ -202,8 +188,7 @@ describe("AgentDO Integration", () => {
       // Context should include the summary + recent messages, not all original messages
       const summaryMessage = result.messages.find(
         (m: any) =>
-          typeof m.content === "string" &&
-          m.content.includes("[Previous conversation summary]"),
+          typeof m.content === "string" && m.content.includes("[Previous conversation summary]"),
       );
       expect(summaryMessage).toBeTruthy();
     });
@@ -214,10 +199,7 @@ describe("AgentDO Integration", () => {
       const stub = getStub("steer-test");
 
       // Set up a delayed response so we can steer mid-run
-      setMockResponses([
-        { text: "Working on it...", delay: 50 },
-        { text: "Adjusted response" },
-      ]);
+      setMockResponses([{ text: "Working on it...", delay: 50 }, { text: "Adjusted response" }]);
 
       // Start a prompt (don't await — it will be processing)
       const promptPromise = prompt(stub, "Do a long task");
@@ -232,9 +214,7 @@ describe("AgentDO Integration", () => {
       // Verify the steer was received
       const history = await getSteerHistory(stub);
       expect(history.steeredMessages.length).toBeGreaterThanOrEqual(1);
-      expect(history.steeredMessages[0].content).toBe(
-        "Actually, change direction",
-      );
+      expect(history.steeredMessages[0].content).toBe("Actually, change direction");
     });
   });
 
@@ -243,9 +223,7 @@ describe("AgentDO Integration", () => {
       const stub = getStub("abort-test");
 
       // Set up a delayed response so we can abort mid-run
-      setMockResponses([
-        { text: "This is a long response that should be cut short", delay: 50 },
-      ]);
+      setMockResponses([{ text: "This is a long response that should be cut short", delay: 50 }]);
 
       // Start prompt and abort quickly
       const promptPromise = prompt(stub, "Generate a long response");
@@ -278,9 +256,7 @@ describe("AgentDO Integration", () => {
       setMockResponses([
         {
           text: "",
-          toolCalls: [
-            { name: "weather_lookup", args: { query: "San Francisco" } },
-          ],
+          toolCalls: [{ name: "weather_lookup", args: { query: "San Francisco" } }],
         },
         { text: "The weather in San Francisco is sunny." },
       ]);
@@ -293,8 +269,7 @@ describe("AgentDO Integration", () => {
       // Verify MCP tool execution persisted in entries
       const { entries } = await getEntries(stub);
       const toolResultEntries = entries.filter(
-        (e: any) =>
-          e.type === "message" && e.data.role === "toolResult",
+        (e: any) => e.type === "message" && e.data.role === "toolResult",
       );
       expect(toolResultEntries.length).toBeGreaterThanOrEqual(1);
 

@@ -1,26 +1,20 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { ContentBlock, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { mcpToolToAgentTool } from "../tools/define-tool.js";
-import type { McpServerConfig, McpServerStatus, McpServerConnectionStatus } from "./types.js";
+import type { McpServerConfig, McpServerConnectionStatus, McpServerStatus } from "./types.js";
 
 // Lazy-loaded MCP SDK imports (avoids ajv CJS issues in Workers test pool)
 async function loadMcpSdk() {
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
-  const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  const { StreamableHTTPClientTransport } = await import(
+    "@modelcontextprotocol/sdk/client/streamableHttp.js"
+  );
   const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js");
+  // biome-ignore lint/style/useNamingConvention: class names from MCP SDK use PascalCase
   return { Client, StreamableHTTPClientTransport, SSEClientTransport };
 }
-
-type OAuthClientProvider = {
-  redirectUrl?: string | URL;
-  clientMetadata: any;
-  clientInformation(): any;
-  saveClientInformation?(info: any): Promise<void>;
-  tokens?(): any;
-  saveTokens?(tokens: any): Promise<void>;
-  redirectToAuthorization?(authUrl: URL): Promise<void>;
-  saveCodeVerifier?(verifier: string): Promise<void>;
-  codeVerifier?(): string | Promise<string>;
-};
 
 const CLIENT_INFO = { name: "dexfi-agent-runtime", version: "0.1.0" };
 
@@ -79,9 +73,7 @@ export class McpManager {
   }
 
   listServers(): McpServerStatus[] {
-    const rows = this.sql
-      .exec("SELECT * FROM mcp_servers ORDER BY created_at")
-      .toArray();
+    const rows = this.sql.exec("SELECT * FROM mcp_servers ORDER BY created_at").toArray();
 
     return rows.map((row) => {
       const id = row.id as string;
@@ -108,9 +100,7 @@ export class McpManager {
   }
 
   async restoreConnections(): Promise<void> {
-    const rows = this.sql
-      .exec("SELECT * FROM mcp_servers")
-      .toArray();
+    const rows = this.sql.exec("SELECT * FROM mcp_servers").toArray();
 
     for (const row of rows) {
       const config: McpServerConfig = {
@@ -138,19 +128,14 @@ export class McpManager {
   /**
    * Handle OAuth callback — exchange code for tokens and reconnect.
    */
-  async handleOAuthCallback(
-    serverId: string,
-    authorizationCode: string,
-  ): Promise<void> {
+  async handleOAuthCallback(serverId: string, authorizationCode: string): Promise<void> {
     const conn = this.connections.get(serverId);
     if (!conn?.oauthProvider) {
       throw new Error(`No OAuth provider for server ${serverId}`);
     }
 
     // Store the auth code for the provider to use on next connect
-    const row = this.sql
-      .exec("SELECT * FROM mcp_servers WHERE id = ?", serverId)
-      .one();
+    const row = this.sql.exec("SELECT * FROM mcp_servers WHERE id = ?", serverId).one();
     if (!row) throw new Error(`Server not found: ${serverId}`);
 
     // Update auth_data with the authorization code
@@ -177,10 +162,7 @@ export class McpManager {
 
   // --- Connection (protected for testability) ---
 
-  protected async connect(
-    id: string,
-    config: McpServerConfig,
-  ): Promise<McpServerStatus> {
+  protected async connect(id: string, config: McpServerConfig): Promise<McpServerStatus> {
     // Close existing connection if any
     this.disconnect(id);
 
@@ -205,9 +187,9 @@ export class McpManager {
 
       // Discover tools
       await this.discoverTools(id, config.name, client);
-    } catch (err: any) {
+    } catch (err: unknown) {
       conn.status = "error";
-      conn.error = err?.message ?? "Connection failed";
+      conn.error = err instanceof Error ? err.message : "Connection failed";
 
       // If it's an auth error and we have OAuth config, provide auth URL
       if (config.authType === "oauth" && !config.authData?.authorizationCode) {
@@ -228,11 +210,7 @@ export class McpManager {
   /**
    * Discover tools from a connected MCP server and convert to AgentTool[].
    */
-  private async discoverTools(
-    serverId: string,
-    serverName: string,
-    client: any,
-  ): Promise<void> {
+  private async discoverTools(serverId: string, serverName: string, client: Client): Promise<void> {
     const conn = this.connections.get(serverId);
     if (!conn) return;
 
@@ -248,9 +226,9 @@ export class McpManager {
         });
 
         // Extract text content from MCP result
-        const textParts = (callResult.content as any[])
-          ?.filter((c: any) => c.type === "text")
-          .map((c: any) => c.text)
+        const textParts = (callResult.content as ContentBlock[])
+          ?.filter((c: ContentBlock): c is TextContent => c.type === "text")
+          .map((c: TextContent) => c.text)
           .join("\n");
 
         return {
@@ -261,7 +239,7 @@ export class McpManager {
     };
 
     // Convert each MCP tool to an AgentTool
-    conn.tools = result.tools.map((tool: any) =>
+    conn.tools = result.tools.map((tool: Tool) =>
       mcpToolToAgentTool(
         {
           name: tool.name,
@@ -276,11 +254,13 @@ export class McpManager {
   private createTransport(
     config: McpServerConfig,
     sdk: Awaited<ReturnType<typeof loadMcpSdk>>,
-  ): any {
+  ):
+    | InstanceType<typeof sdk.StreamableHTTPClientTransport>
+    | InstanceType<typeof sdk.SSEClientTransport> {
     const url = new URL(config.serverUrl);
 
     // Build OAuth provider if needed
-    let authProvider: any;
+    let authProvider: OAuthClientProvider | undefined;
     if (config.authType === "oauth" && config.authData) {
       authProvider = this.createOAuthProvider(config);
     }
@@ -288,7 +268,7 @@ export class McpManager {
     // Build request headers for API key auth
     const headers: Record<string, string> = {};
     if (config.authType === "api_key" && config.authData?.key) {
-      headers["Authorization"] = `Bearer ${config.authData.key}`;
+      headers.Authorization = `Bearer ${config.authData.key}`;
     }
 
     // Use SSE for legacy endpoints, StreamableHTTP for modern
@@ -317,12 +297,11 @@ export class McpManager {
       get clientMetadata() {
         return {
           client_name: `dexfi-agent-${config.name}`,
-          redirect_uris: authData.redirectUrl
-            ? [authData.redirectUrl as string]
-            : [],
+          redirect_uris: authData.redirectUrl ? [authData.redirectUrl as string] : [],
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
           token_endpoint_auth_method: "client_secret_post",
+          // biome-ignore lint/suspicious/noExplicitAny: OAuthClientMetadata requires fields not statically known
         } as any;
       },
       async clientInformation() {
@@ -330,10 +309,12 @@ export class McpManager {
           return {
             client_id: authData.clientId as string,
             client_secret: authData.clientSecret as string | undefined,
+            // biome-ignore lint/suspicious/noExplicitAny: OAuthClientInformationMixed shape varies at runtime
           } as any;
         }
         return undefined;
       },
+      // biome-ignore lint/suspicious/noExplicitAny: MCP SDK OAuthClientProvider callback parameter
       async saveClientInformation(info: any) {
         // Persist back to SQL
         authData.clientId = info.client_id;
@@ -345,10 +326,12 @@ export class McpManager {
             access_token: authData.accessToken as string,
             refresh_token: authData.refreshToken as string | undefined,
             token_type: "bearer",
+            // biome-ignore lint/suspicious/noExplicitAny: OAuthTokens shape varies at runtime
           } as any;
         }
         return undefined;
       },
+      // biome-ignore lint/suspicious/noExplicitAny: MCP SDK OAuthClientProvider callback parameter
       async saveTokens(tokens: any) {
         authData.accessToken = tokens.access_token;
         authData.refreshToken = tokens.refresh_token;
@@ -379,7 +362,7 @@ interface McpConnection {
   status: McpServerConnectionStatus;
   tools: AgentTool[];
   error?: string;
-  client?: any; // MCP Client (lazy-loaded)
+  client?: Client;
   authUrl?: string;
   oauthProvider?: OAuthClientProvider;
 }

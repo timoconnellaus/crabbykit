@@ -1,76 +1,81 @@
 // Session management
-export { SessionStore } from "./session/session-store.js";
-export type {
-  Session,
-  SessionEntry,
-  SessionEntryType,
-  MessageEntryData,
-  CompactionEntryData,
-  ModelChangeEntryData,
-  CustomEntryData,
-} from "./session/types.js";
 
+// Re-export key pi-* types for consumers
+export type {
+  AfterToolCallContext,
+  AfterToolCallResult,
+  AgentEvent,
+  AgentMessage,
+  AgentState,
+  AgentTool,
+  AgentToolResult,
+  BeforeToolCallContext,
+  BeforeToolCallResult,
+  ThinkingLevel,
+} from "@mariozechner/pi-agent-core";
+export type { Model } from "@mariozechner/pi-ai";
+// Re-export TypeBox for tool schema definition
+export { type Static, type TSchema, Type } from "@sinclair/typebox";
+export type { AgentConfig, AgentContext } from "./agent-do.js";
+// Agent DO
+export { AgentDO } from "./agent-do.js";
+export type {
+  Capability,
+  CapabilityHookContext,
+  ResolvedCapabilities,
+} from "./capabilities/index.js";
+// Capabilities
+export { resolveCapabilities } from "./capabilities/index.js";
 // Compaction
 export {
-  estimateTokens,
+  buildSummarizationPrompt,
+  compactSession,
+  emergencyTruncate,
   estimateMessagesTokens,
-  shouldCompact,
+  estimateTokens,
   findCutPoint,
+  IDENTIFIER_PRESERVATION_INSTRUCTIONS,
+  MERGE_SUMMARIES_PROMPT,
+  shouldCompact,
   splitByTokenShare,
   summarizeInStages,
-  compactSession,
   truncateToolResult,
-  emergencyTruncate,
 } from "./compaction/index.js";
 export type {
   CompactionConfig,
   CompactionResult,
   SummarizeFn,
 } from "./compaction/types.js";
-
-// Tool system
-export { defineTool, mcpToolToAgentTool } from "./tools/define-tool.js";
-
 // MCP client
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
-
+export { SessionStore } from "./session/session-store.js";
+export type {
+  CompactionEntryData,
+  CustomEntryData,
+  MessageEntryData,
+  ModelChangeEntryData,
+  Session,
+  SessionEntry,
+  SessionEntryType,
+} from "./session/types.js";
+// Tool system
+export { defineTool, mcpToolToAgentTool } from "./tools/define-tool.js";
 // Transport
+export { ErrorCodes } from "./transport/error-codes.js";
+export type { ErrorCode } from "./transport/error-codes.js";
 export type {
-  ServerMessage,
-  ClientMessage,
-  AgentEventMessage,
-  ToolEventMessage,
-  SessionSyncMessage,
-  SessionListMessage,
-  McpStatusMessage,
-  ErrorMessage,
-  PromptMessage,
-  SteerMessage,
   AbortMessage,
-  SwitchSessionMessage,
+  AgentEventMessage,
+  ClientMessage,
+  ErrorMessage,
+  McpStatusMessage,
   NewSessionMessage,
+  PromptMessage,
+  ServerMessage,
+  SessionListMessage,
+  SessionSyncMessage,
+  SteerMessage,
+  SwitchSessionMessage,
+  ToolEventMessage,
 } from "./transport/types.js";
-
-// Agent DO
-export { AgentDO } from "./agent-do.js";
-export type { AgentConfig, AgentContext } from "./agent-do.js";
-
-// Re-export key pi-* types for consumers
-export type {
-  AgentTool,
-  AgentToolResult,
-  AgentEvent,
-  AgentMessage,
-  AgentState,
-  ThinkingLevel,
-  BeforeToolCallContext,
-  BeforeToolCallResult,
-  AfterToolCallContext,
-  AfterToolCallResult,
-} from "@mariozechner/pi-agent-core";
-
-export type { Model } from "@mariozechner/pi-ai";
-
-// Re-export TypeBox for tool schema definition
-export { Type, type Static, type TSchema } from "@sinclair/typebox";

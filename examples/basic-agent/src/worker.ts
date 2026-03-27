@@ -1,5 +1,11 @@
+import type {
+  AgentConfig,
+  AgentContext,
+  AgentTool,
+  Capability,
+} from "@claw-for-cloudflare/agent-runtime";
 import { AgentDO, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentConfig, AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
+import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 
 interface Env {
   AGENT: DurableObjectNamespace;
@@ -20,6 +26,18 @@ export class BasicAgent extends AgentDO {
     };
   }
 
+  protected getCapabilities(): Capability[] {
+    const env = this.env as unknown as Env;
+    return [
+      compactionSummary({
+        provider: "openrouter",
+        modelId: "google/gemini-2.0-flash-001",
+        getApiKey: () => env.OPENROUTER_API_KEY,
+      }),
+    ];
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires explicit any
   getTools(_context: AgentContext): AgentTool<any>[] {
     return [
       defineTool({
@@ -44,10 +62,11 @@ export class BasicAgent extends AgentDO {
               content: [{ type: "text" as const, text: String(result) }],
               details: { expression, result },
             };
-          } catch (e: any) {
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
             return {
-              content: [{ type: "text" as const, text: `Error: ${e.message}` }],
-              details: { expression, error: e.message },
+              content: [{ type: "text" as const, text: `Error: ${errorMessage}` }],
+              details: { expression, error: errorMessage },
             };
           }
         },

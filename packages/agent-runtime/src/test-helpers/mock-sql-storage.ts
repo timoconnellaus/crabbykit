@@ -22,7 +22,10 @@ export function createMockSqlStorage(): SqlStorage {
     return t;
   }
 
-  function execSql(sql: string, ...bindings: SqlStorageValue[]): SqlStorageCursor<Record<string, SqlStorageValue>> {
+  function execSql(
+    sql: string,
+    ...bindings: SqlStorageValue[]
+  ): SqlStorageCursor<Record<string, SqlStorageValue>> {
     const trimmed = sql.replace(/\s+/g, " ").trim();
 
     // CREATE TABLE
@@ -187,7 +190,7 @@ export function createMockSqlStorage(): SqlStorage {
 
       // Parse WHERE
       const whereConds = whereClause.split(/\s+AND\s+/i);
-      let whereBi = setBi;
+      const whereBi = setBi;
 
       for (const row of table.rows) {
         let match = true;
@@ -222,7 +225,7 @@ export function createMockSqlStorage(): SqlStorage {
 
       const whereClause = match[2].trim();
       const conditions = whereClause.split(/\s+AND\s+/i);
-      let bi = 0;
+      const bi = 0;
 
       const deleted: Row[] = [];
       table.rows = table.rows.filter((row) => {
@@ -270,17 +273,29 @@ export function createMockSqlStorage(): SqlStorage {
         if (index < rows.length) return { value: rows[index++], done: false };
         return { value: undefined as any, done: true };
       },
-      return(v?: any) { return { value: v, done: true }; },
-      throw(e?: any) { throw e; },
+      return(v?: any) {
+        return { value: v, done: true };
+      },
+      throw(e?: any) {
+        throw e;
+      },
       raw: () => rows.map((r) => Object.values(r))[Symbol.iterator](),
-      get columnNames() { return rows.length > 0 ? Object.keys(rows[0]) : []; },
-      get rowsRead() { return rows.length; },
-      get rowsWritten() { return 0; },
+      get columnNames() {
+        return rows.length > 0 ? Object.keys(rows[0]) : [];
+      },
+      get rowsRead() {
+        return rows.length;
+      },
+      get rowsWritten() {
+        return 0;
+      },
     } as unknown as SqlStorageCursor<Record<string, SqlStorageValue>>;
   }
 
   return {
     exec: execSql,
-    get databaseSize() { return 0; },
+    get databaseSize() {
+      return 0;
+    },
   } as unknown as SqlStorage;
 }

@@ -20,9 +20,7 @@ Do NOT paraphrase, abbreviate, or generalize these identifiers. Copy them exactl
 /**
  * Build the full summarization prompt for a compaction chunk.
  */
-export function buildSummarizationPrompt(
-  previousSummary?: string,
-): string {
+export function buildSummarizationPrompt(previousSummary?: string): string {
   const parts = [
     "You are summarizing a conversation to maintain context while reducing token count.",
     "",

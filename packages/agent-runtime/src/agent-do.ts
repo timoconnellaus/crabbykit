@@ -1,14 +1,19 @@
 import { DurableObject } from "cloudflare:workers";
 import type { AgentEvent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
-import type { Model } from "@mariozechner/pi-ai";
-import { SessionStore } from "./session/session-store.js";
+import type { Message, Model } from "@mariozechner/pi-ai";
+import type { ResolvedCapabilities } from "./capabilities/resolve.js";
+import { resolveCapabilities } from "./capabilities/resolve.js";
+import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
+import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
-import { compactSession, estimateMessagesTokens } from "./compaction/compaction.js";
-import type { CompactionConfig as CompactionCfg, SummarizeFn } from "./compaction/types.js";
+import { SessionStore } from "./session/session-store.js";
+import { ErrorCodes } from "./transport/error-codes.js";
 import type { ClientMessage, ServerMessage } from "./transport/types.js";
 
 // Lazy-loaded pi-* SDK (pi-agent-core imports pi-ai which has partial-json CJS issue in Workers test pool)
+// biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
 let _PiAgent: any;
+// biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
 let _getModel: any;
 async function loadPiSdk() {
   if (!_PiAgent) {
@@ -17,7 +22,7 @@ async function loadPiSdk() {
     const ai = await import("@mariozechner/pi-ai");
     _getModel = ai.getModel;
   }
-  return { PiAgent: _PiAgent, getModel: _getModel };
+  return { piAgent: _PiAgent, getModel: _getModel };
 }
 
 export interface AgentConfig {
@@ -29,7 +34,10 @@ export interface AgentConfig {
   apiKey: string;
   /** Maximum agent loop steps (default 50) */
   maxSteps?: number;
-  /** Compaction configuration */
+  /**
+   * Compaction configuration.
+   * @deprecated Use the compaction-summary capability via getCapabilities() instead.
+   */
   compaction?: Partial<CompactionCfg>;
 }
 
@@ -45,16 +53,15 @@ export interface AgentContext {
 export abstract class AgentDO extends DurableObject {
   protected sessionStore: SessionStore;
   protected mcpManager: McpManager;
+  // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
   private agent: any | null = null; // PiAgent instance (lazy-loaded)
   private connections = new Map<WebSocket, { sessionId: string }>();
-  private activeSessionId: string | null = null;
+  private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
 
   constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
     super(ctx, env);
     this.sessionStore = new SessionStore(ctx.storage.sql);
-    this.mcpManager = new McpManager(ctx.storage.sql, () =>
-      this.broadcastMcpStatus(),
-    );
+    this.mcpManager = new McpManager(ctx.storage.sql, () => this.broadcastMcpStatus());
   }
 
   // --- Abstract methods (consumers implement these) ---
@@ -63,17 +70,20 @@ export abstract class AgentDO extends DurableObject {
   abstract getTools(context: AgentContext): AgentTool[];
   abstract buildSystemPrompt(context: AgentContext): string;
 
+  /**
+   * Override to register capabilities. Capabilities contribute tools,
+   * prompt sections, MCP servers, and lifecycle hooks.
+   * Registration order determines hook execution order.
+   */
+  protected getCapabilities(): Capability[] {
+    return [];
+  }
+
   // --- Optional lifecycle hooks ---
 
-  protected onTurnEnd?(
-    _messages: AgentMessage[],
-    _toolResults: unknown[],
-  ): void | Promise<void>;
+  protected onTurnEnd?(_messages: AgentMessage[], _toolResults: unknown[]): void | Promise<void>;
   protected onAgentEnd?(_messages: AgentMessage[]): void | Promise<void>;
-  protected onSessionCreated?(_session: {
-    id: string;
-    name: string;
-  }): void | Promise<void>;
+  protected onSessionCreated?(_session: { id: string; name: string }): void | Promise<void>;
 
   /**
    * Override to inject custom Agent options (e.g., mock streamFn for testing).
@@ -116,16 +126,18 @@ export abstract class AgentDO extends DurableObject {
     const sessionId = sessions[0]?.id ?? this.sessionStore.create().id;
 
     this.connections.set(server, { sessionId });
-    this.activeSessionId = sessionId;
 
     // Send initial sync
-    this.sendToSocket(server, {
-      type: "session_sync",
-      sessionId,
-      session: this.sessionStore.get(sessionId)!,
-      messages: this.sessionStore.buildContext(sessionId),
-      streamMessage: this.agent?.state.streamMessage ?? null,
-    });
+    const session = this.sessionStore.get(sessionId);
+    if (session) {
+      this.sendToSocket(server, {
+        type: "session_sync",
+        sessionId,
+        session,
+        messages: this.sessionStore.buildContext(sessionId),
+        streamMessage: this.agent?.state.streamMessage ?? null,
+      });
+    }
 
     // Send session list
     this.sendSessionList(server);
@@ -134,28 +146,32 @@ export abstract class AgentDO extends DurableObject {
   }
 
   webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): void {
+    let msg: ClientMessage;
     try {
-      const msg: ClientMessage = JSON.parse(
-        typeof data === "string" ? data : new TextDecoder().decode(data),
-      );
-      this.handleClientMessage(ws, msg);
+      msg = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data));
     } catch {
       this.sendToSocket(ws, {
         type: "error",
-        code: "PARSE_ERROR",
+        code: ErrorCodes.PARSE_ERROR,
         message: "Invalid message format",
       });
+      return;
     }
+
+    this.handleClientMessage(ws, msg).catch((err) => {
+      this.sendToSocket(ws, {
+        type: "error",
+        code: ErrorCodes.INTERNAL_ERROR,
+        message: err instanceof Error ? err.message : "An unexpected error occurred",
+      });
+    });
   }
 
   webSocketClose(ws: WebSocket): void {
     this.connections.delete(ws);
   }
 
-  private async handleClientMessage(
-    ws: WebSocket,
-    msg: ClientMessage,
-  ): Promise<void> {
+  private async handleClientMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
     switch (msg.type) {
       case "prompt":
         await this.handlePrompt(msg.sessionId, msg.text);
@@ -187,7 +203,6 @@ export abstract class AgentDO extends DurableObject {
       case "new_session": {
         const session = this.sessionStore.create({ name: msg.name });
         this.connections.set(ws, { sessionId: session.id });
-        this.activeSessionId = session.id;
         this.onSessionCreated?.({ id: session.id, name: session.name });
         this.sendToSocket(ws, {
           type: "session_sync",
@@ -204,12 +219,7 @@ export abstract class AgentDO extends DurableObject {
 
   // --- Agent loop ---
 
-  private async handlePrompt(
-    sessionId: string,
-    text: string,
-  ): Promise<void> {
-    this.activeSessionId = sessionId;
-
+  private async handlePrompt(sessionId: string, text: string): Promise<void> {
     // Persist user message
     this.sessionStore.appendEntry(sessionId, {
       type: "message",
@@ -219,13 +229,17 @@ export abstract class AgentDO extends DurableObject {
     // Ensure agent is initialized
     await this.ensureAgent(sessionId);
 
-    if (this.agent!.state.isStreaming) {
+    if (!this.agent) {
+      throw new Error("Agent failed to initialize");
+    }
+
+    if (this.agent.state.isStreaming) {
       // Agent is busy — steer instead
       this.handleSteer(sessionId, text);
       return;
     }
 
-    await this.agent!.prompt(text);
+    await this.agent.prompt(text);
   }
 
   private handleSteer(sessionId: string, text: string): void {
@@ -245,41 +259,52 @@ export abstract class AgentDO extends DurableObject {
   }
 
   protected async ensureAgent(sessionId: string): Promise<void> {
-    const { PiAgent, getModel } = await loadPiSdk();
+    const { piAgent, getModel } = await loadPiSdk();
     const config = this.getConfig();
     const context: AgentContext = { sessionId, stepNumber: 0 };
+    // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
 
     if (!model) {
-      throw new Error(
-        `Model not found: ${config.provider}/${config.modelId}`,
-      );
+      throw new Error(`Model not found: ${config.provider}/${config.modelId}`);
+    }
+
+    // Resolve capabilities
+    const resolved = resolveCapabilities(this.getCapabilities(), context);
+    this.beforeInferenceHooks = resolved.beforeInferenceHooks;
+
+    // Merge tools: getTools() first, then capability tools
+    const baseTools = this.getTools(context);
+    const allTools = [...baseTools, ...resolved.tools];
+
+    // Build system prompt with capability sections appended
+    let systemPrompt = this.buildSystemPrompt(context);
+    if (resolved.promptSections.length > 0) {
+      systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
     }
 
     if (!this.agent) {
       const messages = this.sessionStore.buildContext(sessionId);
 
-      this.agent = new PiAgent({
+      this.agent = new piAgent({
         initialState: {
-          systemPrompt: this.buildSystemPrompt(context),
+          systemPrompt,
+          // biome-ignore lint/suspicious/noExplicitAny: Model generic parameter is internal to pi-ai
           model: model as Model<any>,
-          tools: this.getTools(context),
+          tools: allTools,
           messages,
         },
         getApiKey: () => config.apiKey,
-        transformContext: (msgs: AgentMessage[]) =>
-          this.transformContext(msgs, sessionId, config),
+        transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
         convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
         ...this.getAgentOptions(),
       });
 
-      this.agent.subscribe((event: AgentEvent) =>
-        this.handleAgentEvent(event, sessionId),
-      );
+      this.agent.subscribe((event: AgentEvent) => this.handleAgentEvent(event, sessionId));
     } else {
       // Update agent state for this session
-      this.agent.setSystemPrompt(this.buildSystemPrompt(context));
-      this.agent.setTools(this.getTools(context));
+      this.agent.setSystemPrompt(systemPrompt);
+      this.agent.setTools(allTools);
 
       // Reload messages from session
       const messages = this.sessionStore.buildContext(sessionId);
@@ -290,70 +315,27 @@ export abstract class AgentDO extends DurableObject {
   private async transformContext(
     messages: AgentMessage[],
     sessionId: string,
-    config: AgentConfig,
   ): Promise<AgentMessage[]> {
-    const compactionConfig: CompactionCfg = {
-      threshold: config.compaction?.threshold ?? 0.75,
-      contextWindowTokens:
-        config.compaction?.contextWindowTokens ?? 200_000,
-      keepRecentTokens: config.compaction?.keepRecentTokens ?? 20_000,
+    let result = messages;
+
+    const hookContext: CapabilityHookContext = {
+      sessionId,
+      sessionStore: this.sessionStore,
     };
 
-    const totalTokens = estimateMessagesTokens(messages);
-
-    if (totalTokens > compactionConfig.threshold * compactionConfig.contextWindowTokens) {
-      // Build a summarizer using the agent's model
-      const summarize: SummarizeFn = async (msgs, prevSummary, signal) => {
-        // TODO: Use streamSimple for real summarization
-        // For now, return a placeholder that will be replaced in task 3.5
-        const content = msgs
-          .map((m) => {
-            const c = (m as any).content;
-            return typeof c === "string" ? c : JSON.stringify(c);
-          })
-          .join("\n");
-        return prevSummary
-          ? `${prevSummary}\n\n[Continued]\n${content.slice(0, 500)}`
-          : content.slice(0, 1000);
-      };
-
-      // Get entry IDs for mapping
-      const entries = this.sessionStore.getEntries(sessionId);
-      const entryIds = entries
-        .filter((e) => e.type === "message")
-        .map((e) => e.id);
-
-      const result = await compactSession(
-        messages,
-        entryIds,
-        compactionConfig,
-        summarize,
-      );
-
-      if (result) {
-        // Persist compaction entry
-        this.sessionStore.appendEntry(sessionId, {
-          type: "compaction",
-          data: {
-            summary: result.summary,
-            firstKeptEntryId: result.firstKeptEntryId,
-            tokensBefore: result.tokensBefore,
-          },
-        });
-
-        // Rebuild context with compaction
-        return this.sessionStore.buildContext(sessionId);
-      }
+    for (const hook of this.beforeInferenceHooks) {
+      result = await hook(result, hookContext);
     }
 
-    return messages;
+    return result;
   }
 
-  private convertToLlm(messages: AgentMessage[]): any[] {
+  private convertToLlm(messages: AgentMessage[]): Message[] {
     // Pass through standard LLM messages, filter out any custom types
-    return messages.filter((m) => {
-      const role = (m as any).role;
-      return role === "user" || role === "assistant" || role === "toolResult";
+    return messages.filter((m): m is Message => {
+      return (
+        "role" in m && (m.role === "user" || m.role === "assistant" || m.role === "toolResult")
+      );
     });
   }
 
@@ -370,8 +352,8 @@ export abstract class AgentDO extends DurableObject {
 
     // Persist completed messages
     if (event.type === "message_end") {
-      const msg = event.message as any;
-      if (msg.role === "assistant") {
+      const msg = event.message;
+      if ("role" in msg && msg.role === "assistant") {
         this.sessionStore.appendEntry(sessionId, {
           type: "message",
           data: {
@@ -400,10 +382,7 @@ export abstract class AgentDO extends DurableObject {
 
     // Lifecycle hooks
     if (event.type === "turn_end") {
-      this.onTurnEnd?.(
-        [event.message],
-        event.toolResults,
-      );
+      this.onTurnEnd?.([event.message], event.toolResults);
     }
     if (event.type === "agent_end") {
       this.onAgentEnd?.(event.messages);

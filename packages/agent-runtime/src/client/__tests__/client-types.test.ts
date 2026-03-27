@@ -1,9 +1,6 @@
-import { describe, it, expect } from "vitest";
-import type { ConnectionStatus, AgentStatus } from "../types.js";
-import type {
-  ServerMessage,
-  ClientMessage,
-} from "../../transport/types.js";
+import { describe, expect, it } from "vitest";
+import type { ClientMessage, ServerMessage } from "../../transport/types.js";
+import type { AgentStatus, ConnectionStatus } from "../types.js";
 
 describe("Client Types", () => {
   describe("ConnectionStatus", () => {
@@ -20,11 +17,7 @@ describe("Client Types", () => {
 
   describe("AgentStatus", () => {
     it("defines all agent states", () => {
-      const statuses: AgentStatus[] = [
-        "idle",
-        "streaming",
-        "executing_tools",
-      ];
+      const statuses: AgentStatus[] = ["idle", "streaming", "executing_tools"];
       expect(statuses).toHaveLength(3);
     });
   });

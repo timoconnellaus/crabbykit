@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
 import type { Session } from "../session/types.js";
+import type { ErrorCode } from "./error-codes.js";
 
 // --- Server → Client messages ---
 
@@ -54,7 +55,7 @@ export interface McpStatusMessage {
 
 export interface ErrorMessage {
   type: "error";
-  code: string;
+  code: ErrorCode;
   message: string;
 }
 

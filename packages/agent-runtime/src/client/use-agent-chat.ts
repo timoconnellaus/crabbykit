@@ -1,7 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ServerMessage, ClientMessage } from "../transport/types.js";
-import type { ConnectionStatus, AgentStatus } from "./types.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ClientMessage, ServerMessage } from "../transport/types.js";
+import type { AgentStatus, ConnectionStatus } from "./types.js";
+
+const DEFAULT_MAX_RECONNECT_DELAY = 30_000;
+const RECONNECT_BACKOFF_BASE = 2;
+
+/** AgentMessage with an optional streaming flag added during live updates. */
+// biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
+type StreamableMessage = AgentMessage & { _streaming?: boolean };
 
 export interface UseAgentChatConfig {
   /** WebSocket URL to the agent DO */
@@ -34,9 +41,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [sessions, setSessions] = useState<UseAgentChatReturn["sessions"]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(
-    config.sessionId ?? null,
-  );
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(config.sessionId ?? null);
   const [thinking, setThinking] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -82,23 +87,26 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             const next = [...prev];
             // Replace or append the streaming message
             if (next.length > 0 && streamMessageRef.current) {
-              const last = next[next.length - 1] as any;
-              if (last.role === "assistant" && (last as any)._streaming) {
+              const last = next[next.length - 1] as StreamableMessage;
+              if ("role" in last && last.role === "assistant" && last._streaming) {
                 next[next.length - 1] = {
                   ...streamMessageRef.current,
+                  // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
                   _streaming: true,
-                } as any;
+                } as StreamableMessage;
               } else {
                 next.push({
                   ...streamMessageRef.current,
+                  // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
                   _streaming: true,
-                } as any);
+                } as StreamableMessage);
               }
             } else if (streamMessageRef.current) {
               next.push({
                 ...streamMessageRef.current,
+                // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
                 _streaming: true,
-              } as any);
+              } as StreamableMessage);
             }
             return next;
           });
@@ -109,7 +117,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             if (aEvent.type === "thinking_start") {
               setThinking("");
             } else if (aEvent.type === "thinking_delta") {
-              setThinking((prev) => (prev ?? "") + (aEvent as any).text);
+              setThinking((prev) => (prev ?? "") + aEvent.delta);
             } else if (aEvent.type === "thinking_end") {
               // Keep thinking visible until next message
             }
@@ -122,9 +130,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           setMessages((prev) => {
             const next = [...prev];
             if (next.length > 0) {
-              const last = next[next.length - 1] as any;
+              const last = next[next.length - 1] as StreamableMessage;
               if (last._streaming) {
-                const { _streaming, ...rest } = last;
+                const { _streaming: _, ...rest } = last;
                 next[next.length - 1] = rest as AgentMessage;
               }
             }
@@ -182,8 +190,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
       if (config.autoReconnect !== false) {
         const delay = Math.min(
-          1000 * 2 ** reconnectAttemptRef.current,
-          config.maxReconnectDelay ?? 30000,
+          1000 * RECONNECT_BACKOFF_BASE ** reconnectAttemptRef.current,
+          config.maxReconnectDelay ?? DEFAULT_MAX_RECONNECT_DELAY,
         );
         reconnectAttemptRef.current++;
         setConnectionStatus("reconnecting");

@@ -4,12 +4,17 @@ import type { CompactionConfig, CompactionResult, SummarizeFn } from "./types.js
 const SAFETY_MARGIN = 1.2;
 const DEFAULT_BASE_CHUNK_RATIO = 0.4;
 const DEFAULT_MIN_CHUNK_RATIO = 0.15;
+const TEXT_CHARS_PER_TOKEN = 4;
+const TOOL_CHARS_PER_TOKEN = 2;
+const DEFAULT_TOOL_RESULT_MAX_CHARS = 50_000;
+const EMERGENCY_TRUNCATION_BUDGET_RATIO = 0.5;
 
 /**
  * Estimate token count for a single message.
  * Heuristic: text chars / 4, tool content chars / 2, with 1.2x safety margin.
  */
 export function estimateTokens(message: AgentMessage): number {
+  // biome-ignore lint/suspicious/noExplicitAny: AgentMessage content type is opaque from pi-agent-core
   const content = (message as any).content;
   let chars = 0;
   let isToolContent = false;
@@ -32,11 +37,12 @@ export function estimateTokens(message: AgentMessage): number {
   }
 
   // toolResult role also counts as tool content
+  // biome-ignore lint/suspicious/noExplicitAny: AgentMessage content type is opaque from pi-agent-core
   if ((message as any).role === "toolResult") {
     isToolContent = true;
   }
 
-  const divisor = isToolContent ? 2 : 4;
+  const divisor = isToolContent ? TOOL_CHARS_PER_TOKEN : TEXT_CHARS_PER_TOKEN;
   return Math.ceil((chars / divisor) * SAFETY_MARGIN);
 }
 
@@ -88,10 +94,7 @@ export function findCutPoint(
 /**
  * Split messages proportionally by token share into N chunks.
  */
-export function splitByTokenShare(
-  messages: AgentMessage[],
-  numChunks: number,
-): AgentMessage[][] {
+export function splitByTokenShare(messages: AgentMessage[], numChunks: number): AgentMessage[][] {
   if (numChunks <= 1) return [messages];
 
   const totalTokens = estimateMessagesTokens(messages);
@@ -194,12 +197,7 @@ export async function compactSession(
   }
 
   const compactableMessages = messages.slice(0, cutResult.cutIndex);
-  const summary = await summarizeInStages(
-    compactableMessages,
-    config,
-    summarize,
-    signal,
-  );
+  const summary = await summarizeInStages(compactableMessages, config, summarize, signal);
 
   return {
     summary,
@@ -214,19 +212,18 @@ export async function compactSession(
  */
 export function truncateToolResult(
   content: string,
-  maxChars: number = 50_000,
+  maxChars: number = DEFAULT_TOOL_RESULT_MAX_CHARS,
 ): string {
   if (content.length <= maxChars) return content;
 
-  const marker = "\n\n⚠️ [Content truncated — original was " +
+  const marker =
+    "\n\n⚠️ [Content truncated — original was " +
     `${content.length.toLocaleString()} chars, limit is ${maxChars.toLocaleString()}]\n\n`;
   const available = maxChars - marker.length;
   const prefixLen = Math.floor(available / 2);
   const suffixLen = available - prefixLen;
 
-  return (
-    content.slice(0, prefixLen) + marker + content.slice(-suffixLen)
-  );
+  return content.slice(0, prefixLen) + marker + content.slice(-suffixLen);
 }
 
 /**
@@ -237,7 +234,7 @@ export function emergencyTruncate(
   messages: AgentMessage[],
   contextWindowTokens: number,
 ): AgentMessage[] {
-  const budget = Math.floor(contextWindowTokens * 0.5);
+  const budget = Math.floor(contextWindowTokens * EMERGENCY_TRUNCATION_BUDGET_RATIO);
   const result: AgentMessage[] = [];
   let tokens = 0;
 

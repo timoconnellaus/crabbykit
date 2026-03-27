@@ -64,10 +64,7 @@ export const textResponseEvents: AgentEvent[] = [
   },
   {
     type: "agent_end",
-    messages: [
-      createUserMessage("Hi"),
-      createAssistantMessage("Hello there!"),
-    ],
+    messages: [createUserMessage("Hi"), createAssistantMessage("Hello there!")],
   },
 ];
 
@@ -131,9 +128,7 @@ export const toolCallEvents: AgentEvent[] = [
       ],
       timestamp: Date.now(),
     } as unknown as AgentMessage,
-    toolResults: [
-      createToolResultMessage("call_abc", "file_read", "file contents") as any,
-    ],
+    toolResults: [createToolResultMessage("call_abc", "file_read", "file contents") as any],
   },
   // Second turn - LLM responds after tool result
   { type: "turn_start" },
@@ -197,9 +192,6 @@ export const thinkingEvents: AgentEvent[] = [
   },
   {
     type: "agent_end",
-    messages: [
-      createUserMessage("Question"),
-      createAssistantMessage("Here's my answer."),
-    ],
+    messages: [createUserMessage("Question"), createAssistantMessage("Here's my answer.")],
   },
 ];

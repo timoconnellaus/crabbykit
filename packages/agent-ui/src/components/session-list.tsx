@@ -10,6 +10,7 @@ export function SessionList(props: SessionListProps) {
     <div data-agent-ui="session-list" {...props}>
       {sessions.map((s) => (
         <button
+          type="button"
           key={s.id}
           data-agent-ui="session-item"
           data-active={s.id === currentSessionId || undefined}
@@ -18,10 +19,7 @@ export function SessionList(props: SessionListProps) {
           {s.name || "Untitled"}
         </button>
       ))}
-      <button
-        data-agent-ui="session-new"
-        onClick={() => createSession()}
-      >
+      <button type="button" data-agent-ui="session-new" onClick={() => createSession()}>
         New session
       </button>
     </div>

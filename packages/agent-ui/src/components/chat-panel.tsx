@@ -1,8 +1,8 @@
-import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
+import { type ComponentPropsWithoutRef, forwardRef, type ReactNode } from "react";
+import { ChatInput } from "./chat-input";
 import { ChatProvider } from "./chat-provider";
 import { MessageList } from "./message-list";
-import { ChatInput } from "./chat-input";
 import { StatusBar } from "./status-bar";
 
 export interface ChatPanelProps extends ComponentPropsWithoutRef<"div"> {
@@ -17,20 +17,21 @@ export interface ChatPanelProps extends ComponentPropsWithoutRef<"div"> {
  * StatusBar + MessageList + ChatInput by default.
  * Pass children to fully customise the layout.
  */
-export const ChatPanel = forwardRef<HTMLDivElement, ChatPanelProps>(
-  function ChatPanel({ chat, children, ...props }, ref) {
-    return (
-      <ChatProvider chat={chat}>
-        <div data-agent-ui="chat-panel" ref={ref} {...props}>
-          {children ?? (
-            <>
-              <StatusBar />
-              <MessageList />
-              <ChatInput />
-            </>
-          )}
-        </div>
-      </ChatProvider>
-    );
-  },
-);
+export const ChatPanel = forwardRef<HTMLDivElement, ChatPanelProps>(function ChatPanel(
+  { chat, children, ...props },
+  ref,
+) {
+  return (
+    <ChatProvider chat={chat}>
+      <div data-agent-ui="chat-panel" ref={ref} {...props}>
+        {children ?? (
+          <>
+            <StatusBar />
+            <MessageList />
+            <ChatInput />
+          </>
+        )}
+      </div>
+    </ChatProvider>
+  );
+});

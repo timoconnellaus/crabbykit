@@ -1,15 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { describe, expect, it, vi } from "vitest";
 import {
-  estimateTokens,
+  compactSession,
+  emergencyTruncate,
   estimateMessagesTokens,
-  shouldCompact,
+  estimateTokens,
   findCutPoint,
+  shouldCompact,
   splitByTokenShare,
   summarizeInStages,
-  compactSession,
   truncateToolResult,
-  emergencyTruncate,
 } from "../compaction.js";
 import type { CompactionConfig, SummarizeFn } from "../types.js";
 
@@ -26,7 +26,7 @@ function toolResultMsg(content: string): AgentMessage {
   return {
     role: "toolResult",
     content: [{ type: "text", text: content }],
-    toolCallId: "call_" + Math.random().toString(36).slice(2),
+    toolCallId: `call_${Math.random().toString(36).slice(2)}`,
     timestamp: Date.now(),
   } as unknown as AgentMessage;
 }
@@ -87,9 +87,7 @@ describe("Token Estimation", () => {
     it("treats toolCall content blocks as tool content", () => {
       const msg = {
         role: "assistant",
-        content: [
-          { type: "toolCall", name: "search", text: "a".repeat(100) },
-        ],
+        content: [{ type: "toolCall", name: "search", text: "a".repeat(100) }],
         timestamp: Date.now(),
       } as unknown as AgentMessage;
       // 100 chars / 2 (tool) * 1.2 = 60
@@ -112,27 +110,19 @@ describe("Token Estimation", () => {
 describe("Compaction Threshold", () => {
   describe("shouldCompact", () => {
     it("returns false when below threshold", () => {
-      expect(
-        shouldCompact(50_000, { threshold: 0.75, contextWindowTokens: 200_000 }),
-      ).toBe(false);
+      expect(shouldCompact(50_000, { threshold: 0.75, contextWindowTokens: 200_000 })).toBe(false);
     });
 
     it("returns true when above threshold", () => {
-      expect(
-        shouldCompact(160_000, { threshold: 0.75, contextWindowTokens: 200_000 }),
-      ).toBe(true);
+      expect(shouldCompact(160_000, { threshold: 0.75, contextWindowTokens: 200_000 })).toBe(true);
     });
 
     it("returns false at exactly the threshold", () => {
-      expect(
-        shouldCompact(150_000, { threshold: 0.75, contextWindowTokens: 200_000 }),
-      ).toBe(false);
+      expect(shouldCompact(150_000, { threshold: 0.75, contextWindowTokens: 200_000 })).toBe(false);
     });
 
     it("returns true just above threshold", () => {
-      expect(
-        shouldCompact(150_001, { threshold: 0.75, contextWindowTokens: 200_000 }),
-      ).toBe(true);
+      expect(shouldCompact(150_001, { threshold: 0.75, contextWindowTokens: 200_000 })).toBe(true);
     });
   });
 });
@@ -141,9 +131,7 @@ describe("Cut Point Calculation", () => {
   describe("findCutPoint", () => {
     it("finds cut point keeping recent messages", () => {
       // Create messages with known token counts
-      const msgs = Array.from({ length: 20 }, (_, i) =>
-        userMsg("x".repeat(400)),
-      ); // Each ~120 tokens
+      const msgs = Array.from({ length: 20 }, () => userMsg("x".repeat(400))); // Each ~120 tokens
 
       const result = findCutPoint(msgs, 500);
       expect(result).not.toBeNull();
@@ -175,9 +163,7 @@ describe("Split By Token Share", () => {
     });
 
     it("splits proportionally into N chunks", () => {
-      const msgs = Array.from({ length: 12 }, (_, i) =>
-        userMsg("message " + i),
-      );
+      const msgs = Array.from({ length: 12 }, (_, i) => userMsg(`message ${i}`));
       const chunks = splitByTokenShare(msgs, 3);
       expect(chunks.length).toBeLessThanOrEqual(3);
       // All messages should be present across chunks
@@ -215,9 +201,7 @@ describe("Multi-stage Summarization", () => {
 
     it("multi-chunk summarizes each then merges", async () => {
       // Create enough messages to trigger multi-chunk
-      const msgs = Array.from({ length: 100 }, (_, i) =>
-        userMsg("x".repeat(4000)),
-      );
+      const msgs = Array.from({ length: 100 }, () => userMsg("x".repeat(4000)));
       const spy = vi.fn(mockSummarize);
 
       const config: CompactionConfig = {
@@ -253,9 +237,7 @@ describe("Multi-stage Summarization", () => {
       const controller = new AbortController();
       controller.abort();
 
-      const msgs = Array.from({ length: 100 }, () =>
-        userMsg("x".repeat(4000)),
-      );
+      const msgs = Array.from({ length: 100 }, () => userMsg("x".repeat(4000)));
       const config: CompactionConfig = {
         ...defaultConfig,
         contextWindowTokens: 10_000,
@@ -279,12 +261,7 @@ describe("Compact Session", () => {
         keepRecentTokens: 20_000,
       };
 
-      const result = await compactSession(
-        msgs,
-        entryIds,
-        config,
-        mockSummarize,
-      );
+      const result = await compactSession(msgs, entryIds, config, mockSummarize);
       expect(result).toBeNull();
     });
 
@@ -298,19 +275,12 @@ describe("Compact Session", () => {
         keepRecentTokens: 100_000, // Keep everything
       };
 
-      const result = await compactSession(
-        msgs,
-        entryIds,
-        config,
-        mockSummarize,
-      );
+      const result = await compactSession(msgs, entryIds, config, mockSummarize);
       expect(result).toBeNull();
     });
 
     it("compacts when above threshold", async () => {
-      const msgs = Array.from({ length: 50 }, (_, i) =>
-        userMsg("x".repeat(2000)),
-      );
+      const msgs = Array.from({ length: 50 }, () => userMsg("x".repeat(2000)));
       const entryIds = msgs.map((_, i) => `e${i}`);
       const config: CompactionConfig = {
         threshold: 0.75,
@@ -318,12 +288,7 @@ describe("Compact Session", () => {
         keepRecentTokens: 2_000,
       };
 
-      const result = await compactSession(
-        msgs,
-        entryIds,
-        config,
-        mockSummarize,
-      );
+      const result = await compactSession(msgs, entryIds, config, mockSummarize);
 
       expect(result).not.toBeNull();
       expect(result!.summary).toBeTruthy();
@@ -350,7 +315,7 @@ describe("Tool Result Truncation", () => {
     });
 
     it("preserves prefix and suffix", () => {
-      const content = "START" + "x".repeat(200_000) + "END!!";
+      const content = `START${"x".repeat(200_000)}END!!`;
       const truncated = truncateToolResult(content, 50_000);
 
       expect(truncated.startsWith("START")).toBe(true);
@@ -368,9 +333,7 @@ describe("Tool Result Truncation", () => {
 describe("Emergency Truncation", () => {
   describe("emergencyTruncate", () => {
     it("keeps recent messages within budget", () => {
-      const msgs = Array.from({ length: 50 }, (_, i) =>
-        userMsg("x".repeat(2000)),
-      );
+      const msgs = Array.from({ length: 50 }, () => userMsg("x".repeat(2000)));
 
       const result = emergencyTruncate(msgs, 10_000);
 
@@ -381,16 +344,11 @@ describe("Emergency Truncation", () => {
     });
 
     it("prepends truncation notice", () => {
-      const msgs = [
-        userMsg("a".repeat(40_000)),
-        userMsg("b".repeat(40_000)),
-      ];
+      const msgs = [userMsg("a".repeat(40_000)), userMsg("b".repeat(40_000))];
 
       const result = emergencyTruncate(msgs, 10_000);
 
-      expect((result[0] as any).content).toContain(
-        "Earlier conversation context was lost",
-      );
+      expect((result[0] as any).content).toContain("Earlier conversation context was lost");
     });
 
     it("handles case where few messages fit", () => {

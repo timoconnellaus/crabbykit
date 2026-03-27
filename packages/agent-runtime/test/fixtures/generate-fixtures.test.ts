@@ -6,10 +6,11 @@
  *
  * Generated fixtures are saved as JSON in test/fixtures/ for use in mocked tests.
  */
-import { describe, it, expect } from "vitest";
-import { streamSimple, getModel } from "@mariozechner/pi-ai";
+
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { getModel, streamSimple } from "@mariozechner/pi-ai";
+import { describe, expect, it } from "vitest";
 
 const SHOULD_RUN = process.env.GENERATE_FIXTURES === "1" && process.env.OPENROUTER_API_KEY;
 const FIXTURE_MODEL = process.env.FIXTURE_MODEL ?? "google/gemini-3.1-flash-lite-preview";
@@ -23,10 +24,14 @@ describeFixtures("Fixture Generation (real AI calls)", () => {
   it("captures text response shape", async () => {
     const events: any[] = [];
 
-    const stream = await streamSimple(model!, {
-      systemPrompt: "You are a test assistant. Reply very briefly.",
-      messages: [{ role: "user", content: "Say hello in one word.", timestamp: Date.now() }],
-    }, { apiKey });
+    const stream = await streamSimple(
+      model!,
+      {
+        systemPrompt: "You are a test assistant. Reply very briefly.",
+        messages: [{ role: "user", content: "Say hello in one word.", timestamp: Date.now() }],
+      },
+      { apiKey },
+    );
 
     for await (const event of stream) {
       events.push({ type: event.type, partial: event.partial ? "present" : undefined });
@@ -48,19 +53,25 @@ describeFixtures("Fixture Generation (real AI calls)", () => {
   it("captures tool call response shape", async () => {
     const events: any[] = [];
 
-    const stream = await streamSimple(model!, {
-      systemPrompt: "You are a test assistant. Use the provided tool.",
-      messages: [{ role: "user", content: "Search for 'test query'", timestamp: Date.now() }],
-      tools: [{
-        name: "web_search",
-        description: "Search the web",
-        parameters: {
-          type: "object",
-          properties: { query: { type: "string" } },
-          required: ["query"],
-        },
-      }],
-    }, { apiKey });
+    const stream = await streamSimple(
+      model!,
+      {
+        systemPrompt: "You are a test assistant. Use the provided tool.",
+        messages: [{ role: "user", content: "Search for 'test query'", timestamp: Date.now() }],
+        tools: [
+          {
+            name: "web_search",
+            description: "Search the web",
+            parameters: {
+              type: "object",
+              properties: { query: { type: "string" } },
+              required: ["query"],
+            },
+          },
+        ],
+      },
+      { apiKey },
+    );
 
     for await (const event of stream) {
       events.push({ type: event.type });
@@ -99,12 +110,20 @@ describeFixtures("Fixture Generation (real AI calls)", () => {
     const events: any[] = [];
     let finalText = "";
 
-    const stream = await streamSimple(model!, {
-      systemPrompt,
-      messages: [
-        { role: "user" as const, content: `Please summarize this conversation:\n\n${transcript}`, timestamp: Date.now() },
-      ],
-    }, { apiKey });
+    const stream = await streamSimple(
+      model!,
+      {
+        systemPrompt,
+        messages: [
+          {
+            role: "user" as const,
+            content: `Please summarize this conversation:\n\n${transcript}`,
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      { apiKey },
+    );
 
     for await (const event of stream) {
       events.push({ type: event.type });
@@ -154,10 +173,7 @@ describeFixtures("Fixture Generation (real AI calls)", () => {
       },
     };
 
-    writeFileSync(
-      join(__dirname, "summarization-response.json"),
-      JSON.stringify(fixture, null, 2),
-    );
+    writeFileSync(join(__dirname, "summarization-response.json"), JSON.stringify(fixture, null, 2));
   }, 30000);
 });
 

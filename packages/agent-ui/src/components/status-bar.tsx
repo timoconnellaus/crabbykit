@@ -19,9 +19,7 @@ export function StatusBar(props: StatusBarProps) {
         <span data-agent-ui="status-agent">{agentStatus.replace("_", " ")}</span>
       )}
 
-      {thinking && (
-        <span data-agent-ui="status-thinking">Thinking...</span>
-      )}
+      {thinking && <span data-agent-ui="status-thinking">Thinking...</span>}
     </div>
   );
 }

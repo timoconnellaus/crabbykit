@@ -7,11 +7,7 @@ export interface Session {
   updatedAt: string;
 }
 
-export type SessionEntryType =
-  | "message"
-  | "compaction"
-  | "model_change"
-  | "custom";
+export type SessionEntryType = "message" | "compaction" | "model_change" | "custom";
 
 export interface SessionEntry {
   id: string;

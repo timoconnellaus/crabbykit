@@ -1,13 +1,17 @@
 export {
-  estimateTokens,
+  compactSession,
+  emergencyTruncate,
   estimateMessagesTokens,
-  shouldCompact,
+  estimateTokens,
   findCutPoint,
+  shouldCompact,
   splitByTokenShare,
   summarizeInStages,
-  compactSession,
   truncateToolResult,
-  emergencyTruncate,
 } from "./compaction.js";
-
+export {
+  buildSummarizationPrompt,
+  IDENTIFIER_PRESERVATION_INSTRUCTIONS,
+  MERGE_SUMMARIES_PROMPT,
+} from "./prompts.js";
 export type { CompactionConfig, CompactionResult, SummarizeFn } from "./types.js";

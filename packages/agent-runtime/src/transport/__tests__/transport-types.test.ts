@@ -1,18 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  sessionSyncMessage,
-  sessionListMessage,
-  agentEventMessage,
-  toolEventMessage,
-  mcpStatusMessage,
-  errorMessage,
-  promptMessage,
-  steerMessage,
   abortMessage,
-  switchSessionMessage,
+  agentEventMessage,
+  errorMessage,
+  mcpStatusMessage,
   newSessionMessage,
+  promptMessage,
+  sessionListMessage,
+  sessionSyncMessage,
+  steerMessage,
+  switchSessionMessage,
+  toolEventMessage,
 } from "../../../test/fixtures/transport-messages.js";
-import type { ServerMessage, ClientMessage } from "../types.js";
+import type { ClientMessage, ServerMessage } from "../types.js";
 
 describe("Transport Message Types", () => {
   describe("Server → Client messages", () => {

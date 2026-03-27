@@ -1,5 +1,9 @@
-import { Type, type Static, type TSchema, type TObject } from "@sinclair/typebox";
-import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
+import type {
+  AgentTool,
+  AgentToolResult,
+  AgentToolUpdateCallback,
+} from "@mariozechner/pi-agent-core";
+import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox";
 
 /**
  * Define an agent tool with TypeBox schema and type-safe execute function.
@@ -15,6 +19,7 @@ export function defineTool<TParameters extends TObject>(opts: {
     args: Static<TParameters>,
     signal?: AbortSignal,
     onUpdate?: AgentToolUpdateCallback,
+    // biome-ignore lint/suspicious/noExplicitAny: AgentToolResult generic comes from pi-agent-core type boundary
   ) => Promise<AgentToolResult<any>>;
 }): AgentTool<TParameters> {
   return {
@@ -44,10 +49,7 @@ interface McpServer {
  * Convert an MCP tool definition to a pi-agent-core AgentTool.
  * Uses Type.Unsafe() to accept the MCP tool's JSON Schema as-is.
  */
-export function mcpToolToAgentTool(
-  mcpTool: McpTool,
-  server: McpServer,
-): AgentTool {
+export function mcpToolToAgentTool(mcpTool: McpTool, server: McpServer): AgentTool {
   const prefixedName = `mcp_${server.name}_${mcpTool.name}`;
 
   return {
@@ -55,11 +57,10 @@ export function mcpToolToAgentTool(
     label: prefixedName,
     description: mcpTool.description ?? `MCP tool: ${mcpTool.name}`,
     parameters: Type.Unsafe(mcpTool.inputSchema) as TSchema,
-    execute: async (toolCallId, args) => {
+    execute: async (_toolCallId, args) => {
       const result = await server.callTool(mcpTool.name, args as Record<string, unknown>);
-      const text = typeof result.content === "string"
-        ? result.content
-        : JSON.stringify(result.content);
+      const text =
+        typeof result.content === "string" ? result.content : JSON.stringify(result.content);
       return {
         content: [{ type: "text" as const, text }],
         details: result,

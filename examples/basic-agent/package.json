@@ -5,6 +5,7 @@
   "dependencies": {
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-ui": "workspace:*",
+    "@claw-for-cloudflare/compaction-summary": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

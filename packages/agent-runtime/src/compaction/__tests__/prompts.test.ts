@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  IDENTIFIER_PRESERVATION_INSTRUCTIONS,
   buildSummarizationPrompt,
+  IDENTIFIER_PRESERVATION_INSTRUCTIONS,
   MERGE_SUMMARIES_PROMPT,
 } from "../prompts.js";
 

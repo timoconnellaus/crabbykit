@@ -2,11 +2,20 @@
  * Test AgentDO subclass with mocked LLM for integration tests.
  * Bypasses pi-ai entirely to avoid partial-json CJS issue in Workers test pool.
  */
-import { AgentDO } from "../agent-do.js";
-import type { AgentConfig, AgentContext } from "../agent-do.js";
-import type { AgentTool, AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+
+import type { AgentEvent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import type { AgentConfig, AgentContext } from "../agent-do.js";
+import { AgentDO } from "../agent-do.js";
+import { resolveCapabilities } from "../capabilities/resolve.js";
+import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
+import { compactSession, estimateMessagesTokens } from "../compaction/compaction.js";
+import type { CompactionConfig, SummarizeFn } from "../compaction/types.js";
 import { defineTool } from "../tools/define-tool.js";
+
+const DEFAULT_COMPACTION_THRESHOLD = 0.75;
+const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
+const DEFAULT_KEEP_RECENT_TOKENS = 20_000;
 
 /** Configurable mock responses for the test agent */
 export interface MockResponse {
@@ -59,7 +68,9 @@ class MockPiAgent {
     }
   }
 
-  get state() { return this._state; }
+  get state() {
+    return this._state;
+  }
 
   subscribe(fn: (e: AgentEvent) => void) {
     this.listeners.push(fn);
@@ -72,13 +83,17 @@ class MockPiAgent {
     for (const fn of this.listeners) fn(event);
   }
 
-  setSystemPrompt(v: string) { this._state.systemPrompt = v; }
+  setSystemPrompt(v: string) {
+    this._state.systemPrompt = v;
+  }
   setTools(t: AgentTool[]) {
     this._state.tools = t;
     this.tools.clear();
     for (const tool of t) this.tools.set(tool.name, tool);
   }
-  replaceMessages(msgs: AgentMessage[]) { this._state.messages = msgs; }
+  replaceMessages(msgs: AgentMessage[]) {
+    this._state.messages = msgs;
+  }
 
   abort() {
     this.aborted = true;
@@ -101,7 +116,7 @@ class MockPiAgent {
     this._idleResolvers = [];
   }
 
-  async prompt(input: string | AgentMessage | AgentMessage[]) {
+  async prompt(_input: string | AgentMessage | AgentMessage[]) {
     // Note: we do NOT push the user message here because the DO's handlePrompt
     // already persists it to session store, and ensureAgent calls replaceMessages
     // with the full context including the user message.
@@ -127,7 +142,12 @@ class MockPiAgent {
     if (this.aborted) {
       const partialMsg: any = {
         role: "assistant",
-        content: [{ type: "text", text: response.text ? response.text.slice(0, Math.ceil(response.text.length / 2)) : "" }],
+        content: [
+          {
+            type: "text",
+            text: response.text ? response.text.slice(0, Math.ceil(response.text.length / 2)) : "",
+          },
+        ],
         timestamp: Date.now(),
       };
       this.emit({ type: "message_start", message: partialMsg } as AgentEvent);
@@ -246,12 +266,9 @@ const echoTool = defineTool({
 });
 
 /** Allow tests to override compaction config per DO name */
-let compactionOverrides: Record<string, Partial<AgentConfig["compaction"]>> = {};
+let compactionOverrides: Record<string, Partial<CompactionConfig>> = {};
 
-export function setCompactionOverride(
-  doName: string,
-  config: Partial<NonNullable<AgentConfig["compaction"]>>,
-) {
+export function setCompactionOverride(doName: string, config: Partial<CompactionConfig>) {
   compactionOverrides[doName] = config;
 }
 
@@ -259,22 +276,80 @@ export function clearCompactionOverrides() {
   compactionOverrides = {};
 }
 
+/**
+ * Build a mock compaction capability for testing.
+ * Uses a dummy summarizer (no LLM call) matching the old inline behavior.
+ */
+function buildMockCompactionCapability(compactionConfig: CompactionConfig): Capability {
+  const dummySummarize: SummarizeFn = async (msgs, prevSummary) => {
+    const content = msgs
+      .map((m) => {
+        const c = (m as any).content;
+        return typeof c === "string" ? c : JSON.stringify(c);
+      })
+      .join("\n");
+    return prevSummary
+      ? `${prevSummary}\n\n[Continued]\n${content.slice(0, 500)}`
+      : content.slice(0, 1000);
+  };
+
+  return {
+    id: "compaction-summary",
+    name: "Test Compaction",
+    description: "Mock compaction for testing",
+    hooks: {
+      beforeInference: async (
+        messages: AgentMessage[],
+        ctx: CapabilityHookContext,
+      ): Promise<AgentMessage[]> => {
+        const totalTokens = estimateMessagesTokens(messages);
+
+        if (totalTokens <= compactionConfig.threshold * compactionConfig.contextWindowTokens) {
+          return messages;
+        }
+
+        const entries = ctx.sessionStore.getEntries(ctx.sessionId);
+        const entryIds = entries.filter((e) => e.type === "message").map((e) => e.id);
+
+        const result = await compactSession(messages, entryIds, compactionConfig, dummySummarize);
+
+        if (result) {
+          ctx.sessionStore.appendEntry(ctx.sessionId, {
+            type: "compaction",
+            data: {
+              summary: result.summary,
+              firstKeptEntryId: result.firstKeptEntryId,
+              tokensBefore: result.tokensBefore,
+            },
+          });
+
+          return ctx.sessionStore.buildContext(ctx.sessionId);
+        }
+
+        return messages;
+      },
+    },
+  };
+}
+
 export class TestAgentDO extends AgentDO {
   getConfig(): AgentConfig {
-    // Check for per-DO overrides (uses the session to infer DO name)
-    const override = Object.values(compactionOverrides)[0];
     return {
       provider: "openrouter",
       modelId: "openrouter/auto",
       apiKey: "test-key",
       maxSteps: 10,
-      compaction: {
-        threshold: override?.threshold ?? 0.75,
-        contextWindowTokens: override?.contextWindowTokens ?? 200_000,
-        keepRecentTokens: override?.keepRecentTokens ?? 20_000,
-        ...override,
-      },
     };
+  }
+
+  protected getCapabilities(): Capability[] {
+    const override = Object.values(compactionOverrides)[0];
+    const compactionConfig: CompactionConfig = {
+      threshold: override?.threshold ?? DEFAULT_COMPACTION_THRESHOLD,
+      contextWindowTokens: override?.contextWindowTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
+      keepRecentTokens: override?.keepRecentTokens ?? DEFAULT_KEEP_RECENT_TOKENS,
+    };
+    return [buildMockCompactionCapability(compactionConfig)];
   }
 
   /** Additional tools injected for testing (e.g., mock MCP tools) */
@@ -307,20 +382,19 @@ export class TestAgentDO extends AgentDO {
       const body = (await request.json()) as {
         tools: Array<{ name: string; description: string }>;
       };
-      const tools = body.tools.map((t) =>
-        defineTool({
-          name: t.name,
-          description: t.description,
-          parameters: Type.Object({
-            query: Type.String({ description: "Query input" }),
-          }),
-          execute: async (_id, args) => ({
-            content: [
-              { type: "text" as const, text: `MCP result for: ${args.query}` },
-            ],
-            details: { source: "mock-mcp", toolName: t.name },
-          }),
-        }) as unknown as AgentTool,
+      const tools = body.tools.map(
+        (t) =>
+          defineTool({
+            name: t.name,
+            description: t.description,
+            parameters: Type.Object({
+              query: Type.String({ description: "Query input" }),
+            }),
+            execute: async (_id, args) => ({
+              content: [{ type: "text" as const, text: `MCP result for: ${args.query}` }],
+              details: { source: "mock-mcp", toolName: t.name },
+            }),
+          }) as unknown as AgentTool,
       );
       this.addMockMcpTools(tools);
       return new Response(JSON.stringify({ registered: tools.length }), {
@@ -399,32 +473,42 @@ export class TestAgentDO extends AgentDO {
    */
   protected async ensureAgent(sessionId: string): Promise<void> {
     const agentField = "agent" as any;
+    const context: AgentContext = { sessionId, stepNumber: 0 };
+
+    // Resolve capabilities (same as base class)
+    const resolved = resolveCapabilities(this.getCapabilities(), context);
+    (this as any).beforeInferenceHooks = resolved.beforeInferenceHooks;
+
+    // Merge tools
+    const baseTools = this.getTools(context);
+    const allTools = [...baseTools, ...resolved.tools];
+
+    // Build system prompt
+    let systemPrompt = this.buildSystemPrompt(context);
+    if (resolved.promptSections.length > 0) {
+      systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
+    }
+
     if (!(this as any)[agentField]) {
       const messages = this.sessionStore.buildContext(sessionId);
-      const context: AgentContext = { sessionId, stepNumber: 0 };
-      const config = this.getConfig();
 
       const agent = new MockPiAgent({
         initialState: {
-          systemPrompt: this.buildSystemPrompt(context),
+          systemPrompt,
           model: { id: "test/mock" },
-          tools: this.getTools(context),
+          tools: allTools,
           messages,
         },
-        transformContext: (msgs: AgentMessage[]) =>
-          (this as any).transformContext(msgs, sessionId, config),
+        transformContext: (msgs: AgentMessage[]) => (this as any).transformContext(msgs, sessionId),
       });
 
-      agent.subscribe((event: AgentEvent) =>
-        (this as any).handleAgentEvent(event, sessionId),
-      );
+      agent.subscribe((event: AgentEvent) => (this as any).handleAgentEvent(event, sessionId));
 
       (this as any)[agentField] = agent;
     } else {
-      const context: AgentContext = { sessionId, stepNumber: 0 };
       const agent = (this as any)[agentField] as MockPiAgent;
-      agent.setSystemPrompt(this.buildSystemPrompt(context));
-      agent.setTools(this.getTools(context));
+      agent.setSystemPrompt(systemPrompt);
+      agent.setTools(allTools);
       agent.replaceMessages(this.sessionStore.buildContext(sessionId));
     }
   }

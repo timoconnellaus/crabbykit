@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { SessionStore } from "../session-store.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createMockSqlStorage } from "../../test-helpers/mock-sql-storage.js";
+import { SessionStore } from "../session-store.js";
 
 describe("SessionStore", () => {
   let store: SessionStore;
@@ -39,8 +39,8 @@ describe("SessionStore", () => {
     });
 
     it("lists sessions ordered by updatedAt descending", () => {
-      const s1 = store.create({ name: "First" });
-      const s2 = store.create({ name: "Second" });
+      store.create({ name: "First" });
+      store.create({ name: "Second" });
       const sessions = store.list();
       expect(sessions.length).toBe(2);
       // Most recently created should be first (higher updatedAt)
@@ -198,11 +198,11 @@ describe("SessionStore", () => {
 
     it("resolves compaction boundary", () => {
       const session = store.create();
-      const e1 = store.appendEntry(session.id, {
+      store.appendEntry(session.id, {
         type: "message",
         data: { role: "user", content: "old message 1", timestamp: 1 },
       });
-      const e2 = store.appendEntry(session.id, {
+      store.appendEntry(session.id, {
         type: "message",
         data: { role: "assistant", content: "old response", timestamp: 2 },
       });
@@ -262,9 +262,7 @@ describe("SessionStore", () => {
       expect(context).toHaveLength(1);
       expect((context[0] as any).role).toBe("toolResult");
       // Array content passed through as-is
-      expect((context[0] as any).content).toEqual([
-        { type: "text", text: "result data" },
-      ]);
+      expect((context[0] as any).content).toEqual([{ type: "text", text: "result data" }]);
     });
 
     it("skips non-message entries in context", () => {
@@ -341,9 +339,7 @@ describe("SessionStore", () => {
 
     it("throws when branching to non-existent entry", () => {
       const session = store.create();
-      expect(() => store.branch(session.id, "non-existent")).toThrow(
-        "Entry not found",
-      );
+      expect(() => store.branch(session.id, "non-existent")).toThrow("Entry not found");
     });
 
     it("preserves original branch after fork", () => {

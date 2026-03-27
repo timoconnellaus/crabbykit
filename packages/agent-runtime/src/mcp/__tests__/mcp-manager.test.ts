@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { McpManager } from "../mcp-manager.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createMockSqlStorage } from "../../test-helpers/mock-sql-storage.js";
+import { McpManager } from "../mcp-manager.js";
 
 describe("McpManager", () => {
   let manager: McpManager;
@@ -73,15 +73,23 @@ describe("McpManager", () => {
           // Simulate a connected server with tools
           (this as any).connections.set(id, {
             status: "connected",
-            tools: [{
-              name: "mcp_test_search",
-              label: "mcp_test_search",
-              description: "Search",
-              parameters: {},
-              execute: async () => ({ content: [], details: {} }),
-            }],
+            tools: [
+              {
+                name: "mcp_test_search",
+                label: "mcp_test_search",
+                description: "Search",
+                parameters: {},
+                execute: async () => ({ content: [], details: {} }),
+              },
+            ],
           });
-          return { id, name: config.name, serverUrl: config.serverUrl, status: "connected", toolCount: 1 };
+          return {
+            id,
+            name: config.name,
+            serverUrl: config.serverUrl,
+            status: "connected",
+            toolCount: 1,
+          };
         }
       }
 

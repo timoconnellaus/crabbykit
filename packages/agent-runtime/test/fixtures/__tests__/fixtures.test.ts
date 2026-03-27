@@ -1,13 +1,13 @@
-import { describe, it, expect } from "vitest";
+import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import { describe, expect, it } from "vitest";
 import {
-  textResponseEvents,
-  toolCallEvents,
-  thinkingEvents,
-  createUserMessage,
   createAssistantMessage,
   createToolResultMessage,
+  createUserMessage,
+  textResponseEvents,
+  thinkingEvents,
+  toolCallEvents,
 } from "../agent-events.js";
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
 
 describe("Agent Event Fixtures", () => {
   describe("Message creators", () => {
@@ -78,9 +78,10 @@ describe("Agent Event Fixtures", () => {
     });
 
     it("tool execution has correct tool name", () => {
-      const start = toolCallEvents.find(
-        (e) => e.type === "tool_execution_start",
-      ) as Extract<AgentEvent, { type: "tool_execution_start" }>;
+      const start = toolCallEvents.find((e) => e.type === "tool_execution_start") as Extract<
+        AgentEvent,
+        { type: "tool_execution_start" }
+      >;
       expect(start.toolName).toBe("file_read");
       expect(start.toolCallId).toBe("call_abc");
     });
@@ -88,9 +89,10 @@ describe("Agent Event Fixtures", () => {
 
   describe("Thinking event sequence", () => {
     it("includes thinking events in message_update", () => {
-      const updates = thinkingEvents.filter(
-        (e) => e.type === "message_update",
-      ) as Extract<AgentEvent, { type: "message_update" }>[];
+      const updates = thinkingEvents.filter((e) => e.type === "message_update") as Extract<
+        AgentEvent,
+        { type: "message_update" }
+      >[];
 
       const thinkingTypes = updates
         .map((u) => (u.assistantMessageEvent as any)?.type)

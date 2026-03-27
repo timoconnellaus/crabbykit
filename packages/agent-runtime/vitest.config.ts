@@ -29,6 +29,8 @@ export default defineWorkersConfig({
         "src/session/types.ts", // Pure type exports
         "src/compaction/types.ts", // Pure type exports
         "src/mcp/types.ts", // Pure type exports
+        "src/capabilities/types.ts", // Pure type exports
+        "src/capabilities/index.ts", // Barrel export
         "src/agent-do.ts", // Integration - tested via DO integration tests
         "src/mcp/mcp-manager.ts", // Protocol code needs live MCP servers - tested via integration
       ],
