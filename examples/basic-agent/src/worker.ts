@@ -27,6 +27,11 @@ interface Env {
   AI: Ai;
   OPENROUTER_API_KEY: string;
   TAVILY_API_KEY: string;
+  // R2 credentials for container FUSE mount (set via wrangler secret put)
+  AWS_ACCESS_KEY_ID: string;
+  AWS_SECRET_ACCESS_KEY: string;
+  R2_ACCOUNT_ID: string;
+  R2_BUCKET_NAME: string;
 }
 
 /**
