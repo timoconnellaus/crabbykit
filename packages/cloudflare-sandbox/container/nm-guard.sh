@@ -31,8 +31,9 @@ guard_loop() {
   while true; do
     # Find node_modules directories up to 4 levels deep under the FUSE mount
     find "$MOUNT_POINT" -maxdepth 4 -name node_modules -type d 2>/dev/null | while read -r nm_path; do
-      # Skip if already a mountpoint
-      if mountpoint -q "$nm_path" 2>/dev/null; then
+      # Skip if already bind-mounted (check /proc/mounts directly —
+      # mountpoint -q is unreliable on some overlayfs/Docker Desktop setups)
+      if grep -q " $nm_path " /proc/mounts 2>/dev/null; then
         continue
       fi
 
