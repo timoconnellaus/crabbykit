@@ -33,12 +33,9 @@ ENV PATH="$PATH:/opt/gia/persist/bun/bin:/opt/gia/persist/npm/bin:/opt/gia/persi
 
 WORKDIR /app
 
-# Copy container scripts
-COPY startup.sh nm-guard.sh /app/
+# Copy container scripts and sandbox server
+COPY startup.sh nm-guard.sh server.ts /app/
 RUN chmod +x /app/startup.sh /app/nm-guard.sh
-
-# Copy sandbox server (consumer provides this)
-# COPY server.ts /app/
 
 EXPOSE 8080
 
