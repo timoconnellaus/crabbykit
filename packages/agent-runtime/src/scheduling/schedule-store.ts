@@ -80,8 +80,8 @@ export class ScheduleStore {
   }
 
   get(id: string): Schedule | null {
-    const row = this.sql.exec("SELECT * FROM schedules WHERE id = ?", id).one();
-    return row ? rowToSchedule(row) : null;
+    const rows = [...this.sql.exec("SELECT * FROM schedules WHERE id = ? LIMIT 1", id)];
+    return rows.length > 0 ? rowToSchedule(rows[0]) : null;
   }
 
   list(): Schedule[] {
