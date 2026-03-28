@@ -269,6 +269,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       };
       managed.buffer.push(entry);
       if (managed.buffer.length > MAX_BUFFER) managed.buffer.shift();
+      // Notify SSE subscribers
+      for (const sub of (managed as any).subscribers ?? []) sub.onData(entry);
     });
 
     proc.stderr?.on("data", (data: Buffer) => {
@@ -279,11 +281,15 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       };
       managed.buffer.push(entry);
       if (managed.buffer.length > MAX_BUFFER) managed.buffer.shift();
+      for (const sub of (managed as any).subscribers ?? []) sub.onData(entry);
     });
 
     proc.on("close", (code) => {
       managed.running = false;
       managed.exitCode = code ?? 1;
+      // Notify SSE subscribers of exit
+      for (const sub of (managed as any).subscribers ?? []) sub.onExit(code);
+      (managed as any).subscribers = [];
       managed.gcTimer = setTimeout(() => {
         if (processes.get(name) === managed) processes.delete(name);
       }, PROCESS_GC_DELAY);
@@ -329,6 +335,83 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       startedAt: p.startedAt,
     }));
     json(res, list);
+    return;
+  }
+
+  // --- Process Stream (SSE) ---
+  if (url.pathname.startsWith("/process-stream/") && method === "GET") {
+    const name = url.pathname.slice("/process-stream/".length);
+    const afterSeq = Number.parseInt(url.searchParams.get("afterSeq") ?? "0", 10);
+    const managed = processes.get(name);
+
+    if (!managed) {
+      error(res, `Process "${name}" not found`, 404);
+      return;
+    }
+
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    });
+
+    // Backfill from ring buffer
+    for (const entry of managed.buffer) {
+      if (entry.seq > afterSeq) {
+        res.write(`data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`);
+      }
+    }
+
+    // If already exited, send exit event and close
+    if (!managed.running) {
+      res.write(`data: ${JSON.stringify({ type: "exit", code: managed.exitCode })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // Subscribe to live events
+    const onData = (entry: BufferEntry) => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`);
+      } catch {
+        cleanup();
+      }
+    };
+
+    const onExit = (code: number | null) => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: "exit", code })}\n\n`);
+        res.end();
+      } catch {
+        // Already closed
+      }
+    };
+
+    // Add subscriber callbacks to the managed process
+    if (!managed.subscribers) {
+      (managed as any).subscribers = [];
+    }
+    (managed as any).subscribers.push({ onData, onExit });
+
+    // Heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
+      } catch {
+        cleanup();
+      }
+    }, 5000);
+
+    const cleanup = () => {
+      clearInterval(heartbeat);
+      const subs = (managed as any).subscribers;
+      if (subs) {
+        const idx = subs.findIndex((s: any) => s.onData === onData);
+        if (idx >= 0) subs.splice(idx, 1);
+      }
+    };
+
+    req.on("close", cleanup);
     return;
   }
 
