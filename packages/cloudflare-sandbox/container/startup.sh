@@ -27,6 +27,17 @@ fi
 
 mkdir -p "$MOUNT_POINT"
 
+# Debug: log which R2 vars are set (values redacted)
+echo "[startup] AGENT_ID=${AGENT_ID:-<unset>}"
+echo "[startup] R2_BUCKET_NAME=${R2_BUCKET_NAME:-<unset>}"
+echo "[startup] R2_ACCOUNT_ID=${R2_ACCOUNT_ID:+set}${R2_ACCOUNT_ID:-<unset>}"
+echo "[startup] AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:+set}${AWS_ACCESS_KEY_ID:-<unset>}"
+echo "[startup] AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:+set}${AWS_SECRET_ACCESS_KEY:-<unset>}"
+
+# Skip FUSE mount if R2 credentials are missing
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$R2_BUCKET_NAME" ] || [ -z "$R2_ACCOUNT_ID" ]; then
+  echo "[startup] WARNING: R2 credentials not set — skipping FUSE mount. /mnt/r2 will be a regular directory."
+else
 # Mount R2 bucket scoped to this agent's prefix
 echo "[startup] Mounting R2 at $MOUNT_POINT (agent: ${AGENT_ID})"
 /usr/local/bin/tigrisfs \
@@ -47,6 +58,7 @@ done
 if ! mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
   echo "[startup] WARNING: FUSE mount not ready after 3s, continuing anyway"
 fi
+fi  # end of R2 credentials check
 
 # --- 2. Start nm-guard daemon (as root, before privilege drop) ---
 
