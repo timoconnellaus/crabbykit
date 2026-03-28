@@ -65,7 +65,10 @@ describe("sandboxCapability", () => {
     expect(names).toContain("start_process");
     expect(names).toContain("stop_process");
     expect(names).toContain("get_process_status");
-    expect(tools).toHaveLength(6);
+    expect(names).toContain("save_credential");
+    expect(names).toContain("list_credentials");
+    expect(names).toContain("delete_credential");
+    expect(tools).toHaveLength(9);
   });
 
   it("omits process tools when provider does not support them", () => {
@@ -84,7 +87,8 @@ describe("sandboxCapability", () => {
     expect(names).not.toContain("start_process");
     expect(names).not.toContain("stop_process");
     expect(names).not.toContain("get_process_status");
-    expect(tools).toHaveLength(3);
+    // 3 core tools + 3 credential tools = 6
+    expect(tools).toHaveLength(6);
   });
 
   it("provides prompt sections", () => {

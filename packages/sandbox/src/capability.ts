@@ -4,6 +4,11 @@ import { createBashTool } from "./tools/bash.js";
 import { createDeElevateTool } from "./tools/de-elevate.js";
 import { createElevateTool } from "./tools/elevate.js";
 import {
+  createDeleteCredentialTool,
+  createListCredentialsTool,
+  createSaveCredentialTool,
+} from "./tools/credentials.js";
+import {
   createGetProcessStatusTool,
   createStartProcessTool,
   createStopProcessTool,
@@ -76,6 +81,11 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
       if (options.provider.processList) {
         tools.push(createGetProcessStatusTool(options.provider, resolvedConfig, context));
       }
+
+      // Credential management tools (always available)
+      tools.push(createSaveCredentialTool(options.provider, resolvedConfig, context));
+      tools.push(createListCredentialsTool(options.provider, resolvedConfig, context));
+      tools.push(createDeleteCredentialTool(options.provider, resolvedConfig, context));
 
       return tools;
     },

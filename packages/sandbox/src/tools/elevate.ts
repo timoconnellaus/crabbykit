@@ -2,6 +2,7 @@ import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { getTeardownPromise } from "../teardown.js";
 import { resetDeElevationTimer } from "../timer.js";
+import { injectCredentials } from "./credentials.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 const DEFAULT_IDLE_TIMEOUT = 180;
@@ -70,6 +71,20 @@ export function createElevateTool(
           ],
           details: { error: "health_check_failed" },
         };
+      }
+
+      // Inject saved credentials into the container
+      try {
+        const { files, envVars, errors } = await injectCredentials(storage, provider);
+        if (Object.keys(envVars).length > 0) {
+          // Re-start with credential env vars
+          await provider.start({ envVars });
+        }
+        if (errors.length > 0) {
+          console.warn("[sandbox] Credential injection errors:", errors);
+        }
+      } catch (err) {
+        console.warn("[sandbox] Credential injection failed:", err);
       }
 
       // Persist elevation state
