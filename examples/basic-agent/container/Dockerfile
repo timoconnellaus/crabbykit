@@ -10,9 +10,12 @@ RUN apk add --no-cache fuse curl coreutils gosu shadow
 RUN useradd -m -s /bin/sh gia
 
 # Install tigrisfs (FUSE filesystem for S3-compatible storage)
-ARG TIGRISFS_VERSION=0.1.11
-RUN wget -q "https://github.com/tigrisdata-community/tigrisfs/releases/download/v${TIGRISFS_VERSION}/tigrisfs-linux-amd64" \
-    -O /usr/local/bin/tigrisfs && \
+# Detect architecture and fetch the matching release from tigrisdata/tigrisfs
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
+    VERSION=$(curl -s https://api.github.com/repos/tigrisdata/tigrisfs/releases/latest | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4) && \
+    curl -L "https://github.com/tigrisdata/tigrisfs/releases/download/${VERSION}/tigrisfs_${VERSION#v}_linux_${ARCH}.tar.gz" -o /tmp/tigrisfs.tar.gz && \
+    tar -xzf /tmp/tigrisfs.tar.gz -C /usr/local/bin/ && \
+    rm /tmp/tigrisfs.tar.gz && \
     chmod +x /usr/local/bin/tigrisfs
 
 # Create workspace and persist directories
