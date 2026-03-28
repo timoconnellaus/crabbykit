@@ -41,7 +41,8 @@
   "r2_buckets": [
     {
       "binding": "STORAGE_BUCKET",
-      "bucket_name": "basic-agent-storage"
+      "bucket_name": "basic-agent-storage",
+      "remote": true
     }
   ],
   "vectorize": [
