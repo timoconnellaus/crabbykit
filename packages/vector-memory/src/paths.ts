@@ -12,10 +12,5 @@ export function isMemoryPath(path: string): boolean {
   return false;
 }
 
-/**
- * Resolves a validated normalized path to an R2 key.
- * Prepends the configured prefix to isolate storage per-agent.
- */
-export function toR2Key(prefix: string, path: string): string {
-  return `${prefix}/${path}`;
-}
+// Re-export from r2-storage to avoid duplicate definition.
+export { toR2Key } from "@claw-for-cloudflare/r2-storage";

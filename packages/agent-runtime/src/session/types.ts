@@ -9,14 +9,36 @@ export interface Session {
 
 export type SessionEntryType = "message" | "compaction" | "model_change" | "custom";
 
-export interface SessionEntry {
+/** Base fields shared across all session entry types. */
+interface SessionEntryBase {
   id: string;
   parentId: string | null;
   sessionId: string;
   seq: number;
-  type: SessionEntryType;
-  data: MessageEntryData | CompactionEntryData | ModelChangeEntryData | CustomEntryData;
   createdAt: string;
+}
+
+/** A discriminated union of session entry types. Discriminant: `type`. */
+export type SessionEntry = MessageEntry | CompactionEntry | ModelChangeEntry | CustomEntry;
+
+export interface MessageEntry extends SessionEntryBase {
+  type: "message";
+  data: MessageEntryData;
+}
+
+export interface CompactionEntry extends SessionEntryBase {
+  type: "compaction";
+  data: CompactionEntryData;
+}
+
+export interface ModelChangeEntry extends SessionEntryBase {
+  type: "model_change";
+  data: ModelChangeEntryData;
+}
+
+export interface CustomEntry extends SessionEntryBase {
+  type: "custom";
+  data: CustomEntryData;
 }
 
 export interface MessageEntryData {

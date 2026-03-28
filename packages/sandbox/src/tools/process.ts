@@ -1,5 +1,6 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { checkElevation } from "../elevation.js";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
@@ -21,17 +22,9 @@ export function createStartProcessTool(
       }),
       command: Type.String({ description: "Command to run" }),
     }),
-    execute: async (_toolCallId, args) => {
-      const storage = context.storage;
-      if (!storage) throw new Error("Sandbox capability requires storage");
-
-      const elevated = await storage.get<boolean>("elevated");
-      if (!elevated) {
-        return {
-          content: [{ type: "text" as const, text: "Not elevated. Call elevate first." }],
-          details: { error: "not_elevated" },
-        };
-      }
+    execute: async (args) => {
+      const notElevated = await checkElevation(context.storage);
+      if (notElevated) return notElevated;
 
       const result = await provider.processStart!(args.name, args.command, config.defaultCwd);
 
@@ -69,17 +62,9 @@ export function createStopProcessTool(
         pattern: PROCESS_NAME_PATTERN,
       }),
     }),
-    execute: async (_toolCallId, args) => {
-      const storage = context.storage;
-      if (!storage) throw new Error("Sandbox capability requires storage");
-
-      const elevated = await storage.get<boolean>("elevated");
-      if (!elevated) {
-        return {
-          content: [{ type: "text" as const, text: "Not elevated. Call elevate first." }],
-          details: { error: "not_elevated" },
-        };
-      }
+    execute: async (args) => {
+      const notElevated = await checkElevation(context.storage);
+      if (notElevated) return notElevated;
 
       await provider.processStop!(args.name);
 
@@ -101,16 +86,8 @@ export function createGetProcessStatusTool(
     description: "List all managed processes and their status.",
     parameters: Type.Object({}),
     execute: async () => {
-      const storage = context.storage;
-      if (!storage) throw new Error("Sandbox capability requires storage");
-
-      const elevated = await storage.get<boolean>("elevated");
-      if (!elevated) {
-        return {
-          content: [{ type: "text" as const, text: "Not elevated. Call elevate first." }],
-          details: { error: "not_elevated" },
-        };
-      }
+      const notElevated = await checkElevation(context.storage);
+      if (notElevated) return notElevated;
 
       const processes = await provider.processList!();
 

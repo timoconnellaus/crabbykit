@@ -27,8 +27,11 @@ export function SessionList(props: SessionListProps) {
               data-agent-ui="session-item-delete"
               onClick={(e: MouseEvent) => {
                 e.stopPropagation();
-                deleteSession(s.id);
+                if (confirm("Delete this session?")) {
+                  deleteSession(s.id);
+                }
               }}
+              aria-label="Delete session"
               title="Delete session"
             >
               &times;

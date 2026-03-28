@@ -1,11 +1,13 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { CostEvent } from "../costs/types.js";
 import type { ClientMessage, ServerMessage } from "../transport/types.js";
 import type { AgentStatus, ConnectionStatus } from "./types.js";
 
 const DEFAULT_MAX_RECONNECT_DELAY = 30_000;
 const RECONNECT_BACKOFF_BASE = 2;
+const PING_INTERVAL_MS = 30_000;
+const PONG_TIMEOUT_MS = 10_000;
 
 /** AgentMessage with an optional streaming flag added during live updates. */
 // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
@@ -68,24 +70,192 @@ export interface UseAgentChatReturn {
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
   sendMessage: (text: string) => void;
+  /** Send a slash command programmatically without formatting a string. */
+  sendCommand: (name: string, args?: string) => void;
   abort: () => void;
   switchSession: (sessionId: string) => void;
   createSession: (name?: string) => void;
   deleteSession: (sessionId: string) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Reducer state & actions
+// ---------------------------------------------------------------------------
+
+interface ChatState {
+  messages: AgentMessage[];
+  connectionStatus: ConnectionStatus;
+  agentStatus: AgentStatus;
+  sessions: UseAgentChatReturn["sessions"];
+  currentSessionId: string | null;
+  thinking: string | null;
+  toolStates: Map<string, ToolState>;
+  costs: CostEvent[];
+  schedules: UseAgentChatReturn["schedules"];
+  availableCommands: CommandInfo[];
+  error: string | null;
+}
+
+type ChatAction =
+  | { type: "SET_MESSAGES"; messages: AgentMessage[] }
+  | { type: "ADD_MESSAGE"; message: AgentMessage }
+  | { type: "SET_CONNECTION_STATUS"; connectionStatus: ConnectionStatus }
+  | { type: "SET_AGENT_STATUS"; agentStatus: AgentStatus }
+  | { type: "SET_SESSIONS"; sessions: ChatState["sessions"] }
+  | { type: "SET_CURRENT_SESSION_ID"; currentSessionId: string | null }
+  | { type: "SET_THINKING"; thinking: string | null }
+  | { type: "SET_TOOL_STATES"; toolStates: Map<string, ToolState> }
+  | { type: "SET_COSTS"; costs: CostEvent[] }
+  | { type: "ADD_COST"; cost: CostEvent }
+  | { type: "SET_SCHEDULES"; schedules: ChatState["schedules"] }
+  | { type: "SET_AVAILABLE_COMMANDS"; availableCommands: CommandInfo[] }
+  | { type: "SET_ERROR"; error: string | null }
+  | {
+      type: "SESSION_SYNC";
+      messages: AgentMessage[];
+      currentSessionId: string;
+      agentStatus: AgentStatus;
+    }
+  | { type: "AGENT_END" }
+  | {
+      type: "UPDATE_STREAMING_MESSAGE";
+      updater: (prev: AgentMessage[]) => AgentMessage[];
+      thinking?: { mode: "start" } | { mode: "delta"; delta: string } | { mode: "end" };
+    }
+  | {
+      type: "TOOL_EXECUTION_START";
+      toolCallId: string;
+      toolName: string;
+    }
+  | {
+      type: "TOOL_EXECUTION_END";
+      toolCallId: string;
+      toolName: string;
+      result: unknown;
+      isError: boolean;
+      toolResultMessage: AgentMessage;
+    }
+  | { type: "ERROR_RECEIVED"; message: string };
+
+function chatReducer(state: ChatState, action: ChatAction): ChatState {
+  switch (action.type) {
+    case "SET_MESSAGES":
+      return { ...state, messages: action.messages };
+    case "ADD_MESSAGE":
+      return { ...state, messages: [...state.messages, action.message] };
+    case "SET_CONNECTION_STATUS":
+      return { ...state, connectionStatus: action.connectionStatus };
+    case "SET_AGENT_STATUS":
+      return { ...state, agentStatus: action.agentStatus };
+    case "SET_SESSIONS":
+      return { ...state, sessions: action.sessions };
+    case "SET_CURRENT_SESSION_ID":
+      return { ...state, currentSessionId: action.currentSessionId };
+    case "SET_THINKING":
+      return { ...state, thinking: action.thinking };
+    case "SET_TOOL_STATES":
+      return { ...state, toolStates: action.toolStates };
+    case "SET_COSTS":
+      return { ...state, costs: action.costs };
+    case "ADD_COST":
+      return { ...state, costs: [...state.costs, action.cost] };
+    case "SET_SCHEDULES":
+      return { ...state, schedules: action.schedules };
+    case "SET_AVAILABLE_COMMANDS":
+      return { ...state, availableCommands: action.availableCommands };
+    case "SET_ERROR":
+      return { ...state, error: action.error };
+    case "SESSION_SYNC":
+      return {
+        ...state,
+        messages: action.messages,
+        currentSessionId: action.currentSessionId,
+        agentStatus: action.agentStatus,
+        toolStates: new Map(),
+        costs: [],
+        thinking: null,
+        error: null,
+      };
+    case "AGENT_END":
+      return {
+        ...state,
+        agentStatus: "idle",
+        thinking: null,
+        toolStates: new Map(),
+      };
+    case "UPDATE_STREAMING_MESSAGE": {
+      let { thinking } = state;
+      if (action.thinking) {
+        if (action.thinking.mode === "start") {
+          thinking = "";
+        } else if (action.thinking.mode === "delta") {
+          thinking = (thinking ?? "") + action.thinking.delta;
+        }
+        // "end" — keep thinking visible until next message
+      }
+      return {
+        ...state,
+        messages: action.updater(state.messages),
+        thinking,
+      };
+    }
+    case "TOOL_EXECUTION_START": {
+      const next = new Map(state.toolStates);
+      next.set(action.toolCallId, {
+        status: "executing",
+        toolName: action.toolName,
+      });
+      return {
+        ...state,
+        agentStatus: "executing_tools",
+        toolStates: next,
+      };
+    }
+    case "TOOL_EXECUTION_END": {
+      const next = new Map(state.toolStates);
+      next.set(action.toolCallId, {
+        status: "complete",
+        toolName: action.toolName,
+        result: action.result,
+        isError: action.isError,
+      });
+      return {
+        ...state,
+        toolStates: next,
+        messages: [...state.messages, action.toolResultMessage],
+      };
+    }
+    case "ERROR_RECEIVED":
+      return {
+        ...state,
+        error: action.message,
+        agentStatus: "idle",
+      };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+function createInitialState(sessionId: string | undefined): ChatState {
+  return {
+    messages: [],
+    connectionStatus: "connecting",
+    agentStatus: "idle",
+    sessions: [],
+    currentSessionId: sessionId ?? null,
+    thinking: null,
+    toolStates: new Map(),
+    costs: [],
+    schedules: [],
+    availableCommands: [],
+    error: null,
+  };
+}
+
 export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
-  const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
-  const [sessions, setSessions] = useState<UseAgentChatReturn["sessions"]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(config.sessionId ?? null);
-  const [thinking, setThinking] = useState<string | null>(null);
-  const [toolStates, setToolStates] = useState<Map<string, ToolState>>(new Map());
-  const [costs, setCosts] = useState<CostEvent[]>([]);
-  const [schedules, setSchedules] = useState<UseAgentChatReturn["schedules"]>([]);
-  const [availableCommands, setAvailableCommands] = useState<CommandInfo[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(chatReducer, config.sessionId, createInitialState);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -97,6 +267,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const disposedRef = useRef(false);
   const onCustomEventRef = useRef(config.onCustomEvent);
   onCustomEventRef.current = config.onCustomEvent;
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPongAtRef = useRef<number>(0);
 
   const send = useCallback((msg: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -124,20 +297,30 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
               } as StreamableMessage,
             ]
           : msg.messages;
-        setMessages(syncMessages);
-        setCurrentSessionId(msg.sessionId);
+        dispatch({
+          type: "SESSION_SYNC",
+          messages: syncMessages,
+          currentSessionId: msg.sessionId,
+          agentStatus: msg.streamMessage ? "streaming" : "idle",
+        });
         currentSessionIdRef.current = msg.sessionId;
-        setToolStates(new Map());
-        setCosts([]);
-        setThinking(null);
-        setError(null);
         streamMessageRef.current = msg.streamMessage ?? null;
-        setAgentStatus(msg.streamMessage ? "streaming" : "idle");
+
+        // Auto-fetch next page if more entries exist
+        if (msg.hasMore && wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              type: "request_sync",
+              sessionId: msg.sessionId,
+              afterSeq: msg.cursor,
+            }),
+          );
+        }
         break;
       }
 
       case "session_list":
-        setSessions(msg.sessions);
+        dispatch({ type: "SET_SESSIONS", sessions: msg.sessions });
         break;
 
       case "agent_event": {
@@ -149,49 +332,59 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           const msg = agentEvent.message;
           const isAssistant = msg && "role" in msg && msg.role === "assistant";
           if (isAssistant) {
-            setAgentStatus("streaming");
+            dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
             streamMessageRef.current = msg;
             // Add streaming placeholder immediately (handles non-streaming models)
-            setMessages((prev) => [
-              ...prev,
-              {
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: {
                 ...msg,
                 // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
                 _streaming: true,
               } as StreamableMessage,
-            ]);
+            });
           }
         }
 
         if (agentEvent.type === "message_update") {
           streamMessageRef.current = agentEvent.message;
-          // Replace the streaming message with updated content
-          setMessages((prev) => {
-            const next = [...prev];
-            if (next.length > 0 && streamMessageRef.current) {
-              const last = next[next.length - 1] as StreamableMessage;
-              if ("role" in last && last.role === "assistant" && last._streaming) {
-                next[next.length - 1] = {
-                  ...streamMessageRef.current,
-                  // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
-                  _streaming: true,
-                } as StreamableMessage;
-              }
-            }
-            return next;
-          });
 
-          // Handle thinking blocks
+          // Determine thinking state change if any
           const aEvent = agentEvent.assistantMessageEvent;
+          let thinking:
+            | { mode: "start" }
+            | { mode: "delta"; delta: string }
+            | { mode: "end" }
+            | undefined;
           if (aEvent) {
             if (aEvent.type === "thinking_start") {
-              setThinking("");
+              thinking = { mode: "start" };
             } else if (aEvent.type === "thinking_delta") {
-              setThinking((prev) => (prev ?? "") + aEvent.delta);
+              thinking = { mode: "delta", delta: aEvent.delta };
             } else if (aEvent.type === "thinking_end") {
-              // Keep thinking visible until next message
+              thinking = { mode: "end" };
             }
           }
+
+          // Replace the streaming message with updated content
+          dispatch({
+            type: "UPDATE_STREAMING_MESSAGE",
+            updater: (prev) => {
+              const next = [...prev];
+              if (next.length > 0 && streamMessageRef.current) {
+                const last = next[next.length - 1] as StreamableMessage;
+                if ("role" in last && last.role === "assistant" && last._streaming) {
+                  next[next.length - 1] = {
+                    ...streamMessageRef.current,
+                    // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
+                    _streaming: true,
+                  } as StreamableMessage;
+                }
+              }
+              return next;
+            },
+            thinking,
+          });
         }
 
         if (agentEvent.type === "message_end") {
@@ -204,22 +397,23 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           // Finalize: replace the _streaming placeholder with the completed message.
           // If no placeholder exists, this is a no-op — safer than blindly pushing a
           // potential duplicate. agent-core guarantees message_start before message_end.
-          setMessages((prev) => {
-            const next = [...prev];
-            if (next.length > 0) {
-              const last = next[next.length - 1] as StreamableMessage;
-              if (last._streaming) {
-                next[next.length - 1] = finalMessage as AgentMessage;
+          dispatch({
+            type: "UPDATE_STREAMING_MESSAGE",
+            updater: (prev) => {
+              const next = [...prev];
+              if (next.length > 0) {
+                const last = next[next.length - 1] as StreamableMessage;
+                if (last._streaming) {
+                  next[next.length - 1] = finalMessage as AgentMessage;
+                }
               }
-            }
-            return next;
+              return next;
+            },
           });
         }
 
         if (agentEvent.type === "agent_end") {
-          setAgentStatus("idle");
-          setThinking(null);
-          setToolStates(new Map());
+          dispatch({ type: "AGENT_END" });
         }
 
         break;
@@ -229,32 +423,22 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         if (msg.sessionId !== currentSessionIdRef.current) break;
         const toolEvent = msg.event;
         if (toolEvent.type === "tool_execution_start") {
-          setAgentStatus("executing_tools");
-          setToolStates((prev) => {
-            const next = new Map(prev);
-            next.set(toolEvent.toolCallId, {
-              status: "executing",
-              toolName: toolEvent.toolName,
-            });
-            return next;
+          dispatch({
+            type: "TOOL_EXECUTION_START",
+            toolCallId: toolEvent.toolCallId,
+            toolName: toolEvent.toolName,
           });
         }
         if (toolEvent.type === "tool_execution_end") {
-          setToolStates((prev) => {
-            const next = new Map(prev);
-            next.set(toolEvent.toolCallId, {
-              status: "complete",
-              toolName: toolEvent.toolName,
-              result: toolEvent.result,
-              isError: toolEvent.isError ?? false,
-            });
-            return next;
-          });
           // Persist tool result in messages array so it survives toolStates clearing on agent_end
           const toolResult = toolEvent.result as Record<string, unknown> | undefined;
-          setMessages((prev) => [
-            ...prev,
-            {
+          dispatch({
+            type: "TOOL_EXECUTION_END",
+            toolCallId: toolEvent.toolCallId,
+            toolName: toolEvent.toolName,
+            result: toolEvent.result,
+            isError: toolEvent.isError ?? false,
+            toolResultMessage: {
               role: "toolResult",
               toolCallId: toolEvent.toolCallId,
               toolName: toolEvent.toolName,
@@ -263,22 +447,22 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
               isError: toolEvent.isError ?? false,
               timestamp: Date.now(),
             } as unknown as AgentMessage,
-          ]);
+          });
         }
         break;
       }
 
       case "cost_event":
         if (msg.sessionId !== currentSessionIdRef.current) break;
-        setCosts((prev) => [...prev, msg.event]);
+        dispatch({ type: "ADD_COST", cost: msg.event });
         break;
 
       case "schedule_list":
-        setSchedules(msg.schedules);
+        dispatch({ type: "SET_SCHEDULES", schedules: msg.schedules });
         break;
 
       case "command_list":
-        setAvailableCommands(msg.commands);
+        dispatch({ type: "SET_AVAILABLE_COMMANDS", availableCommands: msg.commands });
         break;
 
       case "command_result": {
@@ -288,9 +472,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           (msg.result.data != null ? JSON.stringify(msg.result.data, null, 2) : "");
         // Command results are synthetic messages — they don't match the full AssistantMessage shape
         // but are displayed in the message list with distinct rendering via _commandResult tag
-        setMessages((prev) => [
-          ...prev,
-          {
+        dispatch({
+          type: "ADD_MESSAGE",
+          message: {
             role: "assistant",
             content: resultText,
             timestamp: Date.now(),
@@ -298,7 +482,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             _commandName: msg.name,
             _isError: msg.isError,
           } as unknown as AgentMessage,
-        ]);
+        });
         break;
       }
 
@@ -307,20 +491,27 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         onCustomEventRef.current?.(msg.event.name, msg.event.data);
         break;
 
+      case "pong":
+        lastPongAtRef.current = Date.now();
+        if (pongTimeoutRef.current) {
+          clearTimeout(pongTimeoutRef.current);
+          pongTimeoutRef.current = null;
+        }
+        break;
+
       case "mcp_status":
         // Could expose this, keeping it simple for now
         break;
 
       case "error":
         console.error(`[agent-runtime] ${msg.code}: ${msg.message}`);
-        setError(msg.message);
-        setAgentStatus("idle");
+        dispatch({ type: "ERROR_RECEIVED", message: msg.message });
         break;
     }
   }, []);
 
   const connect = useCallback(async () => {
-    setConnectionStatus("connecting");
+    dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "connecting" });
 
     let url = config.url;
     if (config.getToken) {
@@ -333,15 +524,45 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      setConnectionStatus("connected");
+      dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "connected" });
+      // Restore active session after reconnect
+      const activeSessionId = currentSessionIdRef.current;
+      if (reconnectAttemptRef.current > 0 && activeSessionId) {
+        ws.send(JSON.stringify({ type: "switch_session", sessionId: activeSessionId }));
+      }
       reconnectAttemptRef.current = 0;
+
+      // Start heartbeat ping interval
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+          // Set a timeout waiting for pong
+          if (pongTimeoutRef.current) clearTimeout(pongTimeoutRef.current);
+          pongTimeoutRef.current = setTimeout(() => {
+            // No pong received in time — force reconnect
+            console.warn("[agent-runtime] Pong timeout — triggering reconnect");
+            ws.close();
+          }, PONG_TIMEOUT_MS);
+        }
+      }, PING_INTERVAL_MS);
     };
 
     ws.onmessage = handleMessage;
 
     ws.onclose = () => {
-      setConnectionStatus("disconnected");
+      dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "disconnected" });
       wsRef.current = null;
+
+      // Clean up heartbeat timers
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+      if (pongTimeoutRef.current) {
+        clearTimeout(pongTimeoutRef.current);
+        pongTimeoutRef.current = null;
+      }
 
       // Don't reconnect if the effect was cleaned up (HMR / unmount)
       if (disposedRef.current) return;
@@ -352,7 +573,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           config.maxReconnectDelay ?? DEFAULT_MAX_RECONNECT_DELAY,
         );
         reconnectAttemptRef.current++;
-        setConnectionStatus("reconnecting");
+        dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "reconnecting" });
         reconnectTimerRef.current = setTimeout(() => {
           connect();
         }, delay);
@@ -372,55 +593,63 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
       }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+      if (pongTimeoutRef.current) {
+        clearTimeout(pongTimeoutRef.current);
+        pongTimeoutRef.current = null;
+      }
       wsRef.current?.close();
     };
   }, [connect]);
 
   const sendMessage = useCallback(
     (text: string) => {
-      if (!currentSessionId) return;
-      setError(null);
+      if (!state.currentSessionId) return;
+      dispatch({ type: "SET_ERROR", error: null });
 
       // Detect slash commands: "/name" or "/name args..."
       // Only intercept known commands to avoid false positives (e.g. "/path/to/file")
       const commandMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
       if (commandMatch) {
         const [, name, args] = commandMatch;
-        const isKnownCommand = availableCommands.some((cmd) => cmd.name === name);
+        const isKnownCommand = state.availableCommands.some((cmd) => cmd.name === name);
         if (isKnownCommand) {
           send({
             type: "command",
-            sessionId: currentSessionId,
+            sessionId: state.currentSessionId,
             name,
             args: args?.trim(),
           } as ClientMessage);
 
           // Optimistically add user message
-          setMessages((prev) => [
-            ...prev,
-            { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
-          ]);
+          dispatch({
+            type: "ADD_MESSAGE",
+            message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
+          });
           return;
         }
       }
 
-      const type = agentStatus === "idle" ? "prompt" : "steer";
-      send({ type, sessionId: currentSessionId, text } as ClientMessage);
+      const type = state.agentStatus === "idle" ? "prompt" : "steer";
+      send({ type, sessionId: state.currentSessionId, text } as ClientMessage);
 
       // Optimistically add user message
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
-      ]);
+      dispatch({
+        type: "ADD_MESSAGE",
+        message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
+      });
     },
-    [currentSessionId, agentStatus, availableCommands, send],
+    [state.currentSessionId, state.agentStatus, state.availableCommands, send],
   );
 
   const abort = useCallback(() => {
-    if (currentSessionId) {
-      send({ type: "abort", sessionId: currentSessionId });
+    if (state.currentSessionId) {
+      send({ type: "abort", sessionId: state.currentSessionId });
     }
-  }, [currentSessionId, send]);
+  }, [state.currentSessionId, send]);
 
   const switchSession = useCallback(
     (sessionId: string) => {
@@ -443,19 +672,41 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     [send],
   );
 
+  const sendCommand = useCallback(
+    (name: string, args?: string) => {
+      if (!state.currentSessionId) return;
+      dispatch({ type: "SET_ERROR", error: null });
+      send({
+        type: "command",
+        sessionId: state.currentSessionId,
+        name,
+        args: args?.trim(),
+      } as ClientMessage);
+
+      // Optimistically add user message
+      const text = args ? `/${name} ${args}` : `/${name}`;
+      dispatch({
+        type: "ADD_MESSAGE",
+        message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
+      });
+    },
+    [state.currentSessionId, send],
+  );
+
   return {
-    messages,
-    connectionStatus,
-    agentStatus,
-    sessions,
-    currentSessionId,
-    thinking,
-    toolStates,
-    costs,
-    schedules,
-    availableCommands,
-    error,
+    messages: state.messages,
+    connectionStatus: state.connectionStatus,
+    agentStatus: state.agentStatus,
+    sessions: state.sessions,
+    currentSessionId: state.currentSessionId,
+    thinking: state.thinking,
+    toolStates: state.toolStates,
+    costs: state.costs,
+    schedules: state.schedules,
+    availableCommands: state.availableCommands,
+    error: state.error,
     sendMessage,
+    sendCommand,
     abort,
     switchSession,
     createSession,

@@ -20,7 +20,7 @@ export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => s
         Type.String({ description: "Pagination cursor from a previous file_list call" }),
       ),
     }),
-    execute: async (_toolCallId, { path, cursor }) => {
+    execute: async ({ path, cursor }) => {
       const prefixResult = resolveListPrefix(path, getPrefix());
       if ("error" in prefixResult) {
         return {

@@ -20,7 +20,7 @@ export function createFileEditTool(getBucket: () => R2Bucket, getPrefix: () => s
         }),
       ),
     }),
-    execute: async (_toolCallId, { path, old_string, new_string, replace_all }) => {
+    execute: async ({ path, old_string, new_string, replace_all }) => {
       const validation = validatePath(path);
       if (!validation.valid) {
         return {

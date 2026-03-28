@@ -14,6 +14,16 @@ interface TavilyResponse {
   results: TavilyResult[];
 }
 
+/** Default search options that can be overridden per-call via tool parameters. */
+export interface TavilySearchDefaults {
+  /** Search depth: "basic" (faster/cheaper) or "advanced" (deeper). Default "basic". */
+  searchDepth?: "basic" | "advanced";
+  /** Restrict results to these domains. */
+  includeDomains?: string[];
+  /** Exclude results from these domains. */
+  excludeDomains?: string[];
+}
+
 /**
  * Create a web_search tool backed by the Tavily API.
  */
@@ -21,6 +31,7 @@ export function createSearchTool(
   getApiKey: () => string,
   maxResults: number,
   context: AgentContext,
+  defaults?: TavilySearchDefaults,
 ): AgentTool {
   return defineTool({
     name: "web_search",
@@ -28,8 +39,23 @@ export function createSearchTool(
       "Search the web for current information. Returns titles, URLs, and content snippets.",
     parameters: Type.Object({
       query: Type.String({ description: "The search query" }),
+      search_depth: Type.Optional(
+        Type.Union([Type.Literal("basic"), Type.Literal("advanced")], {
+          description: 'Search depth: "basic" (faster) or "advanced" (deeper). Default "basic".',
+        }),
+      ),
+      include_domains: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Restrict results to these domains (e.g. [\"example.com\"]).",
+        }),
+      ),
+      exclude_domains: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Exclude results from these domains.",
+        }),
+      ),
     }),
-    execute: async (_toolCallId, { query }) => {
+    execute: async ({ query, search_depth, include_domains, exclude_domains }) => {
       const apiKey = getApiKey();
       if (!apiKey) {
         return {
@@ -46,6 +72,13 @@ export function createSearchTool(
             api_key: apiKey,
             query,
             max_results: maxResults,
+            search_depth: search_depth ?? defaults?.searchDepth ?? "basic",
+            ...(include_domains ?? defaults?.includeDomains
+              ? { include_domains: include_domains ?? defaults?.includeDomains }
+              : {}),
+            ...(exclude_domains ?? defaults?.excludeDomains
+              ? { exclude_domains: exclude_domains ?? defaults?.excludeDomains }
+              : {}),
           }),
         });
 

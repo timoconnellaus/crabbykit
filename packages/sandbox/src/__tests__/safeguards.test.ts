@@ -87,7 +87,7 @@ describe("Teardown serialization", () => {
 
     // Start elevate (it should wait for teardown)
     let elevateFinished = false;
-    const elevatePromise = elevate.execute("tc1", { reason: "test" }).then(() => {
+    const elevatePromise = elevate.execute({ reason: "test" }, { toolCallId: "tc1" }).then(() => {
       elevateFinished = true;
     });
 
@@ -114,7 +114,7 @@ describe("Health check in elevate", () => {
     const cap = sandboxCapability({ provider });
     const elevate = cap.tools!(ctx).find((t) => t.name === "elevate")!;
 
-    const result = await elevate.execute("tc1", { reason: "test" });
+    const result = await elevate.execute({ reason: "test" }, { toolCallId: "tc1" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("failed to start");
     // Should not mark as elevated
@@ -130,7 +130,7 @@ describe("Health check in elevate", () => {
     const cap = sandboxCapability({ provider });
     const elevate = cap.tools!(ctx).find((t) => t.name === "elevate")!;
 
-    const result = await elevate.execute("tc1", { reason: "test" });
+    const result = await elevate.execute({ reason: "test" }, { toolCallId: "tc1" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("connection refused");
   });
@@ -146,7 +146,7 @@ describe("Install detection", () => {
     const cap = sandboxCapability({ provider });
     const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
 
-    await bash.execute("tc1", { command: "npm install express" });
+    await bash.execute({ command: "npm install express" }, { toolCallId: "test" });
     expect(provider.triggerSync).toHaveBeenCalled();
   });
 
@@ -159,7 +159,7 @@ describe("Install detection", () => {
     const cap = sandboxCapability({ provider });
     const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
 
-    await bash.execute("tc1", { command: "bun add react" });
+    await bash.execute({ command: "bun add react" }, { toolCallId: "test" });
     expect(provider.triggerSync).toHaveBeenCalled();
   });
 
@@ -172,7 +172,7 @@ describe("Install detection", () => {
     const cap = sandboxCapability({ provider });
     const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
 
-    await bash.execute("tc1", { command: "ls -la" });
+    await bash.execute({ command: "ls -la" }, { toolCallId: "test" });
     expect(provider.triggerSync).not.toHaveBeenCalled();
   });
 
@@ -186,7 +186,7 @@ describe("Install detection", () => {
     const cap = sandboxCapability({ provider });
     const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
 
-    await bash.execute("tc1", { command: "npm install nonexistent" });
+    await bash.execute({ command: "npm install nonexistent" }, { toolCallId: "test" });
     expect(provider.triggerSync).not.toHaveBeenCalled();
   });
 });

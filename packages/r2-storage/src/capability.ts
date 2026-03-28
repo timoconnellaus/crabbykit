@@ -1,8 +1,10 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import { createFileCopyTool } from "./file-copy.js";
 import { createFileDeleteTool } from "./file-delete.js";
 import { createFileEditTool } from "./file-edit.js";
 import { createFileFindTool } from "./file-find.js";
 import { createFileListTool } from "./file-list.js";
+import { createFileMoveTool } from "./file-move.js";
 import { createFileReadTool } from "./file-read.js";
 import { createFileTreeTool } from "./file-tree.js";
 import { createFileWriteTool } from "./file-write.js";
@@ -55,18 +57,20 @@ export function r2Storage(options: R2StorageOptions): Capability {
   return {
     id: "r2-storage",
     name: "R2 File Storage",
-    description: "Read, write, edit, and search files in R2-backed storage.",
+    description: "Read, write, edit, copy, move, and search files in R2-backed storage.",
     tools: (_context: AgentContext) => [
       createFileReadTool(getBucket, getPrefix, maxReadBytes),
       createFileWriteTool(getBucket, getPrefix),
       createFileEditTool(getBucket, getPrefix),
       createFileDeleteTool(getBucket, getPrefix),
+      createFileCopyTool(getBucket, getPrefix),
+      createFileMoveTool(getBucket, getPrefix),
       createFileListTool(getBucket, getPrefix),
       createFileTreeTool(getBucket, getPrefix),
       createFileFindTool(getBucket, getPrefix),
     ],
     promptSections: () => [
-      "You have access to file storage. Use file_read to read files, file_write to create/overwrite files, file_edit for targeted string replacements, file_delete to remove files, file_list to list directory contents, file_tree to view directory structure, and file_find to search files by glob pattern. All paths are relative to the storage root.",
+      "You have access to file storage. Use file_read to read files, file_write to create/overwrite files, file_edit for targeted string replacements, file_delete to remove files, file_copy to duplicate files, file_move to rename/move files, file_list to list directory contents, file_tree to view directory structure, and file_find to search files by glob pattern. All paths are relative to the storage root.",
     ],
   };
 }

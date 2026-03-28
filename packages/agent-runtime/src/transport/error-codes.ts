@@ -18,6 +18,8 @@ export const ErrorCodes = {
   COMMAND_NOT_FOUND: "COMMAND_NOT_FOUND",
   /** Slash command execution failed */
   COMMAND_ERROR: "COMMAND_ERROR",
+  /** Client is sending messages too quickly */
+  RATE_LIMITED: "RATE_LIMITED",
   /** Catch-all for unexpected internal errors */
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;

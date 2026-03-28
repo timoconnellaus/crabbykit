@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
 import type { ToolState } from "@claw-for-cloudflare/agent-runtime/client";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type ComponentPropsWithoutRef,
   forwardRef,
@@ -11,6 +12,9 @@ import {
 } from "react";
 import { useChat } from "./chat-provider";
 import { extractResultText, Message } from "./message";
+
+/** Threshold above which virtualization is enabled. */
+const VIRTUALIZATION_THRESHOLD = 100;
 
 export type ToolResultInfo =
   | { status: "executing"; toolName: string }
@@ -65,6 +69,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
 ) {
   const { messages, toolStates, thinking, error } = useChat();
   const endRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.length;
 
   const { displayMessages, toolResultMap } = useMemo(() => {
@@ -74,20 +79,61 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     return { displayMessages: display, toolResultMap: trMap };
   }, [messages, toolStates]);
 
+  const useVirtual = !renderMessage && displayMessages.length > VIRTUALIZATION_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: displayMessages.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => 80,
+    overscan: 10,
+    enabled: useVirtual,
+  });
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: Scroll to bottom when message count changes
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (useVirtual) {
+      virtualizer.scrollToIndex(displayMessages.length - 1, { align: "end", behavior: "smooth" });
+    } else {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messageCount]);
 
   return (
-    <ScrollArea.Root data-agent-ui="message-list-root" ref={ref} {...props}>
-      <ScrollArea.Viewport data-agent-ui="message-list-viewport">
-        {renderMessage
-          ? messages.map((msg, i) => renderMessage(msg, i))
-          : displayMessages.map((msg, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
-              <Message key={i} message={msg} toolResultMap={toolResultMap} />
+    <ScrollArea.Root data-agent-ui="message-list-root" role="log" aria-live="polite" ref={ref} {...props}>
+      <ScrollArea.Viewport data-agent-ui="message-list-viewport" ref={viewportRef}>
+        {messages.length === 0 && !thinking && !error && (
+          <div data-agent-ui="message-list-empty">Send a message to get started</div>
+        )}
+        {renderMessage ? (
+          messages.map((msg, i) => renderMessage(msg, i))
+        ) : useVirtual ? (
+          <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => (
+              <div
+                key={virtualRow.index}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <Message
+                  message={displayMessages[virtualRow.index]}
+                  toolResultMap={toolResultMap}
+                />
+              </div>
             ))}
+          </div>
+        ) : (
+          displayMessages.map((msg, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
+            <Message key={i} message={msg} toolResultMap={toolResultMap} />
+          ))
+        )}
         {thinking != null && (
           <div data-agent-ui="thinking">
             <span data-agent-ui="thinking-indicator" />

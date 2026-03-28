@@ -152,6 +152,28 @@ function createAgentStream(): EventStream<AgentEvent, AgentMessage[]> {
 /**
  * Main loop logic shared by agentLoop and agentLoopContinue.
  */
+const DEFAULT_MAX_ITERATIONS = 100;
+
+/** Patterns that indicate transient/retryable LLM errors. */
+const TRANSIENT_ERROR_PATTERNS = [
+  /\b429\b/, // Rate limit
+  /\b500\b/, // Internal server error
+  /\b502\b/, // Bad gateway
+  /\b503\b/, // Service unavailable
+  /\b529\b/, // Overloaded
+  /timeout/i,
+  /ECONNRESET/i,
+  /ECONNREFUSED/i,
+  /network/i,
+  /overloaded/i,
+  /rate.?limit/i,
+];
+
+function isTransientError(errorMessage?: string): boolean {
+  if (!errorMessage) return false;
+  return TRANSIENT_ERROR_PATTERNS.some((pattern) => pattern.test(errorMessage));
+}
+
 async function runLoop(
   currentContext: AgentContext,
   newMessages: AgentMessage[],
@@ -161,6 +183,8 @@ async function runLoop(
   streamFn?: StreamFn,
 ): Promise<void> {
   let firstTurn = true;
+  let iterationCount = 0;
+  const maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
   // Check for steering messages at start (user may have typed while waiting)
   let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
 
@@ -170,6 +194,40 @@ async function runLoop(
 
     // Inner loop: process tool calls and steering messages
     while (hasMoreToolCalls || pendingMessages.length > 0) {
+      iterationCount++;
+      if (iterationCount > maxIterations) {
+        // Synthetic error message — api/provider/model/usage are placeholder values since no LLM call was made
+        const errorMessage: AssistantMessage = {
+          role: "assistant",
+          content: [
+            {
+              type: "text" as const,
+              text: `Agent loop terminated: exceeded maximum iterations (${maxIterations}).`,
+            },
+          ],
+          api: "openai-completions",
+          provider: "unknown",
+          model: "unknown",
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: "error",
+          errorMessage: `Maximum loop iterations (${maxIterations}) exceeded`,
+          timestamp: Date.now(),
+        };
+        currentContext.messages.push(errorMessage);
+        newMessages.push(errorMessage);
+        await emit({ type: "message_start", message: errorMessage });
+        await emit({ type: "message_end", message: errorMessage });
+        await emit({ type: "turn_end", message: errorMessage, toolResults: [] });
+        await emit({ type: "agent_end", messages: newMessages });
+        return;
+      }
       if (!firstTurn) {
         await emit({ type: "turn_start" });
       } else {
@@ -187,8 +245,26 @@ async function runLoop(
         pendingMessages = [];
       }
 
-      // Stream assistant response
-      const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+      // Stream assistant response (with retry for transient errors)
+      let message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+
+      if (message.stopReason === "error" && isTransientError(message.errorMessage)) {
+        const maxRetries = config.maxStreamRetries ?? 2;
+        const baseDelay = config.baseRetryDelayMs ?? 1000;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          if (signal?.aborted) break;
+          const delay = baseDelay * 2 ** attempt;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          if (signal?.aborted) break;
+          // Remove the failed message from context before retry
+          if (currentContext.messages[currentContext.messages.length - 1] === message) {
+            currentContext.messages.pop();
+          }
+          message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+          if (message.stopReason !== "error" || !isTransientError(message.errorMessage)) break;
+        }
+      }
+
       newMessages.push(message);
 
       if (message.stopReason === "error" || message.stopReason === "aborted") {
@@ -546,11 +622,10 @@ async function executePreparedToolCall(
   const updateEvents: Promise<void>[] = [];
 
   try {
-    const result = await prepared.tool.execute(
-      prepared.toolCall.id,
-      prepared.args as never,
+    const result = await prepared.tool.execute(prepared.args as never, {
+      toolCallId: prepared.toolCall.id,
       signal,
-      (partialResult) => {
+      onUpdate: (partialResult) => {
         updateEvents.push(
           Promise.resolve(
             emit({
@@ -563,7 +638,7 @@ async function executePreparedToolCall(
           ),
         );
       },
-    );
+    });
     await Promise.all(updateEvents);
     return { result, isError: false };
   } catch (error) {

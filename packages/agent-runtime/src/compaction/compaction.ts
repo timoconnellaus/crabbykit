@@ -1,49 +1,80 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CompactionConfig, CompactionResult, SummarizeFn } from "./types.js";
 
-const SAFETY_MARGIN = 1.2;
+const SAFETY_MARGIN = 1.15;
 const DEFAULT_BASE_CHUNK_RATIO = 0.4;
 const DEFAULT_MIN_CHUNK_RATIO = 0.15;
-const TEXT_CHARS_PER_TOKEN = 4;
-const TOOL_CHARS_PER_TOKEN = 2;
 const DEFAULT_TOOL_RESULT_MAX_CHARS = 50_000;
 const EMERGENCY_TRUNCATION_BUDGET_RATIO = 0.5;
 
 /**
+ * Per-message overhead in tokens (role, delimiters, metadata).
+ * Most LLM APIs add ~4-7 tokens per message for framing.
+ */
+const MESSAGE_OVERHEAD_TOKENS = 5;
+
+/**
+ * Estimate token count for a text string.
+ *
+ * Uses a refined heuristic that accounts for common tokenizer patterns:
+ * - English prose averages ~4 chars/token
+ * - Code averages ~3 chars/token (more symbols, shorter identifiers)
+ * - Whitespace-heavy content tokenizes more efficiently (~5 chars/token)
+ * - JSON/structured content averages ~2.5 chars/token (many single-char tokens)
+ *
+ * We use 3.5 chars/token as a balanced default with a safety margin.
+ */
+function estimateTextTokens(text: string): number {
+  if (text.length === 0) return 0;
+
+  // Detect content type for better estimation
+  const codeIndicators = /[{}[\]();=><|&!~^%]/.test(text);
+  const jsonLike = text.startsWith("{") || text.startsWith("[");
+
+  let charsPerToken: number;
+  if (jsonLike) {
+    charsPerToken = 2.5;
+  } else if (codeIndicators) {
+    charsPerToken = 3.0;
+  } else {
+    charsPerToken = 3.5;
+  }
+
+  return Math.ceil(text.length / charsPerToken);
+}
+
+/**
  * Estimate token count for a single message.
- * Heuristic: text chars / 4, tool content chars / 2, with 1.2x safety margin.
+ * Uses content-aware heuristics with a safety margin.
  */
 export function estimateTokens(message: AgentMessage): number {
   // biome-ignore lint/suspicious/noExplicitAny: AgentMessage content type is opaque from pi-agent-core
   const content = (message as any).content;
-  let chars = 0;
-  let isToolContent = false;
+  let tokens = MESSAGE_OVERHEAD_TOKENS;
 
   if (typeof content === "string") {
-    chars = content.length;
+    tokens += estimateTextTokens(content);
   } else if (Array.isArray(content)) {
     for (const block of content) {
       if (typeof block === "string") {
-        chars += block.length;
+        tokens += estimateTextTokens(block);
       } else if (block && typeof block === "object") {
         if ("text" in block && typeof block.text === "string") {
-          chars += block.text.length;
+          tokens += estimateTextTokens(block.text);
         }
-        if (block.type === "toolCall" || block.type === "toolResult") {
-          isToolContent = true;
+        // Tool calls include the function name + JSON arguments
+        if (block.type === "toolCall") {
+          const argsStr =
+            typeof block.arguments === "string"
+              ? block.arguments
+              : JSON.stringify(block.arguments ?? {});
+          tokens += estimateTextTokens(argsStr) + 5; // +5 for tool call framing
         }
       }
     }
   }
 
-  // toolResult role also counts as tool content
-  // biome-ignore lint/suspicious/noExplicitAny: AgentMessage content type is opaque from pi-agent-core
-  if ((message as any).role === "toolResult") {
-    isToolContent = true;
-  }
-
-  const divisor = isToolContent ? TOOL_CHARS_PER_TOKEN : TEXT_CHARS_PER_TOKEN;
-  return Math.ceil((chars / divisor) * SAFETY_MARGIN);
+  return Math.ceil(tokens * SAFETY_MARGIN);
 }
 
 /**

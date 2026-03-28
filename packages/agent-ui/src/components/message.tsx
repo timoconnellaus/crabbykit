@@ -3,6 +3,19 @@ import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client
 import { type ComponentPropsWithoutRef, useMemo } from "react";
 import type { ToolResultInfo } from "./message-list";
 
+/** Format a timestamp as a relative time string (e.g., "2m ago", "1h ago"). */
+function formatRelativeTime(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 /** AgentMessage with an optional streaming flag added during live updates. */
 // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
 type StreamableMessage = AgentMessage & { _streaming?: boolean } & Partial<CommandResultTag>;
@@ -75,6 +88,25 @@ function cleanToolResultText(raw: string): string {
     // Not valid JSON — return as-is
   }
   return raw;
+}
+
+/** Extract image content blocks from a message. */
+function getImageBlocks(message: StreamableMessage): Array<{
+  type: "image";
+  source?: { type: string; media_type?: string; data?: string };
+  url?: string;
+}> {
+  const { content } = message as { content: unknown };
+  if (!Array.isArray(content)) return [];
+  return content.filter(
+    (
+      b,
+    ): b is {
+      type: "image";
+      source?: { type: string; media_type?: string; data?: string };
+      url?: string;
+    } => b != null && typeof b === "object" && "type" in b && b.type === "image",
+  );
 }
 
 /** Extract tool calls from an assistant message. */
@@ -156,8 +188,10 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const role = ("role" in message ? message.role : "unknown") ?? "unknown";
   const text = getTextContent(message);
   const toolCalls = role === "assistant" ? getToolCalls(message) : [];
+  const imageBlocks = getImageBlocks(message);
   const isStreaming = !!message._streaming;
   const isCommandResult = !!message._commandResult;
+  const timestamp = "timestamp" in message ? (message.timestamp as number) : undefined;
 
   const toolResultName = "toolName" in message ? (message.toolName as string) : "";
   const renderedHtml = useMemo(
@@ -201,6 +235,23 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
           <div data-agent-ui="message-content">{text}</div>
         ))}
 
+      {imageBlocks.map((img, i) => {
+        const src =
+          img.source?.type === "base64" && img.source.data
+            ? `data:${img.source.media_type ?? "image/png"};base64,${img.source.data}`
+            : img.url ?? undefined;
+        if (!src) return null;
+        return (
+          <img
+            // biome-ignore lint/suspicious/noArrayIndexKey: Image blocks don't have stable IDs
+            key={i}
+            data-agent-ui="message-image"
+            src={src}
+            alt="Image content"
+          />
+        );
+      })}
+
       {toolCalls.map((tc, i) => {
         const callId = tc.toolCallId ?? tc.id;
         const toolResult = callId ? toolResultMap?.get(callId) : undefined;
@@ -241,6 +292,10 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
           {toolResultName && <span data-agent-ui="tool-result-name">{toolResultName}</span>}
           <pre data-agent-ui="tool-result-content">{extractResultText(message)}</pre>
         </div>
+      )}
+
+      {timestamp != null && (
+        <div data-agent-ui="message-timestamp">{formatRelativeTime(timestamp)}</div>
       )}
     </div>
   );

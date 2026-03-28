@@ -192,6 +192,32 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   toolExecution?: ToolExecutionMode;
 
   /**
+   * Maximum number of loop iterations (assistant response + tool execution rounds).
+   * Prevents runaway agents from looping indefinitely.
+   *
+   * Default: 100
+   */
+  maxIterations?: number;
+
+  /**
+   * Maximum number of retries for transient LLM failures (error stopReason).
+   * When an assistant response ends with stopReason "error" and the error message
+   * suggests a transient failure (429, 500, 502, 503, 529, network errors),
+   * the loop will retry the stream call up to this many times with exponential backoff.
+   *
+   * Default: 2 (up to 2 retries, so 3 total attempts)
+   */
+  maxStreamRetries?: number;
+
+  /**
+   * Base delay in milliseconds for retry backoff.
+   * Actual delay is `baseRetryDelayMs * 2^attempt`.
+   *
+   * Default: 1000
+   */
+  baseRetryDelayMs?: number;
+
+  /**
    * Called before a tool is executed, after arguments have been validated.
    *
    * Return `{ block: true }` to prevent execution. The loop emits an error tool result instead.
@@ -273,16 +299,21 @@ export interface AgentToolResult<T> {
 // Callback for streaming tool execution updates
 export type AgentToolUpdateCallback<T = any> = (partialResult: AgentToolResult<T>) => void;
 
+/** Context passed to a tool's execute function. */
+export interface ToolExecuteContext<TDetails = any> {
+  toolCallId: string;
+  signal?: AbortSignal;
+  onUpdate?: AgentToolUpdateCallback<TDetails>;
+}
+
 // AgentTool extends Tool but adds the execute function
 export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any>
   extends Tool<TParameters> {
   // A human-readable label for the tool to be displayed in UI
   label: string;
   execute: (
-    toolCallId: string,
-    params: Static<TParameters>,
-    signal?: AbortSignal,
-    onUpdate?: AgentToolUpdateCallback<TDetails>,
+    args: Static<TParameters>,
+    context: ToolExecuteContext<TDetails>,
   ) => Promise<AgentToolResult<TDetails>>;
 }
 

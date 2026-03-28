@@ -66,24 +66,32 @@ export function compactionSummary(options: CompactionSummaryOptions): Capability
           return messages;
         }
 
-        const summarize = createLlmSummarizer(options.provider, options.modelId, options.getApiKey);
+        try {
+          const summarize = createLlmSummarizer(
+            options.provider,
+            options.modelId,
+            options.getApiKey,
+          );
 
-        const entries = ctx.sessionStore.getEntries(ctx.sessionId);
-        const entryIds = entries.filter((e) => e.type === "message").map((e) => e.id);
+          const entries = ctx.sessionStore.getEntries(ctx.sessionId);
+          const entryIds = entries.filter((e) => e.type === "message").map((e) => e.id);
 
-        const result = await compactSession(messages, entryIds, config, summarize);
+          const result = await compactSession(messages, entryIds, config, summarize);
 
-        if (result) {
-          ctx.sessionStore.appendEntry(ctx.sessionId, {
-            type: "compaction",
-            data: {
-              summary: result.summary,
-              firstKeptEntryId: result.firstKeptEntryId,
-              tokensBefore: result.tokensBefore,
-            },
-          });
+          if (result) {
+            ctx.sessionStore.appendEntry(ctx.sessionId, {
+              type: "compaction",
+              data: {
+                summary: result.summary,
+                firstKeptEntryId: result.firstKeptEntryId,
+                tokensBefore: result.tokensBefore,
+              },
+            });
 
-          return ctx.sessionStore.buildContext(ctx.sessionId);
+            return ctx.sessionStore.buildContext(ctx.sessionId);
+          }
+        } catch (err) {
+          console.error("[compaction-summary] Compaction failed, returning original messages:", err);
         }
 
         return messages;

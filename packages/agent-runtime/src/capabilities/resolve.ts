@@ -5,7 +5,13 @@ import type { McpServerConfig } from "../mcp/types.js";
 import type { ResolvedScheduleDeclaration } from "../scheduling/types.js";
 import type { CapabilityStorage } from "./storage.js";
 import { createNoopStorage } from "./storage.js";
-import type { Capability, CapabilityHookContext, ToolExecutionEvent } from "./types.js";
+import type {
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
+  Capability,
+  CapabilityHookContext,
+  ToolExecutionEvent,
+} from "./types.js";
 
 export interface ResolvedCapabilities {
   tools: AgentTool[];
@@ -14,6 +20,12 @@ export interface ResolvedCapabilities {
   mcpServers: McpServerConfig[];
   beforeInferenceHooks: Array<
     (messages: AgentMessage[], ctx: CapabilityHookContext) => Promise<AgentMessage[]>
+  >;
+  beforeToolExecutionHooks: Array<
+    (
+      event: BeforeToolExecutionEvent,
+      ctx: CapabilityHookContext,
+    ) => Promise<BeforeToolExecutionResult | void>
   >;
   afterToolExecutionHooks: Array<
     (event: ToolExecutionEvent, ctx: CapabilityHookContext) => Promise<void>
@@ -44,6 +56,7 @@ export function resolveCapabilities(
   const promptSections: string[] = [];
   const mcpServers: McpServerConfig[] = [];
   const beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
+  const beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   const afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   const onConnectHooks: ResolvedCapabilities["onConnectHooks"] = [];
   const schedules: ResolvedScheduleDeclaration[] = [];
@@ -100,6 +113,13 @@ export function resolveCapabilities(
       );
     }
 
+    if (cap.hooks?.beforeToolExecution) {
+      const rawHook = cap.hooks.beforeToolExecution;
+      beforeToolExecutionHooks.push(async (event, ctx) =>
+        rawHook(event, { ...ctx, storage: capStorage }),
+      );
+    }
+
     if (cap.hooks?.afterToolExecution) {
       const rawHook = cap.hooks.afterToolExecution;
       afterToolExecutionHooks.push(async (event, ctx) =>
@@ -119,6 +139,7 @@ export function resolveCapabilities(
     promptSections,
     mcpServers,
     beforeInferenceHooks,
+    beforeToolExecutionHooks,
     afterToolExecutionHooks,
     onConnectHooks,
     schedules,

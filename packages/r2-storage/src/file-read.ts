@@ -31,7 +31,7 @@ export function createFileReadTool(
         }),
       ),
     }),
-    execute: async (_toolCallId, { path, offset, limit }) => {
+    execute: async ({ path, offset, limit }) => {
       const validation = validatePath(path);
       if (!validation.valid) {
         return {

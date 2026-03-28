@@ -1,6 +1,7 @@
 import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
+import type { CostEvent } from "../costs/types.js";
 import type { McpServerConfig } from "../mcp/types.js";
 import type { ScheduleConfig } from "../scheduling/types.js";
 import type { SessionStore } from "../session/session-store.js";
@@ -16,6 +17,29 @@ export interface CapabilityHookContext {
   storage: CapabilityStorage;
   /** Broadcast a custom event to the current session's clients. Only available in onConnect. */
   broadcast?: (name: string, data: Record<string, unknown>) => void;
+  /** Emit a cost event. Persisted to session and broadcast to clients. */
+  emitCost?: (cost: CostEvent) => void;
+}
+
+/**
+ * Event passed to `beforeToolExecution` hooks before a tool runs.
+ */
+export interface BeforeToolExecutionEvent {
+  /** Name of the tool about to be executed. */
+  toolName: string;
+  /** Validated arguments the tool will be called with. */
+  args: unknown;
+  /** The tool call ID from the assistant message. */
+  toolCallId: string;
+}
+
+/**
+ * Result from a `beforeToolExecution` hook.
+ * Return `{ block: true }` to prevent execution.
+ */
+export interface BeforeToolExecutionResult {
+  block?: boolean;
+  reason?: string;
 }
 
 /**
@@ -74,6 +98,15 @@ export interface Capability {
       messages: AgentMessage[],
       ctx: CapabilityHookContext,
     ) => Promise<AgentMessage[]>;
+
+    /**
+     * Called before a tool is executed. Return `{ block: true }` to prevent execution.
+     * Hooks run in capability registration order. If any hook blocks, the tool is not executed.
+     */
+    beforeToolExecution?: (
+      event: BeforeToolExecutionEvent,
+      ctx: CapabilityHookContext,
+    ) => Promise<BeforeToolExecutionResult | void>;
 
     /**
      * Called after a tool finishes executing.

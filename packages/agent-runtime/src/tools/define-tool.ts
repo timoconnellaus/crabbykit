@@ -1,7 +1,7 @@
 import type {
   AgentTool,
   AgentToolResult,
-  AgentToolUpdateCallback,
+  ToolExecuteContext,
 } from "@claw-for-cloudflare/agent-core";
 import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox";
 
@@ -15,10 +15,8 @@ export function defineTool<TParameters extends TObject>(opts: {
   parameters: TParameters;
   label?: string;
   execute: (
-    toolCallId: string,
     args: Static<TParameters>,
-    signal?: AbortSignal,
-    onUpdate?: AgentToolUpdateCallback,
+    context: ToolExecuteContext,
     // biome-ignore lint/suspicious/noExplicitAny: AgentToolResult generic comes from pi-agent-core type boundary
   ) => Promise<AgentToolResult<any>>;
 }): AgentTool<TParameters> {
@@ -30,6 +28,18 @@ export function defineTool<TParameters extends TObject>(opts: {
     execute: opts.execute,
   };
 }
+
+/**
+ * Convenience helpers for constructing common tool result shapes.
+ */
+export const toolResult = {
+  text(text: string, details?: unknown) {
+    return { content: [{ type: "text" as const, text }], details: details ?? {} };
+  },
+  error(text: string, details?: unknown) {
+    return { content: [{ type: "text" as const, text }], details: details ?? { error: true } };
+  },
+};
 
 interface McpTool {
   name: string;
@@ -57,7 +67,7 @@ export function mcpToolToAgentTool(mcpTool: McpTool, server: McpServer): AgentTo
     label: prefixedName,
     description: mcpTool.description ?? `MCP tool: ${mcpTool.name}`,
     parameters: Type.Unsafe(mcpTool.inputSchema) as TSchema,
-    execute: async (_toolCallId, args) => {
+    execute: async (args) => {
       const result = await server.callTool(mcpTool.name, args as Record<string, unknown>);
       const text =
         typeof result.content === "string" ? result.content : JSON.stringify(result.content);

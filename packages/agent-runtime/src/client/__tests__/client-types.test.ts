@@ -36,8 +36,9 @@ describe("Client Types", () => {
         command_result: true,
         command_list: true,
         custom_event: true,
+        pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(11);
+      expect(Object.keys(handlers)).toHaveLength(12);
     });
 
     it("discriminates client messages by type", () => {
@@ -49,8 +50,10 @@ describe("Client Types", () => {
         new_session: true,
         delete_session: true,
         command: true,
+        ping: true,
+        request_sync: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(7);
+      expect(Object.keys(handlers)).toHaveLength(9);
     });
   });
 

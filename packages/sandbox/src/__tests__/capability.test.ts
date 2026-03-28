@@ -119,7 +119,7 @@ describe("sandboxCapability", () => {
       const tools = cap.tools!(ctx);
       const elevate = tools.find((t) => t.name === "elevate")!;
 
-      const result = await elevate.execute("tc1", { reason: "need shell" });
+      const result = await elevate.execute({ reason: "need shell" }, { toolCallId: "tc1" });
 
       expect(provider.start).toHaveBeenCalled();
       expect(ctx.storage!.put).toHaveBeenCalledWith("elevated", true);
@@ -139,7 +139,7 @@ describe("sandboxCapability", () => {
       const tools = cap.tools!(ctx);
       const bash = tools.find((t) => t.name === "bash")!;
 
-      const result = await bash.execute("tc1", { command: "ls" });
+      const result = await bash.execute({ command: "ls" }, { toolCallId: "tc1" });
 
       expect(result.content[0]).toHaveProperty("text");
       const text = (result.content[0] as { text: string }).text;
@@ -155,7 +155,7 @@ describe("sandboxCapability", () => {
       const tools = cap.tools!(ctx);
       const bash = tools.find((t) => t.name === "bash")!;
 
-      const result = await bash.execute("tc1", { command: "echo hello" });
+      const result = await bash.execute({ command: "echo hello" }, { toolCallId: "tc1" });
 
       expect(provider.exec).toHaveBeenCalledWith("echo hello", {
         timeout: 60_000,
@@ -176,7 +176,7 @@ describe("sandboxCapability", () => {
       const tools = cap.tools!(ctx);
       const deElevate = tools.find((t) => t.name === "de_elevate")!;
 
-      const result = await deElevate.execute("tc1", {});
+      const result = await deElevate.execute({}, { toolCallId: "tc1" });
 
       expect(ctx.storage!.put).toHaveBeenCalledWith("elevated", false);
       expect(ctx.schedules.cancelTimer).toHaveBeenCalledWith("sandbox:de-elevate");

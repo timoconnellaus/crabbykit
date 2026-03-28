@@ -15,7 +15,7 @@ export function createFileDeleteTool(
     parameters: Type.Object({
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
     }),
-    execute: async (_toolCallId, { path }) => {
+    execute: async ({ path }) => {
       const validation = validatePath(path);
       if (!validation.valid) {
         return {

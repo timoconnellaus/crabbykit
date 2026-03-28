@@ -31,6 +31,10 @@ export interface SessionSyncMessage {
   session: Session;
   messages: AgentMessage[];
   streamMessage?: AgentMessage | null;
+  /** Seq of the last entry in this page. Used as cursor for requesting more pages. */
+  cursor?: number;
+  /** Whether more entries exist beyond this page. */
+  hasMore?: boolean;
 }
 
 export interface SessionListMessage {
@@ -102,6 +106,10 @@ export interface CustomEventMessage {
   };
 }
 
+export interface PongMessage {
+  type: "pong";
+}
+
 export type ServerMessage =
   | AgentEventMessage
   | ToolEventMessage
@@ -113,7 +121,8 @@ export type ServerMessage =
   | ErrorMessage
   | CommandResultMessage
   | CommandListMessage
-  | CustomEventMessage;
+  | CustomEventMessage
+  | PongMessage;
 
 // --- Client → Server messages ---
 
@@ -158,6 +167,17 @@ export interface CommandMessage {
   args?: string;
 }
 
+export interface RequestSyncMessage {
+  type: "request_sync";
+  sessionId: string;
+  /** Fetch entries after this seq number. Omit for the first page. */
+  afterSeq?: number;
+}
+
+export interface PingMessage {
+  type: "ping";
+}
+
 export type ClientMessage =
   | PromptMessage
   | SteerMessage
@@ -165,4 +185,6 @@ export type ClientMessage =
   | SwitchSessionMessage
   | NewSessionMessage
   | DeleteSessionMessage
-  | CommandMessage;
+  | CommandMessage
+  | RequestSyncMessage
+  | PingMessage;

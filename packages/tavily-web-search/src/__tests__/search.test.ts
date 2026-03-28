@@ -44,7 +44,7 @@ describe("createSearchTool", () => {
   it("returns error when API key is missing", async () => {
     const ctx = mockContext();
     const tool = createSearchTool(() => "", 5, ctx);
-    const result = await tool.execute("call1", { query: "test" });
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("not configured");
     expect(mockFetch).not.toHaveBeenCalled();
@@ -59,7 +59,7 @@ describe("createSearchTool", () => {
     );
 
     const tool = createSearchTool(() => "test-key", 3, mockContext());
-    await tool.execute("call1", { query: "cloudflare workers" });
+    await tool.execute({ query: "cloudflare workers" }, { toolCallId: "test" });
 
     expect(mockFetch).toHaveBeenCalledWith(
       "https://api.tavily.com/search",
@@ -86,7 +86,7 @@ describe("createSearchTool", () => {
 
     const ctx = mockContext();
     const tool = createSearchTool(() => "key", 5, ctx);
-    const result = await tool.execute("call1", { query: "test" });
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
     const text = textOf(result);
 
     expect(text).toContain("1. **First**");
@@ -108,7 +108,7 @@ describe("createSearchTool", () => {
 
     const ctx = mockContext();
     const tool = createSearchTool(() => "key", 5, ctx);
-    const result = await tool.execute("call1", { query: "test" });
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
 
     expect(textOf(result)).toBe("No results found.");
     expect(ctx.emitCost).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe("createSearchTool", () => {
 
     const ctx = mockContext();
     const tool = createSearchTool(() => "key", 5, ctx);
-    const result = await tool.execute("call1", { query: "test" });
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("429");
     expect(textOf(result)).toContain("Rate limited");
@@ -131,7 +131,7 @@ describe("createSearchTool", () => {
 
     const ctx = mockContext();
     const tool = createSearchTool(() => "key", 5, ctx);
-    const result = await tool.execute("call1", { query: "test" });
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("DNS resolution failed");
     expect(ctx.emitCost).not.toHaveBeenCalled();

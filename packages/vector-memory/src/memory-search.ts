@@ -28,7 +28,7 @@ export function createMemorySearchTool(
         }),
       ),
     }),
-    execute: async (_toolCallId, { query, max_results }) => {
+    execute: async ({ query, max_results }) => {
       const effectiveMax = max_results ?? maxSearchResults;
       const prefix = getPrefix();
 

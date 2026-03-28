@@ -1,8 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import { nanoid } from "nanoid";
 import type {
-  CompactionEntryData,
-  MessageEntryData,
   Session,
   SessionEntry,
   SessionEntryType,
@@ -144,15 +142,16 @@ export class SessionStore {
       sessionId,
     );
 
+    // Cast to discriminated union — caller guarantees type/data alignment
     return {
       id,
       parentId,
       sessionId,
       seq,
-      type: entry.type as SessionEntryType,
-      data: entry.data as unknown as SessionEntry["data"],
+      type: entry.type,
+      data: entry.data,
       createdAt: now,
-    };
+    } as unknown as SessionEntry;
   }
 
   getEntries(sessionId: string): SessionEntry[] {
@@ -161,6 +160,38 @@ export class SessionStore {
       .toArray();
 
     return rows.map((row) => this.rowToEntry(row));
+  }
+
+  private static readonly DEFAULT_PAGE_LIMIT = 100;
+
+  /**
+   * Get entries with pagination support.
+   * Returns entries ordered by seq, optionally starting after `afterSeq`.
+   */
+  getEntriesPaginated(
+    sessionId: string,
+    options?: { limit?: number; afterSeq?: number },
+  ): { entries: SessionEntry[]; hasMore: boolean } {
+    const limit = options?.limit ?? SessionStore.DEFAULT_PAGE_LIMIT;
+    const afterSeq = options?.afterSeq ?? 0;
+
+    // Fetch one extra to determine if there are more entries
+    const rows = this.sql
+      .exec(
+        "SELECT * FROM session_entries WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?",
+        sessionId,
+        afterSeq,
+        limit + 1,
+      )
+      .toArray();
+
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      entries: pageRows.map((row) => this.rowToEntry(row)),
+      hasMore,
+    };
   }
 
   /**
@@ -193,11 +224,11 @@ export class SessionStore {
     let compactionSummary: string | null = null;
 
     for (let i = path.length - 1; i >= 0; i--) {
-      if (path[i].type === "compaction") {
-        const data = path[i].data as CompactionEntryData;
-        compactionSummary = data.summary;
+      const entry = path[i];
+      if (entry.type === "compaction") {
+        compactionSummary = entry.data.summary;
         // Find the index of firstKeptEntryId in the path
-        const keptIndex = path.findIndex((e) => e.id === data.firstKeptEntryId);
+        const keptIndex = path.findIndex((e) => e.id === entry.data.firstKeptEntryId);
         startIndex = keptIndex >= 0 ? keptIndex : i + 1;
         break;
       }
@@ -219,26 +250,25 @@ export class SessionStore {
     for (let i = startIndex; i < path.length; i++) {
       const entry = path[i];
       if (entry.type === "message") {
-        const data = entry.data as MessageEntryData;
-        if (data.role === "toolResult") {
+        if (entry.data.role === "toolResult") {
           messages.push({
             role: "toolResult",
             content:
-              typeof data.content === "string"
-                ? [{ type: "text", text: data.content }]
+              typeof entry.data.content === "string"
+                ? [{ type: "text", text: entry.data.content }]
                 : // biome-ignore lint/suspicious/noExplicitAny: SQL deserialization boundary — content shape is not statically known
-                  (data.content as any),
-            toolCallId: data.toolCallId ?? "",
-            toolName: data.toolName,
-            isError: data.isError,
-            timestamp: data.timestamp ?? Date.now(),
+                  (entry.data.content as any),
+            toolCallId: entry.data.toolCallId ?? "",
+            toolName: entry.data.toolName,
+            isError: entry.data.isError,
+            timestamp: entry.data.timestamp ?? Date.now(),
           } as AgentMessage);
         } else {
           messages.push({
-            role: data.role as "user" | "assistant",
+            role: entry.data.role as "user" | "assistant",
             // biome-ignore lint/suspicious/noExplicitAny: SQL deserialization boundary — content shape is not statically known
-            content: data.content as any,
-            timestamp: data.timestamp ?? Date.now(),
+            content: entry.data.content as any,
+            timestamp: entry.data.timestamp ?? Date.now(),
           } as AgentMessage);
         }
       }
@@ -271,6 +301,42 @@ export class SessionStore {
     );
   }
 
+  /**
+   * Garbage-collect unreachable entries (entries not on the leaf-to-root path).
+   * Call after compaction to clean up orphaned branch entries.
+   */
+  gc(sessionId: string): number {
+    const session = this.get(sessionId);
+    if (!session?.leafId) return 0;
+
+    // Walk from leaf to root to find reachable entries
+    const entries = this.getEntries(sessionId);
+    const entryMap = new Map<string, SessionEntry>();
+    for (const entry of entries) {
+      entryMap.set(entry.id, entry);
+    }
+
+    const reachable = new Set<string>();
+    let current: SessionEntry | undefined = entryMap.get(session.leafId);
+    while (current) {
+      reachable.add(current.id);
+      current = current.parentId ? entryMap.get(current.parentId) : undefined;
+    }
+
+    // Delete unreachable entries
+    const unreachable = entries.filter((e) => !reachable.has(e.id));
+    if (unreachable.length === 0) return 0;
+
+    const ids = unreachable.map((e) => e.id);
+    const placeholders = ids.map(() => "?").join(",");
+    this.sql.exec(
+      `DELETE FROM session_entries WHERE id IN (${placeholders})`,
+      ...ids,
+    );
+
+    return unreachable.length;
+  }
+
   // --- Private helpers ---
 
   private rowToSession(row: Record<string, SqlStorageValue>): Session {
@@ -285,14 +351,16 @@ export class SessionStore {
   }
 
   private rowToEntry(row: Record<string, SqlStorageValue>): SessionEntry {
-    return {
+    const base = {
       id: row.id as string,
       parentId: (row.parent_id as string) ?? null,
       sessionId: row.session_id as string,
       seq: row.seq as number,
-      type: row.type as SessionEntryType,
-      data: JSON.parse(row.data as string),
       createdAt: row.created_at as string,
     };
+    const type = row.type as SessionEntryType;
+    const data = JSON.parse(row.data as string);
+    // Cast to discriminated union — the DB schema guarantees type/data alignment
+    return { ...base, type, data } as SessionEntry;
   }
 }

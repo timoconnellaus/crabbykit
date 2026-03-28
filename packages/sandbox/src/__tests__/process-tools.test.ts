@@ -56,7 +56,7 @@ describe("start_process tool", () => {
   it("rejects when not elevated", async () => {
     const ctx = mockContext(false);
     const tool = getTool("start_process", ctx);
-    const result = await tool.execute("tc1", { name: "dev", command: "npm start" });
+    const result = await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("elevate");
   });
@@ -66,7 +66,7 @@ describe("start_process tool", () => {
     const ctx = mockContext(true);
     const tool = getToolWithProvider("start_process", provider, ctx);
 
-    const result = await tool.execute("tc1", { name: "dev", command: "npm start" });
+    const result = await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
     expect(provider.processStart).toHaveBeenCalledWith("dev", "npm start", "/mnt/r2");
 
     const text = (result.content[0] as { text: string }).text;
@@ -79,7 +79,7 @@ describe("start_process tool", () => {
     const ctx = mockContext(true);
     const tool = getToolWithProvider("start_process", provider, ctx);
 
-    await tool.execute("tc1", { name: "dev", command: "npm start" });
+    await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
 
     expect(ctx.schedules.cancelTimer).toHaveBeenCalled();
     expect(ctx.schedules.setTimer).toHaveBeenCalled();
@@ -88,7 +88,7 @@ describe("start_process tool", () => {
   it("broadcasts sandbox_timeout", async () => {
     const ctx = mockContext(true);
     const tool = getTool("start_process", ctx);
-    await tool.execute("tc1", { name: "dev", command: "npm start" });
+    await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
 
     expect(ctx.broadcast).toHaveBeenCalledWith(
       "sandbox_timeout",
@@ -101,7 +101,7 @@ describe("stop_process tool", () => {
   it("rejects when not elevated", async () => {
     const ctx = mockContext(false);
     const tool = getTool("stop_process", ctx);
-    const result = await tool.execute("tc1", { name: "dev" });
+    const result = await tool.execute({ name: "dev" }, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("elevate");
   });
@@ -111,7 +111,7 @@ describe("stop_process tool", () => {
     const ctx = mockContext(true);
     const tool = getToolWithProvider("stop_process", provider, ctx);
 
-    const result = await tool.execute("tc1", { name: "dev" });
+    const result = await tool.execute({ name: "dev" }, { toolCallId: "test" });
     expect(provider.processStop).toHaveBeenCalledWith("dev");
 
     const text = (result.content[0] as { text: string }).text;
@@ -123,7 +123,7 @@ describe("get_process_status tool", () => {
   it("rejects when not elevated", async () => {
     const ctx = mockContext(false);
     const tool = getTool("get_process_status", ctx);
-    const result = await tool.execute("tc1", {});
+    const result = await tool.execute({}, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("elevate");
   });
@@ -131,7 +131,7 @@ describe("get_process_status tool", () => {
   it("returns 'No managed processes' when empty", async () => {
     const ctx = mockContext(true);
     const tool = getTool("get_process_status", ctx);
-    const result = await tool.execute("tc1", {});
+    const result = await tool.execute({}, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toBe("No managed processes.");
   });
@@ -145,7 +145,7 @@ describe("get_process_status tool", () => {
     const ctx = mockContext(true);
     const tool = getToolWithProvider("get_process_status", provider, ctx);
 
-    const result = await tool.execute("tc1", {});
+    const result = await tool.execute({}, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
 
     expect(text).toContain("server: running");

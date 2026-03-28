@@ -3,6 +3,16 @@ import { toR2Key } from "./paths.js";
 
 const DEFAULT_MAX_READ_BYTES = 512 * 1024;
 
+/** Validate a path to prevent directory traversal and other malicious inputs. */
+function validateMemoryPath(path: string): string | null {
+  if (!path || path.length === 0) return "Path cannot be empty";
+  if (path.length > 512) return "Path exceeds maximum length (512 bytes)";
+  if (path.includes("..")) return "Path cannot contain '..'";
+  if (path.includes("\0")) return "Path cannot contain null bytes";
+  if (path.startsWith("/")) return "Path must be relative";
+  return null;
+}
+
 export function createMemoryGetTool(
   getBucket: () => R2Bucket,
   getPrefix: () => string,
@@ -20,7 +30,15 @@ export function createMemoryGetTool(
       ),
       lines: Type.Optional(Type.Integer({ minimum: 1, description: "Number of lines to read" })),
     }),
-    execute: async (_toolCallId, { path, offset, lines }) => {
+    execute: async ({ path, offset, lines }) => {
+      const pathError = validateMemoryPath(path);
+      if (pathError) {
+        return {
+          content: [{ type: "text" as const, text: `Error: ${pathError}: ${path}` }],
+          details: { error: "invalid_path" },
+        };
+      }
+
       const prefix = getPrefix();
       const r2Key = toR2Key(prefix, path);
       const bucket = getBucket();

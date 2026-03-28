@@ -1,5 +1,6 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { createFetchTool } from "./fetch.js";
+import type { TavilySearchDefaults } from "./search.js";
 import { createSearchTool } from "./search.js";
 
 const DEFAULT_MAX_RESULTS = 5;
@@ -13,6 +14,8 @@ export interface TavilyWebSearchOptions {
   userAgent?: string;
   /** Maximum fetch content size in chars (default 50,000). */
   maxFetchSize?: number;
+  /** Default search options applied to every search unless overridden per-call. */
+  searchDefaults?: TavilySearchDefaults;
 }
 
 /**
@@ -44,7 +47,7 @@ export function tavilyWebSearch(options: TavilyWebSearchOptions): Capability {
     name: "Web Search (Tavily)",
     description: "Search the web and fetch URLs for current information.",
     tools: (context: AgentContext) => [
-      createSearchTool(getApiKey, options.maxResults ?? DEFAULT_MAX_RESULTS, context),
+      createSearchTool(getApiKey, options.maxResults ?? DEFAULT_MAX_RESULTS, context, options.searchDefaults),
       createFetchTool(options.userAgent, options.maxFetchSize, context),
     ],
     promptSections: () => [

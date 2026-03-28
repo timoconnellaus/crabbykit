@@ -10,7 +10,7 @@ describe("defineTool", () => {
       parameters: Type.Object({
         path: Type.String(),
       }),
-      execute: async (_id, args) => ({
+      execute: async (args) => ({
         content: [{ type: "text" as const, text: args.path }],
         details: {},
       }),
@@ -43,13 +43,13 @@ describe("defineTool", () => {
         path: Type.String(),
         limit: Type.Optional(Type.Number()),
       }),
-      execute: async (_id, args) => ({
+      execute: async (args) => ({
         content: [{ type: "text" as const, text: `${args.path}:${args.limit}` }],
         details: args,
       }),
     });
 
-    const result = await tool.execute("call_1", { path: "/test.ts", limit: 10 });
+    const result = await tool.execute({ path: "/test.ts", limit: 10 }, { toolCallId: "call_1" });
     expect(result.content[0]).toEqual({
       type: "text",
       text: "/test.ts:10",
@@ -64,13 +64,13 @@ describe("defineTool", () => {
       name: "test",
       description: "Test",
       parameters: Type.Object({}),
-      execute: async (id) => {
-        capturedId = id;
+      execute: async (_args, ctx) => {
+        capturedId = ctx.toolCallId;
         return { content: [], details: {} };
       },
     });
 
-    await tool.execute("call_abc123", {});
+    await tool.execute({}, { toolCallId: "call_abc123" });
     expect(capturedId).toBe("call_abc123");
   });
 
@@ -81,14 +81,14 @@ describe("defineTool", () => {
       name: "test",
       description: "Test",
       parameters: Type.Object({}),
-      execute: async (_id, _args, signal) => {
-        receivedSignal = signal;
+      execute: async (_args, ctx) => {
+        receivedSignal = ctx.signal;
         return { content: [], details: {} };
       },
     });
 
     const controller = new AbortController();
-    await tool.execute("call_1", {}, controller.signal);
+    await tool.execute({}, { toolCallId: "call_1", signal: controller.signal });
     expect(receivedSignal).toBe(controller.signal);
   });
 
@@ -102,7 +102,7 @@ describe("defineTool", () => {
       },
     });
 
-    await expect(tool.execute("call_1", {})).rejects.toThrow("Tool failed");
+    await expect(tool.execute({}, { toolCallId: "call_1" })).rejects.toThrow("Tool failed");
   });
 });
 
@@ -164,7 +164,7 @@ describe("mcpToolToAgentTool", () => {
       { name: "db", callTool: mockCallTool },
     );
 
-    const result = await tool.execute("call_1", { sql: "SELECT 1" });
+    const result = await tool.execute({ sql: "SELECT 1" }, { toolCallId: "call_1" });
 
     expect(mockCallTool).toHaveBeenCalledWith("query", { sql: "SELECT 1" });
     expect(result.content[0].type).toBe("text");
@@ -182,7 +182,7 @@ describe("mcpToolToAgentTool", () => {
       },
     );
 
-    const result = await tool.execute("call_1", {});
+    const result = await tool.execute({}, { toolCallId: "call_1" });
     expect(result.content[0]).toEqual({
       type: "text",
       text: "plain text result",

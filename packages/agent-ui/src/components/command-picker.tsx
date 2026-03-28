@@ -127,12 +127,14 @@ export const CommandPicker = forwardRef<HTMLDivElement, CommandPickerProps>(func
 
   return (
     <div data-agent-ui="command-picker" ref={ref} {...props}>
-      <div data-agent-ui="command-picker-panel" ref={listRef}>
+      <div data-agent-ui="command-picker-panel" ref={listRef} role="listbox">
         {matches.map((cmd, i) => (
           <button
             key={cmd.name}
             type="button"
             data-agent-ui="command-picker-item"
+            role="option"
+            aria-selected={i === selectedIndex}
             data-selected={i === selectedIndex || undefined}
             onMouseDown={(e) => {
               e.preventDefault(); // prevent textarea blur

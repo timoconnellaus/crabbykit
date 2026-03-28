@@ -12,6 +12,7 @@ export type {
   BeforeToolCallContext,
   BeforeToolCallResult,
   ThinkingLevel,
+  ToolExecuteContext,
 } from "@claw-for-cloudflare/agent-core";
 export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition
@@ -20,6 +21,8 @@ export type { AgentConfig, AgentContext, ScheduleManager } from "./agent-do.js";
 // Agent DO
 export { AgentDO } from "./agent-do.js";
 export type {
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
   Capability,
   CapabilityHookContext,
   CapabilityStorage,
@@ -80,16 +83,20 @@ export type {
 export { intervalToCron, nextFireTime, ScheduleStore, validateCron } from "./scheduling/index.js";
 export { SessionStore } from "./session/session-store.js";
 export type {
+  CompactionEntry,
   CompactionEntryData,
+  CustomEntry,
   CustomEntryData,
+  MessageEntry,
   MessageEntryData,
+  ModelChangeEntry,
   ModelChangeEntryData,
   Session,
   SessionEntry,
   SessionEntryType,
 } from "./session/types.js";
 // Tool system
-export { defineTool, mcpToolToAgentTool } from "./tools/define-tool.js";
+export { defineTool, mcpToolToAgentTool, toolResult } from "./tools/define-tool.js";
 export type { ErrorCode } from "./transport/error-codes.js";
 // Transport
 export { ErrorCodes } from "./transport/error-codes.js";
@@ -110,6 +117,9 @@ export type {
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,
+  PingMessage,
+  PongMessage,
+  RequestSyncMessage,
   SteerMessage,
   SwitchSessionMessage,
   ToolEventMessage,

@@ -41,7 +41,7 @@ export function createFetchTool(
     parameters: Type.Object({
       url: Type.String({ description: "The URL to fetch" }),
     }),
-    execute: async (_toolCallId, { url }) => {
+    execute: async ({ url }) => {
       // Basic URL validation
       try {
         new URL(url);

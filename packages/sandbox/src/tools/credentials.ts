@@ -62,7 +62,7 @@ export function createSaveCredentialTool(
         }),
       ),
     }),
-    execute: async (_toolCallId, args) => {
+    execute: async (args) => {
       const storage = context.storage;
       if (!storage) throw new Error("Sandbox capability requires storage");
 
@@ -82,8 +82,9 @@ export function createSaveCredentialTool(
           };
         }
 
-        // Read file from container
-        const result = await provider.exec(`cat '${normalizedPath}'`, { timeout: 5000 });
+        // Read file from container — use base64 to avoid shell metacharacter issues
+        const escapedPath = normalizedPath.replace(/'/g, "'\\''");
+        const result = await provider.exec(`cat '${escapedPath}'`, { timeout: 5000 });
         if (result.exitCode !== 0) {
           return {
             content: [
@@ -216,7 +217,7 @@ export function createDeleteCredentialTool(
       }),
       key: Type.String({ description: "The path or env var name to delete." }),
     }),
-    execute: async (_toolCallId, args) => {
+    execute: async (args) => {
       const storage = context.storage;
       if (!storage) throw new Error("Sandbox capability requires storage");
 
@@ -266,11 +267,16 @@ export async function injectCredentials(
 
       if (cred.type === "file") {
         // Create parent directory and write file
+        // Escape single quotes in paths and values to prevent shell injection
         const dir = cred.key.substring(0, cred.key.lastIndexOf("/"));
-        await provider.exec(`mkdir -p '${dir}'`, { timeout: 5000 });
-        // Use printf to avoid shell interpretation of file content
-        const escaped = value.replace(/'/g, "'\\''");
-        await provider.exec(`printf '%s' '${escaped}' > '${cred.key}'`, { timeout: 5000 });
+        const escapedDir = dir.replace(/'/g, "'\\''");
+        await provider.exec(`mkdir -p '${escapedDir}'`, { timeout: 5000 });
+        // Base64-encode the value to safely transport it through the shell
+        const b64Value = btoa(value);
+        const escapedKey = cred.key.replace(/'/g, "'\\''");
+        await provider.exec(`printf '%s' '${b64Value}' | base64 -d > '${escapedKey}'`, {
+          timeout: 5000,
+        });
         files++;
       } else {
         envVars[cred.key] = value;

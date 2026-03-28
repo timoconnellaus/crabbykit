@@ -31,18 +31,18 @@ describe("file_read", () => {
   });
 
   it("reads a file", async () => {
-    const result = await tool.execute("tc1", { path: "hello.txt" });
+    const result = await tool.execute({ path: "hello.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("line 0");
     expect(textOf(result)).toContain("line 4");
   });
 
   it("returns error for missing file", async () => {
-    const result = await tool.execute("tc1", { path: "nope.txt" });
+    const result = await tool.execute({ path: "nope.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error: File not found");
   });
 
   it("supports offset", async () => {
-    const result = await tool.execute("tc1", { path: "hello.txt", offset: 2 });
+    const result = await tool.execute({ path: "hello.txt", offset: 2 }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).not.toContain("line 0");
     expect(text).not.toContain("line 1");
@@ -50,7 +50,7 @@ describe("file_read", () => {
   });
 
   it("supports limit", async () => {
-    const result = await tool.execute("tc1", { path: "hello.txt", limit: 2 });
+    const result = await tool.execute({ path: "hello.txt", limit: 2 }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("line 0");
     expect(text).toContain("line 1");
@@ -58,7 +58,7 @@ describe("file_read", () => {
   });
 
   it("rejects invalid paths", async () => {
-    const result = await tool.execute("tc1", { path: "../etc/passwd" });
+    const result = await tool.execute({ path: "../etc/passwd" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error:");
   });
 
@@ -71,7 +71,7 @@ describe("file_read", () => {
       () => PREFIX,
       smallLimit,
     );
-    const result = await smallTool.execute("tc1", { path: "big.txt" });
+    const result = await smallTool.execute({ path: "big.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("[File truncated");
   });
 });
@@ -89,7 +89,7 @@ describe("file_write", () => {
   });
 
   it("writes a file", async () => {
-    const result = await tool.execute("tc1", { path: "new.txt", content: "hello world" });
+    const result = await tool.execute({ path: "new.txt", content: "hello world" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully wrote");
     expect(textOf(result)).toContain("11 bytes");
 
@@ -100,7 +100,7 @@ describe("file_write", () => {
   });
 
   it("creates directory markers for nested paths", async () => {
-    await tool.execute("tc1", { path: "src/lib/utils.ts", content: "export {}" });
+    await tool.execute({ path: "src/lib/utils.ts", content: "export {}" }, { toolCallId: "test" });
     const dirMarker = await bucket.head(`${PREFIX}/src/`);
     expect(dirMarker).not.toBeNull();
     const subDirMarker = await bucket.head(`${PREFIX}/src/lib/`);
@@ -109,13 +109,13 @@ describe("file_write", () => {
 
   it("rejects content exceeding 1MB", async () => {
     const bigContent = "x".repeat(1_048_577);
-    const result = await tool.execute("tc1", { path: "big.txt", content: bigContent });
+    const result = await tool.execute({ path: "big.txt", content: bigContent }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error: Content size");
     expect(textOf(result)).toContain("1MB limit");
   });
 
   it("rejects invalid paths", async () => {
-    const result = await tool.execute("tc1", { path: "../evil", content: "bad" });
+    const result = await tool.execute({ path: "../evil", content: "bad" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error:");
   });
 });
@@ -136,11 +136,11 @@ describe("file_edit", () => {
   });
 
   it("replaces a unique string", async () => {
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "code.ts",
       old_string: '"hello"',
       new_string: '"hi"',
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully replaced 1 occurrence");
 
     const obj = await bucket.get(`${PREFIX}/code.ts`);
@@ -150,51 +150,51 @@ describe("file_edit", () => {
 
   it("errors on ambiguous match without replace_all", async () => {
     await bucket.put(`${PREFIX}/dup.ts`, "foo foo foo");
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "dup.ts",
       old_string: "foo",
       new_string: "bar",
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Found 3 occurrences");
   });
 
   it("replaces all occurrences with replace_all", async () => {
     await bucket.put(`${PREFIX}/dup.ts`, "foo foo foo");
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "dup.ts",
       old_string: "foo",
       new_string: "bar",
       replace_all: true,
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully replaced 3 occurrences");
     const obj = await bucket.get(`${PREFIX}/dup.ts`);
     expect(await obj!.text()).toBe("bar bar bar");
   });
 
   it("returns no-op for identical strings", async () => {
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "code.ts",
       old_string: "same",
       new_string: "same",
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("No changes made");
   });
 
   it("errors when string not found", async () => {
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "code.ts",
       old_string: "nonexistent",
       new_string: "replacement",
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("String not found");
   });
 
   it("errors for missing file", async () => {
-    const result = await tool.execute("tc1", {
+    const result = await tool.execute({
       path: "nope.ts",
       old_string: "a",
       new_string: "b",
-    });
+    }, { toolCallId: "test" });
     expect(textOf(result)).toContain("File not found");
   });
 });
@@ -213,14 +213,14 @@ describe("file_delete", () => {
   });
 
   it("deletes a file", async () => {
-    const result = await tool.execute("tc1", { path: "deleteme.txt" });
+    const result = await tool.execute({ path: "deleteme.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully deleted");
     const obj = await bucket.get(`${PREFIX}/deleteme.txt`);
     expect(obj).toBeNull();
   });
 
   it("succeeds even if file does not exist (idempotent)", async () => {
-    const result = await tool.execute("tc1", { path: "nonexistent.txt" });
+    const result = await tool.execute({ path: "nonexistent.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully deleted");
   });
 });
@@ -246,21 +246,21 @@ describe("file_list", () => {
   });
 
   it("lists root directory", async () => {
-    const result = await tool.execute("tc1", {});
+    const result = await tool.execute({}, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("readme.md");
     expect(text).toContain("src");
   });
 
   it("lists subdirectory", async () => {
-    const result = await tool.execute("tc1", { path: "src" });
+    const result = await tool.execute({ path: "src" }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("main.ts");
     expect(text).toContain("lib");
   });
 
   it("shows empty for nonexistent directory", async () => {
-    const result = await tool.execute("tc1", { path: "nope" });
+    const result = await tool.execute({ path: "nope" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("empty");
   });
 });
@@ -285,7 +285,7 @@ describe("file_tree", () => {
   });
 
   it("shows tree structure", async () => {
-    const result = await tool.execute("tc1", {});
+    const result = await tool.execute({}, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("readme.md");
     expect(text).toContain("src/");
@@ -293,7 +293,7 @@ describe("file_tree", () => {
   });
 
   it("limits depth", async () => {
-    const result = await tool.execute("tc1", { depth: 1 });
+    const result = await tool.execute({ depth: 1 }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("readme.md");
     expect(text).toContain("src/");
@@ -302,7 +302,7 @@ describe("file_tree", () => {
   });
 
   it("scopes to subdirectory", async () => {
-    const result = await tool.execute("tc1", { path: "src" });
+    const result = await tool.execute({ path: "src" }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("src");
     expect(text).toContain("main.ts");
@@ -329,7 +329,7 @@ describe("file_find", () => {
   });
 
   it("finds files by glob pattern", async () => {
-    const result = await tool.execute("tc1", { pattern: "**/*.ts" });
+    const result = await tool.execute({ pattern: "**/*.ts" }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("src/main.ts");
     expect(text).toContain("src/lib/utils.ts");
@@ -338,7 +338,7 @@ describe("file_find", () => {
   });
 
   it("scopes search to a directory", async () => {
-    const result = await tool.execute("tc1", { pattern: "*.ts", path: "src" });
+    const result = await tool.execute({ pattern: "*.ts", path: "src" }, { toolCallId: "test" });
     const text = textOf(result);
     expect(text).toContain("main.ts");
     // *.ts should not match across directories
@@ -346,12 +346,12 @@ describe("file_find", () => {
   });
 
   it("returns no-match message", async () => {
-    const result = await tool.execute("tc1", { pattern: "**/*.py" });
+    const result = await tool.execute({ pattern: "**/*.py" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("No files matched");
   });
 
   it("finds by exact filename", async () => {
-    const result = await tool.execute("tc1", { pattern: "**/readme.md" });
+    const result = await tool.execute({ pattern: "**/readme.md" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("readme.md");
   });
 });

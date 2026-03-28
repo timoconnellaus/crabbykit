@@ -80,17 +80,19 @@ export async function vectorSearch(
     }
   }
 
-  // Build results with snippets
+  // Build results with snippets from deduplicated matches
   const results: SearchResult[] = [];
   const bucket = getBucket();
+  const dedupedMatches = Array.from(bestByPath.values());
+  // Sort by score descending to preserve relevance ordering
+  dedupedMatches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-  for (const match of matches) {
-    if (results.length >= maxResults) break;
-
+  // Fetch snippets in parallel
+  const fetchPromises = dedupedMatches.slice(0, maxResults).map(async (match) => {
     const metadata = match.metadata as
       | { path: string; startLine: number; endLine: number }
       | undefined;
-    if (!metadata?.path) continue;
+    if (!metadata?.path) return null;
 
     const { path, startLine, endLine } = metadata;
     const r2Key = toR2Key(prefix, path);
@@ -106,13 +108,12 @@ export async function vectorSearch(
       console.error(`[vector-memory/searcher] Failed to fetch snippet for ${r2Key}:`, err);
     }
 
-    results.push({
-      path,
-      startLine,
-      endLine,
-      score: match.score,
-      snippet,
-    });
+    return { path, startLine, endLine, score: match.score, snippet } satisfies SearchResult;
+  });
+
+  const fetched = await Promise.all(fetchPromises);
+  for (const result of fetched) {
+    if (result !== null) results.push(result);
   }
 
   return results;

@@ -71,7 +71,7 @@ describe("createFetchTool", () => {
 
   it("returns error for invalid URL", async () => {
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute("call1", { url: "not-a-url" });
+    const result = await tool.execute({ url: "not-a-url" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("Invalid URL");
     expect(mockFetch).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe("createFetchTool", () => {
     );
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute("call1", { url: "https://example.com" });
+    const result = await tool.execute({ url: "https://example.com" }, { toolCallId: "test" });
 
     expect(textOf(result)).toBe("Title Content");
   });
@@ -92,7 +92,7 @@ describe("createFetchTool", () => {
     mockFetch.mockResolvedValue(jsonResponse({ key: "value" }));
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute("call1", { url: "https://api.example.com/data" });
+    const result = await tool.execute({ url: "https://api.example.com/data" }, { toolCallId: "test" });
 
     expect(textOf(result)).toBe('{\n  "key": "value"\n}');
   });
@@ -107,7 +107,7 @@ describe("createFetchTool", () => {
     );
 
     const tool = createFetchTool("TestAgent/1.0", 50_000, mockContext());
-    const result = await tool.execute("call1", { url: "https://example.com/large" });
+    const result = await tool.execute({ url: "https://example.com/large" }, { toolCallId: "test" });
     const text = textOf(result);
 
     expect(text.length).toBeLessThan(100_000);
@@ -123,7 +123,7 @@ describe("createFetchTool", () => {
     );
 
     const tool = createFetchTool("MyBot/2.0", undefined, mockContext());
-    await tool.execute("call1", { url: "https://example.com" });
+    await tool.execute({ url: "https://example.com" }, { toolCallId: "test" });
 
     expect(mockFetch).toHaveBeenCalledWith(
       "https://example.com",
@@ -137,7 +137,7 @@ describe("createFetchTool", () => {
     mockFetch.mockResolvedValue(new Response("Not Found", { status: 404 }));
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute("call1", { url: "https://example.com/missing" });
+    const result = await tool.execute({ url: "https://example.com/missing" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("404");
   });
@@ -146,7 +146,7 @@ describe("createFetchTool", () => {
     mockFetch.mockRejectedValue(new Error("Connection refused"));
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute("call1", { url: "https://example.com" });
+    const result = await tool.execute({ url: "https://example.com" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("Connection refused");
   });

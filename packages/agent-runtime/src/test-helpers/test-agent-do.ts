@@ -215,7 +215,7 @@ class MockPiAgent {
         let isError = false;
         try {
           result = tool
-            ? await tool.execute(toolCallId, tc.args)
+            ? await tool.execute(tc.args, { toolCallId })
             : { content: [{ type: "text", text: "Unknown tool" }], details: {} };
         } catch (err: any) {
           result = { content: [{ type: "text", text: err.message }], details: {} };
@@ -274,7 +274,7 @@ const echoTool = defineTool({
   parameters: Type.Object({
     text: Type.String({ description: "Text to echo" }),
   }),
-  execute: async (_id, args) => ({
+  execute: async (args) => ({
     content: [{ type: "text" as const, text: `Echo: ${args.text}` }],
     details: { echoed: args.text },
   }),
@@ -405,7 +405,7 @@ export class TestAgentDO extends AgentDO {
             parameters: Type.Object({
               query: Type.String({ description: "Query input" }),
             }),
-            execute: async (_id, args) => ({
+            execute: async (args) => ({
               content: [{ type: "text" as const, text: `MCP result for: ${args.query}` }],
               details: { source: "mock-mcp", toolName: t.name },
             }),

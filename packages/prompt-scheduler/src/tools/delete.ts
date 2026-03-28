@@ -13,7 +13,7 @@ export function deleteScheduleTool(context: AgentContext): AgentTool {
     parameters: Type.Object({
       id: Type.String({ description: "Schedule ID to delete" }),
     }),
-    execute: async (_id, args) => {
+    execute: async (args) => {
       const existing = context.schedules.get(args.id);
       if (!existing) {
         return {

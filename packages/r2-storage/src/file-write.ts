@@ -16,7 +16,7 @@ export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => 
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
       content: Type.String({ description: "Content to write to the file" }),
     }),
-    execute: async (_toolCallId, { path, content }) => {
+    execute: async ({ path, content }) => {
       const validation = validatePath(path);
       if (!validation.valid) {
         return {

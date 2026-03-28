@@ -16,7 +16,7 @@ async function loadMcpSdk() {
   return { Client, StreamableHTTPClientTransport, SSEClientTransport };
 }
 
-const CLIENT_INFO = { name: "dexfi-agent-runtime", version: "0.1.0" };
+const CLIENT_INFO = { name: "claw-agent-runtime", version: "0.1.0" };
 
 /**
  * MCP Client Manager backed by DO SQLite.
@@ -296,7 +296,7 @@ export class McpManager {
       },
       get clientMetadata() {
         return {
-          client_name: `dexfi-agent-${config.name}`,
+          client_name: `claw-agent-${config.name}`,
           redirect_uris: authData.redirectUrl ? [authData.redirectUrl as string] : [],
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],

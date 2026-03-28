@@ -38,43 +38,41 @@ interface Env {
  * A minimal agent that can tell the time and do basic math.
  * Demonstrates extending AgentDO with custom tools.
  */
-export class BasicAgent extends AgentDO {
+export class BasicAgent extends AgentDO<Env> {
   getConfig(): AgentConfig {
-    const env = this.env as unknown as Env;
     return {
       provider: "openrouter",
       modelId: "minimax/minimax-m2.7",
-      apiKey: env.OPENROUTER_API_KEY,
+      apiKey: this.env.OPENROUTER_API_KEY,
     };
   }
 
   protected getCapabilities(): Capability[] {
-    const env = this.env as unknown as Env;
     return [
       compactionSummary({
         provider: "openrouter",
         modelId: "google/gemini-2.0-flash-001",
-        getApiKey: () => env.OPENROUTER_API_KEY,
+        getApiKey: () => this.env.OPENROUTER_API_KEY,
       }),
       tavilyWebSearch({
-        tavilyApiKey: () => env.TAVILY_API_KEY,
+        tavilyApiKey: () => this.env.TAVILY_API_KEY,
       }),
       r2Storage({
-        bucket: () => env.STORAGE_BUCKET,
+        bucket: () => this.env.STORAGE_BUCKET,
         prefix: "default",
       }),
       vectorMemory({
-        bucket: () => env.STORAGE_BUCKET,
-        vectorizeIndex: () => env.MEMORY_INDEX,
+        bucket: () => this.env.STORAGE_BUCKET,
+        vectorizeIndex: () => this.env.MEMORY_INDEX,
         prefix: "default",
-        ai: () => env.AI,
+        ai: () => this.env.AI,
       }),
       promptScheduler(),
       sandboxCapability({
         provider: new CloudflareSandboxProvider({
           getStub: () => {
-            const id = env.SANDBOX_CONTAINER.idFromName("default");
-            return env.SANDBOX_CONTAINER.get(id);
+            const id = this.env.SANDBOX_CONTAINER.idFromName("default");
+            return this.env.SANDBOX_CONTAINER.get(id);
           },
           agentId: "default",
           containerMode: "dev",
@@ -90,7 +88,7 @@ export class BasicAgent extends AgentDO {
         name: "get_current_time",
         description: "Get the current date and time in ISO format.",
         parameters: Type.Object({}),
-        execute: async (_toolCallId) => ({
+        execute: async () => ({
           content: [{ type: "text" as const, text: new Date().toISOString() }],
           details: null,
         }),
@@ -101,7 +99,7 @@ export class BasicAgent extends AgentDO {
         parameters: Type.Object({
           expression: Type.String({ description: "The math expression to evaluate" }),
         }),
-        execute: async (_toolCallId, { expression }) => {
+        execute: async ({ expression }) => {
           try {
             const result = Function(`"use strict"; return (${expression})`)();
             return {

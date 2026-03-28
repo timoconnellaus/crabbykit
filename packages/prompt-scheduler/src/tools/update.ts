@@ -19,7 +19,7 @@ export function updateScheduleTool(context: AgentContext): AgentTool {
       name: Type.Optional(Type.String({ description: "New schedule name" })),
       timezone: Type.Optional(Type.String({ description: "New IANA timezone" })),
     }),
-    execute: async (_id, args) => {
+    execute: async (args) => {
       if (args.cron && !validateCron(args.cron)) {
         return {
           content: [{ type: "text", text: `Invalid cron expression: "${args.cron}"` }],

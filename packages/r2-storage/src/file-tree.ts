@@ -27,7 +27,7 @@ export function createFileTreeTool(getBucket: () => R2Bucket, getPrefix: () => s
         }),
       ),
     }),
-    execute: async (_toolCallId, { path, depth }) => {
+    execute: async ({ path, depth }) => {
       const cappedDepth = Math.min(depth ?? 3, MAX_DEPTH);
       const storagePrefix = getPrefix();
 

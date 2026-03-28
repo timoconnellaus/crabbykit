@@ -23,7 +23,7 @@ export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => s
         }),
       ),
     }),
-    execute: async (_toolCallId, { pattern, path }) => {
+    execute: async ({ pattern, path }) => {
       const storagePrefix = getPrefix();
       const prefixResult = resolveFindPrefix(path, storagePrefix);
       if ("error" in prefixResult) {

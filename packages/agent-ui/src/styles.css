@@ -7,13 +7,141 @@
  * your app's styles and are easy to override.
  */
 
+:root {
+  --agent-ui-bg: #fafafa;
+  --agent-ui-bg-surface: white;
+  --agent-ui-text: #1a1a1a;
+  --agent-ui-text-muted: #888;
+  --agent-ui-text-subtle: #999;
+  --agent-ui-text-dim: #555;
+  --agent-ui-text-strong: #333;
+  --agent-ui-text-strongest: #111;
+  --agent-ui-primary: #1976d2;
+  --agent-ui-primary-hover: #1565c0;
+  --agent-ui-primary-highlight: #eff6ff;
+  --agent-ui-primary-highlight-hover: #dbeafe;
+  --agent-ui-primary-highlight-border: #bfdbfe;
+  --agent-ui-primary-focus-ring: rgba(25, 118, 210, 0.12);
+  --agent-ui-border: #e5e5e5;
+  --agent-ui-border-light: #f0f0f0;
+  --agent-ui-border-input: #d4d4d4;
+  --agent-ui-border-picker: #e0e0e0;
+  --agent-ui-user-bg: #1976d2;
+  --agent-ui-user-text: white;
+  --agent-ui-user-role-text: rgba(255, 255, 255, 0.7);
+  --agent-ui-user-link: rgba(255, 255, 255, 0.9);
+  --agent-ui-assistant-bg: white;
+  --agent-ui-assistant-border: #e5e5e5;
+  --agent-ui-assistant-role-text: #999;
+  --agent-ui-error: #991b1b;
+  --agent-ui-error-bg: #fef2f2;
+  --agent-ui-error-border: #fecaca;
+  --agent-ui-error-accent: #ef4444;
+  --agent-ui-danger: #dc2626;
+  --agent-ui-danger-hover: #b91c1c;
+  --agent-ui-danger-bg-subtle: rgba(220, 38, 38, 0.08);
+  --agent-ui-accent: #6b21a8;
+  --agent-ui-accent-secondary: #6366f1;
+  --agent-ui-success: #16a34a;
+  --agent-ui-scrollbar: rgba(128, 128, 128, 0.3);
+  --agent-ui-tool-bg: #f5f5f5;
+  --agent-ui-tool-border: #e8e8e8;
+  --agent-ui-tool-result-bg: #f8f9fa;
+  --agent-ui-tool-result-border: #ccc;
+  --agent-ui-tool-args-text: #666;
+  --agent-ui-code-bg: rgba(0, 0, 0, 0.04);
+  --agent-ui-code-inline-bg: rgba(0, 0, 0, 0.06);
+  --agent-ui-link: #1976d2;
+  --agent-ui-picker-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --agent-ui-kbd-bg: #f0f0f0;
+  --agent-ui-kbd-border: #e0e0e0;
+  --agent-ui-kbd-text: #999;
+  --agent-ui-icon-muted: #bbb;
+  --agent-ui-icon-delete: #aaa;
+  --agent-ui-session-hover: #f5f5f5;
+  --agent-ui-spinner-track: #ddd;
+  --agent-ui-schedule-bg: #f9fafb;
+  --agent-ui-schedule-border: #e5e7eb;
+  --agent-ui-hint-bg: #f5f5f5;
+  --agent-ui-hint-border: #e5e5e5;
+  --agent-ui-command-result-bg: #f8f9fa;
+  --agent-ui-command-result-text: #374151;
+  --agent-ui-timestamp-text: #aaa;
+  --agent-ui-empty-text: #999;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --agent-ui-bg: #1a1a1a;
+    --agent-ui-bg-surface: #2a2a2a;
+    --agent-ui-text: #e5e5e5;
+    --agent-ui-text-muted: #888;
+    --agent-ui-text-subtle: #777;
+    --agent-ui-text-dim: #aaa;
+    --agent-ui-text-strong: #ccc;
+    --agent-ui-text-strongest: #eee;
+    --agent-ui-primary: #5ba3e6;
+    --agent-ui-primary-hover: #4a93d6;
+    --agent-ui-primary-highlight: #1e3a5f;
+    --agent-ui-primary-highlight-hover: #264a73;
+    --agent-ui-primary-highlight-border: #2d5a8a;
+    --agent-ui-primary-focus-ring: rgba(91, 163, 230, 0.2);
+    --agent-ui-border: #3a3a3a;
+    --agent-ui-border-light: #333;
+    --agent-ui-border-input: #4a4a4a;
+    --agent-ui-border-picker: #444;
+    --agent-ui-user-bg: #2563a8;
+    --agent-ui-user-text: #e5e5e5;
+    --agent-ui-user-role-text: rgba(229, 229, 229, 0.6);
+    --agent-ui-user-link: rgba(229, 229, 229, 0.85);
+    --agent-ui-assistant-bg: #2a2a2a;
+    --agent-ui-assistant-border: #3a3a3a;
+    --agent-ui-assistant-role-text: #777;
+    --agent-ui-error: #fca5a5;
+    --agent-ui-error-bg: #3b1111;
+    --agent-ui-error-border: #5c1d1d;
+    --agent-ui-error-accent: #ef4444;
+    --agent-ui-danger: #ef4444;
+    --agent-ui-danger-hover: #dc2626;
+    --agent-ui-danger-bg-subtle: rgba(239, 68, 68, 0.12);
+    --agent-ui-accent: #a855f7;
+    --agent-ui-accent-secondary: #818cf8;
+    --agent-ui-success: #22c55e;
+    --agent-ui-scrollbar: rgba(200, 200, 200, 0.2);
+    --agent-ui-tool-bg: #2a2a2a;
+    --agent-ui-tool-border: #3a3a3a;
+    --agent-ui-tool-result-bg: #262626;
+    --agent-ui-tool-result-border: #555;
+    --agent-ui-tool-args-text: #999;
+    --agent-ui-code-bg: rgba(255, 255, 255, 0.06);
+    --agent-ui-code-inline-bg: rgba(255, 255, 255, 0.08);
+    --agent-ui-link: #5ba3e6;
+    --agent-ui-picker-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+    --agent-ui-kbd-bg: #333;
+    --agent-ui-kbd-border: #444;
+    --agent-ui-kbd-text: #888;
+    --agent-ui-icon-muted: #666;
+    --agent-ui-icon-delete: #777;
+    --agent-ui-session-hover: #333;
+    --agent-ui-spinner-track: #444;
+    --agent-ui-schedule-bg: #262626;
+    --agent-ui-schedule-border: #3a3a3a;
+    --agent-ui-hint-bg: #333;
+    --agent-ui-hint-border: #444;
+    --agent-ui-command-result-bg: #262626;
+    --agent-ui-command-result-text: #ccc;
+    --agent-ui-timestamp-text: #666;
+    --agent-ui-empty-text: #777;
+  }
+}
+
 [data-agent-ui="chat-panel"] {
   display: flex;
   flex-direction: column;
   height: 100%;
   font-family: system-ui, -apple-system, sans-serif;
-  background: #fafafa;
-  color: #1a1a1a;
+  background: var(--agent-ui-bg);
+  color: var(--agent-ui-text);
 }
 
 /* --- Message list --- */
@@ -35,7 +163,7 @@
 }
 
 [data-agent-ui="message-list-thumb"] {
-  background: rgba(128, 128, 128, 0.3);
+  background: var(--agent-ui-scrollbar);
   border-radius: 4px;
 }
 
@@ -53,15 +181,15 @@
 
 [data-agent-ui="message"][data-role="user"] {
   margin-left: auto;
-  background: #1976d2;
-  color: white;
+  background: var(--agent-ui-user-bg);
+  color: var(--agent-ui-user-text);
   border-bottom-right-radius: 0.25rem;
 }
 
 [data-agent-ui="message"][data-role="assistant"] {
   margin-right: auto;
-  background: white;
-  border: 1px solid #e5e5e5;
+  background: var(--agent-ui-assistant-bg);
+  border: 1px solid var(--agent-ui-assistant-border);
   border-bottom-left-radius: 0.25rem;
 }
 
@@ -86,11 +214,11 @@
 }
 
 [data-agent-ui="message"][data-role="user"] [data-agent-ui="message-role"] {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--agent-ui-user-role-text);
 }
 
 [data-agent-ui="message"][data-role="assistant"] [data-agent-ui="message-role"] {
-  color: #999;
+  color: var(--agent-ui-assistant-role-text);
 }
 
 [data-agent-ui="message-content"] {
@@ -109,7 +237,7 @@
 [data-agent-ui="message-content"] pre {
   margin: 0.5rem 0;
   padding: 0.5rem 0.625rem;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--agent-ui-code-bg);
   border-radius: 0.375rem;
   overflow-x: auto;
   font-size: 0.8rem;
@@ -118,7 +246,7 @@
 
 [data-agent-ui="message-content"] code {
   padding: 0.1rem 0.3rem;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--agent-ui-code-inline-bg);
   border-radius: 0.25rem;
   font-size: 0.85em;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
@@ -140,7 +268,7 @@
 }
 
 [data-agent-ui="message-content"] a {
-  color: #1976d2;
+  color: var(--agent-ui-link);
   text-decoration: underline;
 }
 
@@ -149,7 +277,7 @@
 }
 
 [data-agent-ui="message"][data-role="user"] [data-agent-ui="message-content"] a {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--agent-ui-user-link);
 }
 
 /* --- Thinking indicator --- */
@@ -161,7 +289,7 @@
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--agent-ui-text-muted);
   font-style: italic;
 }
 
@@ -169,7 +297,7 @@
   display: inline-block;
   width: 0.5rem;
   height: 0.5rem;
-  background: #6b21a8;
+  background: var(--agent-ui-accent);
   border-radius: 50%;
   animation: agent-ui-pulse 1s ease-in-out infinite;
 }
@@ -190,9 +318,9 @@
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: var(--agent-ui-error-bg);
+  border: 1px solid var(--agent-ui-error-border);
+  color: var(--agent-ui-error);
   font-size: 0.85rem;
   line-height: 1.4;
 }
@@ -203,25 +331,25 @@
   margin-top: 0.5rem;
   padding: 0.5rem 0.625rem;
   border-radius: 0.375rem;
-  background: #f5f5f5;
-  border: 1px solid #e8e8e8;
+  background: var(--agent-ui-tool-bg);
+  border: 1px solid var(--agent-ui-tool-border);
   font-size: 0.8rem;
 }
 
 [data-agent-ui="tool-result"] {
   padding: 0.5rem 0.625rem;
   border-radius: 0.375rem;
-  background: #f8f9fa;
-  border-left: 3px solid #ccc;
+  background: var(--agent-ui-tool-result-bg);
+  border-left: 3px solid var(--agent-ui-tool-result-border);
   font-size: 0.8rem;
-  color: #555;
+  color: var(--agent-ui-text-dim);
 }
 
 [data-agent-ui="tool-call-name"] {
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.75rem;
-  color: #6b21a8;
+  color: var(--agent-ui-accent);
 }
 
 [data-agent-ui="tool-result-name"] {
@@ -229,7 +357,7 @@
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.7rem;
-  color: #888;
+  color: var(--agent-ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 0.25rem;
@@ -241,7 +369,7 @@
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #666;
+  color: var(--agent-ui-tool-args-text);
 }
 
 [data-agent-ui="tool-result-content"] {
@@ -256,9 +384,9 @@
 }
 
 [data-agent-ui="tool-result"][data-error] {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-  color: #991b1b;
+  background: var(--agent-ui-error-bg);
+  border-left-color: var(--agent-ui-error-accent);
+  color: var(--agent-ui-error);
 }
 
 /* --- Inline tool result (beneath tool call) --- */
@@ -268,13 +396,13 @@
   padding: 0.375rem 0.5rem;
   border-radius: 0.25rem;
   font-size: 0.8rem;
-  border-left: 3px solid #ccc;
-  background: #f8f9fa;
-  color: #555;
+  border-left: 3px solid var(--agent-ui-tool-result-border);
+  background: var(--agent-ui-tool-result-bg);
+  color: var(--agent-ui-text-dim);
 }
 
 [data-agent-ui="tool-result-inline"][data-status="executing"] {
-  color: #888;
+  color: var(--agent-ui-text-muted);
   font-style: italic;
   display: flex;
   align-items: center;
@@ -285,8 +413,8 @@
   display: inline-block;
   width: 0.75rem;
   height: 0.75rem;
-  border: 2px solid #ddd;
-  border-top-color: #6b21a8;
+  border: 2px solid var(--agent-ui-spinner-track);
+  border-top-color: var(--agent-ui-accent);
   border-radius: 50%;
   animation: agent-ui-spin 0.6s linear infinite;
 }
@@ -298,9 +426,9 @@
 }
 
 [data-agent-ui="tool-result-inline"][data-error] {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-  color: #991b1b;
+  background: var(--agent-ui-error-bg);
+  border-left-color: var(--agent-ui-error-accent);
+  color: var(--agent-ui-error);
 }
 
 /* --- Input --- */
@@ -310,43 +438,47 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-top: 1px solid #e5e5e5;
-  background: white;
+  border-top: 1px solid var(--agent-ui-border);
+  background: var(--agent-ui-bg-surface);
   position: relative;
 }
 
 [data-agent-ui="chat-input-textarea"] {
   flex: 1;
   resize: none;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--agent-ui-border-input);
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   font-family: inherit;
   font-size: 0.9rem;
   line-height: 1.4;
   outline: none;
-  background: #fafafa;
+  background: var(--agent-ui-bg);
+  color: var(--agent-ui-text);
+  min-height: 2.5rem;
+  max-height: 10rem;
+  overflow-y: auto;
 }
 
 [data-agent-ui="chat-input-textarea"]:focus {
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.12);
-  background: white;
+  border-color: var(--agent-ui-primary);
+  box-shadow: 0 0 0 2px var(--agent-ui-primary-focus-ring);
+  background: var(--agent-ui-bg-surface);
 }
 
 [data-agent-ui="chat-input-submit"] {
   padding: 0.5rem 1.25rem;
   border: none;
   border-radius: 0.5rem;
-  background: #1976d2;
-  color: white;
+  background: var(--agent-ui-primary);
+  color: var(--agent-ui-user-text);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 [data-agent-ui="chat-input-submit"]:hover:not(:disabled) {
-  background: #1565c0;
+  background: var(--agent-ui-primary-hover);
 }
 
 [data-agent-ui="chat-input-submit"]:disabled {
@@ -358,15 +490,15 @@
   padding: 0.5rem 1.25rem;
   border: none;
   border-radius: 0.5rem;
-  background: #dc2626;
-  color: white;
+  background: var(--agent-ui-danger);
+  color: var(--agent-ui-user-text);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 [data-agent-ui="chat-input-abort"]:hover {
-  background: #b91c1c;
+  background: var(--agent-ui-danger-hover);
 }
 
 /* --- Command picker popup --- */
@@ -394,13 +526,11 @@
 }
 
 [data-agent-ui="command-picker-panel"] {
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--agent-ui-bg-surface);
+  border: 1px solid var(--agent-ui-border-picker);
   border-radius: 0.75rem;
   overflow: hidden;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.08),
-    0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--agent-ui-picker-shadow);
 }
 
 [data-agent-ui="command-picker-item"] {
@@ -411,7 +541,7 @@
   padding: 0.5rem 0.75rem;
   border: none;
   background: transparent;
-  color: #555;
+  color: var(--agent-ui-text-dim);
   font-family: inherit;
   font-size: 0.8rem;
   text-align: left;
@@ -423,11 +553,11 @@
 }
 
 [data-agent-ui="command-picker-item"] + [data-agent-ui="command-picker-item"] {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--agent-ui-border-light);
 }
 
 [data-agent-ui="command-picker-item"][data-selected] {
-  background: #eff6ff;
+  background: var(--agent-ui-primary-highlight);
 }
 
 [data-agent-ui="command-picker-item"][data-selected]::before {
@@ -438,23 +568,23 @@
   bottom: 0.375rem;
   width: 2.5px;
   border-radius: 0 2px 2px 0;
-  background: #1976d2;
+  background: var(--agent-ui-primary);
 }
 
 [data-agent-ui="command-picker-item"]:hover:not([data-selected]) {
-  background: #fafafa;
+  background: var(--agent-ui-bg);
 }
 
 [data-agent-ui="command-picker-icon"] {
   width: 0.875rem;
   height: 0.875rem;
   flex-shrink: 0;
-  color: #bbb;
+  color: var(--agent-ui-icon-muted);
   transition: color 0.12s;
 }
 
 [data-agent-ui="command-picker-item"][data-selected] [data-agent-ui="command-picker-icon"] {
-  color: #1976d2;
+  color: var(--agent-ui-primary);
 }
 
 [data-agent-ui="command-picker-text"] {
@@ -469,22 +599,22 @@
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.8rem;
   font-weight: 500;
-  color: #333;
+  color: var(--agent-ui-text-strong);
   flex-shrink: 0;
 }
 
 [data-agent-ui="command-picker-item"][data-selected] [data-agent-ui="command-picker-name"] {
-  color: #111;
+  color: var(--agent-ui-text-strongest);
 }
 
 [data-agent-ui="command-picker-slash"] {
-  color: #1976d2;
+  color: var(--agent-ui-primary);
   opacity: 0.6;
 }
 
 [data-agent-ui="command-picker-desc"] {
   font-size: 0.75rem;
-  color: #999;
+  color: var(--agent-ui-text-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -494,9 +624,9 @@
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.6rem;
   font-weight: 500;
-  color: #999;
-  background: #f5f5f5;
-  border: 1px solid #e5e5e5;
+  color: var(--agent-ui-kbd-text);
+  background: var(--agent-ui-hint-bg);
+  border: 1px solid var(--agent-ui-hint-border);
   border-radius: 0.25rem;
   padding: 0.1rem 0.35rem;
   flex-shrink: 0;
@@ -514,11 +644,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.25rem 0.75rem;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--agent-ui-border-light);
+  background: var(--agent-ui-bg);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.6rem;
-  color: #bbb;
+  color: var(--agent-ui-icon-muted);
 }
 
 [data-agent-ui="command-picker-shortcuts"] {
@@ -536,9 +666,9 @@
 [data-agent-ui="command-picker-shortcuts"] kbd {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.55rem;
-  color: #999;
-  background: #f0f0f0;
-  border: 1px solid #e0e0e0;
+  color: var(--agent-ui-kbd-text);
+  background: var(--agent-ui-kbd-bg);
+  border: 1px solid var(--agent-ui-kbd-border);
   border-radius: 0.2rem;
   padding: 0.05rem 0.25rem;
 }
@@ -551,16 +681,16 @@
   max-width: 80%;
   padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;
-  background: #f8f9fa;
-  border: 1px solid #e5e5e5;
-  border-left: 3px solid #6366f1;
+  background: var(--agent-ui-command-result-bg);
+  border: 1px solid var(--agent-ui-border);
+  border-left: 3px solid var(--agent-ui-accent-secondary);
   font-size: 0.85rem;
   line-height: 1.5;
 }
 
 [data-agent-ui="command-result"][data-error] {
-  border-left-color: #ef4444;
-  background: #fef2f2;
+  border-left-color: var(--agent-ui-error-accent);
+  background: var(--agent-ui-error-bg);
 }
 
 [data-agent-ui="command-result-label"] {
@@ -568,22 +698,22 @@
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #6366f1;
+  color: var(--agent-ui-accent-secondary);
   margin-bottom: 0.25rem;
 }
 
 [data-agent-ui="command-result"][data-error] [data-agent-ui="command-result-label"] {
-  color: #ef4444;
+  color: var(--agent-ui-error-accent);
 }
 
 [data-agent-ui="command-result-content"] {
   white-space: pre-wrap;
   word-break: break-word;
-  color: #374151;
+  color: var(--agent-ui-command-result-text);
 }
 
 [data-agent-ui="command-result"][data-error] [data-agent-ui="command-result-content"] {
-  color: #991b1b;
+  color: var(--agent-ui-error);
 }
 
 /* --- Status bar --- */
@@ -593,24 +723,24 @@
   gap: 0.75rem;
   padding: 0.4rem 1rem;
   font-size: 0.7rem;
-  color: #888;
-  border-bottom: 1px solid #e5e5e5;
-  background: white;
+  color: var(--agent-ui-text-muted);
+  border-bottom: 1px solid var(--agent-ui-border);
+  background: var(--agent-ui-bg-surface);
 }
 
 [data-agent-ui="status-bar"][data-connection="connected"] [data-agent-ui="status-connection"] {
-  color: #16a34a;
+  color: var(--agent-ui-success);
 }
 
 [data-agent-ui="status-bar"][data-connection="disconnected"] [data-agent-ui="status-connection"],
 [data-agent-ui="status-bar"][data-connection="reconnecting"] [data-agent-ui="status-connection"] {
-  color: #dc2626;
+  color: var(--agent-ui-danger);
 }
 
 [data-agent-ui="status-cost"] {
   margin-left: auto;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  color: #6b21a8;
+  color: var(--agent-ui-accent);
 }
 
 /* --- Sidebar --- */
@@ -620,8 +750,8 @@
   flex-direction: column;
   width: 16rem;
   flex-shrink: 0;
-  border-right: 1px solid #e5e5e5;
-  background: white;
+  border-right: 1px solid var(--agent-ui-border);
+  background: var(--agent-ui-bg-surface);
   overflow-y: auto;
 }
 
@@ -648,7 +778,7 @@
 }
 
 [data-agent-ui="session-item"]:hover {
-  background: #f5f5f5;
+  background: var(--agent-ui-session-hover);
 }
 
 [data-agent-ui="session-item-select"] {
@@ -660,6 +790,7 @@
   padding: 0.4rem 0.75rem;
   border: none;
   background: none;
+  color: var(--agent-ui-text);
   cursor: pointer;
   font: inherit;
 }
@@ -669,7 +800,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  color: #aaa;
+  color: var(--agent-ui-icon-delete);
   font-size: 1rem;
   line-height: 1;
   padding: 0.4rem 0.5rem;
@@ -677,35 +808,36 @@
 }
 
 [data-agent-ui="session-item-delete"]:hover {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.08);
+  color: var(--agent-ui-danger);
+  background: var(--agent-ui-danger-bg-subtle);
 }
 
 [data-agent-ui="session-item"][data-active] {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--agent-ui-primary-highlight);
+  border-color: var(--agent-ui-primary-highlight-border);
+  color: var(--agent-ui-text);
 }
 
 [data-agent-ui="session-item"][data-active]:hover {
-  background: #dbeafe;
+  background: var(--agent-ui-primary-highlight-hover);
 }
 
 [data-agent-ui="session-new"] {
   padding: 0.4rem 0.75rem;
-  border: 1px dashed #d4d4d4;
+  border: 1px dashed var(--agent-ui-border-input);
   border-radius: 0.5rem;
   background: transparent;
   cursor: pointer;
   font-size: 0.8rem;
-  color: #888;
+  color: var(--agent-ui-text-muted);
   transition:
     border-color 0.15s,
     color 0.15s;
 }
 
 [data-agent-ui="session-new"]:hover {
-  border-color: #1976d2;
-  color: #1976d2;
+  border-color: var(--agent-ui-primary);
+  color: var(--agent-ui-primary);
 }
 
 /* --- Schedule list --- */
@@ -715,7 +847,7 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--agent-ui-schedule-border);
 }
 
 [data-agent-ui="schedule-heading"] {
@@ -723,25 +855,25 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #888;
+  color: var(--agent-ui-text-muted);
   padding: 0.25rem;
 }
 
 [data-agent-ui="schedule-item"] {
   padding: 0.4rem 0.5rem;
   border-radius: 0.375rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--agent-ui-schedule-bg);
+  border: 1px solid var(--agent-ui-schedule-border);
 }
 
 [data-agent-ui="schedule-item"][data-status="running"] {
-  border-color: #1976d2;
-  background: #eff6ff;
+  border-color: var(--agent-ui-primary);
+  background: var(--agent-ui-primary-highlight);
 }
 
 [data-agent-ui="schedule-item"][data-status="failed"] {
-  border-color: #dc2626;
-  background: #fef2f2;
+  border-color: var(--agent-ui-danger);
+  background: var(--agent-ui-error-bg);
 }
 
 [data-agent-ui="schedule-name"] {
@@ -754,6 +886,37 @@
 
 [data-agent-ui="schedule-meta"] {
   font-size: 0.7rem;
-  color: #888;
+  color: var(--agent-ui-text-muted);
   margin-top: 0.125rem;
+}
+
+/* --- Message timestamp --- */
+
+[data-agent-ui="message-timestamp"] {
+  font-size: 0.65rem;
+  color: var(--agent-ui-timestamp-text);
+  margin-top: 0.25rem;
+}
+
+[data-agent-ui="message"][data-role="user"] [data-agent-ui="message-timestamp"] {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* --- Empty state --- */
+
+[data-agent-ui="message-list-empty"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--agent-ui-empty-text);
+  font-size: 0.9rem;
+}
+
+/* --- Image content block --- */
+
+[data-agent-ui="message-image"] {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin: 0.25rem 0;
 }

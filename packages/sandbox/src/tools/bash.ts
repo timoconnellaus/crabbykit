@@ -1,5 +1,6 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { checkElevation } from "../elevation.js";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
@@ -34,23 +35,10 @@ export function createBashTool(
         }),
       ),
     }),
-    execute: async (_toolCallId, args) => {
-      const storage = context.storage;
-      if (!storage) throw new Error("Sandbox capability requires storage");
-
+    execute: async (args) => {
       // Check elevation
-      const elevated = await storage.get<boolean>("elevated");
-      if (!elevated) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Not elevated. Call the elevate tool first to activate the sandbox.",
-            },
-          ],
-          details: { error: "not_elevated" },
-        };
-      }
+      const notElevated = await checkElevation(context.storage);
+      if (notElevated) return notElevated;
 
       const timeout = args.timeout ?? config.defaultExecTimeout;
       const result = await provider.exec(args.command, {

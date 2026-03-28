@@ -1,4 +1,5 @@
 import {
+  type ChangeEvent,
   type ComponentPropsWithoutRef,
   type FormEvent,
   forwardRef,
@@ -25,6 +26,24 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   const isRunning = agentStatus !== "idle";
   const [text, setText] = useState("");
   const pickerVisibleRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const MAX_TEXTAREA_HEIGHT = 160;
+
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+  }, []);
+
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLTextAreaElement>) => {
+      setText(e.target.value);
+      resizeTextarea();
+    },
+    [resizeTextarea],
+  );
 
   const submit = useCallback(() => {
     const trimmed = text.trim();
@@ -32,6 +51,10 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
     sendMessage(trimmed);
     setText("");
     onSend?.(trimmed);
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+    }
   }, [text, sendMessage, onSend]);
 
   const handleSubmit = useCallback(
@@ -77,9 +100,11 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
         }}
       />
       <textarea
+        ref={textareaRef}
         data-agent-ui="chat-input-textarea"
+        aria-label="Message input"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         rows={1}

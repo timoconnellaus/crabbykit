@@ -102,7 +102,12 @@ export interface AgentContext {
  * Base Durable Object for pi-agent-core powered agents.
  * Consumers extend this and implement the abstract methods.
  */
-export abstract class AgentDO extends DurableObject {
+export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObject<TEnv> {
+  /** Maximum client messages allowed per rate limit window. */
+  private static readonly RATE_LIMIT_MAX = 30;
+  /** Rate limit sliding window duration in milliseconds. */
+  private static readonly RATE_LIMIT_WINDOW_MS = 10_000;
+
   protected sessionStore: SessionStore;
   protected scheduleStore: ScheduleStore;
   protected mcpManager: McpManager;
@@ -110,11 +115,15 @@ export abstract class AgentDO extends DurableObject {
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
   private sessionAgents = new Map<string, any>();
   private connections = new Map<WebSocket, { sessionId: string }>();
+  private connectionRateLimits = new Map<WebSocket, { count: number; windowStart: number }>();
   private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
+  private beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
+  /** Cached resolved capabilities — populated in ensureAgent, cleared on agent_end. */
+  private resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
 
-  constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
+  constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
     this.sessionStore = new SessionStore(ctx.storage.sql);
     this.scheduleStore = new ScheduleStore(ctx.storage.sql);
@@ -166,6 +175,12 @@ export abstract class AgentDO extends DurableObject {
   }
 
   // --- Optional lifecycle hooks ---
+
+  /**
+   * Override to validate authentication before accepting a WebSocket connection
+   * or HTTP prompt. Return `true` to allow, `false` to reject with 401.
+   */
+  protected validateAuth?(_request: Request): Promise<boolean> | boolean;
 
   protected onTurnEnd?(_messages: AgentMessage[], _toolResults: unknown[]): void | Promise<void>;
   protected onAgentEnd?(_messages: AgentMessage[]): void | Promise<void>;
@@ -307,6 +322,14 @@ export abstract class AgentDO extends DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Auth validation (if implemented by subclass)
+    if (this.validateAuth) {
+      const allowed = await this.validateAuth(request);
+      if (!allowed) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+    }
+
     // WebSocket upgrade
     if (request.headers.get("upgrade") === "websocket") {
       return this.handleWebSocket(request);
@@ -338,9 +361,11 @@ export abstract class AgentDO extends DurableObject {
     this.connections.set(server, { sessionId });
     server.serializeAttachment({ sessionId });
 
-    // Send initial sync
+    // Send initial sync (paginated)
     const session = this.sessionStore.get(sessionId);
     if (session) {
+      const { entries, hasMore } = this.sessionStore.getEntriesPaginated(sessionId);
+      const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
       this.sendToSocket(server, {
         type: "session_sync",
         sessionId,
@@ -349,6 +374,8 @@ export abstract class AgentDO extends DurableObject {
         streamMessage: this.sessionAgents.get(sessionId)?.state.isStreaming
           ? (this.sessionAgents.get(sessionId)?.state.streamMessage ?? null)
           : null,
+        cursor: lastSeq,
+        hasMore,
       });
     }
 
@@ -369,19 +396,35 @@ export abstract class AgentDO extends DurableObject {
     // Restore connection mapping after DO hibernation/eviction.
     // The in-memory connections Map is lost, but the WebSocket and its
     // serialized attachment survive via Cloudflare's hibernation API.
+    let restoredFromHibernation = false;
     if (!this.connections.has(ws)) {
       const attachment = ws.deserializeAttachment() as { sessionId: string } | null;
       if (attachment?.sessionId) {
         this.connections.set(ws, { sessionId: attachment.sessionId });
-        // Don't send session_sync here — the client's state is still intact
-        // (the WS stayed open through hibernation). Sending a sync now would
-        // race with any in-flight prompt and wipe the optimistic user message.
+        restoredFromHibernation = true;
 
         // Fire onConnect hooks to reconcile state (e.g., stale elevation cleanup)
         this.fireOnConnectHooks(attachment.sessionId).catch((err) => {
           console.error("[AgentDO] onConnect hooks error (reconnect):", err);
         });
       }
+    }
+
+    // Rate limiting: sliding window per connection
+    const now = Date.now();
+    let rateLimit = this.connectionRateLimits.get(ws);
+    if (!rateLimit || now - rateLimit.windowStart > AgentDO.RATE_LIMIT_WINDOW_MS) {
+      rateLimit = { count: 0, windowStart: now };
+      this.connectionRateLimits.set(ws, rateLimit);
+    }
+    rateLimit.count++;
+    if (rateLimit.count > AgentDO.RATE_LIMIT_MAX) {
+      this.sendToSocket(ws, {
+        type: "error",
+        code: ErrorCodes.RATE_LIMITED,
+        message: "Too many messages — slow down",
+      });
+      return;
     }
 
     let msg: ClientMessage;
@@ -396,6 +439,44 @@ export abstract class AgentDO extends DurableObject {
       return;
     }
 
+    // Validate message structure before dispatching
+    const validationError = this.validateClientMessage(msg);
+    if (validationError) {
+      this.sendToSocket(ws, {
+        type: "error",
+        code: ErrorCodes.PARSE_ERROR,
+        message: validationError,
+      });
+      return;
+    }
+
+    // After hibernation, in-memory state (sessionAgents) is lost.
+    // Send a session_sync so the client gets fresh state and knows
+    // the agent is no longer streaming (agentStatus resets to idle).
+    // Skip for prompt/steer — those persist the user message first and then
+    // trigger agent events, so a sync here would race with the optimistic
+    // client-side message and overwrite it with stale server state.
+    if (restoredFromHibernation && msg.type !== "prompt" && msg.type !== "steer") {
+      const conn = this.connections.get(ws);
+      if (conn) {
+        const session = this.sessionStore.get(conn.sessionId);
+        if (session) {
+          const { entries, hasMore } = this.sessionStore.getEntriesPaginated(conn.sessionId);
+          const messages = this.sessionStore.buildContext(conn.sessionId);
+          const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
+          this.sendToSocket(ws, {
+            type: "session_sync",
+            sessionId: conn.sessionId,
+            session,
+            messages,
+            streamMessage: null,
+            cursor: lastSeq,
+            hasMore,
+          });
+        }
+      }
+    }
+
     this.handleClientMessage(ws, msg).catch((err) => {
       this.sendToSocket(ws, {
         type: "error",
@@ -407,6 +488,43 @@ export abstract class AgentDO extends DurableObject {
 
   webSocketClose(ws: WebSocket): void {
     this.connections.delete(ws);
+    this.connectionRateLimits.delete(ws);
+  }
+
+  private static readonly VALID_CLIENT_MESSAGE_TYPES = new Set([
+    "prompt",
+    "steer",
+    "abort",
+    "switch_session",
+    "new_session",
+    "delete_session",
+    "command",
+    "request_sync",
+    "ping",
+  ]);
+
+  /** Returns an error string if the message is invalid, or null if valid. */
+  private validateClientMessage(msg: unknown): string | null {
+    if (typeof msg !== "object" || msg === null) {
+      return "Message must be an object";
+    }
+
+    const obj = msg as Record<string, unknown>;
+
+    if (typeof obj.type !== "string" || !AgentDO.VALID_CLIENT_MESSAGE_TYPES.has(obj.type)) {
+      return `Unknown message type: ${String(obj.type)}`;
+    }
+
+    // Validate required fields per message type
+    if ((obj.type === "prompt" || obj.type === "steer") && typeof obj.text !== "string") {
+      return `"${obj.type}" message requires a "text" string field`;
+    }
+
+    if (obj.type === "switch_session" && typeof obj.sessionId !== "string") {
+      return '"switch_session" message requires a "sessionId" string field';
+    }
+
+    return null;
   }
 
   private async handleClientMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
@@ -429,6 +547,8 @@ export abstract class AgentDO extends DurableObject {
         const session = this.sessionStore.get(msg.sessionId);
         if (session) {
           const sessionAgent = this.sessionAgents.get(msg.sessionId);
+          const { entries, hasMore } = this.sessionStore.getEntriesPaginated(msg.sessionId);
+          const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
           this.sendToSocket(ws, {
             type: "session_sync",
             sessionId: msg.sessionId,
@@ -437,6 +557,8 @@ export abstract class AgentDO extends DurableObject {
             streamMessage: sessionAgent?.state.isStreaming
               ? (sessionAgent.state.streamMessage ?? null)
               : null,
+            cursor: lastSeq,
+            hasMore,
           });
         }
         break;
@@ -476,12 +598,18 @@ export abstract class AgentDO extends DurableObject {
             const target = remaining[0];
             this.connections.set(ws, { sessionId: target.id });
             ws.serializeAttachment({ sessionId: target.id });
+            const { entries: delEntries, hasMore: delHasMore } =
+              this.sessionStore.getEntriesPaginated(target.id);
+            const delLastSeq =
+              delEntries.length > 0 ? delEntries[delEntries.length - 1].seq : undefined;
             this.sendToSocket(ws, {
               type: "session_sync",
               sessionId: target.id,
               session: target,
               messages: this.sessionStore.buildContext(target.id),
               streamMessage: null,
+              cursor: delLastSeq,
+              hasMore: delHasMore,
             });
           }
         }
@@ -492,6 +620,42 @@ export abstract class AgentDO extends DurableObject {
 
       case "command": {
         await this.handleCommand(ws, msg.sessionId, msg.name, msg.args);
+        break;
+      }
+
+      case "request_sync": {
+        const syncSession = this.sessionStore.get(msg.sessionId);
+        if (!syncSession) {
+          this.sendToSocket(ws, {
+            type: "error",
+            code: ErrorCodes.SESSION_NOT_FOUND,
+            message: `Session not found: ${msg.sessionId}`,
+          });
+          break;
+        }
+        const { entries: pageEntries, hasMore: pageHasMore } =
+          this.sessionStore.getEntriesPaginated(msg.sessionId, {
+            afterSeq: msg.afterSeq,
+          });
+        const pageLastSeq =
+          pageEntries.length > 0 ? pageEntries[pageEntries.length - 1].seq : msg.afterSeq;
+        const sessionAgent = this.sessionAgents.get(msg.sessionId);
+        this.sendToSocket(ws, {
+          type: "session_sync",
+          sessionId: msg.sessionId,
+          session: syncSession,
+          messages: this.sessionStore.buildContext(msg.sessionId),
+          streamMessage: sessionAgent?.state.isStreaming
+            ? (sessionAgent.state.streamMessage ?? null)
+            : null,
+          cursor: pageLastSeq,
+          hasMore: pageHasMore,
+        });
+        break;
+      }
+
+      case "ping": {
+        this.sendToSocket(ws, { type: "pong" } as ServerMessage);
         break;
       }
     }
@@ -522,6 +686,11 @@ export abstract class AgentDO extends DurableObject {
     // If this session already has an active agent streaming, steer instead
     const existingAgent = this.sessionAgents.get(sessionId);
     if (existingAgent?.state.isStreaming) {
+      this.broadcastToSession(sessionId, {
+        type: "error",
+        code: ErrorCodes.AGENT_BUSY,
+        message: "Agent is busy — message will be injected as a steer",
+      });
       this.handleSteer(sessionId, text);
       return;
     }
@@ -573,17 +742,18 @@ export abstract class AgentDO extends DurableObject {
     };
     const baseCommands = this.getCommands(context);
 
-    // Also resolve capability-contributed commands
-    const agentContext: AgentContext = {
-      sessionId,
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: () => {},
-      broadcastToAll: () => {},
-      schedules: this.buildScheduleManager(),
-    };
-    const resolved = resolveCapabilities(this.getCapabilities(), agentContext, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+    // Use cached capabilities if available, otherwise resolve fresh
+    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
+      this.getCapabilities(),
+      {
+        sessionId,
+        stepNumber: 0,
+        emitCost: () => {},
+        broadcast: () => {},
+        broadcastToAll: () => {},
+        schedules: this.buildScheduleManager(),
+      },
+      (capId) => createCapabilityStorage(this.ctx.storage, capId),
     );
 
     const commandMap = new Map<string, Command>();
@@ -679,11 +849,13 @@ export abstract class AgentDO extends DurableObject {
       throw new Error(`Model not found: ${config.provider}/${config.modelId}`);
     }
 
-    // Resolve capabilities with scoped storage per capability
+    // Resolve capabilities with scoped storage per capability (and cache the result)
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
       createCapabilityStorage(this.ctx.storage, capId),
     );
+    this.resolvedCapabilitiesCache = resolved;
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
+    this.beforeToolExecutionHooks = resolved.beforeToolExecutionHooks;
     this.afterToolExecutionHooks = resolved.afterToolExecutionHooks;
 
     // Sync capability-declared schedules
@@ -720,11 +892,40 @@ export abstract class AgentDO extends DurableObject {
     agent.subscribe((event: AgentEvent) => {
       this.handleAgentEvent(event, sessionId);
 
-      // Clean up agent instance when inference completes
+      // Clean up agent instance and capability cache when inference completes
       if (event.type === "agent_end") {
         this.sessionAgents.delete(sessionId);
+        this.resolvedCapabilitiesCache = null;
       }
     });
+
+    // Wire beforeToolExecution hooks
+    if (this.beforeToolExecutionHooks.length > 0) {
+      // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - beforeToolCall context type unavailable
+      agent.setBeforeToolCall(async (btcContext: any) => {
+        const hookContext: CapabilityHookContext = {
+          sessionId,
+          sessionStore: this.sessionStore,
+          storage: createNoopStorage(),
+        };
+        const event = {
+          toolName: btcContext.toolCall.name as string,
+          args: btcContext.args,
+          toolCallId: btcContext.toolCall.id as string,
+        };
+        for (const hook of this.beforeToolExecutionHooks) {
+          try {
+            const result = await hook(event, hookContext);
+            if (result?.block) {
+              return { block: true, reason: result.reason };
+            }
+          } catch (err) {
+            console.error("[capabilities] beforeToolExecution hook error:", err);
+          }
+        }
+        return undefined;
+      });
+    }
 
     // Wire afterToolExecution hooks
     if (this.afterToolExecutionHooks.length > 0) {
@@ -775,21 +976,23 @@ export abstract class AgentDO extends DurableObject {
 
   /** Fire onConnect hooks for all registered capabilities. */
   private async fireOnConnectHooks(sessionId: string): Promise<void> {
-    const context: AgentContext = {
-      sessionId,
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: (name, data) =>
-        this.broadcastToSession(sessionId, {
-          type: "custom_event",
-          sessionId,
-          event: { name, data },
-        }),
-      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
-      schedules: this.buildScheduleManager(),
-    };
-    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+    // Use cached capabilities if available, otherwise resolve fresh
+    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
+      this.getCapabilities(),
+      {
+        sessionId,
+        stepNumber: 0,
+        emitCost: () => {},
+        broadcast: (name, data) =>
+          this.broadcastToSession(sessionId, {
+            type: "custom_event",
+            sessionId,
+            event: { name, data },
+          }),
+        broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+        schedules: this.buildScheduleManager(),
+      },
+      (capId) => createCapabilityStorage(this.ctx.storage, capId),
     );
 
     const broadcastFn = (name: string, data: Record<string, unknown>) =>
@@ -1020,16 +1223,18 @@ export abstract class AgentDO extends DurableObject {
   private async ensureScheduleCallbacks(): Promise<void> {
     if (this.scheduleCallbacks.size > 0) return;
 
-    const context: AgentContext = {
-      sessionId: "",
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: () => {},
-      broadcastToAll: () => {},
-      schedules: this.buildScheduleManager(),
-    };
-    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+    // Use cached capabilities if available, otherwise resolve fresh
+    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
+      this.getCapabilities(),
+      {
+        sessionId: "",
+        stepNumber: 0,
+        emitCost: () => {},
+        broadcast: () => {},
+        broadcastToAll: () => {},
+        schedules: this.buildScheduleManager(),
+      },
+      (capId) => createCapabilityStorage(this.ctx.storage, capId),
     );
 
     for (const { config } of resolved.schedules) {

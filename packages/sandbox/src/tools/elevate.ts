@@ -25,7 +25,7 @@ export function createElevateTool(
         }),
       ),
     }),
-    execute: async (_toolCallId, args) => {
+    execute: async (args) => {
       const storage = context.storage;
       if (!storage) throw new Error("Sandbox capability requires storage");
 

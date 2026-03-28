@@ -27,7 +27,7 @@ export function createScheduleTool(context: AgentContext): AgentTool {
         Type.String({ description: 'Auto-expire after this duration (e.g., "15m", "3d", "1h")' }),
       ),
     }),
-    execute: async (_id, args) => {
+    execute: async (args) => {
       if (!validateCron(args.cron)) {
         return {
           content: [{ type: "text", text: `Invalid cron expression: "${args.cron}"` }],
@@ -36,7 +36,7 @@ export function createScheduleTool(context: AgentContext): AgentTool {
       }
 
       const schedule = await context.schedules.create({
-        id: `sched-${Date.now()}`,
+        id: `sched-${crypto.randomUUID()}`,
         name: args.name,
         cron: args.cron,
         prompt: args.prompt,
