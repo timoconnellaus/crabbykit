@@ -13,12 +13,15 @@ const mockSchedules = {
   delete: async () => {},
   list: () => [],
   get: () => null,
+  setTimer: async () => {},
+  cancelTimer: async () => {},
 };
 
 const ctx: AgentContext = {
   sessionId: "s1",
   stepNumber: 0,
   emitCost: () => {},
+  broadcast: () => {},
   schedules: mockSchedules,
 };
 

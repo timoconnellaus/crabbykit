@@ -10,6 +10,8 @@ import type { Command, CommandContext, CommandResult } from "./commands/define-c
 import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
+import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
+import type { PromptOptions } from "./prompt/types.js";
 import { expiresAtFromDuration, nextFireTime } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
 import type {
@@ -53,7 +55,7 @@ export interface AgentConfig {
   compaction?: Partial<CompactionCfg>;
 }
 
-/** Operations for managing prompt-based schedules. */
+/** Operations for managing prompt-based schedules and one-shot timers. */
 export interface ScheduleManager {
   create(config: PromptScheduleConfig): Promise<Schedule>;
   update(
@@ -71,6 +73,14 @@ export interface ScheduleManager {
   delete(id: string): Promise<void>;
   list(): Schedule[];
   get(id: string): Schedule | null;
+  /** Create a one-shot timer that fires after `delaySeconds` and self-deletes. */
+  setTimer(
+    id: string,
+    delaySeconds: number,
+    callback: (ctx: ScheduleCallbackContext) => Promise<void>,
+  ): Promise<void>;
+  /** Cancel a pending timer by ID. */
+  cancelTimer(id: string): Promise<void>;
 }
 
 export interface AgentContext {
@@ -78,9 +88,11 @@ export interface AgentContext {
   stepNumber: number;
   /** Emit a cost event. Persisted to session and broadcast to clients. */
   emitCost: (cost: CostEvent) => void;
+  /** Broadcast a custom event to connected clients on the current session. */
+  broadcast: (name: string, data: Record<string, unknown>) => void;
   /** Persistent key-value storage scoped to a capability. Only set for capability-contributed tools. */
   storage?: CapabilityStorage;
-  /** Manage prompt-based schedules. */
+  /** Manage prompt-based schedules and one-shot timers. */
   schedules: ScheduleManager;
 }
 
@@ -113,7 +125,27 @@ export abstract class AgentDO extends DurableObject {
 
   abstract getConfig(): AgentConfig;
   abstract getTools(context: AgentContext): AgentTool[];
-  abstract buildSystemPrompt(context: AgentContext): string;
+
+  /**
+   * Build the system prompt for this agent. Default implementation composes
+   * identity, safety, and runtime sections from {@link getPromptOptions}.
+   * Capability prompt sections are appended automatically after this.
+   *
+   * Override to fully replace the system prompt. Or override
+   * {@link getPromptOptions} for lighter customization of the defaults.
+   */
+  buildSystemPrompt(_context: AgentContext): string {
+    return buildDefaultSystemPrompt(this.getPromptOptions());
+  }
+
+  /**
+   * Override to customize the default prompt sections without replacing
+   * the entire system prompt. Configure agent name, timezone, safety, etc.
+   * Only used when {@link buildSystemPrompt} is not overridden.
+   */
+  protected getPromptOptions(): PromptOptions {
+    return {};
+  }
 
   /**
    * Override to register capabilities. Capabilities contribute tools,
@@ -154,6 +186,9 @@ export abstract class AgentDO extends DurableObject {
     return {};
   }
 
+  /** Dummy cron expression used for timer schedules (never evaluated). */
+  private static readonly TIMER_DUMMY_CRON = "0 0 1 1 *";
+
   /** Build a ScheduleManager that delegates to the protected methods. */
   private buildScheduleManager(): ScheduleManager {
     return {
@@ -162,7 +197,44 @@ export abstract class AgentDO extends DurableObject {
       delete: (id) => this.deleteSchedule(id),
       list: () => this.listSchedules(),
       get: (id) => this.scheduleStore.get(id),
+      setTimer: (id, delaySeconds, callback) => this.setTimer(id, delaySeconds, callback),
+      cancelTimer: (id) => this.cancelTimer(id),
     };
+  }
+
+  /** Create a one-shot timer that fires after `delaySeconds` and self-deletes. */
+  private async setTimer(
+    id: string,
+    delaySeconds: number,
+    callback: (ctx: ScheduleCallbackContext) => Promise<void>,
+  ): Promise<void> {
+    // Remove any existing timer with the same ID
+    const existing = this.scheduleStore.get(id);
+    if (existing) {
+      this.scheduleStore.delete(id);
+      this.scheduleCallbacks.delete(id);
+    }
+
+    const firesAt = new Date(Date.now() + delaySeconds * 1000);
+    this.scheduleStore.create({
+      id,
+      name: id,
+      cron: AgentDO.TIMER_DUMMY_CRON,
+      handlerType: "timer",
+      nextFireAt: firesAt.toISOString(),
+    });
+    this.scheduleCallbacks.set(id, callback);
+    await this.refreshAlarm();
+  }
+
+  /** Cancel a pending timer by ID. */
+  private async cancelTimer(id: string): Promise<void> {
+    const existing = this.scheduleStore.get(id);
+    if (existing && existing.handlerType === "timer") {
+      this.scheduleStore.delete(id);
+    }
+    this.scheduleCallbacks.delete(id);
+    await this.refreshAlarm();
   }
 
   // --- Schedule management (protected for consumers) ---
@@ -275,9 +347,7 @@ export abstract class AgentDO extends DurableObject {
         session,
         messages: this.sessionStore.buildContext(sessionId),
         streamMessage:
-          this.inferringSessionId === sessionId
-            ? (this.agent?.state.streamMessage ?? null)
-            : null,
+          this.inferringSessionId === sessionId ? (this.agent?.state.streamMessage ?? null) : null,
       });
     }
 
@@ -442,7 +512,8 @@ export abstract class AgentDO extends DurableObject {
       this.broadcastToSession(sessionId, {
         type: "error",
         code: ErrorCodes.AGENT_BUSY,
-        message: "Agent is busy with another session. Please wait or abort the other session first.",
+        message:
+          "Agent is busy with another session. Please wait or abort the other session first.",
       });
       return;
     }
@@ -506,6 +577,7 @@ export abstract class AgentDO extends DurableObject {
       sessionId,
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: this.buildScheduleManager(),
     };
     const resolved = resolveCapabilities(this.getCapabilities(), agentContext, (capId) =>
@@ -589,6 +661,12 @@ export abstract class AgentDO extends DurableObject {
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+      broadcast: (name, data) =>
+        this.broadcastToSession(sessionId, {
+          type: "custom_event",
+          sessionId,
+          event: { name, data },
+        }),
       schedules: this.buildScheduleManager(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
@@ -824,6 +902,21 @@ export abstract class AgentDO extends DurableObject {
         continue;
       }
 
+      // Timers: execute callback then self-delete (no cron recomputation)
+      if (schedule.handlerType === "timer") {
+        this.scheduleStore.markRunning(schedule.id);
+        try {
+          await this.executeScheduledCallback(schedule);
+          this.scheduleStore.delete(schedule.id);
+          this.scheduleCallbacks.delete(schedule.id);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[AgentDO] Timer "${schedule.name}" failed:`, message);
+          this.scheduleStore.markFailed(schedule.id, message);
+        }
+        continue;
+      }
+
       // Compute and persist next fire time BEFORE execution (crash-safe)
       const next = nextFireTime(schedule.cron, now, schedule.timezone ?? undefined);
       this.scheduleStore.update(schedule.id, { nextFireAt: next.toISOString() });
@@ -901,6 +994,7 @@ export abstract class AgentDO extends DurableObject {
       sessionId: "",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: this.buildScheduleManager(),
     };
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
@@ -923,6 +1017,16 @@ export abstract class AgentDO extends DurableObject {
 
       if ("callback" in config) {
         this.scheduleCallbacks.set(config.id, config.callback);
+      }
+
+      // Timer configs: only re-register the callback if the timer still exists in DB.
+      // Timers are created at runtime (via setTimer), not declared statically.
+      if ("delaySeconds" in config) {
+        // Re-register callback for hibernation resilience
+        if (existing && existing.handlerType === "timer") {
+          this.scheduleCallbacks.set(config.id, config.callback);
+        }
+        continue;
       }
 
       const tz = config.timezone ?? undefined;

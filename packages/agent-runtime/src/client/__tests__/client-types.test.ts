@@ -35,8 +35,9 @@ describe("Client Types", () => {
         error: true,
         command_result: true,
         command_list: true,
+        custom_event: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(10);
+      expect(Object.keys(handlers)).toHaveLength(11);
     });
 
     it("discriminates client messages by type", () => {

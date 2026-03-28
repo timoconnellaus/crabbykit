@@ -37,6 +37,8 @@ export interface UseAgentChatConfig {
   autoReconnect?: boolean;
   /** Max reconnect delay in ms (default 30000) */
   maxReconnectDelay?: number;
+  /** Called when a custom event is received from a capability. */
+  onCustomEvent?: (name: string, data: Record<string, unknown>) => void;
 }
 
 export interface UseAgentChatReturn {
@@ -93,6 +95,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const currentSessionIdRef = useRef<string | null>(config.sessionId ?? null);
   /** Set to true by effect cleanup to suppress reconnect from stale onclose handlers. */
   const disposedRef = useRef(false);
+  const onCustomEventRef = useRef(config.onCustomEvent);
+  onCustomEventRef.current = config.onCustomEvent;
 
   const send = useCallback((msg: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -283,6 +287,11 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         ]);
         break;
       }
+
+      case "custom_event":
+        if (msg.sessionId !== currentSessionIdRef.current) break;
+        onCustomEventRef.current?.(msg.event.name, msg.event.data);
+        break;
 
       case "mcp_status":
         // Could expose this, keeping it simple for now

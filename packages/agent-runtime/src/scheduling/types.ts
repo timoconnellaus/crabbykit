@@ -7,7 +7,7 @@ export interface Schedule {
   name: string;
   cron: string;
   enabled: boolean;
-  handlerType: "prompt" | "callback";
+  handlerType: "prompt" | "callback" | "timer";
   prompt: string | null;
   sessionPrefix: string | null;
   ownerId: string | null;
@@ -53,7 +53,16 @@ export interface CallbackScheduleConfig {
   retention?: number;
 }
 
-export type ScheduleConfig = PromptScheduleConfig | CallbackScheduleConfig;
+/** Configuration for a one-shot timer that fires once and self-deletes. */
+export interface TimerScheduleConfig {
+  id: string;
+  name: string;
+  /** Delay in seconds before the timer fires. */
+  delaySeconds: number;
+  callback: (ctx: ScheduleCallbackContext) => Promise<void>;
+}
+
+export type ScheduleConfig = PromptScheduleConfig | CallbackScheduleConfig | TimerScheduleConfig;
 
 /** Context passed to callback-based schedule handlers. */
 export interface ScheduleCallbackContext {

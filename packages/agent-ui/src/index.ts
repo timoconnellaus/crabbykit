@@ -14,6 +14,8 @@ export { Message } from "./components/message";
 export type { MessageListProps } from "./components/message-list";
 // Individual components
 export { MessageList } from "./components/message-list";
+export type { SandboxBadgeProps } from "./components/sandbox-badge";
+export { SandboxBadge } from "./components/sandbox-badge";
 export type { SessionListProps } from "./components/session-list";
 export { SessionList } from "./components/session-list";
 export type { StatusBarProps } from "./components/status-bar";

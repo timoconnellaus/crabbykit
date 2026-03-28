@@ -38,6 +38,7 @@ describe("vectorMemory", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     };
 
@@ -58,6 +59,7 @@ describe("vectorMemory", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     };
 

@@ -5,16 +5,20 @@ import type {
   Capability,
   Command,
   CommandContext,
+  PromptOptions,
 } from "@claw-for-cloudflare/agent-runtime";
 import { AgentDO, defineCommand, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { CloudflareSandboxProvider } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
+import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 
 interface Env {
   AGENT: DurableObjectNamespace;
+  SANDBOX_CONTAINER: DurableObjectNamespace;
   STORAGE_BUCKET: R2Bucket;
   MEMORY_INDEX: VectorizeIndex;
   AI: Ai;
@@ -58,6 +62,15 @@ export class BasicAgent extends AgentDO {
         ai: () => env.AI,
       }),
       promptScheduler(),
+      sandboxCapability({
+        provider: new CloudflareSandboxProvider({
+          getStub: () => {
+            const id = env.SANDBOX_CONTAINER.idFromName("default");
+            return env.SANDBOX_CONTAINER.get(id);
+          },
+          agentId: "default",
+        }),
+      }),
     ];
   }
 
@@ -118,6 +131,12 @@ export class BasicAgent extends AgentDO {
             "file_find",
             "memory_search",
             "memory_get",
+            "elevate",
+            "de_elevate",
+            "bash",
+            "start_process",
+            "stop_process",
+            "get_process_status",
           ];
           const commands = ["/help — List available commands and tools"];
           return {
@@ -128,8 +147,11 @@ export class BasicAgent extends AgentDO {
     ];
   }
 
-  buildSystemPrompt(_context: AgentContext): string {
-    return "You are a helpful assistant. You can tell the time, do math, search the web, fetch web pages, manage files in storage, and create scheduled tasks. When you learn something important about the user or a conversation worth remembering, save it to memory using file_write to MEMORY.md or memory/*.md files. Before answering questions that might relate to previous conversations, use memory_search to check your memory first.";
+  protected getPromptOptions(): PromptOptions {
+    return {
+      agentName: "Basic Agent",
+      timezone: "UTC",
+    };
   }
 }
 

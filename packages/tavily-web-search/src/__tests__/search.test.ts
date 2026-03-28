@@ -20,7 +20,13 @@ function jsonResponse(data: unknown, status = 200) {
 }
 
 function mockContext(): AgentContext {
-  return { sessionId: "test-session", stepNumber: 0, emitCost: vi.fn(), schedules: {} as any };
+  return {
+    sessionId: "test-session",
+    stepNumber: 0,
+    emitCost: vi.fn(),
+    broadcast: () => {},
+    schedules: {} as any,
+  };
 }
 
 describe("createSearchTool", () => {

@@ -60,12 +60,21 @@ export type { CostEvent } from "./costs/index.js";
 // MCP client
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
+// Prompt building
+export type { PromptOptions } from "./prompt/index.js";
+export {
+  buildDefaultSystemPrompt,
+  identitySection,
+  runtimeSection,
+  safetySection,
+} from "./prompt/index.js";
 export type {
   CallbackScheduleConfig,
   PromptScheduleConfig,
   Schedule,
   ScheduleCallbackContext,
   ScheduleConfig,
+  TimerScheduleConfig,
 } from "./scheduling/index.js";
 // Scheduling
 export { intervalToCron, nextFireTime, ScheduleStore, validateCron } from "./scheduling/index.js";
@@ -92,6 +101,7 @@ export type {
   CommandMessage,
   CommandResultMessage,
   CostEventMessage,
+  CustomEventMessage,
   ErrorMessage,
   McpStatusMessage,
   NewSessionMessage,

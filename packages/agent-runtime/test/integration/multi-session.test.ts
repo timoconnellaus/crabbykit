@@ -10,12 +10,12 @@
 
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
 import {
   clearCompactionOverrides,
   clearMockResponses,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
+import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
 
 // --- Helpers ---
 
@@ -200,15 +200,13 @@ describe("Multi-session WebSocket reliability", () => {
       client.send({ type: "prompt", sessionId: sessionA, text: "Hello A" });
       await client.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
 
       // Create session B
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       expect(syncB.type).toBe("session_sync");
       if (syncB.type === "session_sync") {
@@ -219,54 +217,50 @@ describe("Multi-session WebSocket reliability", () => {
       client.close();
     });
 
-    it(
-      "switch_session includes streamMessage when target session is actively streaming",
-      async () => {
-        const stub = getStub("ws-switch-stream-1");
-        // Set up a delayed response so session A is mid-stream
-        setMockResponses([{ text: "Streaming response...", delay: 200 }]);
+    it("switch_session includes streamMessage when target session is actively streaming", async () => {
+      const stub = getStub("ws-switch-stream-1");
+      // Set up a delayed response so session A is mid-stream
+      setMockResponses([{ text: "Streaming response...", delay: 200 }]);
 
-        const client1 = await openSocket(stub);
-        const sync1 = await client1.waitForMessage((m) => m.type === "session_sync");
-        const sessionA = (sync1 as { sessionId: string }).sessionId;
+      const client1 = await openSocket(stub);
+      const sync1 = await client1.waitForMessage((m) => m.type === "session_sync");
+      const sessionA = (sync1 as { sessionId: string }).sessionId;
 
-        // Start streaming on session A
-        client1.send({ type: "prompt", sessionId: sessionA, text: "Stream this" });
+      // Start streaming on session A
+      client1.send({ type: "prompt", sessionId: sessionA, text: "Stream this" });
 
-        // Wait for streaming to start
-        await client1.waitForMessage(
-          (m) =>
-            m.type === "agent_event" &&
-            (m as { event: { type: string } }).event.type === "message_start",
-        );
+      // Wait for streaming to start
+      await client1.waitForMessage(
+        (m) =>
+          m.type === "agent_event" &&
+          (m as { event: { type: string } }).event.type === "message_start",
+      );
 
-        // Open a second connection (simulating a new tab)
-        const client2 = await openSocket(stub);
+      // Open a second connection (simulating a new tab)
+      const client2 = await openSocket(stub);
 
-        // Client2 should get session_sync with streamMessage reflecting the in-progress stream
-        // for the default session (session A)
-        const sync2 = await client2.waitForMessage((m) => m.type === "session_sync");
+      // Client2 should get session_sync with streamMessage reflecting the in-progress stream
+      // for the default session (session A)
+      const sync2 = await client2.waitForMessage((m) => m.type === "session_sync");
 
-        // BUG: The initial sync should include streamMessage when the session is actively streaming.
-        // Currently, switch_session always sends streamMessage: null.
-        // The initial connect DOES include streamMessage (agent-do.ts:275), but it uses the
-        // singleton agent's state which may not match the synced session.
-        if (sync2.type === "session_sync") {
-          // This is what we WANT: streamMessage should be non-null when the session is streaming
-          expect(sync2.streamMessage).not.toBeNull();
-        }
+      // BUG: The initial sync should include streamMessage when the session is actively streaming.
+      // Currently, switch_session always sends streamMessage: null.
+      // The initial connect DOES include streamMessage (agent-do.ts:275), but it uses the
+      // singleton agent's state which may not match the synced session.
+      if (sync2.type === "session_sync") {
+        // This is what we WANT: streamMessage should be non-null when the session is streaming
+        expect(sync2.streamMessage).not.toBeNull();
+      }
 
-        // Wait for completion
-        await client1.waitForMessage(
-          (m) =>
-            m.type === "agent_event" &&
-            (m as { event: { type: string } }).event.type === "agent_end",
-        );
+      // Wait for completion
+      await client1.waitForMessage(
+        (m) =>
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
+      );
 
-        client1.close();
-        client2.close();
-      },
-    );
+      client1.close();
+      client2.close();
+    });
   });
 
   // ====================================================
@@ -277,9 +271,7 @@ describe("Multi-session WebSocket reliability", () => {
     it("prompting session B while A is running returns AGENT_BUSY, A completes correctly", async () => {
       const stub = getStub("ws-isolate-1");
 
-      setMockResponses([
-        { text: "Session A thinking deeply...", delay: 200 },
-      ]);
+      setMockResponses([{ text: "Session A thinking deeply...", delay: 200 }]);
 
       const client = await openSocket(stub);
       const sync1 = await client.waitForMessage((m) => m.type === "session_sync");
@@ -296,8 +288,7 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B and try to prompt it
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
@@ -333,9 +324,7 @@ describe("Multi-session WebSocket reliability", () => {
     it("B's watchers don't receive A's events when B prompts during A's inference", async () => {
       const stub = getStub("ws-broadcast-1");
 
-      setMockResponses([
-        { text: "Long response from A", delay: 200 },
-      ]);
+      setMockResponses([{ text: "Long response from A", delay: 200 }]);
 
       const client1 = await openSocket(stub);
       const sync1 = await client1.waitForMessage((m) => m.type === "session_sync");
@@ -344,24 +333,21 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B
       client1.send({ type: "new_session", name: "Session B" });
       const syncB = await client1.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
       // Switch client1 back to session A
       client1.send({ type: "switch_session", sessionId: sessionA });
       await client1.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
       );
 
       // Open client2 on session B
       const client2 = await openSocket(stub);
       client2.send({ type: "switch_session", sessionId: sessionB });
       await client2.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
       );
 
       // Clear for clean tracking
@@ -383,9 +369,7 @@ describe("Multi-session WebSocket reliability", () => {
       await new Promise((r) => setTimeout(r, 500));
 
       // Client2 (on session B) should NOT receive any agent_events for session A
-      const client2AgentEvents = client2.messages.filter(
-        (m) => m.type === "agent_event",
-      );
+      const client2AgentEvents = client2.messages.filter((m) => m.type === "agent_event");
       expect(client2AgentEvents.length).toBe(0);
 
       // Client2 should have received an error instead
@@ -414,16 +398,14 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
       // Switch back to session A and start inference
       client.send({ type: "switch_session", sessionId: sessionA });
       await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
       );
 
       client.send({ type: "prompt", sessionId: sessionA, text: "Long task" });
@@ -438,8 +420,7 @@ describe("Multi-session WebSocket reliability", () => {
       // Switch to session B
       client.send({ type: "switch_session", sessionId: sessionB });
       await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
       );
 
       // Abort session B (which has no running inference)
@@ -481,16 +462,14 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
       // Switch back to session A and start inference
       client.send({ type: "switch_session", sessionId: sessionA });
       await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
       );
 
       client.send({ type: "prompt", sessionId: sessionA, text: "Do something" });
@@ -527,9 +506,7 @@ describe("Multi-session WebSocket reliability", () => {
     it("concurrent HTTP prompts: first wins, second gets AGENT_BUSY", async () => {
       const stub = getStub("ws-concurrent-1");
 
-      setMockResponses([
-        { text: "Response for session A", delay: 100 },
-      ]);
+      setMockResponses([{ text: "Response for session A", delay: 100 }]);
 
       // Create two sessions via first prompt (creates default) + WS
       const client = await openSocket(stub);
@@ -538,8 +515,7 @@ describe("Multi-session WebSocket reliability", () => {
 
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
@@ -590,13 +566,11 @@ describe("Multi-session WebSocket reliability", () => {
       // Both clients should receive agent_end
       const end1 = client1.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
       const end2 = client2.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
 
       await Promise.all([end1, end2]);
@@ -616,8 +590,7 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B
       client1.send({ type: "new_session", name: "Session B" });
       const syncB = await client1.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
@@ -626,8 +599,7 @@ describe("Multi-session WebSocket reliability", () => {
       await client2.waitForMessage((m) => m.type === "session_sync");
       client2.send({ type: "switch_session", sessionId: sessionB });
       await client2.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionB,
       );
 
       // Clear messages
@@ -636,16 +608,14 @@ describe("Multi-session WebSocket reliability", () => {
       // Switch client1 back to session A
       client1.send({ type: "switch_session", sessionId: sessionA });
       await client1.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
       );
 
       // Prompt session A
       client1.send({ type: "prompt", sessionId: sessionA, text: "Only for A" });
       await client1.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
 
       // Client2 (on session B) should NOT have received any agent_events
@@ -681,8 +651,7 @@ describe("Multi-session WebSocket reliability", () => {
       client2.send({ type: "prompt", sessionId, text: "Still works" });
       const end = await client2.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
       expect(end).toBeTruthy();
 
@@ -698,9 +667,7 @@ describe("Multi-session WebSocket reliability", () => {
     it("prompting session B while A runs: A keeps its response, B gets AGENT_BUSY", async () => {
       const stub = getStub("ws-new-mid-infer-1");
 
-      setMockResponses([
-        { text: "Session A deep thought", delay: 200 },
-      ]);
+      setMockResponses([{ text: "Session A deep thought", delay: 200 }]);
 
       const client = await openSocket(stub);
       const sync = await client.waitForMessage((m) => m.type === "session_sync");
@@ -717,8 +684,7 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B and try to prompt it
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
       client.send({ type: "prompt", sessionId: sessionB, text: "Quick question" });
@@ -761,16 +727,14 @@ describe("Multi-session WebSocket reliability", () => {
       // Create session B
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
       // Switch back to A
       client.send({ type: "switch_session", sessionId: sessionA });
       await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId === sessionA,
       );
 
       // Delete session B while on session A
@@ -780,8 +744,7 @@ describe("Multi-session WebSocket reliability", () => {
       client.send({ type: "prompt", sessionId: sessionA, text: "Still here" });
       const end = await client.waitForMessage(
         (m) =>
-          m.type === "agent_event" &&
-          (m as { event: { type: string } }).event.type === "agent_end",
+          m.type === "agent_event" && (m as { event: { type: string } }).event.type === "agent_end",
       );
       expect(end).toBeTruthy();
 
@@ -804,8 +767,7 @@ describe("Multi-session WebSocket reliability", () => {
       // Create sessions B and C
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
-        (m) =>
-          m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
+        (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 

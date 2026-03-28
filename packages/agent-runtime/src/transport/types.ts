@@ -93,6 +93,15 @@ export interface CommandListMessage {
   commands: Array<{ name: string; description: string }>;
 }
 
+export interface CustomEventMessage {
+  type: "custom_event";
+  sessionId: string;
+  event: {
+    name: string;
+    data: Record<string, unknown>;
+  };
+}
+
 export type ServerMessage =
   | AgentEventMessage
   | ToolEventMessage
@@ -103,7 +112,8 @@ export type ServerMessage =
   | CostEventMessage
   | ErrorMessage
   | CommandResultMessage
-  | CommandListMessage;
+  | CommandListMessage
+  | CustomEventMessage;
 
 // --- Client → Server messages ---
 

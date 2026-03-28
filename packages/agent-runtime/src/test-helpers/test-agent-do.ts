@@ -494,6 +494,7 @@ export class TestAgentDO extends AgentDO {
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),
+      broadcast: () => {},
       schedules: (this as any).buildScheduleManager(),
     };
 

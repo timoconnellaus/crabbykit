@@ -7,4 +7,5 @@ export type {
   Schedule,
   ScheduleCallbackContext,
   ScheduleConfig,
+  TimerScheduleConfig,
 } from "./types.js";

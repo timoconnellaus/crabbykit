@@ -44,7 +44,7 @@ export class ScheduleStore {
     name: string;
     cron: string;
     enabled?: boolean;
-    handlerType: "prompt" | "callback";
+    handlerType: "prompt" | "callback" | "timer";
     prompt?: string;
     sessionPrefix?: string;
     ownerId?: string;
@@ -230,7 +230,7 @@ function rowToSchedule(row: Record<string, SqlStorageValue>): Schedule {
     name: row.name as string,
     cron: row.cron as string,
     enabled: (row.enabled as number) === 1,
-    handlerType: row.handler_type as "prompt" | "callback",
+    handlerType: row.handler_type as "prompt" | "callback" | "timer",
     prompt: row.prompt as string | null,
     sessionPrefix: row.session_prefix as string | null,
     ownerId: row.owner_id as string | null,

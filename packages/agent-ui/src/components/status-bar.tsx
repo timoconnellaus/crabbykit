@@ -1,9 +1,14 @@
 import { type ComponentPropsWithoutRef, useMemo } from "react";
 import { useChat } from "./chat-provider";
+import type { SandboxBadgeProps } from "./sandbox-badge";
+import { SandboxBadge } from "./sandbox-badge";
 
-export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {}
+export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {
+  /** Sandbox state. Renders SandboxBadge when provided and elevated. */
+  sandboxState?: SandboxBadgeProps;
+}
 
-export function StatusBar(props: StatusBarProps) {
+export function StatusBar({ sandboxState, ...props }: StatusBarProps) {
   const { connectionStatus, agentStatus, thinking, costs } = useChat();
 
   const totalCost = useMemo(() => {
@@ -33,6 +38,8 @@ export function StatusBar(props: StatusBarProps) {
       {thinking && <span data-agent-ui="status-thinking">Thinking...</span>}
 
       {totalCost && <span data-agent-ui="status-cost">{totalCost}</span>}
+
+      {sandboxState && <SandboxBadge {...sandboxState} />}
     </div>
   );
 }

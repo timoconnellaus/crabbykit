@@ -19,7 +19,13 @@ describe("tavilyWebSearch", () => {
       tavilyApiKey: "test-key",
     });
 
-    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {}, schedules: {} as any };
+    const context = {
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: () => {},
+      schedules: {} as any,
+    };
     const tools = cap.tools!(context);
 
     expect(tools).toHaveLength(2);
@@ -32,7 +38,13 @@ describe("tavilyWebSearch", () => {
       tavilyApiKey: "test-key",
     });
 
-    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {}, schedules: {} as any };
+    const context = {
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: () => {},
+      schedules: {} as any,
+    };
     const sections = cap.promptSections!(context);
 
     expect(sections).toHaveLength(1);
@@ -48,6 +60,7 @@ describe("tavilyWebSearch", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);
@@ -66,6 +79,7 @@ describe("tavilyWebSearch", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);

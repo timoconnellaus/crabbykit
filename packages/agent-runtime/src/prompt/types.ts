@@ -1,0 +1,18 @@
+/**
+ * Options for customizing the default system prompt.
+ * Pass to `buildDefaultSystemPrompt()` or return from `getPromptOptions()`.
+ */
+export interface PromptOptions {
+  /** Agent display name (e.g. "Gia"). Used in the identity section. */
+  agentName?: string;
+  /** Custom identity section text. Set to `false` to omit entirely. */
+  identity?: string | false;
+  /** Custom safety section text. Set to `false` to omit entirely. */
+  safety?: string | false;
+  /** IANA timezone (e.g. "Australia/Sydney"). Enables local time in the runtime section. */
+  timezone?: string;
+  /** Set to `false` to omit the runtime section. */
+  runtime?: false;
+  /** Extra sections appended after the default sections but before capability sections. */
+  additionalSections?: string[];
+}

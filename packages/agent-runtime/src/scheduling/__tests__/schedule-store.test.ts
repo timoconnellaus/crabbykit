@@ -193,4 +193,53 @@ describe("ScheduleStore", () => {
       expect(failed.lastError).toBe("Something went wrong");
     });
   });
+
+  describe("timer schedules", () => {
+    it("creates a timer schedule with handlerType timer", () => {
+      const store = createStore();
+      const firesAt = new Date(Date.now() + 60_000).toISOString();
+      const schedule = store.create({
+        id: "timer-1",
+        name: "auto-de-elevate",
+        cron: "0 0 1 1 *",
+        handlerType: "timer",
+        nextFireAt: firesAt,
+      });
+
+      expect(schedule.handlerType).toBe("timer");
+      expect(schedule.nextFireAt).toBe(firesAt);
+    });
+
+    it("timer schedule shows up in getDueSchedules when due", () => {
+      const store = createStore();
+      const pastTime = new Date(Date.now() - 1000).toISOString();
+      store.create({
+        id: "timer-due",
+        name: "due timer",
+        cron: "0 0 1 1 *",
+        handlerType: "timer",
+        nextFireAt: pastTime,
+      });
+
+      const due = store.getDueSchedules(new Date());
+      expect(due).toHaveLength(1);
+      expect(due[0].id).toBe("timer-due");
+      expect(due[0].handlerType).toBe("timer");
+    });
+
+    it("timer schedule can be deleted after firing", () => {
+      const store = createStore();
+      store.create({
+        id: "timer-delete",
+        name: "one-shot",
+        cron: "0 0 1 1 *",
+        handlerType: "timer",
+        nextFireAt: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      expect(store.get("timer-delete")).not.toBeNull();
+      store.delete("timer-delete");
+      expect(store.get("timer-delete")).toBeNull();
+    });
+  });
 });

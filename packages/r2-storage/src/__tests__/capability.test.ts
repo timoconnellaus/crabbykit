@@ -22,7 +22,13 @@ describe("r2Storage", () => {
       prefix: "test",
     });
 
-    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {}, schedules: {} as any };
+    const context = {
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: () => {},
+      schedules: {} as any,
+    };
     const tools = cap.tools!(context);
 
     expect(tools).toHaveLength(7);
@@ -46,6 +52,7 @@ describe("r2Storage", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     });
     expect(sections).toHaveLength(1);
@@ -62,6 +69,7 @@ describe("r2Storage", () => {
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
+      broadcast: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(7);
