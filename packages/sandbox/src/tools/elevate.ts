@@ -2,8 +2,8 @@ import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { getTeardownPromise } from "../teardown.js";
 import { resetDeElevationTimer } from "../timer.js";
-import { injectCredentials } from "./credentials.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
+import { injectCredentials } from "./credentials.js";
 
 const DEFAULT_IDLE_TIMEOUT = 180;
 

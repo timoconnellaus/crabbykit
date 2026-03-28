@@ -5,11 +5,7 @@ import type {
   CapabilityHookContext,
 } from "@claw-for-cloudflare/agent-runtime";
 import type { EmbedFn } from "./embeddings.js";
-import {
-  createWorkersAiEmbedder,
-  EMBEDDING_COST_PER_TOKEN,
-  estimateTokenCount,
-} from "./embeddings.js";
+import { createWorkersAiEmbedder } from "./embeddings.js";
 import { indexDocument, removeDocument } from "./indexer.js";
 import { createMemoryGetTool } from "./memory-get.js";
 import { createMemorySearchTool } from "./memory-search.js";

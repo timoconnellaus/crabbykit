@@ -9,7 +9,7 @@
  * NOTE: Requires SYS_ADMIN capability for mount --bind (nm-guard).
  * The test uses the Docker FUSE proxy or OrbStack which grants this.
  */
-import { execSync, spawn } from "node:child_process";
+import { execSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const IMAGE_NAME = "claw-sandbox-test";

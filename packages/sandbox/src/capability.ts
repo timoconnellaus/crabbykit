@@ -1,13 +1,13 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { TIMER_ID } from "./timer.js";
 import { createBashTool } from "./tools/bash.js";
-import { createDeElevateTool } from "./tools/de-elevate.js";
-import { createElevateTool } from "./tools/elevate.js";
 import {
   createDeleteCredentialTool,
   createListCredentialsTool,
   createSaveCredentialTool,
 } from "./tools/credentials.js";
+import { createDeElevateTool } from "./tools/de-elevate.js";
+import { createElevateTool } from "./tools/elevate.js";
 import {
   createGetProcessStatusTool,
   createStartProcessTool,
@@ -51,9 +51,10 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
   };
 
   /** Clear all elevation state from storage. */
-  async function clearElevationState(
-    storage: { put: (k: string, v: unknown) => Promise<void>; delete: (k: string) => Promise<boolean> },
-  ): Promise<void> {
+  async function clearElevationState(storage: {
+    put: (k: string, v: unknown) => Promise<void>;
+    delete: (k: string) => Promise<boolean>;
+  }): Promise<void> {
     await storage.put("elevated", false);
     await storage.delete("elevationReason");
     await storage.delete("elevatedAt");

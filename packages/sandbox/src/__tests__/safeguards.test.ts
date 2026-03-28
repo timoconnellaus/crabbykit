@@ -194,9 +194,9 @@ describe("Install detection", () => {
 describe("Auto-de-elevate", () => {
   it("stops running processes before de-elevating", async () => {
     const provider = mockProvider({
-      processList: vi.fn().mockResolvedValue([
-        { name: "dev", command: "npm start", running: true, pid: 42 },
-      ]),
+      processList: vi
+        .fn()
+        .mockResolvedValue([{ name: "dev", command: "npm start", running: true, pid: 42 }]),
     });
     const ctx = mockContext(true);
 

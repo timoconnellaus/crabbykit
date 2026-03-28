@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { buildDefaultSystemPrompt } from "../build-system-prompt";
 
 describe("buildDefaultSystemPrompt", () => {
@@ -54,10 +54,7 @@ describe("buildDefaultSystemPrompt", () => {
 
   it("appends additional sections", () => {
     const result = buildDefaultSystemPrompt({
-      additionalSections: [
-        "## Memory\nYou have persistent memory.",
-        "## Tools\nUse tools wisely.",
-      ],
+      additionalSections: ["## Memory\nYou have persistent memory.", "## Tools\nUse tools wisely."],
     });
     expect(result).toContain("## Memory\nYou have persistent memory.");
     expect(result).toContain("## Tools\nUse tools wisely.");

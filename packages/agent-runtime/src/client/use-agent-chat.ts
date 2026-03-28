@@ -251,14 +251,15 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             return next;
           });
           // Persist tool result in messages array so it survives toolStates clearing on agent_end
+          const toolResult = toolEvent.result as Record<string, unknown> | undefined;
           setMessages((prev) => [
             ...prev,
             {
               role: "toolResult",
               toolCallId: toolEvent.toolCallId,
               toolName: toolEvent.toolName,
-              content: toolEvent.result?.content ?? toolEvent.result,
-              details: toolEvent.result?.details ?? null,
+              content: toolResult?.content ?? toolEvent.result,
+              details: toolResult?.details ?? null,
               isError: toolEvent.isError ?? false,
               timestamp: Date.now(),
             } as unknown as AgentMessage,

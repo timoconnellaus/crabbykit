@@ -358,7 +358,9 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // Backfill from ring buffer
     for (const entry of managed.buffer) {
       if (entry.seq > afterSeq) {
-        res.write(`data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`,
+        );
       }
     }
 
@@ -372,7 +374,9 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // Subscribe to live events
     const onData = (entry: BufferEntry) => {
       try {
-        res.write(`data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: entry.type, data: entry.data, seq: entry.seq })}\n\n`,
+        );
       } catch {
         cleanup();
       }
@@ -480,10 +484,9 @@ server.listen(PORT, () => {
 async function triggerResticBackup(): Promise<void> {
   const { execSync } = await import("node:child_process");
   try {
-    execSync(
-      `curl -s --unix-socket ${SYNC_SOCKET} http://localhost/backup -X POST`,
-      { timeout: 120_000 },
-    );
+    execSync(`curl -s --unix-socket ${SYNC_SOCKET} http://localhost/backup -X POST`, {
+      timeout: 120_000,
+    });
   } catch (err) {
     console.error("[sandbox] Restic backup failed:", err);
   }

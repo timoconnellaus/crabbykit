@@ -57,7 +57,8 @@ export function createSaveCredentialTool(
       }),
       value: Type.Optional(
         Type.String({
-          description: "For env type: the value to store. For file type: omit (read from container).",
+          description:
+            "For env type: the value to store. For file type: omit (read from container).",
         }),
       ),
     }),
@@ -86,7 +87,10 @@ export function createSaveCredentialTool(
         if (result.exitCode !== 0) {
           return {
             content: [
-              { type: "text" as const, text: `Failed to read file: ${result.stderr || "not found"}` },
+              {
+                type: "text" as const,
+                text: `Failed to read file: ${result.stderr || "not found"}`,
+              },
             ],
             details: { error: "file_read_failed" },
           };
@@ -95,7 +99,10 @@ export function createSaveCredentialTool(
         if (result.stdout.length > MAX_CREDENTIAL_SIZE) {
           return {
             content: [
-              { type: "text" as const, text: `File too large (max ${MAX_CREDENTIAL_SIZE / 1024}KB).` },
+              {
+                type: "text" as const,
+                text: `File too large (max ${MAX_CREDENTIAL_SIZE / 1024}KB).`,
+              },
             ],
             details: { error: "file_too_large" },
           };
@@ -121,9 +128,7 @@ export function createSaveCredentialTool(
       const value = args.value;
       if (!value) {
         return {
-          content: [
-            { type: "text" as const, text: "Missing value for env credential." },
-          ],
+          content: [{ type: "text" as const, text: "Missing value for env credential." }],
           details: { error: "missing_value" },
         };
       }
@@ -131,7 +136,10 @@ export function createSaveCredentialTool(
       if (value.length > MAX_CREDENTIAL_SIZE) {
         return {
           content: [
-            { type: "text" as const, text: `Value too large (max ${MAX_CREDENTIAL_SIZE / 1024}KB).` },
+            {
+              type: "text" as const,
+              text: `Value too large (max ${MAX_CREDENTIAL_SIZE / 1024}KB).`,
+            },
           ],
           details: { error: "value_too_large" },
         };
