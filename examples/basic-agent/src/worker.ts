@@ -77,6 +77,7 @@ export class BasicAgent extends AgentDO {
             return env.SANDBOX_CONTAINER.get(id);
           },
           agentId: "default",
+          containerMode: "dev",
         }),
       }),
     ];

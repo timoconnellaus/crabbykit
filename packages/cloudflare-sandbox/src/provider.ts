@@ -10,6 +10,8 @@ export interface CloudflareSandboxOptions {
   baseUrl?: string;
   /** Agent ID sent via x-agent-id header to the container. */
   agentId?: string;
+  /** Container mode: "normal" or "dev". Dev mode enables restic persist sync. */
+  containerMode?: "normal" | "dev";
 }
 
 /**
@@ -32,6 +34,9 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     const h: Record<string, string> = { "content-type": "application/json" };
     if (this.options.agentId) {
       h["x-agent-id"] = this.options.agentId;
+    }
+    if (this.options.containerMode) {
+      h["x-container-mode"] = this.options.containerMode;
     }
     return h;
   }
