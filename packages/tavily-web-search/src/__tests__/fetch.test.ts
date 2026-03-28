@@ -7,7 +7,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 function mockContext(): AgentContext {
-  return { sessionId: "test-session", stepNumber: 0, emitCost: vi.fn() };
+  return { sessionId: "test-session", stepNumber: 0, emitCost: vi.fn(), schedules: {} as any };
 }
 
 /** Extract text from the first content block of a tool result */

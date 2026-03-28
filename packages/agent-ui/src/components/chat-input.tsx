@@ -4,9 +4,11 @@ import {
   forwardRef,
   type KeyboardEvent,
   useCallback,
+  useRef,
   useState,
 } from "react";
 import { useChat } from "./chat-provider";
+import { CommandPicker } from "./command-picker";
 
 export interface ChatInputProps extends Omit<ComponentPropsWithoutRef<"form">, "onSubmit"> {
   /** Placeholder text for the input. */
@@ -19,9 +21,10 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   { placeholder = "Type a message...", onSend, ...props },
   ref,
 ) {
-  const { sendMessage, abort, agentStatus } = useChat();
+  const { sendMessage, abort, agentStatus, availableCommands } = useChat();
   const isRunning = agentStatus !== "idle";
   const [text, setText] = useState("");
+  const pickerVisibleRef = useRef(false);
 
   const submit = useCallback(() => {
     const trimmed = text.trim();
@@ -34,13 +37,16 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   const handleSubmit = useCallback(
     (e: FormEvent) => {
       e.preventDefault();
-      submit();
+      if (!pickerVisibleRef.current) submit();
     },
     [submit],
   );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // When command picker is visible, it captures Enter/Escape/Arrow/Tab via document listener
+      if (pickerVisibleRef.current) return;
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         submit();
@@ -57,6 +63,19 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
       onSubmit={handleSubmit}
       {...props}
     >
+      <CommandPicker
+        input={text}
+        commands={availableCommands}
+        onPick={(cmd) => {
+          sendMessage(`/${cmd.name}`);
+          setText("");
+        }}
+        onAutocomplete={(cmd) => setText(`/${cmd.name} `)}
+        onDismiss={() => setText("")}
+        onVisibilityChange={(v) => {
+          pickerVisibleRef.current = v;
+        }}
+      />
       <textarea
         data-agent-ui="chat-input-textarea"
         value={text}

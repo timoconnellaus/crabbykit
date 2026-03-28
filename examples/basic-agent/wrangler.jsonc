@@ -13,6 +13,22 @@
       }
     ]
   },
+  "ai": {
+    "binding": "AI"
+  },
+  "r2_buckets": [
+    {
+      "binding": "STORAGE_BUCKET",
+      "bucket_name": "basic-agent-storage"
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "MEMORY_INDEX",
+      "index_name": "basic-agent-memory",
+      "remote": true
+    }
+  ],
   "migrations": [
     {
       "tag": "v1",

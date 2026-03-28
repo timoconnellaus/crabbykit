@@ -16,16 +16,25 @@ export type {
 export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
-export type { AgentConfig, AgentContext } from "./agent-do.js";
+export type { AgentConfig, AgentContext, ScheduleManager } from "./agent-do.js";
 // Agent DO
 export { AgentDO } from "./agent-do.js";
 export type {
   Capability,
   CapabilityHookContext,
+  CapabilityStorage,
   ResolvedCapabilities,
+  ToolExecutionEvent,
 } from "./capabilities/index.js";
 // Capabilities
-export { resolveCapabilities } from "./capabilities/index.js";
+export {
+  createCapabilityStorage,
+  createNoopStorage,
+  resolveCapabilities,
+} from "./capabilities/index.js";
+export type { Command, CommandContext, CommandResult } from "./commands/index.js";
+// Commands
+export { defineCommand } from "./commands/index.js";
 // Compaction
 export {
   buildSummarizationPrompt,
@@ -51,6 +60,15 @@ export type { CostEvent } from "./costs/index.js";
 // MCP client
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
+export type {
+  CallbackScheduleConfig,
+  PromptScheduleConfig,
+  Schedule,
+  ScheduleCallbackContext,
+  ScheduleConfig,
+} from "./scheduling/index.js";
+// Scheduling
+export { intervalToCron, nextFireTime, ScheduleStore, validateCron } from "./scheduling/index.js";
 export { SessionStore } from "./session/session-store.js";
 export type {
   CompactionEntryData,
@@ -70,11 +88,15 @@ export type {
   AbortMessage,
   AgentEventMessage,
   ClientMessage,
+  CommandListMessage,
+  CommandMessage,
+  CommandResultMessage,
   CostEventMessage,
   ErrorMessage,
   McpStatusMessage,
   NewSessionMessage,
   PromptMessage,
+  ScheduleListMessage,
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,

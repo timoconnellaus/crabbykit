@@ -60,10 +60,37 @@ export interface CostEventMessage {
   event: CostEvent;
 }
 
+export interface ScheduleListMessage {
+  type: "schedule_list";
+  schedules: Array<{
+    id: string;
+    name: string;
+    cron: string;
+    enabled: boolean;
+    status: string;
+    nextFireAt: string | null;
+    expiresAt: string | null;
+    lastFiredAt: string | null;
+  }>;
+}
+
 export interface ErrorMessage {
   type: "error";
   code: ErrorCode;
   message: string;
+}
+
+export interface CommandResultMessage {
+  type: "command_result";
+  sessionId: string;
+  name: string;
+  result: { text?: string; data?: unknown };
+  isError: boolean;
+}
+
+export interface CommandListMessage {
+  type: "command_list";
+  commands: Array<{ name: string; description: string }>;
 }
 
 export type ServerMessage =
@@ -71,9 +98,12 @@ export type ServerMessage =
   | ToolEventMessage
   | SessionSyncMessage
   | SessionListMessage
+  | ScheduleListMessage
   | McpStatusMessage
   | CostEventMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | CommandResultMessage
+  | CommandListMessage;
 
 // --- Client → Server messages ---
 
@@ -109,10 +139,20 @@ export interface DeleteSessionMessage {
   sessionId: string;
 }
 
+export interface CommandMessage {
+  type: "command";
+  sessionId: string;
+  /** Command name without leading slash. */
+  name: string;
+  /** Raw argument string (parsed server-side against command schema). */
+  args?: string;
+}
+
 export type ClientMessage =
   | PromptMessage
   | SteerMessage
   | AbortMessage
   | SwitchSessionMessage
   | NewSessionMessage
-  | DeleteSessionMessage;
+  | DeleteSessionMessage
+  | CommandMessage;

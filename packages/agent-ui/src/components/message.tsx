@@ -1,10 +1,11 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
+import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client";
 import { type ComponentPropsWithoutRef, useMemo } from "react";
 import type { ToolResultInfo } from "./message-list";
 
 /** AgentMessage with an optional streaming flag added during live updates. */
 // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
-type StreamableMessage = AgentMessage & { _streaming?: boolean };
+type StreamableMessage = AgentMessage & { _streaming?: boolean } & Partial<CommandResultTag>;
 
 export interface MessageProps extends ComponentPropsWithoutRef<"div"> {
   message: StreamableMessage;
@@ -156,12 +157,27 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const text = getTextContent(message);
   const toolCalls = role === "assistant" ? getToolCalls(message) : [];
   const isStreaming = !!message._streaming;
+  const isCommandResult = !!message._commandResult;
 
   const toolResultName = "toolName" in message ? (message.toolName as string) : "";
   const renderedHtml = useMemo(
-    () => (role === "assistant" && text ? renderMarkdown(text) : null),
-    [role, text],
+    () => (role === "assistant" && text && !isCommandResult ? renderMarkdown(text) : null),
+    [role, text, isCommandResult],
   );
+
+  if (isCommandResult) {
+    return (
+      <div
+        data-agent-ui="command-result"
+        data-command={message._commandName}
+        data-error={message._isError || undefined}
+        {...props}
+      >
+        <span data-agent-ui="command-result-label">/{message._commandName}</span>
+        <div data-agent-ui="command-result-content">{text}</div>
+      </div>
+    );
+  }
 
   return (
     <div

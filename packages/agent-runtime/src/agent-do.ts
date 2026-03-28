@@ -6,6 +6,7 @@ import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
 import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
+import type { Command, CommandContext, CommandResult } from "./commands/define-command.js";
 import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
@@ -93,8 +94,12 @@ export abstract class AgentDO extends DurableObject {
   protected mcpManager: McpManager;
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
   private agent: any | null = null; // PiAgent instance (lazy-loaded)
+  private activeSessionId: string | null = null;
+  /** The session that owns the currently running inference. Set before agent.prompt(), cleared on agent_end. */
+  private inferringSessionId: string | null = null;
   private connections = new Map<WebSocket, { sessionId: string }>();
   private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
+  private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
 
   constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
@@ -112,10 +117,19 @@ export abstract class AgentDO extends DurableObject {
 
   /**
    * Override to register capabilities. Capabilities contribute tools,
-   * prompt sections, MCP servers, and lifecycle hooks.
+   * commands, prompt sections, MCP servers, and lifecycle hooks.
    * Registration order determines hook execution order.
    */
   protected getCapabilities(): Capability[] {
+    return [];
+  }
+
+  /**
+   * Override to register slash commands. Commands bypass the LLM
+   * and execute directly when a user sends `/commandName`.
+   * Capabilities can also contribute commands via `commands()`.
+   */
+  protected getCommands(_context: CommandContext): Command[] {
     return [];
   }
 
@@ -260,12 +274,16 @@ export abstract class AgentDO extends DurableObject {
         sessionId,
         session,
         messages: this.sessionStore.buildContext(sessionId),
-        streamMessage: this.agent?.state.streamMessage ?? null,
+        streamMessage:
+          this.inferringSessionId === sessionId
+            ? (this.agent?.state.streamMessage ?? null)
+            : null,
       });
     }
 
-    // Send session list and schedule list
+    // Send session list, schedule list, and command list
     this.sendSessionList(server);
+    this.sendCommandList(server, sessionId);
     this.broadcastScheduleList();
 
     return new Response(null, { status: 101, webSocket: client });
@@ -321,7 +339,10 @@ export abstract class AgentDO extends DurableObject {
         break;
 
       case "abort":
-        this.agent?.abort();
+        // Only abort if the requesting session matches the running inference
+        if (this.inferringSessionId && this.inferringSessionId === msg.sessionId) {
+          this.agent?.abort();
+        }
         break;
 
       case "switch_session": {
@@ -329,12 +350,14 @@ export abstract class AgentDO extends DurableObject {
         ws.serializeAttachment({ sessionId: msg.sessionId });
         const session = this.sessionStore.get(msg.sessionId);
         if (session) {
+          // Include streamMessage if the target session has an active inference
+          const isStreaming = this.inferringSessionId === msg.sessionId;
           this.sendToSocket(ws, {
             type: "session_sync",
             sessionId: msg.sessionId,
             session,
             messages: this.sessionStore.buildContext(msg.sessionId),
-            streamMessage: null,
+            streamMessage: isStreaming ? (this.agent?.state.streamMessage ?? null) : null,
           });
         }
         break;
@@ -384,6 +407,11 @@ export abstract class AgentDO extends DurableObject {
         this.broadcastSessionList();
         break;
       }
+
+      case "command": {
+        await this.handleCommand(ws, msg.sessionId, msg.name, msg.args);
+        break;
+      }
     }
   }
 
@@ -409,20 +437,31 @@ export abstract class AgentDO extends DurableObject {
       data: { role: "user", content: text, timestamp: Date.now() },
     });
 
-    // Ensure agent is initialized
+    // If agent is busy on a different session, reject instead of corrupting state
+    if (this.agent?.state.isStreaming && this.inferringSessionId !== sessionId) {
+      this.broadcastToSession(sessionId, {
+        type: "error",
+        code: ErrorCodes.AGENT_BUSY,
+        message: "Agent is busy with another session. Please wait or abort the other session first.",
+      });
+      return;
+    }
+
+    // If agent is busy on the SAME session, steer instead
+    if (this.agent?.state.isStreaming && this.inferringSessionId === sessionId) {
+      this.handleSteer(sessionId, text);
+      return;
+    }
+
+    // Ensure agent is initialized (safe — no inference in flight)
     await this.ensureAgent(sessionId);
 
     if (!this.agent) {
       throw new Error("Agent failed to initialize");
     }
 
-    if (this.agent.state.isStreaming) {
-      // Agent is busy — steer instead
-      this.handleSteer(sessionId, text);
-      return;
-    }
-
     try {
+      this.inferringSessionId = sessionId;
       await this.agent.prompt(text);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -438,17 +477,109 @@ export abstract class AgentDO extends DurableObject {
   private handleSteer(sessionId: string, text: string): void {
     if (!this.agent) return;
 
-    // Persist steer message
+    // Persist steer message to session store
     this.sessionStore.appendEntry(sessionId, {
       type: "message",
       data: { role: "user", content: text, timestamp: Date.now() },
     });
 
-    this.agent.steer({
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    } as AgentMessage);
+    // Only inject into the agent if this session owns the running inference
+    if (this.inferringSessionId === sessionId) {
+      this.agent.steer({
+        role: "user",
+        content: text,
+        timestamp: Date.now(),
+      } as AgentMessage);
+    }
+  }
+
+  private resolveCommands(sessionId: string): Map<string, Command> {
+    const context: CommandContext = {
+      sessionId,
+      sessionStore: this.sessionStore,
+      schedules: this.buildScheduleManager(),
+    };
+    const baseCommands = this.getCommands(context);
+
+    // Also resolve capability-contributed commands
+    const agentContext: AgentContext = {
+      sessionId,
+      stepNumber: 0,
+      emitCost: () => {},
+      schedules: this.buildScheduleManager(),
+    };
+    const resolved = resolveCapabilities(this.getCapabilities(), agentContext, (capId) =>
+      createCapabilityStorage(this.ctx.storage, capId),
+    );
+
+    const commandMap = new Map<string, Command>();
+    for (const cmd of baseCommands) {
+      commandMap.set(cmd.name, cmd);
+    }
+    for (const cmd of resolved.commands) {
+      if (!commandMap.has(cmd.name)) {
+        commandMap.set(cmd.name, cmd);
+      }
+    }
+    return commandMap;
+  }
+
+  private async handleCommand(
+    ws: WebSocket,
+    sessionId: string,
+    name: string,
+    rawArgs?: string,
+  ): Promise<void> {
+    const commands = this.resolveCommands(sessionId);
+    const command = commands.get(name);
+
+    if (!command) {
+      this.sendToSocket(ws, {
+        type: "error",
+        code: ErrorCodes.COMMAND_NOT_FOUND,
+        message: `Unknown command: /${name}`,
+      });
+      return;
+    }
+
+    try {
+      let parsedArgs: unknown;
+      if (command.parameters && rawArgs) {
+        // Try JSON first, fall back to wrapping as first string property
+        try {
+          parsedArgs = JSON.parse(rawArgs);
+        } catch {
+          parsedArgs = rawArgs;
+        }
+      }
+
+      const context: CommandContext = {
+        sessionId,
+        sessionStore: this.sessionStore,
+        schedules: this.buildScheduleManager(),
+      };
+
+      const result: CommandResult = await command.execute(
+        parsedArgs as Record<string, unknown>,
+        context,
+      );
+
+      this.sendToSocket(ws, {
+        type: "command_result",
+        sessionId,
+        name,
+        result: { text: result.text, data: result.data },
+        isError: false,
+      });
+    } catch (err: unknown) {
+      this.sendToSocket(ws, {
+        type: "command_result",
+        sessionId,
+        name,
+        result: { text: err instanceof Error ? err.message : String(err) },
+        isError: true,
+      });
+    }
   }
 
   protected async ensureAgent(sessionId: string): Promise<void> {
@@ -472,6 +603,7 @@ export abstract class AgentDO extends DurableObject {
       createCapabilityStorage(this.ctx.storage, capId),
     );
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
+    this.afterToolExecutionHooks = resolved.afterToolExecutionHooks;
 
     // Sync capability-declared schedules
     if (resolved.schedules.length > 0) {
@@ -488,6 +620,8 @@ export abstract class AgentDO extends DurableObject {
       systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
     }
 
+    this.activeSessionId = sessionId;
+
     if (!this.agent) {
       const messages = this.sessionStore.buildContext(sessionId);
 
@@ -500,12 +634,23 @@ export abstract class AgentDO extends DurableObject {
           messages,
         },
         getApiKey: () => config.apiKey,
-        transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
+        transformContext: (msgs: AgentMessage[]) =>
+          this.transformContext(msgs, this.inferringSessionId ?? this.activeSessionId ?? sessionId),
         convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
         ...this.getAgentOptions(),
       });
 
-      this.agent.subscribe((event: AgentEvent) => this.handleAgentEvent(event, sessionId));
+      this.agent.subscribe((event: AgentEvent) => {
+        // Use inferringSessionId to route events to the session that started
+        // the current inference, regardless of any subsequent ensureAgent calls.
+        const sid = this.inferringSessionId ?? this.activeSessionId ?? sessionId;
+        this.handleAgentEvent(event, sid);
+
+        // Clear inferringSessionId when inference completes
+        if (event.type === "agent_end") {
+          this.inferringSessionId = null;
+        }
+      });
     } else {
       // Update agent state for this session
       this.agent.setSystemPrompt(systemPrompt);
@@ -514,6 +659,31 @@ export abstract class AgentDO extends DurableObject {
       // Reload messages from session
       const messages = this.sessionStore.buildContext(sessionId);
       this.agent.replaceMessages(messages);
+    }
+
+    // Wire afterToolExecution hooks (must update each time since sessionId may change)
+    if (this.afterToolExecutionHooks.length > 0) {
+      // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - afterToolCall context type unavailable
+      this.agent.setAfterToolCall(async (atcContext: any) => {
+        const hookContext: CapabilityHookContext = {
+          sessionId: this.inferringSessionId ?? sessionId,
+          sessionStore: this.sessionStore,
+          storage: createNoopStorage(),
+        };
+        const event = {
+          toolName: atcContext.toolCall.name as string,
+          args: atcContext.args,
+          isError: atcContext.isError as boolean,
+        };
+        for (const hook of this.afterToolExecutionHooks) {
+          try {
+            await hook(event, hookContext);
+          } catch (err) {
+            console.error("[capabilities] afterToolExecution hook error:", err);
+          }
+        }
+        return undefined;
+      });
     }
   }
 
@@ -909,6 +1079,17 @@ export abstract class AgentDO extends DurableObject {
     for (const [ws] of this.connections) {
       this.sendToSocket(ws, msg);
     }
+  }
+
+  private sendCommandList(ws: WebSocket, sessionId: string): void {
+    const commands = this.resolveCommands(sessionId);
+    this.sendToSocket(ws, {
+      type: "command_list",
+      commands: Array.from(commands.values()).map((cmd) => ({
+        name: cmd.name,
+        description: cmd.description,
+      })),
+    });
   }
 
   private sendSessionList(ws: WebSocket): void {

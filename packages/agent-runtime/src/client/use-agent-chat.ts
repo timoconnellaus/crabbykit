@@ -11,6 +11,16 @@ const RECONNECT_BACKOFF_BASE = 2;
 // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
 type StreamableMessage = AgentMessage & { _streaming?: boolean };
 
+/** Metadata for available slash commands, received from the server. */
+export interface CommandInfo {
+  name: string;
+  description: string;
+}
+
+/** AgentMessage tagged as a command result for distinct UI rendering. */
+// biome-ignore lint/style/useNamingConvention: _ prefix is a convention for internal transient state
+export type CommandResultTag = { _commandResult: true; _commandName: string; _isError: boolean };
+
 /** Per-tool-call execution state, tracked during live streaming. */
 export type ToolState =
   | { status: "executing"; toolName: string }
@@ -51,6 +61,8 @@ export interface UseAgentChatReturn {
     expiresAt: string | null;
     lastFiredAt: string | null;
   }>;
+  /** Available slash commands registered on the server. */
+  availableCommands: CommandInfo[];
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
   sendMessage: (text: string) => void;
@@ -70,12 +82,15 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const [toolStates, setToolStates] = useState<Map<string, ToolState>>(new Map());
   const [costs, setCosts] = useState<CostEvent[]>([]);
   const [schedules, setSchedules] = useState<UseAgentChatReturn["schedules"]>([]);
+  const [availableCommands, setAvailableCommands] = useState<CommandInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamMessageRef = useRef<AgentMessage | null>(null);
+  /** Tracks the current sessionId for use inside the handleMessage callback (which has [] deps). */
+  const currentSessionIdRef = useRef<string | null>(config.sessionId ?? null);
   /** Set to true by effect cleanup to suppress reconnect from stale onclose handlers. */
   const disposedRef = useRef(false);
 
@@ -107,12 +122,13 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
           : msg.messages;
         setMessages(syncMessages);
         setCurrentSessionId(msg.sessionId);
+        currentSessionIdRef.current = msg.sessionId;
         setToolStates(new Map());
         setCosts([]);
+        setThinking(null);
+        setError(null);
         streamMessageRef.current = msg.streamMessage ?? null;
-        if (msg.streamMessage) {
-          setAgentStatus("streaming");
-        }
+        setAgentStatus(msg.streamMessage ? "streaming" : "idle");
         break;
       }
 
@@ -121,6 +137,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         break;
 
       case "agent_event": {
+        // Discard events for a session we're no longer watching (late arrivals after switch)
+        if (msg.sessionId !== currentSessionIdRef.current) break;
         const agentEvent = msg.event;
 
         if (agentEvent.type === "message_start") {
@@ -204,6 +222,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       }
 
       case "tool_event": {
+        if (msg.sessionId !== currentSessionIdRef.current) break;
         const toolEvent = msg.event;
         if (toolEvent.type === "tool_execution_start") {
           setAgentStatus("executing_tools");
@@ -232,12 +251,38 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       }
 
       case "cost_event":
+        if (msg.sessionId !== currentSessionIdRef.current) break;
         setCosts((prev) => [...prev, msg.event]);
         break;
 
       case "schedule_list":
         setSchedules(msg.schedules);
         break;
+
+      case "command_list":
+        setAvailableCommands(msg.commands);
+        break;
+
+      case "command_result": {
+        if (msg.sessionId !== currentSessionIdRef.current) break;
+        const resultText =
+          msg.result.text ??
+          (msg.result.data != null ? JSON.stringify(msg.result.data, null, 2) : "");
+        // Command results are synthetic messages — they don't match the full AssistantMessage shape
+        // but are displayed in the message list with distinct rendering via _commandResult tag
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: resultText,
+            timestamp: Date.now(),
+            _commandResult: true,
+            _commandName: msg.name,
+            _isError: msg.isError,
+          } as unknown as AgentMessage,
+        ]);
+        break;
+      }
 
       case "mcp_status":
         // Could expose this, keeping it simple for now
@@ -312,6 +357,30 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     (text: string) => {
       if (!currentSessionId) return;
       setError(null);
+
+      // Detect slash commands: "/name" or "/name args..."
+      // Only intercept known commands to avoid false positives (e.g. "/path/to/file")
+      const commandMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
+      if (commandMatch) {
+        const [, name, args] = commandMatch;
+        const isKnownCommand = availableCommands.some((cmd) => cmd.name === name);
+        if (isKnownCommand) {
+          send({
+            type: "command",
+            sessionId: currentSessionId,
+            name,
+            args: args?.trim(),
+          } as ClientMessage);
+
+          // Optimistically add user message
+          setMessages((prev) => [
+            ...prev,
+            { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
+          ]);
+          return;
+        }
+      }
+
       const type = agentStatus === "idle" ? "prompt" : "steer";
       send({ type, sessionId: currentSessionId, text } as ClientMessage);
 
@@ -321,7 +390,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
       ]);
     },
-    [currentSessionId, agentStatus, send],
+    [currentSessionId, agentStatus, availableCommands, send],
   );
 
   const abort = useCallback(() => {
@@ -361,6 +430,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     toolStates,
     costs,
     schedules,
+    availableCommands,
     error,
     sendMessage,
     abort,

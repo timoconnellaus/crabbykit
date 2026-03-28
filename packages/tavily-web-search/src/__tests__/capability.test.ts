@@ -19,7 +19,7 @@ describe("tavilyWebSearch", () => {
       tavilyApiKey: "test-key",
     });
 
-    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {} };
+    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {}, schedules: {} as any };
     const tools = cap.tools!(context);
 
     expect(tools).toHaveLength(2);
@@ -32,7 +32,7 @@ describe("tavilyWebSearch", () => {
       tavilyApiKey: "test-key",
     });
 
-    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {} };
+    const context = { sessionId: "s1", stepNumber: 0, emitCost: () => {}, schedules: {} as any };
     const sections = cap.promptSections!(context);
 
     expect(sections).toHaveLength(1);
@@ -44,7 +44,12 @@ describe("tavilyWebSearch", () => {
       tavilyApiKey: () => "dynamic-key",
     });
 
-    const tools = cap.tools!({ sessionId: "s1", stepNumber: 0, emitCost: () => {} });
+    const tools = cap.tools!({
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: () => {},
+      schedules: {} as any,
+    });
     expect(tools).toHaveLength(2);
   });
 
@@ -57,7 +62,12 @@ describe("tavilyWebSearch", () => {
     });
 
     expect(cap.id).toBe("tavily-web-search");
-    const tools = cap.tools!({ sessionId: "s1", stepNumber: 0, emitCost: () => {} });
+    const tools = cap.tools!({
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: () => {},
+      schedules: {} as any,
+    });
     expect(tools).toHaveLength(2);
   });
 

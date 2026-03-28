@@ -14,6 +14,10 @@ export const ErrorCodes = {
   TOOL_ERROR: "TOOL_ERROR",
   /** MCP server error */
   MCP_ERROR: "MCP_ERROR",
+  /** Unknown slash command */
+  COMMAND_NOT_FOUND: "COMMAND_NOT_FOUND",
+  /** Slash command execution failed */
+  COMMAND_ERROR: "COMMAND_ERROR",
   /** Catch-all for unexpected internal errors */
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;

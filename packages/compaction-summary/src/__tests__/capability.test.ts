@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { compactionSummary } from "../capability.js";
 
@@ -94,6 +95,7 @@ describe("compactionSummary", () => {
     const ctx: CapabilityHookContext = {
       sessionId: "s1",
       sessionStore: store as any,
+      storage: createNoopStorage(),
     };
 
     const result = await cap.hooks!.beforeInference!(messages, ctx);
@@ -123,6 +125,7 @@ describe("compactionSummary", () => {
     const ctx: CapabilityHookContext = {
       sessionId: "s1",
       sessionStore: store as any,
+      storage: createNoopStorage(),
     };
 
     const result = await cap.hooks!.beforeInference!(messages, ctx);

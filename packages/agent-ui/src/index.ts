@@ -7,6 +7,8 @@ export type { ChatPanelProps } from "./components/chat-panel";
 export { ChatPanel } from "./components/chat-panel";
 export type { ChatProviderProps } from "./components/chat-provider";
 export { ChatProvider, useChat } from "./components/chat-provider";
+export type { CommandPickerProps } from "./components/command-picker";
+export { CommandPicker } from "./components/command-picker";
 export type { MessageProps } from "./components/message";
 export { Message } from "./components/message";
 export type { MessageListProps } from "./components/message-list";

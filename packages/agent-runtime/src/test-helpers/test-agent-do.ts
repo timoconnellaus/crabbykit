@@ -8,6 +8,7 @@ import { Type } from "@sinclair/typebox";
 import type { AgentConfig, AgentContext } from "../agent-do.js";
 import { AgentDO } from "../agent-do.js";
 import { resolveCapabilities } from "../capabilities/resolve.js";
+import { createCapabilityStorage } from "../capabilities/storage.js";
 import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
 import { compactSession, estimateMessagesTokens } from "../compaction/compaction.js";
 import type { CompactionConfig, SummarizeFn } from "../compaction/types.js";
@@ -133,8 +134,17 @@ class MockPiAgent {
 
     const response = mockResponseQueue.shift() ?? { text: "Mock response" };
 
-    // Support delays for testing steer/abort mid-run
+    // Support delays for testing steer/abort mid-run.
+    // Set streamMessage during the delay to simulate a real streaming model
+    // so that new connections can see the in-progress message.
     if (response.delay) {
+      const partialStreamMsg: any = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        timestamp: Date.now(),
+      };
+      this._state.streamMessage = partialStreamMsg;
+      this.emit({ type: "message_start", message: partialStreamMsg } as AgentEvent);
       await new Promise((r) => setTimeout(r, response.delay));
     }
 
@@ -178,8 +188,13 @@ class MockPiAgent {
       timestamp: Date.now(),
     };
 
-    this.emit({ type: "message_start", message: assistantMsg } as AgentEvent);
+    this._state.streamMessage = assistantMsg;
+    if (!response.delay) {
+      // Only emit message_start for non-delay responses (delay path already emitted it)
+      this.emit({ type: "message_start", message: assistantMsg } as AgentEvent);
+    }
     this.emit({ type: "message_end", message: assistantMsg } as AgentEvent);
+    this._state.streamMessage = null;
 
     // Handle tool calls
     if (response.toolCalls) {
@@ -473,15 +488,25 @@ export class TestAgentDO extends AgentDO {
    */
   protected async ensureAgent(sessionId: string): Promise<void> {
     const agentField = "agent" as any;
+    const activeSessionIdField = "activeSessionId" as any;
+    const inferringSessionIdField = "inferringSessionId" as any;
     const context: AgentContext = {
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),
+      schedules: (this as any).buildScheduleManager(),
     };
 
-    // Resolve capabilities (same as base class)
-    const resolved = resolveCapabilities(this.getCapabilities(), context);
+    // Resolve capabilities with scoped storage (same as base class)
+    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
+      createCapabilityStorage(this.ctx.storage, capId),
+    );
     (this as any).beforeInferenceHooks = resolved.beforeInferenceHooks;
+
+    // Sync capability-declared schedules (same as base class)
+    if (resolved.schedules.length > 0) {
+      await (this as any).syncCapabilitySchedules(resolved.schedules);
+    }
 
     // Merge tools
     const baseTools = this.getTools(context);
@@ -493,6 +518,9 @@ export class TestAgentDO extends AgentDO {
       systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
     }
 
+    // Match base class: track active session for event routing
+    (this as any)[activeSessionIdField] = sessionId;
+
     if (!(this as any)[agentField]) {
       const messages = this.sessionStore.buildContext(sessionId);
 
@@ -503,10 +531,28 @@ export class TestAgentDO extends AgentDO {
           tools: allTools,
           messages,
         },
-        transformContext: (msgs: AgentMessage[]) => (this as any).transformContext(msgs, sessionId),
+        transformContext: (msgs: AgentMessage[]) =>
+          (this as any).transformContext(
+            msgs,
+            (this as any)[inferringSessionIdField] ??
+              (this as any)[activeSessionIdField] ??
+              sessionId,
+          ),
       });
 
-      agent.subscribe((event: AgentEvent) => (this as any).handleAgentEvent(event, sessionId));
+      // Match base class: use inferringSessionId for event routing
+      agent.subscribe((event: AgentEvent) => {
+        const sid =
+          (this as any)[inferringSessionIdField] ??
+          (this as any)[activeSessionIdField] ??
+          sessionId;
+        (this as any).handleAgentEvent(event, sid);
+
+        // Clear inferringSessionId when inference completes
+        if (event.type === "agent_end") {
+          (this as any)[inferringSessionIdField] = null;
+        }
+      });
 
       (this as any)[agentField] = agent;
     } else {

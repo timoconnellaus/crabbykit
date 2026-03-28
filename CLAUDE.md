@@ -1,14 +1,53 @@
 # CLAW for Cloudflare
 
-Agent runtime framework for Cloudflare Workers with React UI.
+Open-source SDK for building AI agents on Cloudflare Workers.
+
+## What This Is
+
+CLAW is a **framework**, not an application. It provides the primitives for building conversational AI agents that run on Cloudflare's edge infrastructure. Consumers extend `AgentDO`, register capabilities, and get a production-ready agent with persistent sessions, real-time streaming, tool execution, and a composable React UI — without building the plumbing themselves.
+
+The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it originated) and open-sourced for general use.
+
+## What the SDK Provides Today
+
+### Runtime (`packages/agent-runtime`)
+- **AgentDO base class** — Durable Object that consumers extend. Handles WebSocket lifecycle, session management, LLM inference loop, and tool execution. Consumers implement `getConfig()`, `getTools()`, `buildSystemPrompt()`, and optionally `getCapabilities()`.
+- **Session store** — Immutable append-log backed by DO SQLite. Supports branching (parent_id tree), compaction checkpoints, and context rebuilding.
+- **Capability system** — Extension model for adding tools, prompt sections, MCP servers, schedules, and lifecycle hooks. Each capability gets scoped persistent KV storage.
+- **Tool system** — `defineTool()` with TypeBox schema validation. Tools return structured `content` + `details`.
+- **Compaction engine** — Token estimation, cut-point selection, staged summarization, emergency truncation. Used by the compaction-summary capability.
+- **Scheduling** — Cron-based schedule store with prompt and callback schedule types. Agents can create/update/delete schedules via `context.schedules`.
+- **MCP client** — Connect to external MCP servers, surface their tools alongside native tools.
+- **Cost tracking** — `context.emitCost()` persists costs as session entries and broadcasts to clients in real time.
+- **Transport protocol** — Discriminated union messages over WebSocket. Session sync, agent events, tool events, cost events, schedule lists, MCP status.
+
+### UI (`packages/agent-ui`)
+- **Composable React components** — ChatPanel, MessageList, Message, ChatInput, StatusBar, SessionList. All use `data-agent-ui` attribute selectors for styling isolation.
+- **Client hook** — `useAgentChat()` manages WebSocket connection, message streaming, session switching, and schedule state.
+- **Markdown rendering** — Lightweight built-in renderer (no external deps). Code blocks, formatting, links, lists.
+
+### Capability Packages
+- **`packages/compaction-summary`** — LLM-based conversation compaction. Configurable provider/model.
+- **`packages/tavily-web-search`** — Web search + fetch tools via Tavily API. Emits costs.
+- **`packages/prompt-scheduler`** — Exposes schedule management as agent tools (create/update/delete/list schedules).
+- **`packages/r2-storage`** — R2-backed file storage capability. Provides 7 tools: file_read, file_write, file_edit, file_delete, file_list, file_tree, file_find. Path validation, namespace isolation via configurable prefix.
+
+### Internal Packages (not published)
+- **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
+- **`packages/ai`** — Fork of pi-ai. Model provider abstraction (OpenRouter, Anthropic, etc.).
 
 ## Project Structure
 
 ```
-packages/agent-runtime   — Core runtime (Durable Objects, sessions, tools, MCP, compaction)
-packages/agent-ui        — React chat components (Radix UI based)
-packages/compaction-summary — Compaction capability (summarization via LLM)
-examples/basic-agent     — Full-stack example (Vite + Cloudflare Worker)
+packages/agent-runtime     — Core runtime (DO base class, sessions, capabilities, transport)
+packages/agent-ui          — React chat components (Radix UI based)
+packages/agent-core        — LLM agent loop (forked from pi-agent-core)
+packages/ai                — Model provider abstraction (forked from pi-ai)
+packages/compaction-summary — Compaction capability
+packages/tavily-web-search — Web search capability
+packages/prompt-scheduler  — Schedule management capability
+packages/r2-storage        — R2 file storage capability
+examples/basic-agent       — Full-stack example (Vite + Cloudflare Worker)
 ```
 
 ## Commands
