@@ -7,6 +7,11 @@ import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
 import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
 import type { Command, CommandContext, CommandResult } from "./commands/define-command.js";
+import { ConfigStore } from "./config/config-store.js";
+import { createConfigGet } from "./config/config-get.js";
+import { createConfigSchema } from "./config/config-schema.js";
+import { createConfigSet } from "./config/config-set.js";
+import type { ConfigNamespace } from "./config/types.js";
 import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
@@ -110,6 +115,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   protected sessionStore: SessionStore;
   protected scheduleStore: ScheduleStore;
+  protected configStore: ConfigStore;
   protected mcpManager: McpManager;
   /** Per-session agent instances. Present only while inference is active, cleaned up on agent_end. */
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
@@ -127,6 +133,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     super(ctx, env);
     this.sessionStore = new SessionStore(ctx.storage.sql);
     this.scheduleStore = new ScheduleStore(ctx.storage.sql);
+    this.configStore = new ConfigStore(ctx.storage);
     this.mcpManager = new McpManager(ctx.storage.sql, () => this.broadcastMcpStatus());
   }
 
@@ -162,6 +169,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
    * Registration order determines hook execution order.
    */
   protected getCapabilities(): Capability[] {
+    return [];
+  }
+
+  /**
+   * Override to register consumer config namespaces.
+   * Config tools (config_get, config_set, config_schema) will include
+   * these alongside the built-in namespaces (capability:{id}, schedules, session).
+   */
+  protected getConfigNamespaces(): ConfigNamespace[] {
     return [];
   }
 
@@ -863,9 +879,29 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       await this.syncCapabilitySchedules(resolved.schedules);
     }
 
-    // Merge tools: getTools() first, then capability tools
+    // Build config tools (always available)
+    const capabilities = this.getCapabilities();
+    // Collect config namespaces from capabilities + consumer overrides
+    const capabilityNamespaces = capabilities.flatMap(
+      (cap) => cap.configNamespaces?.(context) ?? [],
+    );
+    const consumerNamespaces = this.getConfigNamespaces();
+    const configContext = {
+      sessionId,
+      sessionStore: this.sessionStore,
+      configStore: this.configStore,
+      capabilities,
+      namespaces: [...capabilityNamespaces, ...consumerNamespaces],
+    };
+    const configTools = [
+      createConfigGet(configContext),
+      createConfigSet(configContext),
+      createConfigSchema(configContext),
+    ];
+
+    // Merge tools: getTools() first, then config tools, then capability tools
     const baseTools = this.getTools(context);
-    const allTools = [...baseTools, ...resolved.tools];
+    const allTools = [...baseTools, ...configTools, ...resolved.tools];
 
     // Build system prompt with capability sections appended
     let systemPrompt = this.buildSystemPrompt(context);

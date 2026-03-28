@@ -280,13 +280,33 @@
   color: var(--agent-ui-user-link);
 }
 
+/* --- Thinking fold (completed) --- */
+
+[data-agent-ui="thinking-fold"] {
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--agent-ui-text-muted);
+}
+
+[data-agent-ui="thinking-fold"] > summary {
+  cursor: pointer;
+  font-style: italic;
+  user-select: none;
+}
+
+[data-agent-ui="thinking-fold-content"] {
+  margin-top: 0.5rem;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 /* --- Thinking indicator --- */
 
 [data-agent-ui="thinking"] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
   color: var(--agent-ui-text-muted);

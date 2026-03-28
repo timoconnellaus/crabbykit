@@ -38,6 +38,9 @@ export {
 export type { Command, CommandContext, CommandResult } from "./commands/index.js";
 // Commands
 export { defineCommand } from "./commands/index.js";
+// Config tools
+export { ConfigStore, createConfigGet, createConfigSchema, createConfigSet } from "./config/index.js";
+export type { ConfigContext, ConfigNamespace } from "./config/index.js";
 // Compaction
 export {
   buildSummarizationPrompt,

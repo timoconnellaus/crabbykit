@@ -4,6 +4,7 @@ import { ChatInput } from "./chat-input";
 import { ChatProvider } from "./chat-provider";
 import { MessageList } from "./message-list";
 import { StatusBar } from "./status-bar";
+import { ThinkingIndicator } from "./thinking-indicator";
 
 export interface ChatPanelProps extends ComponentPropsWithoutRef<"div"> {
   /** The chat hook return value. */
@@ -28,6 +29,7 @@ export const ChatPanel = forwardRef<HTMLDivElement, ChatPanelProps>(function Cha
           <>
             <StatusBar />
             <MessageList />
+            <ThinkingIndicator />
             <ChatInput />
           </>
         )}

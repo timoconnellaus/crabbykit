@@ -1,6 +1,8 @@
 import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { TObject } from "@sinclair/typebox";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
+import type { ConfigNamespace } from "../config/config-namespace.js";
 import type { CostEvent } from "../costs/types.js";
 import type { McpServerConfig } from "../mcp/types.js";
 import type { ScheduleConfig } from "../scheduling/types.js";
@@ -71,6 +73,19 @@ export interface Capability {
   /** One-line description. */
   description: string;
 
+  /**
+   * TypeBox schema for capability-specific configuration.
+   * Used by config tools to validate updates and expose schema to the agent.
+   * Stored under `config:capability:{id}` in DO storage.
+   */
+  configSchema?: TObject;
+
+  /**
+   * Default configuration value. Should conform to `configSchema`.
+   * Returned by config_get when no config has been explicitly set.
+   */
+  configDefault?: Record<string, unknown>;
+
   /** Tools contributed by this capability. */
   tools?: (context: AgentContext) => AgentTool[];
 
@@ -85,6 +100,14 @@ export interface Capability {
 
   /** Schedules this capability declares. Registered during agent initialization. */
   schedules?: (context: AgentContext) => ScheduleConfig[];
+
+  /**
+   * Config namespaces contributed by this capability.
+   * These are exposed via config_get/config_set/config_schema tools.
+   * Use this to let the agent manage capability-owned resources (e.g. schedules)
+   * through the unified config interface.
+   */
+  configNamespaces?: (context: AgentContext) => ConfigNamespace[];
 
   /** Lifecycle hooks. */
   hooks?: {
@@ -123,5 +146,16 @@ export interface Capability {
      * Errors are caught per-hook so one failing hook does not block others.
      */
     onConnect?: (ctx: CapabilityHookContext) => Promise<void>;
+
+    /**
+     * Called when this capability's config is updated via config_set.
+     * Use this to react to configuration changes (e.g., reschedule a cron job).
+     * Receives the old and new config values.
+     */
+    onConfigChange?: (
+      oldConfig: Record<string, unknown>,
+      newConfig: Record<string, unknown>,
+      ctx: CapabilityHookContext,
+    ) => Promise<void>;
   };
 }

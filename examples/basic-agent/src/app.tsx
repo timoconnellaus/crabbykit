@@ -6,6 +6,7 @@ import {
   MessageList,
   SessionList,
   StatusBar,
+  ThinkingIndicator,
   useChat,
 } from "@claw-for-cloudflare/agent-ui";
 import { useCallback, useState } from "react";
@@ -66,6 +67,7 @@ export default function App() {
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
         <StatusBar sandboxState={sandboxState} />
         <MessageList />
+        <ThinkingIndicator />
         <ChatInput />
       </div>
     </ChatPanel>

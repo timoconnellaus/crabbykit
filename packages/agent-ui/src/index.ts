@@ -20,3 +20,4 @@ export type { SessionListProps } from "./components/session-list";
 export { SessionList } from "./components/session-list";
 export type { StatusBarProps } from "./components/status-bar";
 export { StatusBar } from "./components/status-bar";
+export { ThinkingIndicator } from "./components/thinking-indicator";

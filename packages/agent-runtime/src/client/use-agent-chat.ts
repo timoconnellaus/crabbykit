@@ -50,6 +50,8 @@ export interface UseAgentChatReturn {
   sessions: Array<{ id: string; name: string; source: string; updatedAt: string }>;
   currentSessionId: string | null;
   thinking: string | null;
+  /** Completed thinking text from the most recent thinking block. Remains set after agent finishes. */
+  completedThinking: string | null;
   /** Per-tool-call execution state, keyed by toolCallId. Only populated during live streaming. */
   toolStates: Map<string, ToolState>;
   /** Accumulated cost events for the current session. */
@@ -89,6 +91,7 @@ interface ChatState {
   sessions: UseAgentChatReturn["sessions"];
   currentSessionId: string | null;
   thinking: string | null;
+  completedThinking: string | null;
   toolStates: Map<string, ToolState>;
   costs: CostEvent[];
   schedules: UseAgentChatReturn["schedules"];
@@ -174,6 +177,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         toolStates: new Map(),
         costs: [],
         thinking: null,
+        completedThinking: null,
         error: null,
       };
     case "AGENT_END":
@@ -184,19 +188,34 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         toolStates: new Map(),
       };
     case "UPDATE_STREAMING_MESSAGE": {
-      let { thinking } = state;
+      let { thinking, completedThinking } = state;
+      let thinkingToAttach: string | null = null;
       if (action.thinking) {
         if (action.thinking.mode === "start") {
           thinking = "";
+          completedThinking = null;
         } else if (action.thinking.mode === "delta") {
           thinking = (thinking ?? "") + action.thinking.delta;
+        } else if (action.thinking.mode === "end") {
+          // Capture thinking text to attach to the message, clear live indicator
+          thinkingToAttach = thinking;
+          completedThinking = thinking;
+          thinking = null;
         }
-        // "end" — keep thinking visible until next message
+      }
+      let messages = action.updater(state.messages);
+      // Attach completed thinking to the streaming assistant message
+      if (thinkingToAttach && messages.length > 0) {
+        const last = messages[messages.length - 1] as StreamableMessage;
+        if ("role" in last && last.role === "assistant") {
+          messages = [...messages.slice(0, -1), { ...last, _thinking: thinkingToAttach } as AgentMessage];
+        }
       }
       return {
         ...state,
-        messages: action.updater(state.messages),
+        messages,
         thinking,
+        completedThinking,
       };
     }
     case "TOOL_EXECUTION_START": {
@@ -246,6 +265,7 @@ function createInitialState(sessionId: string | undefined): ChatState {
     sessions: [],
     currentSessionId: sessionId ?? null,
     thinking: null,
+    completedThinking: null,
     toolStates: new Map(),
     costs: [],
     schedules: [],
@@ -624,11 +644,12 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             args: args?.trim(),
           } as ClientMessage);
 
-          // Optimistically add user message
+          // Optimistically add user message and set agent as streaming
           dispatch({
             type: "ADD_MESSAGE",
             message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
           });
+          dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
           return;
         }
       }
@@ -636,11 +657,12 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       const type = state.agentStatus === "idle" ? "prompt" : "steer";
       send({ type, sessionId: state.currentSessionId, text } as ClientMessage);
 
-      // Optimistically add user message
+      // Optimistically add user message and set agent as streaming
       dispatch({
         type: "ADD_MESSAGE",
         message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
       });
+      dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
     },
     [state.currentSessionId, state.agentStatus, state.availableCommands, send],
   );
@@ -700,6 +722,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     sessions: state.sessions,
     currentSessionId: state.currentSessionId,
     thinking: state.thinking,
+    completedThinking: state.completedThinking,
     toolStates: state.toolStates,
     costs: state.costs,
     schedules: state.schedules,

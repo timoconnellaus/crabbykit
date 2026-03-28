@@ -67,7 +67,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   { renderMessage, dir: _dir, ...props },
   ref,
 ) {
-  const { messages, toolStates, thinking, error } = useChat();
+  const { messages, toolStates, agentStatus, error } = useChat();
   const endRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.length;
@@ -101,7 +101,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   return (
     <ScrollArea.Root data-agent-ui="message-list-root" role="log" aria-live="polite" ref={ref} {...props}>
       <ScrollArea.Viewport data-agent-ui="message-list-viewport" ref={viewportRef}>
-        {messages.length === 0 && !thinking && !error && (
+        {messages.length === 0 && agentStatus === "idle" && !error && (
           <div data-agent-ui="message-list-empty">Send a message to get started</div>
         )}
         {renderMessage ? (
@@ -134,12 +134,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
             <Message key={i} message={msg} toolResultMap={toolResultMap} />
           ))
         )}
-        {thinking != null && (
-          <div data-agent-ui="thinking">
-            <span data-agent-ui="thinking-indicator" />
-            {thinking || "Thinking..."}
-          </div>
-        )}
+
         {error && <div data-agent-ui="error-banner">{error}</div>}
         <div ref={endRef} />
       </ScrollArea.Viewport>
