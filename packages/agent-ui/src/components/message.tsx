@@ -17,8 +17,8 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 /** AgentMessage with an optional streaming flag added during live updates. */
-// biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
-type StreamableMessage = AgentMessage & { _streaming?: boolean } & Partial<CommandResultTag>;
+// biome-ignore lint/style/useNamingConvention: _streaming/_thinking are conventions for internal transient state
+type StreamableMessage = AgentMessage & { _streaming?: boolean; _thinking?: string } & Partial<CommandResultTag>;
 
 export interface MessageProps extends ComponentPropsWithoutRef<"div"> {
   message: StreamableMessage;
@@ -191,6 +191,7 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const imageBlocks = getImageBlocks(message);
   const isStreaming = !!message._streaming;
   const isCommandResult = !!message._commandResult;
+  const thinkingText = (message as StreamableMessage)._thinking;
   const timestamp = "timestamp" in message ? (message.timestamp as number) : undefined;
 
   const toolResultName = "toolName" in message ? (message.toolName as string) : "";
@@ -221,6 +222,13 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
       {...props}
     >
       {role !== "toolResult" && <div data-agent-ui="message-role">{role}</div>}
+
+      {thinkingText && (
+        <details data-agent-ui="thinking-fold">
+          <summary>Thinking</summary>
+          <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
+        </details>
+      )}
 
       {text &&
         role !== "toolResult" &&
