@@ -80,5 +80,13 @@ export interface Capability {
      * per-hook so one failing hook does not block others.
      */
     afterToolExecution?: (event: ToolExecutionEvent, ctx: CapabilityHookContext) => Promise<void>;
+
+    /**
+     * Called when a WebSocket client connects or reconnects to a session.
+     * Use this to reconcile state (e.g., verify a sandbox container is still running)
+     * and broadcast current state to the reconnecting client.
+     * Errors are caught per-hook so one failing hook does not block others.
+     */
+    onConnect?: (ctx: CapabilityHookContext) => Promise<void>;
   };
 }

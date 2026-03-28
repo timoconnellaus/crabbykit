@@ -18,6 +18,7 @@ export interface ResolvedCapabilities {
   afterToolExecutionHooks: Array<
     (event: ToolExecutionEvent, ctx: CapabilityHookContext) => Promise<void>
   >;
+  onConnectHooks: Array<(ctx: CapabilityHookContext) => Promise<void>>;
   schedules: ResolvedScheduleDeclaration[];
 }
 
@@ -44,6 +45,7 @@ export function resolveCapabilities(
   const mcpServers: McpServerConfig[] = [];
   const beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   const afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
+  const onConnectHooks: ResolvedCapabilities["onConnectHooks"] = [];
   const schedules: ResolvedScheduleDeclaration[] = [];
   const getStorage = createStorage ?? (() => createNoopStorage());
 
@@ -104,6 +106,11 @@ export function resolveCapabilities(
         rawHook(event, { ...ctx, storage: capStorage }),
       );
     }
+
+    if (cap.hooks?.onConnect) {
+      const rawHook = cap.hooks.onConnect;
+      onConnectHooks.push(async (ctx) => rawHook({ ...ctx, storage: capStorage }));
+    }
   }
 
   return {
@@ -113,6 +120,7 @@ export function resolveCapabilities(
     mcpServers,
     beforeInferenceHooks,
     afterToolExecutionHooks,
+    onConnectHooks,
     schedules,
   };
 }

@@ -24,6 +24,7 @@ describe("tavilyWebSearch", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -43,6 +44,7 @@ describe("tavilyWebSearch", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     };
     const sections = cap.promptSections!(context);
@@ -61,6 +63,7 @@ describe("tavilyWebSearch", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);
@@ -80,6 +83,7 @@ describe("tavilyWebSearch", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);

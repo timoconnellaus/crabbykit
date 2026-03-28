@@ -90,6 +90,8 @@ export interface AgentContext {
   emitCost: (cost: CostEvent) => void;
   /** Broadcast a custom event to connected clients on the current session. */
   broadcast: (name: string, data: Record<string, unknown>) => void;
+  /** Broadcast a custom event to ALL connected clients across all sessions. */
+  broadcastToAll: (name: string, data: Record<string, unknown>) => void;
   /** Persistent key-value storage scoped to a capability. Only set for capability-contributed tools. */
   storage?: CapabilityStorage;
   /** Manage prompt-based schedules and one-shot timers. */
@@ -356,6 +358,11 @@ export abstract class AgentDO extends DurableObject {
     this.sendCommandList(server, sessionId);
     this.broadcastScheduleList();
 
+    // Fire onConnect hooks asynchronously (don't block WS handshake)
+    this.fireOnConnectHooks(sessionId).catch((err) => {
+      console.error("[AgentDO] onConnect hooks error:", err);
+    });
+
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -370,6 +377,11 @@ export abstract class AgentDO extends DurableObject {
         // Don't send session_sync here — the client's state is still intact
         // (the WS stayed open through hibernation). Sending a sync now would
         // race with any in-flight prompt and wipe the optimistic user message.
+
+        // Fire onConnect hooks to reconcile state (e.g., stale elevation cleanup)
+        this.fireOnConnectHooks(attachment.sessionId).catch((err) => {
+          console.error("[AgentDO] onConnect hooks error (reconnect):", err);
+        });
       }
     }
 
@@ -578,6 +590,7 @@ export abstract class AgentDO extends DurableObject {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: this.buildScheduleManager(),
     };
     const resolved = resolveCapabilities(this.getCapabilities(), agentContext, (capId) =>
@@ -667,6 +680,7 @@ export abstract class AgentDO extends DurableObject {
           sessionId,
           event: { name, data },
         }),
+      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       schedules: this.buildScheduleManager(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
@@ -782,6 +796,39 @@ export abstract class AgentDO extends DurableObject {
     }
 
     return result;
+  }
+
+  /** Fire onConnect hooks for all registered capabilities. */
+  private async fireOnConnectHooks(sessionId: string): Promise<void> {
+    const context: AgentContext = {
+      sessionId,
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: (name, data) =>
+        this.broadcastToSession(sessionId, {
+          type: "custom_event",
+          sessionId,
+          event: { name, data },
+        }),
+      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      schedules: this.buildScheduleManager(),
+    };
+    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
+      createCapabilityStorage(this.ctx.storage, capId),
+    );
+
+    for (const hook of resolved.onConnectHooks) {
+      try {
+        const hookContext: CapabilityHookContext = {
+          sessionId,
+          sessionStore: this.sessionStore,
+          storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+        };
+        await hook(hookContext);
+      } catch (err) {
+        console.error("[capabilities] onConnect hook error:", err);
+      }
+    }
   }
 
   private convertToLlm(messages: AgentMessage[]): Message[] {
@@ -995,6 +1042,7 @@ export abstract class AgentDO extends DurableObject {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: this.buildScheduleManager(),
     };
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
@@ -1129,6 +1177,16 @@ export abstract class AgentDO extends DurableObject {
       if (state.sessionId === sessionId) {
         this.sendToSocket(ws, msg);
       }
+    }
+  }
+
+  private broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
+    for (const [ws, state] of this.connections) {
+      this.sendToSocket(ws, {
+        type: "custom_event",
+        sessionId: state.sessionId,
+        event: { name, data },
+      });
     }
   }
 

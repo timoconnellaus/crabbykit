@@ -25,6 +25,7 @@ function mockContext(): AgentContext {
     stepNumber: 0,
     emitCost: vi.fn(),
     broadcast: () => {},
+    broadcastToAll: () => {},
     schedules: {} as any,
   };
 }

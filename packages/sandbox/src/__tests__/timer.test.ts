@@ -17,6 +17,7 @@ function mockContext() {
     stepNumber: 0,
     emitCost: () => {},
     broadcast: vi.fn(),
+    broadcastToAll: vi.fn(),
     schedules: {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue(null),

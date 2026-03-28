@@ -27,6 +27,7 @@ describe("r2Storage", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -53,6 +54,7 @@ describe("r2Storage", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     });
     expect(sections).toHaveLength(1);
@@ -70,6 +72,7 @@ describe("r2Storage", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     });
     expect(tools).toHaveLength(7);

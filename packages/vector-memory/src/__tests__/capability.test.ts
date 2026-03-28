@@ -39,6 +39,7 @@ describe("vectorMemory", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     };
 
@@ -60,6 +61,7 @@ describe("vectorMemory", () => {
       stepNumber: 0,
       emitCost: () => {},
       broadcast: () => {},
+      broadcastToAll: () => {},
       schedules: {} as any,
     };
 

@@ -22,6 +22,7 @@ const ctx: AgentContext = {
   stepNumber: 0,
   emitCost: () => {},
   broadcast: () => {},
+  broadcastToAll: () => {},
   schedules: mockSchedules,
 };
 
