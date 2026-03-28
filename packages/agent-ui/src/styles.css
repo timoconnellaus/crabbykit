@@ -46,7 +46,7 @@
   padding: 0.625rem 0.875rem;
   border-radius: 0.75rem;
   max-width: 80%;
-  overflow: hidden;
+  overflow: visible;
   line-height: 1.5;
   font-size: 0.9rem;
 }
