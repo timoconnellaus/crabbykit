@@ -39,13 +39,7 @@ describe("SandboxBadge", () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    render(
-      <SandboxBadge
-        elevated={true}
-        expiresAt={now + 120_000}
-        timeoutSeconds={180}
-      />,
-    );
+    render(<SandboxBadge elevated={true} expiresAt={now + 120_000} timeoutSeconds={180} />);
 
     const timer = document.querySelector('[data-agent-ui="sandbox-badge-timer"]');
     expect(timer).not.toBeNull();
@@ -56,13 +50,7 @@ describe("SandboxBadge", () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    render(
-      <SandboxBadge
-        elevated={true}
-        expiresAt={now + 30_000}
-        timeoutSeconds={180}
-      />,
-    );
+    render(<SandboxBadge elevated={true} expiresAt={now + 30_000} timeoutSeconds={180} />);
 
     const timer = document.querySelector('[data-agent-ui="sandbox-badge-timer"]');
     expect(timer?.textContent).toBe("30s");
@@ -72,13 +60,7 @@ describe("SandboxBadge", () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    render(
-      <SandboxBadge
-        elevated={true}
-        expiresAt={now + 90_000}
-        timeoutSeconds={180}
-      />,
-    );
+    render(<SandboxBadge elevated={true} expiresAt={now + 90_000} timeoutSeconds={180} />);
 
     const timer = document.querySelector('[data-agent-ui="sandbox-badge-timer"]');
     expect(timer?.textContent).toBe("1m 30s");
@@ -94,13 +76,7 @@ describe("SandboxBadge", () => {
     const now = Date.now();
     vi.setSystemTime(now);
 
-    render(
-      <SandboxBadge
-        elevated={true}
-        expiresAt={now + 90_000}
-        timeoutSeconds={180}
-      />,
-    );
+    render(<SandboxBadge elevated={true} expiresAt={now + 90_000} timeoutSeconds={180} />);
 
     const badge = document.querySelector('[data-agent-ui="sandbox-badge"]') as HTMLElement;
     // 90s / 180s = 50%

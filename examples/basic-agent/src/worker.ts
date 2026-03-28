@@ -8,7 +8,10 @@ import type {
   PromptOptions,
 } from "@claw-for-cloudflare/agent-runtime";
 import { AgentDO, defineCommand, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import { CloudflareSandboxProvider } from "@claw-for-cloudflare/cloudflare-sandbox";
+import {
+  CloudflareSandboxProvider,
+  SandboxContainer,
+} from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
@@ -154,6 +157,9 @@ export class BasicAgent extends AgentDO {
     };
   }
 }
+
+// Re-export SandboxContainer for wrangler to bind as a DO
+export { SandboxContainer };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

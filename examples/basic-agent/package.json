@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@cloudflare/containers": "^0.1.0",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-ui": "workspace:*",
     "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
@@ -27,6 +28,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:sandbox": "node ../../tools/docker-fuse-proxy.mjs & sleep 1 && DOCKER_HOST=unix:///tmp/docker-fuse-proxy.sock vite",
     "build": "vite build",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit"

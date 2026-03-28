@@ -20,6 +20,7 @@
         "@claw-for-cloudflare/sandbox": "workspace:*",
         "@claw-for-cloudflare/tavily-web-search": "workspace:*",
         "@claw-for-cloudflare/vector-memory": "workspace:*",
+        "@cloudflare/containers": "^0.1.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
@@ -113,6 +114,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@cloudflare/containers": "^0.1.0",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.0.0",
@@ -299,6 +301,8 @@
     "@claw-for-cloudflare/tavily-web-search": ["@claw-for-cloudflare/tavily-web-search@workspace:packages/tavily-web-search"],
 
     "@claw-for-cloudflare/vector-memory": ["@claw-for-cloudflare/vector-memory@workspace:packages/vector-memory"],
+
+    "@cloudflare/containers": ["@cloudflare/containers@0.1.1", "", {}, "sha512-YTdobRTnTlUOUPMFemufH367A9Z8pDfZ+UboYMLbGpO0VlvEXZDiioSmXPQMHld2vRtkL31mcRii3bcbQU6fdw=="],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.4.2", "", {}, "sha512-SIOD2DxrRRwQ+jgzlXCqoEFiKOFqaPjhnNTGKXSRLvp1HiOvapLaFG2kEr9dYQTYe8rKrd9uvDUzmAITeNyaHQ=="],
 

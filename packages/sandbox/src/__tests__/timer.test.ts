@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TIMER_ID, cancelDeElevationTimer, resetDeElevationTimer } from "../timer.js";
+import { cancelDeElevationTimer, resetDeElevationTimer, TIMER_ID } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 function mockProvider(): SandboxProvider {
@@ -54,22 +54,14 @@ describe("resetDeElevationTimer", () => {
     await resetDeElevationTimer(mockProvider(), config, ctx);
 
     expect(ctx.schedules.cancelTimer).toHaveBeenCalledWith(TIMER_ID);
-    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(
-      TIMER_ID,
-      180,
-      expect.any(Function),
-    );
+    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(TIMER_ID, 180, expect.any(Function));
   });
 
   it("uses custom timeout when provided", async () => {
     const ctx = mockContext();
     await resetDeElevationTimer(mockProvider(), config, ctx, 600);
 
-    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(
-      TIMER_ID,
-      600,
-      expect.any(Function),
-    );
+    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(TIMER_ID, 600, expect.any(Function));
   });
 
   it("uses config.idleTimeout when no custom timeout", async () => {
@@ -77,11 +69,7 @@ describe("resetDeElevationTimer", () => {
     const customConfig = { ...config, idleTimeout: 300 };
     await resetDeElevationTimer(mockProvider(), customConfig, ctx);
 
-    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(
-      TIMER_ID,
-      300,
-      expect.any(Function),
-    );
+    expect(ctx.schedules.setTimer).toHaveBeenCalledWith(TIMER_ID, 300, expect.any(Function));
   });
 
   describe("timer callback", () => {
@@ -136,7 +124,8 @@ describe("resetDeElevationTimer", () => {
       const ctx = mockContext();
       const noStorageCtx = { ...ctx, storage: undefined };
       await resetDeElevationTimer(mockProvider(), config, noStorageCtx as any);
-      const callback = (noStorageCtx.schedules.setTimer as ReturnType<typeof vi.fn>).mock.calls[0][2];
+      const callback = (noStorageCtx.schedules.setTimer as ReturnType<typeof vi.fn>).mock
+        .calls[0][2];
 
       // Should not throw
       await callback();

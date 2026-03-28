@@ -4,9 +4,9 @@
  * that CloudflareSandboxProvider proxies to.
  */
 import { type ChildProcess, spawn } from "node:child_process";
+import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import fs from "node:fs";
 
 // --- Constants ---
 
@@ -257,13 +257,21 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     processes.set(name, managed);
 
     proc.stdout?.on("data", (data: Buffer) => {
-      const entry: BufferEntry = { seq: ++managed.bufferSeq, type: "stdout", data: data.toString() };
+      const entry: BufferEntry = {
+        seq: ++managed.bufferSeq,
+        type: "stdout",
+        data: data.toString(),
+      };
       managed.buffer.push(entry);
       if (managed.buffer.length > MAX_BUFFER) managed.buffer.shift();
     });
 
     proc.stderr?.on("data", (data: Buffer) => {
-      const entry: BufferEntry = { seq: ++managed.bufferSeq, type: "stderr", data: data.toString() };
+      const entry: BufferEntry = {
+        seq: ++managed.bufferSeq,
+        type: "stderr",
+        data: data.toString(),
+      };
       managed.buffer.push(entry);
       if (managed.buffer.length > MAX_BUFFER) managed.buffer.shift();
     });

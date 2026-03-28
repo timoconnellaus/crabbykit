@@ -10,19 +10,20 @@
       {
         "name": "AGENT",
         "class_name": "BasicAgent"
+      },
+      {
+        "name": "SANDBOX_CONTAINER",
+        "class_name": "SandboxContainer"
       }
     ]
   },
-  // Container binding for sandbox — requires @cloudflare/containers
-  // Uncomment and configure when deploying with Cloudflare Containers:
-  // "containers": {
-  //   "bindings": [
-  //     {
-  //       "name": "SANDBOX_CONTAINER",
-  //       "image": "./container"
-  //     }
-  //   ]
-  // },
+  "containers": [
+    {
+      "class_name": "SandboxContainer",
+      "image": "./container/Dockerfile",
+      "instance_type": "basic"
+    }
+  ],
   "ai": {
     "binding": "AI"
   },
@@ -43,6 +44,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["BasicAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["SandboxContainer"]
     }
   ]
 }

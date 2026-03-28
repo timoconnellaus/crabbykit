@@ -3,9 +3,9 @@ import { CloudflareSandboxProvider } from "../src/provider.js";
 
 function mockStub() {
   return {
-    fetch: vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ready: true }), { status: 200 }),
-    ),
+    fetch: vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ready: true }), { status: 200 })),
   };
 }
 

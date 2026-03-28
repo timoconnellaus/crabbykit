@@ -261,12 +261,8 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       expect(mount2).toBe("yes");
 
       // Write different files to verify independence
-      containerExec(
-        "sh -c 'echo p1 > /mnt/r2/test-project/node_modules/marker'",
-      );
-      containerExec(
-        "sh -c 'echo p2 > /mnt/r2/another-project/node_modules/marker'",
-      );
+      containerExec("sh -c 'echo p1 > /mnt/r2/test-project/node_modules/marker'");
+      containerExec("sh -c 'echo p2 > /mnt/r2/another-project/node_modules/marker'");
 
       const f1 = containerExec("cat /mnt/r2/test-project/node_modules/marker");
       const f2 = containerExec("cat /mnt/r2/another-project/node_modules/marker");
