@@ -131,4 +131,11 @@ export class CloudflareSandboxProvider implements SandboxProvider {
 
     return (await res.json()) as ProcessInfo[];
   }
+
+  async triggerSync(): Promise<void> {
+    const res = await this.fetch("/trigger-sync", { method: "POST" });
+    if (!res.ok) {
+      throw new Error(`trigger-sync failed: ${res.status} ${await res.text()}`);
+    }
+  }
 }

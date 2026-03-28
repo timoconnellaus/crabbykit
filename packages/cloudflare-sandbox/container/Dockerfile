@@ -3,8 +3,8 @@
 
 FROM node:22-alpine
 
-# Install FUSE support and privilege-drop utility
-RUN apk add --no-cache fuse curl coreutils gosu shadow
+# Install FUSE support, privilege-drop, and restic dependencies
+RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic
 
 # Create unprivileged user
 RUN useradd -m -s /bin/sh gia
@@ -37,8 +37,8 @@ ENV PATH="$PATH:/opt/gia/persist/bun/bin:/opt/gia/persist/npm/bin:/opt/gia/persi
 WORKDIR /app
 
 # Copy container scripts and sandbox server
-COPY startup.sh nm-guard.sh server.ts /app/
-RUN chmod +x /app/startup.sh /app/nm-guard.sh
+COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/
+RUN chmod +x /app/startup.sh /app/nm-guard.sh /app/restic-syncd.sh
 
 EXPOSE 8080
 

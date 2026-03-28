@@ -14,8 +14,11 @@ const PORT = 8080;
 const DEFAULT_EXEC_TIMEOUT = 60_000;
 const MAX_BUFFER = 10_000;
 const PROCESS_GC_DELAY = 60_000;
-const IDLE_TIMEOUT = 10 * 60_000;
+const IDLE_TIMEOUT_NORMAL = 10 * 60_000;
+const IDLE_TIMEOUT_DEV = 30 * 60_000;
 const IDLE_CHECK_INTERVAL = 60_000;
+const SYNC_DEBOUNCE_MS = 30_000;
+const SYNC_SOCKET = "/var/run/sync.sock";
 
 const SENSITIVE_KEYS = [
   "AWS_ACCESS_KEY_ID",
@@ -30,6 +33,8 @@ const SENSITIVE_KEYS = [
 let workspacePath = process.env.AGENT_ID ? "/mnt/r2" : "";
 let injectedEnv: Record<string, string> = {};
 let lastActivityAt = Date.now();
+let containerMode = process.env.CONTAINER_MODE ?? "normal";
+let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
 
 interface BufferEntry {
@@ -337,6 +342,36 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
+  // --- Dev mode: trigger persist sync (debounced) ---
+  if (url.pathname === "/trigger-sync" && method === "POST") {
+    if (containerMode !== "dev") {
+      error(res, "Not in dev mode", 400);
+      return;
+    }
+    const now = Date.now();
+    if (now - lastSyncAt < SYNC_DEBOUNCE_MS) {
+      json(res, { ok: true, debounced: true });
+      return;
+    }
+    lastSyncAt = now;
+    // Fire-and-forget backup via sync daemon
+    triggerResticBackup().catch(() => {});
+    json(res, { ok: true });
+    return;
+  }
+
+  // --- Mode switch ---
+  if (url.pathname === "/mode" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    if (body.mode === "dev" || body.mode === "normal") {
+      containerMode = body.mode;
+      json(res, { ok: true, mode: containerMode });
+    } else {
+      error(res, "Invalid mode — must be 'dev' or 'normal'");
+    }
+    return;
+  }
+
   // --- Not found ---
   error(res, "Not found", 404);
 }
@@ -357,21 +392,51 @@ server.listen(PORT, () => {
   if (workspacePath) console.log(`[sandbox] Workspace: ${workspacePath}`);
 });
 
+// --- Restic sync helper ---
+
+async function triggerResticBackup(): Promise<void> {
+  const { execSync } = await import("node:child_process");
+  try {
+    execSync(
+      `curl -s --unix-socket ${SYNC_SOCKET} http://localhost/backup -X POST`,
+      { timeout: 120_000 },
+    );
+  } catch (err) {
+    console.error("[sandbox] Restic backup failed:", err);
+  }
+}
+
+async function gracefulShutdown(): Promise<void> {
+  // Stop all managed processes
+  for (const [, managed] of processes) {
+    if (managed.running) managed.proc.kill("SIGTERM");
+  }
+
+  // Final backup in dev mode
+  if (containerMode === "dev") {
+    console.log("[sandbox] Dev mode — running final backup before shutdown");
+    await triggerResticBackup().catch(() => {});
+  }
+
+  clearInterval(idleCheck);
+  server.close(() => process.exit(0));
+}
+
 // --- Idle timeout ---
 
+const idleTimeout = containerMode === "dev" ? IDLE_TIMEOUT_DEV : IDLE_TIMEOUT_NORMAL;
+
 const idleCheck = setInterval(() => {
-  // Don't idle-shutdown if processes are running
   const hasRunning = Array.from(processes.values()).some((p) => p.running);
   if (hasRunning) {
     lastActivityAt = Date.now();
     return;
   }
 
-  if (Date.now() - lastActivityAt > IDLE_TIMEOUT) {
+  const timeout = containerMode === "dev" ? IDLE_TIMEOUT_DEV : IDLE_TIMEOUT_NORMAL;
+  if (Date.now() - lastActivityAt > timeout) {
     console.log("[sandbox] Idle timeout reached, shutting down");
-    clearInterval(idleCheck);
-    server.close();
-    process.exit(0);
+    gracefulShutdown();
   }
 }, IDLE_CHECK_INTERVAL);
 
@@ -379,9 +444,5 @@ const idleCheck = setInterval(() => {
 
 process.on("SIGTERM", () => {
   console.log("[sandbox] SIGTERM received, shutting down");
-  for (const [, managed] of processes) {
-    if (managed.running) managed.proc.kill("SIGTERM");
-  }
-  clearInterval(idleCheck);
-  server.close(() => process.exit(0));
+  gracefulShutdown();
 });

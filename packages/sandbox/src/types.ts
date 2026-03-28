@@ -37,6 +37,9 @@ export interface SandboxProvider {
   processStop?(name: string): Promise<void>;
   /** List managed processes and their status. */
   processList?(): Promise<ProcessInfo[]>;
+
+  /** Trigger a persist volume backup (dev mode). */
+  triggerSync?(): Promise<void>;
 }
 
 /** Configuration for the sandbox capability. */

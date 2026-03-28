@@ -48,10 +48,14 @@ export class SandboxContainer extends Container<SandboxContainerEnv> {
   }
 
   async fetch(request: Request): Promise<Response> {
-    // Pick up agent ID from x-agent-id header if the DO name wasn't set
+    // Pick up agent ID and container mode from headers
     const headerAgentId = request.headers.get("x-agent-id");
     if (headerAgentId && this.envVars?.AGENT_ID === "default") {
       this.envVars = { ...this.envVars, AGENT_ID: headerAgentId };
+    }
+    const containerMode = request.headers.get("x-container-mode");
+    if (containerMode && this.envVars) {
+      this.envVars = { ...this.envVars, CONTAINER_MODE: containerMode };
     }
     return super.fetch(request);
   }

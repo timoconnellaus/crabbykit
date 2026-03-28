@@ -3,6 +3,20 @@ import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
+const INSTALL_PATTERNS = [
+  /\b(npm|npx)\s+(i|install|ci)\b/,
+  /\bbun\s+(i|install|add)\b/,
+  /\bpnpm\s+(i|install|add)\b/,
+  /\bpip\s+install\b/,
+  /\bcargo\s+(build|install)\b/,
+  /\bgo\s+(get|install)\b/,
+  /\bgem\s+install\b/,
+];
+
+function isInstallCommand(command: string): boolean {
+  return INSTALL_PATTERNS.some((p) => p.test(command));
+}
+
 export function createBashTool(
   provider: SandboxProvider,
   config: Required<SandboxConfig>,
@@ -63,6 +77,11 @@ export function createBashTool(
         expiresAt: Date.now() + timeoutSeconds * 1000,
         timeoutSeconds,
       });
+
+      // Trigger persist sync on install commands (dev mode)
+      if (result.exitCode === 0 && isInstallCommand(args.command) && provider.triggerSync) {
+        provider.triggerSync().catch(() => {});
+      }
 
       // Format output
       const parts: string[] = [];
