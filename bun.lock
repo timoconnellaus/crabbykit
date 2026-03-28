@@ -15,6 +15,8 @@
         "@claw-for-cloudflare/agent-ui": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
+        "@claw-for-cloudflare/credential-store": "workspace:*",
+        "@claw-for-cloudflare/heartbeat": "workspace:*",
         "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
         "@claw-for-cloudflare/r2-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
@@ -138,6 +140,31 @@
         "vitest": "^3.2.0",
       },
     },
+    "packages/credential-store": {
+      "name": "@claw-for-cloudflare/credential-store",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/heartbeat": {
+      "name": "@claw-for-cloudflare/heartbeat",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/prompt-scheduler": {
       "name": "@claw-for-cloudflare/prompt-scheduler",
       "version": "0.0.1",
@@ -176,6 +203,7 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/credential-store": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
@@ -292,6 +320,10 @@
     "@claw-for-cloudflare/cloudflare-sandbox": ["@claw-for-cloudflare/cloudflare-sandbox@workspace:packages/cloudflare-sandbox"],
 
     "@claw-for-cloudflare/compaction-summary": ["@claw-for-cloudflare/compaction-summary@workspace:packages/compaction-summary"],
+
+    "@claw-for-cloudflare/credential-store": ["@claw-for-cloudflare/credential-store@workspace:packages/credential-store"],
+
+    "@claw-for-cloudflare/heartbeat": ["@claw-for-cloudflare/heartbeat@workspace:packages/heartbeat"],
 
     "@claw-for-cloudflare/prompt-scheduler": ["@claw-for-cloudflare/prompt-scheduler@workspace:packages/prompt-scheduler"],
 

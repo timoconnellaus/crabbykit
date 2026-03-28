@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, generateKey } from "../crypto.js";
+import { decrypt, encrypt, generateKey } from "@claw-for-cloudflare/credential-store";
 
 describe("crypto", () => {
   it("generateKey returns a base64 string", () => {

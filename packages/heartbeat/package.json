@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/sandbox",
+  "name": "@claw-for-cloudflare/heartbeat",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -7,10 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/credential-store": "workspace:*",
-    "@sinclair/typebox": "^0.34.0"
+    "@claw-for-cloudflare/agent-runtime": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

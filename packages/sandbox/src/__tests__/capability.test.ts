@@ -65,9 +65,9 @@ describe("sandboxCapability", () => {
     expect(names).toContain("start_process");
     expect(names).toContain("stop_process");
     expect(names).toContain("get_process_status");
-    expect(names).toContain("save_credential");
-    expect(names).toContain("list_credentials");
-    expect(names).toContain("delete_credential");
+    expect(names).toContain("save_file_credential");
+    expect(names).toContain("list_file_credentials");
+    expect(names).toContain("delete_file_credential");
     expect(tools).toHaveLength(9);
   });
 

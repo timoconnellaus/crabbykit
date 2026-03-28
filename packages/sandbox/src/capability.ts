@@ -2,9 +2,9 @@ import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtim
 import { TIMER_ID } from "./timer.js";
 import { createBashTool } from "./tools/bash.js";
 import {
-  createDeleteCredentialTool,
-  createListCredentialsTool,
-  createSaveCredentialTool,
+  createDeleteFileCredentialTool,
+  createListFileCredentialsTool,
+  createSaveFileCredentialTool,
 } from "./tools/credentials.js";
 import { createDeElevateTool } from "./tools/de-elevate.js";
 import { createElevateTool } from "./tools/elevate.js";
@@ -83,10 +83,10 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
         tools.push(createGetProcessStatusTool(options.provider, resolvedConfig, context));
       }
 
-      // Credential management tools (always available)
-      tools.push(createSaveCredentialTool(options.provider, resolvedConfig, context));
-      tools.push(createListCredentialsTool(options.provider, resolvedConfig, context));
-      tools.push(createDeleteCredentialTool(options.provider, resolvedConfig, context));
+      // File credential tools (always available — reads/writes files in the container)
+      tools.push(createSaveFileCredentialTool(options.provider, resolvedConfig, context));
+      tools.push(createListFileCredentialsTool(options.provider, resolvedConfig, context));
+      tools.push(createDeleteFileCredentialTool(options.provider, resolvedConfig, context));
 
       return tools;
     },

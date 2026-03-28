@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/sandbox",
+  "name": "@claw-for-cloudflare/credential-store",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,8 +8,6 @@
   },
   "dependencies": {
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/credential-store": "workspace:*",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {

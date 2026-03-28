@@ -13,6 +13,8 @@ import {
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
+import { credentialStore } from "@claw-for-cloudflare/credential-store";
+import { heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
@@ -68,6 +70,8 @@ export class BasicAgent extends AgentDO<Env> {
         ai: () => this.env.AI,
       }),
       promptScheduler(),
+      credentialStore(),
+      heartbeat({ every: "30m" }),
       sandboxCapability({
         provider: new CloudflareSandboxProvider({
           getStub: () => {
@@ -138,6 +142,9 @@ export class BasicAgent extends AgentDO<Env> {
             "file_find",
             "memory_search",
             "memory_get",
+            "save_secret",
+            "list_secrets",
+            "delete_secret",
             "elevate",
             "de_elevate",
             "bash",
