@@ -1,4 +1,5 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
+import type { SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
 import {
   ChatInput,
   ChatPanel,
@@ -7,6 +8,7 @@ import {
   StatusBar,
   useChat,
 } from "@claw-for-cloudflare/agent-ui";
+import { useCallback, useState } from "react";
 
 function SchedulePanel() {
   const { schedules } = useChat();
@@ -30,8 +32,29 @@ function SchedulePanel() {
 }
 
 export default function App() {
+  const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({
+    elevated: false,
+  });
+
+  const onCustomEvent = useCallback((name: string, data: Record<string, unknown>) => {
+    if (name === "sandbox_elevation") {
+      setSandboxState((prev) => ({
+        ...prev,
+        elevated: data.elevated as boolean,
+      }));
+    }
+    if (name === "sandbox_timeout") {
+      setSandboxState((prev) => ({
+        ...prev,
+        expiresAt: data.expiresAt as number,
+        timeoutSeconds: data.timeoutSeconds as number,
+      }));
+    }
+  }, []);
+
   const chat = useAgentChat({
     url: `ws://${window.location.host}/agent`,
+    onCustomEvent,
   });
 
   return (
@@ -41,7 +64,7 @@ export default function App() {
         <SchedulePanel />
       </div>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-        <StatusBar />
+        <StatusBar sandboxState={sandboxState} />
         <MessageList />
         <ChatInput />
       </div>

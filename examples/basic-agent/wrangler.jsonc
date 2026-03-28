@@ -13,6 +13,16 @@
       }
     ]
   },
+  // Container binding for sandbox — requires @cloudflare/containers
+  // Uncomment and configure when deploying with Cloudflare Containers:
+  // "containers": {
+  //   "bindings": [
+  //     {
+  //       "name": "SANDBOX_CONTAINER",
+  //       "image": "./container"
+  //     }
+  //   ]
+  // },
   "ai": {
     "binding": "AI"
   },
