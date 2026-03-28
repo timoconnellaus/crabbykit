@@ -250,6 +250,18 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             });
             return next;
           });
+          // Persist tool result in messages array so it survives toolStates clearing on agent_end
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "toolResult",
+              toolCallId: toolEvent.toolCallId,
+              toolName: toolEvent.toolName,
+              content: toolEvent.result,
+              isError: toolEvent.isError ?? false,
+              timestamp: Date.now(),
+            } as unknown as AgentMessage,
+          ]);
         }
         break;
       }
