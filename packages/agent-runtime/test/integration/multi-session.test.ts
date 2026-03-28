@@ -1,11 +1,11 @@
 /**
  * Multi-session reliability tests.
  *
- * These tests exercise the WebSocket transport and demonstrate known issues
- * with session isolation, concurrent inference, and state management.
+ * These tests exercise the WebSocket transport, session isolation, concurrent
+ * inference (per-session agent instances), and state management.
  *
- * Each test documents the expected (correct) behavior. Tests marked with
- * `.fails` expose bugs that need fixing.
+ * Each session gets its own Agent instance, so multiple sessions can run
+ * inference in parallel within a single Durable Object.
  */
 
 import { env } from "cloudflare:test";
@@ -268,10 +268,13 @@ describe("Multi-session WebSocket reliability", () => {
   // ====================================================
 
   describe("3. Session isolation", () => {
-    it("prompting session B while A is running returns AGENT_BUSY, A completes correctly", async () => {
+    it("prompting session B while A is running: both sessions complete independently", async () => {
       const stub = getStub("ws-isolate-1");
 
-      setMockResponses([{ text: "Session A thinking deeply...", delay: 200 }]);
+      setMockResponses([
+        { text: "Session A thinking deeply...", delay: 200 },
+        { text: "Session B quick answer" },
+      ]);
 
       const client = await openSocket(stub);
       const sync1 = await client.waitForMessage((m) => m.type === "session_sync");
@@ -285,14 +288,14 @@ describe("Multi-session WebSocket reliability", () => {
           (m as { event: { type: string } }).event.type === "agent_start",
       );
 
-      // Create session B and try to prompt it
+      // Create session B and prompt it concurrently
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
         (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
-      // This should return AGENT_BUSY instead of corrupting state
+      // Session B should run in parallel, not get AGENT_BUSY
       client.send({ type: "prompt", sessionId: sessionB, text: "Quick question for B" });
 
       // Wait for everything to settle
@@ -308,23 +311,26 @@ describe("Multi-session WebSocket reliability", () => {
         "Session A thinking deeply",
       );
 
-      // Session B should have NO assistant entries (it got AGENT_BUSY)
+      // Session B should also have its response (parallel inference)
       const entriesB = await getEntries(stub, sessionB);
       const assistantEntriesB = entriesB.entries.filter(
         (e) => e.type === "message" && e.data.role === "assistant",
       );
-      expect(assistantEntriesB.length).toBe(0);
+      expect(assistantEntriesB.length).toBe(1);
+      expect(JSON.stringify(assistantEntriesB[0].data.content)).toContain("Session B quick answer");
 
-      // Client should have received an AGENT_BUSY error
+      // No AGENT_BUSY errors
       const errors = client.messages.filter((m) => m.type === "error");
-      expect(errors.length).toBeGreaterThan(0);
-      expect((errors[0] as { code: string }).code).toBe("AGENT_BUSY");
+      expect(errors.length).toBe(0);
     });
 
-    it("B's watchers don't receive A's events when B prompts during A's inference", async () => {
+    it("B's watchers only receive B's events, not A's, when both sessions run concurrently", async () => {
       const stub = getStub("ws-broadcast-1");
 
-      setMockResponses([{ text: "Long response from A", delay: 200 }]);
+      setMockResponses([
+        { text: "Long response from A", delay: 200 },
+        { text: "Quick response from B" },
+      ]);
 
       const client1 = await openSocket(stub);
       const sync1 = await client1.waitForMessage((m) => m.type === "session_sync");
@@ -362,19 +368,29 @@ describe("Multi-session WebSocket reliability", () => {
           (m as { event: { type: string } }).event.type === "agent_start",
       );
 
-      // Prompt session B — gets AGENT_BUSY, does NOT corrupt A's event routing
+      // Prompt session B — runs in parallel
       client2.send({ type: "prompt", sessionId: sessionB, text: "Quick B task" });
 
       // Wait for everything
       await new Promise((r) => setTimeout(r, 500));
 
-      // Client2 (on session B) should NOT receive any agent_events for session A
+      // Client2 (on session B) should receive agent_events only for session B
       const client2AgentEvents = client2.messages.filter((m) => m.type === "agent_event");
-      expect(client2AgentEvents.length).toBe(0);
+      expect(client2AgentEvents.length).toBeGreaterThan(0);
+      // All agent events on client2 should be for session B
+      for (const evt of client2AgentEvents) {
+        expect((evt as { sessionId: string }).sessionId).toBe(sessionB);
+      }
 
-      // Client2 should have received an error instead
+      // Client1 (on session A) should only have events for session A
+      const client1AgentEvents = client1.messages.filter((m) => m.type === "agent_event");
+      for (const evt of client1AgentEvents) {
+        expect((evt as { sessionId: string }).sessionId).toBe(sessionA);
+      }
+
+      // No errors
       const client2Errors = client2.messages.filter((m) => m.type === "error");
-      expect(client2Errors.length).toBeGreaterThan(0);
+      expect(client2Errors.length).toBe(0);
 
       client1.close();
       client2.close();
@@ -503,10 +519,13 @@ describe("Multi-session WebSocket reliability", () => {
   // ====================================================
 
   describe("6. Concurrent prompts", () => {
-    it("concurrent HTTP prompts: first wins, second gets AGENT_BUSY", async () => {
+    it("concurrent HTTP prompts: both sessions complete independently", async () => {
       const stub = getStub("ws-concurrent-1");
 
-      setMockResponses([{ text: "Response for session A", delay: 100 }]);
+      setMockResponses([
+        { text: "Response for session A", delay: 100 },
+        { text: "Response for session B" },
+      ]);
 
       // Create two sessions via first prompt (creates default) + WS
       const client = await openSocket(stub);
@@ -519,13 +538,13 @@ describe("Multi-session WebSocket reliability", () => {
       );
       const sessionB = (syncB as { sessionId: string }).sessionId;
 
-      // Fire both prompts concurrently — second should get AGENT_BUSY
-      const [resultA, resultB] = await Promise.all([
+      // Fire both prompts concurrently — both should succeed
+      await Promise.all([
         httpPrompt(stub, "Question for A", sessionA),
         httpPrompt(stub, "Question for B", sessionB),
       ]);
 
-      // Session A should have its response (it started first)
+      // Session A should have its response
       const entriesA = await getEntries(stub, sessionA);
       const assistantA = entriesA.entries.filter(
         (e) => e.type === "message" && e.data.role === "assistant",
@@ -533,12 +552,13 @@ describe("Multi-session WebSocket reliability", () => {
       expect(assistantA.length).toBe(1);
       expect(JSON.stringify(assistantA[0].data.content)).toContain("session A");
 
-      // Session B should have no assistant response (got AGENT_BUSY)
+      // Session B should also have its response (parallel inference)
       const entriesB = await getEntries(stub, sessionB);
       const assistantB = entriesB.entries.filter(
         (e) => e.type === "message" && e.data.role === "assistant",
       );
-      expect(assistantB.length).toBe(0);
+      expect(assistantB.length).toBe(1);
+      expect(JSON.stringify(assistantB[0].data.content)).toContain("session B");
 
       client.close();
     });
@@ -664,10 +684,13 @@ describe("Multi-session WebSocket reliability", () => {
   // ====================================================
 
   describe("9. New session during active inference", () => {
-    it("prompting session B while A runs: A keeps its response, B gets AGENT_BUSY", async () => {
+    it("prompting session B while A runs: both sessions complete independently", async () => {
       const stub = getStub("ws-new-mid-infer-1");
 
-      setMockResponses([{ text: "Session A deep thought", delay: 200 }]);
+      setMockResponses([
+        { text: "Session A deep thought", delay: 200 },
+        { text: "Session B quick answer" },
+      ]);
 
       const client = await openSocket(stub);
       const sync = await client.waitForMessage((m) => m.type === "session_sync");
@@ -681,7 +704,7 @@ describe("Multi-session WebSocket reliability", () => {
           (m as { event: { type: string } }).event.type === "agent_start",
       );
 
-      // Create session B and try to prompt it
+      // Create session B and prompt it concurrently
       client.send({ type: "new_session", name: "Session B" });
       const syncB = await client.waitForMessage(
         (m) => m.type === "session_sync" && (m as { sessionId: string }).sessionId !== sessionA,
@@ -700,12 +723,13 @@ describe("Multi-session WebSocket reliability", () => {
       expect(assistantA.length).toBe(1);
       expect(JSON.stringify(assistantA[0].data.content)).toContain("Session A deep thought");
 
-      // Session B has no assistant response — got AGENT_BUSY
+      // Session B also completes (parallel inference)
       const entriesB = await getEntries(stub, sessionB);
       const assistantB = entriesB.entries.filter(
         (e) => e.type === "message" && e.data.role === "assistant",
       );
-      expect(assistantB.length).toBe(0);
+      expect(assistantB.length).toBe(1);
+      expect(JSON.stringify(assistantB[0].data.content)).toContain("Session B quick answer");
 
       client.close();
     });

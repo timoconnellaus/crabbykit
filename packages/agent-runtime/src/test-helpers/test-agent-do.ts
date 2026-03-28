@@ -423,7 +423,8 @@ export class TestAgentDO extends AgentDO {
         sessionId: string;
         text: string;
       };
-      const agent = (this as any).agent as MockPiAgent | null;
+      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agent = body.sessionId ? agents.get(body.sessionId) : agents.values().next().value;
       if (agent) {
         agent.steer({
           role: "user",
@@ -438,7 +439,9 @@ export class TestAgentDO extends AgentDO {
 
     // Abort endpoint
     if (request.method === "POST" && url.pathname === "/abort") {
-      const agent = (this as any).agent as MockPiAgent | null;
+      const body = (await request.json()) as { sessionId?: string };
+      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agent = body.sessionId ? agents.get(body.sessionId) : agents.values().next().value;
       if (agent) {
         agent.abort();
       }
@@ -449,7 +452,9 @@ export class TestAgentDO extends AgentDO {
 
     // Get steer history
     if (request.method === "GET" && url.pathname === "/steer-history") {
-      const agent = (this as any).agent as MockPiAgent | null;
+      const sessionId = url.searchParams.get("sessionId");
+      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agent = sessionId ? agents.get(sessionId) : agents.values().next().value;
       return new Response(
         JSON.stringify({
           steeredMessages: agent?.steeredMessages ?? [],
@@ -487,9 +492,7 @@ export class TestAgentDO extends AgentDO {
    * This avoids importing pi-ai (which has partial-json CJS issues in Workers).
    */
   protected async ensureAgent(sessionId: string): Promise<void> {
-    const agentField = "agent" as any;
-    const activeSessionIdField = "activeSessionId" as any;
-    const inferringSessionIdField = "inferringSessionId" as any;
+    const sessionAgentsField = "sessionAgents" as any;
     const context: AgentContext = {
       sessionId,
       stepNumber: 0,
@@ -520,49 +523,28 @@ export class TestAgentDO extends AgentDO {
       systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
     }
 
-    // Match base class: track active session for event routing
-    (this as any)[activeSessionIdField] = sessionId;
+    const messages = this.sessionStore.buildContext(sessionId);
 
-    if (!(this as any)[agentField]) {
-      const messages = this.sessionStore.buildContext(sessionId);
+    const agent = new MockPiAgent({
+      initialState: {
+        systemPrompt,
+        model: { id: "test/mock" },
+        tools: allTools,
+        messages,
+      },
+      transformContext: (msgs: AgentMessage[]) => (this as any).transformContext(msgs, sessionId),
+    });
 
-      const agent = new MockPiAgent({
-        initialState: {
-          systemPrompt,
-          model: { id: "test/mock" },
-          tools: allTools,
-          messages,
-        },
-        transformContext: (msgs: AgentMessage[]) =>
-          (this as any).transformContext(
-            msgs,
-            (this as any)[inferringSessionIdField] ??
-              (this as any)[activeSessionIdField] ??
-              sessionId,
-          ),
-      });
+    agent.subscribe((event: AgentEvent) => {
+      (this as any).handleAgentEvent(event, sessionId);
 
-      // Match base class: use inferringSessionId for event routing
-      agent.subscribe((event: AgentEvent) => {
-        const sid =
-          (this as any)[inferringSessionIdField] ??
-          (this as any)[activeSessionIdField] ??
-          sessionId;
-        (this as any).handleAgentEvent(event, sid);
+      // Clean up agent instance when inference completes
+      if (event.type === "agent_end") {
+        ((this as any)[sessionAgentsField] as Map<string, MockPiAgent>).delete(sessionId);
+      }
+    });
 
-        // Clear inferringSessionId when inference completes
-        if (event.type === "agent_end") {
-          (this as any)[inferringSessionIdField] = null;
-        }
-      });
-
-      (this as any)[agentField] = agent;
-    } else {
-      const agent = (this as any)[agentField] as MockPiAgent;
-      agent.setSystemPrompt(systemPrompt);
-      agent.setTools(allTools);
-      agent.replaceMessages(this.sessionStore.buildContext(sessionId));
-    }
+    ((this as any)[sessionAgentsField] as Map<string, MockPiAgent>).set(sessionId, agent);
   }
 }
 

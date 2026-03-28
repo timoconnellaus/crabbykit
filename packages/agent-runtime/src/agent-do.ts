@@ -106,11 +106,9 @@ export abstract class AgentDO extends DurableObject {
   protected sessionStore: SessionStore;
   protected scheduleStore: ScheduleStore;
   protected mcpManager: McpManager;
+  /** Per-session agent instances. Present only while inference is active, cleaned up on agent_end. */
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
-  private agent: any | null = null; // PiAgent instance (lazy-loaded)
-  private activeSessionId: string | null = null;
-  /** The session that owns the currently running inference. Set before agent.prompt(), cleared on agent_end. */
-  private inferringSessionId: string | null = null;
+  private sessionAgents = new Map<string, any>();
   private connections = new Map<WebSocket, { sessionId: string }>();
   private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
@@ -348,8 +346,9 @@ export abstract class AgentDO extends DurableObject {
         sessionId,
         session,
         messages: this.sessionStore.buildContext(sessionId),
-        streamMessage:
-          this.inferringSessionId === sessionId ? (this.agent?.state.streamMessage ?? null) : null,
+        streamMessage: this.sessionAgents.get(sessionId)?.state.isStreaming
+          ? (this.sessionAgents.get(sessionId)?.state.streamMessage ?? null)
+          : null,
       });
     }
 
@@ -421,10 +420,7 @@ export abstract class AgentDO extends DurableObject {
         break;
 
       case "abort":
-        // Only abort if the requesting session matches the running inference
-        if (this.inferringSessionId && this.inferringSessionId === msg.sessionId) {
-          this.agent?.abort();
-        }
+        this.sessionAgents.get(msg.sessionId)?.abort();
         break;
 
       case "switch_session": {
@@ -432,14 +428,15 @@ export abstract class AgentDO extends DurableObject {
         ws.serializeAttachment({ sessionId: msg.sessionId });
         const session = this.sessionStore.get(msg.sessionId);
         if (session) {
-          // Include streamMessage if the target session has an active inference
-          const isStreaming = this.inferringSessionId === msg.sessionId;
+          const sessionAgent = this.sessionAgents.get(msg.sessionId);
           this.sendToSocket(ws, {
             type: "session_sync",
             sessionId: msg.sessionId,
             session,
             messages: this.sessionStore.buildContext(msg.sessionId),
-            streamMessage: isStreaming ? (this.agent?.state.streamMessage ?? null) : null,
+            streamMessage: sessionAgent?.state.isStreaming
+              ? (sessionAgent.state.streamMessage ?? null)
+              : null,
           });
         }
         break;
@@ -465,6 +462,9 @@ export abstract class AgentDO extends DurableObject {
         // Don't delete the session if it's the only one
         const allSessions = this.sessionStore.list();
         if (allSessions.length <= 1) break;
+
+        // Abort any running inference on this session
+        this.sessionAgents.get(msg.sessionId)?.abort();
 
         this.sessionStore.delete(msg.sessionId);
 
@@ -519,33 +519,23 @@ export abstract class AgentDO extends DurableObject {
       data: { role: "user", content: text, timestamp: Date.now() },
     });
 
-    // If agent is busy on a different session, reject instead of corrupting state
-    if (this.agent?.state.isStreaming && this.inferringSessionId !== sessionId) {
-      this.broadcastToSession(sessionId, {
-        type: "error",
-        code: ErrorCodes.AGENT_BUSY,
-        message:
-          "Agent is busy with another session. Please wait or abort the other session first.",
-      });
-      return;
-    }
-
-    // If agent is busy on the SAME session, steer instead
-    if (this.agent?.state.isStreaming && this.inferringSessionId === sessionId) {
+    // If this session already has an active agent streaming, steer instead
+    const existingAgent = this.sessionAgents.get(sessionId);
+    if (existingAgent?.state.isStreaming) {
       this.handleSteer(sessionId, text);
       return;
     }
 
-    // Ensure agent is initialized (safe — no inference in flight)
+    // Create a fresh agent for this session (no cross-session blocking)
     await this.ensureAgent(sessionId);
 
-    if (!this.agent) {
+    const agent = this.sessionAgents.get(sessionId);
+    if (!agent) {
       throw new Error("Agent failed to initialize");
     }
 
     try {
-      this.inferringSessionId = sessionId;
-      await this.agent.prompt(text);
+      await agent.prompt(text);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("[AgentDO] prompt failed:", message);
@@ -558,17 +548,16 @@ export abstract class AgentDO extends DurableObject {
   }
 
   private handleSteer(sessionId: string, text: string): void {
-    if (!this.agent) return;
-
     // Persist steer message to session store
     this.sessionStore.appendEntry(sessionId, {
       type: "message",
       data: { role: "user", content: text, timestamp: Date.now() },
     });
 
-    // Only inject into the agent if this session owns the running inference
-    if (this.inferringSessionId === sessionId) {
-      this.agent.steer({
+    // Inject into this session's agent if it's actively streaming
+    const agent = this.sessionAgents.get(sessionId);
+    if (agent?.state.isStreaming) {
+      agent.steer({
         role: "user",
         content: text,
         timestamp: Date.now(),
@@ -712,53 +701,37 @@ export abstract class AgentDO extends DurableObject {
       systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
     }
 
-    this.activeSessionId = sessionId;
+    const messages = this.sessionStore.buildContext(sessionId);
 
-    if (!this.agent) {
-      const messages = this.sessionStore.buildContext(sessionId);
+    const agent = new piAgent({
+      initialState: {
+        systemPrompt,
+        // biome-ignore lint/suspicious/noExplicitAny: Model generic parameter is internal to pi-ai
+        model: model as Model<any>,
+        tools: allTools,
+        messages,
+      },
+      getApiKey: () => config.apiKey,
+      transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
+      convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
+      ...this.getAgentOptions(),
+    });
 
-      this.agent = new piAgent({
-        initialState: {
-          systemPrompt,
-          // biome-ignore lint/suspicious/noExplicitAny: Model generic parameter is internal to pi-ai
-          model: model as Model<any>,
-          tools: allTools,
-          messages,
-        },
-        getApiKey: () => config.apiKey,
-        transformContext: (msgs: AgentMessage[]) =>
-          this.transformContext(msgs, this.inferringSessionId ?? this.activeSessionId ?? sessionId),
-        convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
-        ...this.getAgentOptions(),
-      });
+    agent.subscribe((event: AgentEvent) => {
+      this.handleAgentEvent(event, sessionId);
 
-      this.agent.subscribe((event: AgentEvent) => {
-        // Use inferringSessionId to route events to the session that started
-        // the current inference, regardless of any subsequent ensureAgent calls.
-        const sid = this.inferringSessionId ?? this.activeSessionId ?? sessionId;
-        this.handleAgentEvent(event, sid);
+      // Clean up agent instance when inference completes
+      if (event.type === "agent_end") {
+        this.sessionAgents.delete(sessionId);
+      }
+    });
 
-        // Clear inferringSessionId when inference completes
-        if (event.type === "agent_end") {
-          this.inferringSessionId = null;
-        }
-      });
-    } else {
-      // Update agent state for this session
-      this.agent.setSystemPrompt(systemPrompt);
-      this.agent.setTools(allTools);
-
-      // Reload messages from session
-      const messages = this.sessionStore.buildContext(sessionId);
-      this.agent.replaceMessages(messages);
-    }
-
-    // Wire afterToolExecution hooks (must update each time since sessionId may change)
+    // Wire afterToolExecution hooks
     if (this.afterToolExecutionHooks.length > 0) {
       // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - afterToolCall context type unavailable
-      this.agent.setAfterToolCall(async (atcContext: any) => {
+      agent.setAfterToolCall(async (atcContext: any) => {
         const hookContext: CapabilityHookContext = {
-          sessionId: this.inferringSessionId ?? sessionId,
+          sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
         };
@@ -777,6 +750,8 @@ export abstract class AgentDO extends DurableObject {
         return undefined;
       });
     }
+
+    this.sessionAgents.set(sessionId, agent);
   }
 
   private async transformContext(
@@ -1011,7 +986,7 @@ export abstract class AgentDO extends DurableObject {
     });
 
     await this.handlePrompt(session.id, prompt);
-    await this.agent?.waitForIdle();
+    await this.sessionAgents.get(session.id)?.waitForIdle();
 
     // Session retention: delete oldest scheduled sessions beyond the limit
     this.cleanupScheduleSessions(schedule);
@@ -1164,8 +1139,8 @@ export abstract class AgentDO extends DurableObject {
 
     await this.handlePrompt(sessionId, body.text);
 
-    // Wait for agent to finish
-    await this.agent?.waitForIdle();
+    // Wait for this session's agent to finish
+    await this.sessionAgents.get(sessionId)?.waitForIdle();
 
     const messages = this.sessionStore.buildContext(sessionId);
     return new Response(JSON.stringify({ messages }), {

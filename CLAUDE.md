@@ -31,6 +31,9 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/tavily-web-search`** — Web search + fetch tools via Tavily API. Emits costs.
 - **`packages/prompt-scheduler`** — Exposes schedule management as agent tools (create/update/delete/list schedules).
 - **`packages/r2-storage`** — R2-backed file storage capability. Provides 7 tools: file_read, file_write, file_edit, file_delete, file_list, file_tree, file_find. Path validation, namespace isolation via configurable prefix.
+- **`packages/vector-memory`** — Semantic memory search using Cloudflare Vectorize + R2. Auto-indexes markdown files, uses Workers AI embeddings, falls back to keyword search.
+- **`packages/sandbox`** — Controlled shell execution with elevation model. Tools: elevate, de-elevate, bash, start_process, stop_process, get_process_status. Auto-deactivates after idle timeout.
+- **`packages/cloudflare-sandbox`** — Sandbox provider implementation for Cloudflare Containers. Proxies sandbox operations to a Container DO via HTTP.
 
 ### Internal Packages (not published)
 - **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
@@ -47,6 +50,9 @@ packages/compaction-summary — Compaction capability
 packages/tavily-web-search — Web search capability
 packages/prompt-scheduler  — Schedule management capability
 packages/r2-storage        — R2 file storage capability
+packages/vector-memory     — Semantic memory search (Vectorize + R2)
+packages/sandbox           — Shell execution with elevation model
+packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 examples/basic-agent       — Full-stack example (Vite + Cloudflare Worker)
 ```
 
@@ -198,7 +204,14 @@ context.emitCost({
 - Config interfaces use optional fields with JSDoc documenting the default value
 - Never inline magic numbers — always use a named constant
 
+## Documentation Maintenance
+
+When adding new packages, capabilities, tools, or significant features to the SDK, update both this file (CLAUDE.md) and README.md to reflect the changes. Specifically:
+
+- **CLAUDE.md**: Add new packages to "What the SDK Provides Today" and "Project Structure". Update architecture rules if new patterns are introduced.
+- **README.md**: Add new packages to the packages table. Update the quick start example if the consumer API changes.
+
 ## Known Constraints
 
 - **Lazy SDK imports**: pi-agent-core imports pi-ai which has a partial-json CJS issue in Workers test pool. The `loadPiSdk()` pattern in `agent-do.ts` is a workaround. Don't eager-import pi-* at module level.
-- **Single Agent instance**: The Agent is created once per DO and reused across sessions via `replaceMessages()`. This is a known concurrency concern for multi-session DOs — document any changes to this pattern.
+- **Per-session Agent instances**: Each session gets its own Agent instance (stored in `sessionAgents` Map), created fresh in `ensureAgent()` and cleaned up on `agent_end`. This allows multiple sessions to run inference concurrently within a single DO.
