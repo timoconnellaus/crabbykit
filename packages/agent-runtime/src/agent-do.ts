@@ -817,12 +817,20 @@ export abstract class AgentDO extends DurableObject {
       createCapabilityStorage(this.ctx.storage, capId),
     );
 
+    const broadcastFn = (name: string, data: Record<string, unknown>) =>
+      this.broadcastToSession(sessionId, {
+        type: "custom_event",
+        sessionId,
+        event: { name, data },
+      });
+
     for (const hook of resolved.onConnectHooks) {
       try {
         const hookContext: CapabilityHookContext = {
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+          broadcast: broadcastFn,
         };
         await hook(hookContext);
       } catch (err) {

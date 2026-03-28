@@ -1,11 +1,12 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { setTeardownPromise } from "../teardown.js";
 import { cancelDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 export function createDeElevateTool(
   provider: SandboxProvider,
-  config: Required<SandboxConfig>,
+  _config: Required<SandboxConfig>,
   context: AgentContext,
 ) {
   return defineTool({
@@ -24,7 +25,7 @@ export function createDeElevateTool(
         };
       }
 
-      // Clear state immediately
+      // Clear state immediately (before async teardown)
       await storage.put("elevated", false);
       await storage.delete("elevationReason");
       await storage.delete("elevatedAt");
@@ -35,8 +36,9 @@ export function createDeElevateTool(
       // Broadcast to UI
       context.broadcast("sandbox_elevation", { elevated: false });
 
-      // Stop provider (fire-and-forget for responsiveness)
-      provider.stop().catch(() => {});
+      // Stop provider in background — store promise so elevate can await it
+      const teardown = provider.stop().catch(() => {});
+      setTeardownPromise(teardown);
 
       return {
         content: [{ type: "text" as const, text: "Sandbox deactivated. Shell access removed." }],

@@ -1,6 +1,7 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import { resetDeElevationTimer, TIMER_ID } from "../timer.js";
+import { getTeardownPromise } from "../teardown.js";
+import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 const DEFAULT_IDLE_TIMEOUT = 180;
@@ -36,8 +37,40 @@ export function createElevateTool(
         };
       }
 
+      // Wait for any pending teardown from a previous de-elevation
+      const pending = getTeardownPromise();
+      if (pending) {
+        await pending;
+      }
+
       // Start the sandbox
       await provider.start();
+
+      // Verify the container actually started
+      try {
+        const health = await provider.health();
+        if (!health.ready) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Sandbox failed to start — container is not ready. Try again.",
+              },
+            ],
+            details: { error: "container_not_ready", health },
+          };
+        }
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Sandbox failed to start: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          details: { error: "health_check_failed" },
+        };
+      }
 
       // Persist elevation state
       await storage.put("elevated", true);

@@ -15,6 +15,10 @@ const DEFAULT_ACTIVE_TIMEOUT = 900;
 const DEFAULT_CWD = "/mnt/r2";
 const DEFAULT_EXEC_TIMEOUT = 60_000;
 
+const DE_ELEVATION_NOTICE =
+  "[System: The sandbox has been automatically deactivated due to inactivity. " +
+  "Bash and shell commands are no longer available. Use the elevate tool if sandbox access is needed again.]";
+
 export interface SandboxCapabilityOptions {
   /** The sandbox execution provider. */
   provider: SandboxProvider;
@@ -32,20 +36,6 @@ export interface SandboxCapabilityOptions {
  * - `start_process` — Start a long-running process (if provider supports it)
  * - `stop_process` — Stop a process (if provider supports it)
  * - `get_process_status` — List process status (if provider supports it)
- *
- * @example
- * ```ts
- * getCapabilities() {
- *   return [
- *     sandboxCapability({
- *       provider: new CloudflareSandboxProvider({
- *         getStub: () => this.env.SANDBOX.get(this.env.SANDBOX.idFromName(this.agentId)),
- *       }),
- *       config: { idleTimeout: 300 },
- *     }),
- *   ];
- * }
- * ```
  */
 export function sandboxCapability(options: SandboxCapabilityOptions): Capability {
   const resolvedConfig: Required<SandboxConfig> = {
@@ -54,6 +44,15 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
     defaultCwd: options.config?.defaultCwd ?? DEFAULT_CWD,
     defaultExecTimeout: options.config?.defaultExecTimeout ?? DEFAULT_EXEC_TIMEOUT,
   };
+
+  /** Clear all elevation state from storage. */
+  async function clearElevationState(
+    storage: { put: (k: string, v: unknown) => Promise<void>; delete: (k: string) => Promise<boolean> },
+  ): Promise<void> {
+    await storage.put("elevated", false);
+    await storage.delete("elevationReason");
+    await storage.delete("elevatedAt");
+  }
 
   return {
     id: "sandbox",
@@ -87,7 +86,6 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
 
     hooks: {
       beforeInference: async (messages, ctx) => {
-        // Inject dynamic elevation state into the conversation context
         const elevated = await ctx.storage.get<boolean>("elevated");
 
         if (elevated) {
@@ -99,41 +97,102 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
             "Packages installed globally (npm -g, pip) persist via environment configuration.",
           ].join("\n");
 
-          // Prepend as a system-style user message
           return [{ role: "user" as const, content: guidance, timestamp: 0 }, ...messages];
         }
 
         return messages;
       },
+
+      onConnect: async (ctx) => {
+        const elevated = await ctx.storage.get<boolean>("elevated");
+
+        if (!elevated) {
+          // Broadcast not-elevated so reconnecting clients clear stale UI state
+          ctx.broadcast?.("sandbox_elevation", { elevated: false });
+          return;
+        }
+
+        // Verify the container is actually running
+        try {
+          const health = await options.provider.health();
+          if (!health.ready) {
+            throw new Error("Container not ready");
+          }
+        } catch {
+          // Container is dead — clear stale elevation state
+          console.warn("[sandbox] Stale elevation detected on connect — clearing");
+          await clearElevationState(ctx.storage);
+          ctx.broadcast?.("sandbox_elevation", { elevated: false });
+          // Timer will self-clean when it fires and finds elevated=false
+          return;
+        }
+
+        // Container is alive — broadcast current state to reconnecting client
+        const reason = await ctx.storage.get<string>("elevationReason");
+        ctx.broadcast?.("sandbox_elevation", {
+          elevated: true,
+          reason: reason ?? "",
+        });
+      },
     },
 
     schedules: (context: AgentContext) => {
-      // Re-register timer callback for hibernation resilience.
-      // If a timer schedule exists in the DB, this ensures the callback
-      // gets re-registered after DO wake-up.
       return [
         {
           id: TIMER_ID,
           name: "sandbox-de-elevate",
           delaySeconds: resolvedConfig.idleTimeout,
-          callback: async () => {
+          callback: async (scheduleCtx) => {
             const storage = context.storage;
             if (!storage) return;
 
             const elevated = await storage.get<boolean>("elevated");
             if (!elevated) return;
 
+            // Stop running processes before de-elevating
+            if (options.provider.processList && options.provider.processStop) {
+              try {
+                const processes = await options.provider.processList();
+                for (const p of processes) {
+                  if (p.running) {
+                    await options.provider.processStop(p.name).catch(() => {});
+                  }
+                }
+              } catch {
+                // Best-effort process cleanup
+              }
+            }
+
+            // Stop the container
             try {
               await options.provider.stop();
             } catch {
               // Best-effort
             }
 
-            await storage.put("elevated", false);
-            await storage.delete("elevationReason");
-            await storage.delete("elevatedAt");
+            // Clear elevation state
+            await clearElevationState(storage);
 
-            context.broadcast("sandbox_elevation", { elevated: false });
+            // Broadcast to ALL sessions (not just one)
+            context.broadcastToAll("sandbox_elevation", { elevated: false });
+
+            // Inject de-elevation notice into sessions so the LLM
+            // knows it lost shell access on the next turn
+            try {
+              const sessions = scheduleCtx.sessionStore.list();
+              for (const session of sessions) {
+                scheduleCtx.sessionStore.appendEntry(session.id, {
+                  type: "message",
+                  data: {
+                    role: "assistant",
+                    content: DE_ELEVATION_NOTICE,
+                    timestamp: Date.now(),
+                  },
+                });
+              }
+            } catch {
+              // Best-effort notice injection
+            }
           },
         },
       ];
