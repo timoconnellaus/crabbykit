@@ -3,10 +3,18 @@
 export type { A2AClientOptions } from "./client/capability.js";
 export { a2aClient } from "./client/capability.js";
 export { fetchAgentCard, getAgentCard } from "./client/discovery.js";
+export { createCallbackHandler } from "./client/handlers.js";
 // --- Client ---
 export { A2AClientError, A2AHttpClient } from "./client/http-client.js";
 export type { PendingTask } from "./client/pending-tasks.js";
 export { PendingTaskStore } from "./client/pending-tasks.js";
+export type { A2AToolOptions } from "./client/tools.js";
+export {
+  createCallAgentTool,
+  createCancelTaskTool,
+  createCheckTaskTool,
+  createStartTaskTool,
+} from "./client/tools.js";
 export type { A2AErrorCode } from "./errors.js";
 // --- Errors ---
 export {

@@ -8,6 +8,7 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
+    "@claw-for-cloudflare/a2a": "workspace:*",
     "@claw-for-cloudflare/agent-core": "workspace:*",
     "@claw-for-cloudflare/ai": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.0",

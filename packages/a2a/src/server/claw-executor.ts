@@ -81,7 +81,9 @@ export class ClawExecutor implements AgentExecutor {
     eventBus: A2AEventBus,
     taskStore: TaskStore,
   ): Promise<ExecuteResult> {
-    console.log(`[a2a] execute: taskId=${taskId}, blocking=${params.configuration?.blocking !== false}`);
+    console.log(
+      `[a2a] execute: taskId=${taskId}, blocking=${params.configuration?.blocking !== false}`,
+    );
 
     const text = this.extractText(params.message);
     if (!text) {

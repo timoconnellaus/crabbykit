@@ -1,4 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
+import type { A2AToolOptions } from "@claw-for-cloudflare/a2a";
+import {
+  A2AHandler,
+  ClawExecutor,
+  createCallAgentTool,
+  createCallbackHandler,
+  createCancelTaskTool,
+  createCheckTaskTool,
+  createStartTaskTool,
+  TaskStore,
+} from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
@@ -48,6 +59,18 @@ async function loadPiSdk() {
   return { piAgent: _PiAgent, getModel: _getModel };
 }
 
+/** A2A protocol configuration. */
+export interface A2AConfig {
+  /** Serve agent card publicly at /.well-known/agent-card.json. Default: false */
+  discoverable?: boolean;
+  /** Accept A2A messages from other agents. Default: true */
+  acceptMessages?: boolean;
+  /** Base URL for this agent (used in agent card). */
+  url?: string;
+  /** Auth middleware for incoming A2A requests. Return null to allow, Response to reject. */
+  authenticate?: (request: Request) => Promise<Response | null>;
+}
+
 export interface AgentConfig {
   /** Provider name (e.g., 'openrouter', 'anthropic') */
   provider: string;
@@ -57,6 +80,8 @@ export interface AgentConfig {
   apiKey: string;
   /** Maximum agent loop steps (default 50) */
   maxSteps?: number;
+  /** A2A protocol configuration. Controls discoverability and message acceptance. */
+  a2a?: A2AConfig;
   /**
    * Compaction configuration.
    * @deprecated Use the compaction-summary capability via getCapabilities() instead.
@@ -132,10 +157,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
   /** Cached resolved capabilities — populated in ensureAgent, cleared on agent_end. */
   private resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
+  /** A2A task store — always initialized alongside SessionStore. */
+  protected taskStore: TaskStore;
+  /** Cached A2A handler — lazily created on first A2A request. */
+  private a2aHandler: A2AHandler | null = null;
+  private a2aExecutor: ClawExecutor | null = null;
 
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
     this.sessionStore = new SessionStore(ctx.storage.sql);
+    this.taskStore = new TaskStore(ctx.storage.sql);
     this.scheduleStore = new ScheduleStore(ctx.storage.sql);
     this.configStore = new ConfigStore(ctx.storage);
     this.mcpManager = new McpManager(ctx.storage.sql, () => this.broadcastMcpStatus());
@@ -183,6 +214,22 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
    */
   protected getConfigNamespaces(): ConfigNamespace[] {
     return [];
+  }
+
+  /**
+   * Override to configure how this agent calls other A2A agents.
+   * Requires a DO namespace binding to resolve agent stubs.
+   * Returns null (default) if this agent should not have agent-calling tools.
+   */
+  protected getA2AClientOptions(): {
+    getAgentStub: (id: string) => {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    };
+    callbackBaseUrl?: string;
+    maxDepth?: number;
+    authHeaders?: (target: string) => Record<string, string> | Promise<Record<string, string>>;
+  } | null {
+    return null;
   }
 
   /**
@@ -364,6 +411,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     if (url.pathname === "/mcp/callback") {
       return this.handleMcpCallback(request);
     }
+
+    // A2A protocol endpoints (built-in)
+    const a2aResponse = await this.handleA2ARequest(request, url);
+    if (a2aResponse) return a2aResponse;
 
     // Capability-contributed HTTP handlers
     const httpMatch = await this.matchHttpHandler(request.method, url.pathname);
@@ -924,9 +975,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       createConfigSchema(configContext),
     ];
 
-    // Merge tools: getTools() first, then config tools, then capability tools
+    // A2A client tools (if configured)
+    const a2aClientTools = this.createA2AClientTools(sessionId);
+
+    // Merge tools: getTools() first, then config tools, then A2A tools, then capability tools
     const baseTools = this.getTools(context);
-    const allTools = [...baseTools, ...configTools, ...resolved.tools];
+    const allTools = [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
 
     // Build system prompt with capability sections appended
     let systemPrompt = this.buildSystemPrompt(context);
@@ -1514,6 +1568,174 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     return { sessionId, response };
+  }
+
+  // --- A2A Protocol ---
+
+  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
+  private createA2AClientTools(sessionId: string): AgentTool<any>[] {
+    const clientOpts = this.getA2AClientOptions();
+    if (!clientOpts) return [];
+
+    const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+    const getStorage = () => storage;
+    const getSessionId = () => sessionId;
+
+    const toolOpts: A2AToolOptions = {
+      agentId: this.ctx.id.toString(),
+      agentName: this.getPromptOptions().agentName,
+      getAgentStub: clientOpts.getAgentStub,
+      callbackBaseUrl: clientOpts.callbackBaseUrl ?? "https://agent",
+      maxDepth: clientOpts.maxDepth ?? 5,
+      authHeaders: clientOpts.authHeaders,
+    };
+
+    return [
+      createCallAgentTool(toolOpts, getStorage, getSessionId),
+      createStartTaskTool(toolOpts, getStorage, getSessionId),
+      createCheckTaskTool(toolOpts, getStorage),
+      createCancelTaskTool(toolOpts, getStorage),
+    ];
+  }
+
+  private ensureA2AHandler(): { handler: A2AHandler; executor: ClawExecutor } {
+    if (this.a2aHandler && this.a2aExecutor) {
+      return { handler: this.a2aHandler, executor: this.a2aExecutor };
+    }
+
+    const promptOpts = this.getPromptOptions();
+    const config = this.getConfig();
+
+    this.a2aExecutor = new ClawExecutor({
+      agentCardConfig: {
+        name: promptOpts.agentName ?? "Agent",
+        description: promptOpts.agentDescription ?? "An A2A-compatible agent.",
+        url: config.a2a?.url ?? "",
+        skills: promptOpts.agentSkills,
+      },
+      getSessionAgentHandle: (sid) => this.getSessionAgentHandle(sid),
+    });
+
+    this.a2aHandler = new A2AHandler({
+      executor: this.a2aExecutor,
+      taskStore: this.taskStore,
+    });
+
+    return { handler: this.a2aHandler, executor: this.a2aExecutor };
+  }
+
+  private async handleA2ARequest(request: Request, url: URL): Promise<Response | null> {
+    const config = this.getConfig();
+
+    // Agent Card
+    if (request.method === "GET" && url.pathname === "/.well-known/agent-card.json") {
+      if (config.a2a?.discoverable === false) {
+        return new Response("Not found", { status: 404 });
+      }
+      const { executor } = this.ensureA2AHandler();
+      const card = executor.getAgentCard();
+      return new Response(JSON.stringify(card), {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=3600",
+          "A2A-Version": "1.0",
+        },
+      });
+    }
+
+    // JSON-RPC endpoint
+    if (request.method === "POST" && url.pathname === "/a2a") {
+      if (config.a2a?.acceptMessages === false) {
+        return new Response(JSON.stringify({ error: "A2A messages not accepted" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Optional auth
+      if (config.a2a?.authenticate) {
+        const authResponse = await config.a2a.authenticate(request);
+        if (authResponse) return authResponse;
+      }
+
+      const { handler, executor } = this.ensureA2AHandler();
+
+      // Wire executor context for this request
+      executor.setContext({
+        sendPrompt: (opts) => this.handleAgentPrompt(opts),
+        sessionStore: this.sessionStore,
+      });
+
+      // Parse and validate JSON-RPC
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32700, message: "Parse error" },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      const rpcRequest = body as { jsonrpc?: string; method?: string; id?: unknown };
+      if (
+        !rpcRequest ||
+        rpcRequest.jsonrpc !== "2.0" ||
+        !rpcRequest.method ||
+        rpcRequest.id === undefined
+      ) {
+        return new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32600, message: "Invalid request" },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC request is loosely typed from parsed body
+      const result = await handler.handleRequest(rpcRequest as any);
+
+      if (result instanceof ReadableStream) {
+        return new Response(result, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            "A2A-Version": "1.0",
+          },
+        });
+      }
+
+      const isError = "error" in result;
+      return new Response(JSON.stringify(result), {
+        status: isError ? 500 : 200,
+        headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
+      });
+    }
+
+    // A2A callback for push notifications (client side)
+    if (request.method === "POST" && url.pathname === "/a2a-callback") {
+      const clientOpts = this.getA2AClientOptions();
+      if (!clientOpts) return null; // Not configured as A2A client
+
+      const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+      const callbackHandler = createCallbackHandler(() => storage);
+      const ctx: CapabilityHttpContext = {
+        sessionStore: this.sessionStore,
+        storage,
+        broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+        sendPrompt: (opts) => this.handleAgentPrompt(opts),
+      };
+      return callbackHandler.handler(request, ctx);
+    }
+
+    return null;
   }
 
   // --- HTTP fallback ---

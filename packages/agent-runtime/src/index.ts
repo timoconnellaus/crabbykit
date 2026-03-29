@@ -17,7 +17,7 @@ export type {
 export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
-export type { AgentConfig, AgentContext, ScheduleManager } from "./agent-do.js";
+export type { A2AConfig, AgentConfig, AgentContext, ScheduleManager } from "./agent-do.js";
 // Agent DO
 export { AgentDO } from "./agent-do.js";
 export type {

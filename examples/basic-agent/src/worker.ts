@@ -1,4 +1,3 @@
-import { a2aClient, a2aServer, TaskStore } from "@claw-for-cloudflare/a2a";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentMessaging } from "@claw-for-cloudflare/agent-messaging";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
@@ -49,18 +48,12 @@ interface Env {
  * Demonstrates extending AgentDO with custom tools.
  */
 export class BasicAgent extends AgentDO<Env> {
-  private taskStore: TaskStore;
-
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    this.taskStore = new TaskStore(ctx.storage.sql);
-  }
-
   getConfig(): AgentConfig {
     return {
       provider: "openrouter",
       modelId: "minimax/minimax-m2.7",
       apiKey: this.env.OPENROUTER_API_KEY,
+      a2a: { discoverable: true },
     };
   }
 
@@ -132,16 +125,6 @@ export class BasicAgent extends AgentDO<Env> {
         resolveDoId,
         agentId,
         ownerId: "default",
-      }),
-      a2aServer({
-        taskStore: this.taskStore,
-        getSessionAgentHandle: (sid) => this.getSessionAgentHandle(sid),
-      }),
-      a2aClient({
-        agentId,
-        agentName: "Basic Agent",
-        getAgentStub,
-        callbackBaseUrl: "https://agent",
       }),
     ];
   }
@@ -228,9 +211,17 @@ export class BasicAgent extends AgentDO<Env> {
     ];
   }
 
+  protected getA2AClientOptions() {
+    return {
+      getAgentStub: (id: string) => this.env.AGENT.get(this.env.AGENT.idFromName(id)),
+      callbackBaseUrl: "https://agent",
+    };
+  }
+
   protected getPromptOptions(): PromptOptions {
     return {
       agentName: "Basic Agent",
+      agentDescription: "A helpful agent that can search, compute, and manage files.",
       timezone: "UTC",
     };
   }

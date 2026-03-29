@@ -122,9 +122,7 @@ export class TaskStore {
   }
 
   get(taskId: string): Task | null {
-    const rows = this.sql
-      .exec<TaskRow>("SELECT * FROM a2a_tasks WHERE id = ?", taskId)
-      .toArray();
+    const rows = this.sql.exec<TaskRow>("SELECT * FROM a2a_tasks WHERE id = ?", taskId).toArray();
     if (rows.length === 0) return null;
     return this.rowToTask(rows[0]);
   }
