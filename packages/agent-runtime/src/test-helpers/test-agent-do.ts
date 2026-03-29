@@ -488,6 +488,20 @@ export class TestAgentDO extends AgentDO {
       });
     }
 
+    // Register a pending A2A task for testing callback injection
+    if (request.method === "POST" && url.pathname === "/register-pending-task") {
+      const { PendingTaskStore } = await import("@claw-for-cloudflare/a2a");
+      const { createCapabilityStorage } = await import("../capabilities/storage.js");
+      const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+      const store = new PendingTaskStore(storage);
+      const task = (await request.json()) as Record<string, unknown>;
+      // biome-ignore lint/suspicious/noExplicitAny: test helper
+      await store.save(task as any);
+      return new Response(JSON.stringify({ registered: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     return super.fetch(request);
   }
 

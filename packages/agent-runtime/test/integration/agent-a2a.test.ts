@@ -292,4 +292,170 @@ describe("A2A Integration", () => {
       expect((getBody.result as R).id).toBe(result.id);
     });
   });
+
+  describe("callback result injection", () => {
+    /** Register a PendingTask in the DO's a2a-client storage. */
+    async function registerPendingTask(stub: DurableObjectStub, task: Record<string, unknown>) {
+      const res = await stub.fetch("http://fake/register-pending-task", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(task),
+      });
+      await res.json();
+    }
+
+    /** Create a session by sending a prompt, then get its ID from entries. */
+    async function createSession(stub: DurableObjectStub): Promise<string> {
+      setMockResponses([{ text: "setup" }]);
+      const res = await stub.fetch("http://fake/prompt", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "init" }),
+      });
+      await res.json(); // consume body
+
+      // Get the session ID from the entries endpoint (returns first session's entries)
+      const entriesRes = await stub.fetch("http://fake/entries");
+      const entries = (await entriesRes.json()) as { entries: Array<{ sessionId: string }> };
+      return entries.entries[0].sessionId;
+    }
+
+    it("callback persists result to session and returns 200", async () => {
+      const stub = getStub("a2a-do-5");
+      // Two mocks: one for createSession, one for the async inference the callback triggers
+      setMockResponses([{ text: "setup" }, { text: "callback inference" }]);
+
+      // Create a real session
+      const sessionId = await createSession(stub);
+      const taskId = "cb-persist-task";
+      const token = "cb-persist-token";
+
+      await registerPendingTask(stub, {
+        taskId,
+        contextId: "ctx-cb",
+        targetAgent: "agent-2",
+        targetAgentName: "Agent Two",
+        originalRequest: "Do research",
+        state: "working",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        originSessionId: sessionId,
+        webhookToken: token,
+      });
+
+      // Send callback
+      const res = await stub.fetch("http://fake/a2a-callback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          taskId,
+          status: {
+            state: "completed",
+            message: { role: "agent", parts: [{ text: "Research results" }] },
+          },
+        }),
+      });
+      const body = (await res.json()) as R;
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+
+      // Wait for the async inference triggered by the callback to complete
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Verify the result was persisted to the session
+      const entriesRes = await stub.fetch(`http://fake/entries?sessionId=${sessionId}`);
+      const entries = (await entriesRes.json()) as { entries: R[] };
+      const texts = entries.entries
+        .filter((e: R) => e.type === "message")
+        .map((e: R) => e.data?.content)
+        .filter(Boolean);
+
+      const hasCallbackResult = texts.some(
+        (t: string) => typeof t === "string" && t.includes("A2A Task Complete"),
+      );
+      expect(hasCallbackResult).toBe(true);
+    });
+
+    it("returns 404 for unknown task ID", async () => {
+      const stub = getStub("a2a-do-5");
+
+      const res = await stub.fetch("http://fake/a2a-callback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer whatever",
+        },
+        body: JSON.stringify({
+          taskId: "nonexistent",
+          status: { state: "completed" },
+        }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    // NOTE: This test must be LAST in the suite because the callback triggers
+    // an async handleAgentPrompt that creates DO storage operations which can
+    // interfere with the isolated storage frame cleanup.
+    it("callback persists result to session and returns 200", async () => {
+      const stub = getStub("a2a-do-5");
+      // Two mocks: one for createSession, one for the async inference the callback triggers
+      setMockResponses([{ text: "setup" }, { text: "callback inference" }]);
+
+      // Create a real session
+      const sessionId = await createSession(stub);
+      const taskId = "cb-persist-task";
+      const token = "cb-persist-token";
+
+      await registerPendingTask(stub, {
+        taskId,
+        contextId: "ctx-cb",
+        targetAgent: "agent-2",
+        targetAgentName: "Agent Two",
+        originalRequest: "Do research",
+        state: "working",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        originSessionId: sessionId,
+        webhookToken: token,
+      });
+
+      // Send callback
+      const res = await stub.fetch("http://fake/a2a-callback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          taskId,
+          status: {
+            state: "completed",
+            message: { role: "agent", parts: [{ text: "Research results" }] },
+          },
+        }),
+      });
+      const body = (await res.json()) as R;
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+
+      // Wait for the async inference triggered by the callback to complete
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Verify the result was persisted to the session
+      const entriesRes = await stub.fetch(`http://fake/entries?sessionId=${sessionId}`);
+      const entries = (await entriesRes.json()) as { entries: R[] };
+      const texts = entries.entries
+        .filter((e: R) => e.type === "message")
+        .map((e: R) => e.data?.content)
+        .filter(Boolean);
+
+      const hasCallbackResult = texts.some(
+        (t: string) => typeof t === "string" && t.includes("A2A Task Complete"),
+      );
+      expect(hasCallbackResult).toBe(true);
+    });
+  });
 });

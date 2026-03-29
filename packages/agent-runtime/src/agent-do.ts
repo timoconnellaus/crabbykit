@@ -4,10 +4,10 @@ import {
   A2AHandler,
   ClawExecutor,
   createCallAgentTool,
-  createCallbackHandler,
   createCancelTaskTool,
   createCheckTaskTool,
   createStartTaskTool,
+  PendingTaskStore,
   TaskStore,
 } from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
@@ -162,6 +162,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Cached A2A handler — lazily created on first A2A request. */
   private a2aHandler: A2AHandler | null = null;
   private a2aExecutor: ClawExecutor | null = null;
+  /** Queued A2A task results that arrived while agent was busy. Processed on agent_end. */
+  private pendingA2AResults = new Map<string, string[]>();
 
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
@@ -1011,6 +1013,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       if (event.type === "agent_end") {
         this.sessionAgents.delete(sessionId);
         this.resolvedCapabilitiesCache = null;
+
+        // Process any A2A task results that arrived during inference
+        const pendingResults = this.pendingA2AResults.get(sessionId);
+        if (pendingResults && pendingResults.length > 0) {
+          this.pendingA2AResults.delete(sessionId);
+          this.handleAgentPrompt({
+            text: pendingResults.join("\n\n"),
+            sessionId,
+            source: "a2a-callback",
+          }).catch((err) => console.error("[a2a] post-inference callback prompt failed:", err));
+        }
       }
     });
 
@@ -1773,22 +1786,125 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     // A2A callback for push notifications (client side)
-    if (request.method === "POST" && url.pathname === "/a2a-callback") {
-      const clientOpts = this.getA2AClientOptions();
-      if (!clientOpts) return null; // Not configured as A2A client
-
-      const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
-      const callbackHandler = createCallbackHandler(() => storage);
-      const ctx: CapabilityHttpContext = {
-        sessionStore: this.sessionStore,
-        storage,
-        broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
-        sendPrompt: (opts) => this.handleAgentPrompt(opts),
-      };
-      return callbackHandler.handler(request, ctx);
+    // Matches /a2a-callback or /a2a-callback/{agentId}
+    if (request.method === "POST" && url.pathname.startsWith("/a2a-callback")) {
+      return this.handleA2ACallback(request);
     }
 
     return null;
+  }
+
+  private async handleA2ACallback(request: Request): Promise<Response> {
+    const jsonHeaders = { "Content-Type": "application/json" };
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: jsonHeaders,
+      });
+    }
+
+    // Extract task status update
+    const update = body as {
+      taskId?: string;
+      status?: { state?: string; message?: { parts?: Array<{ text?: string }> } };
+    };
+    if (!update?.taskId || !update?.status) {
+      return new Response(JSON.stringify({ error: "Missing taskId or status" }), {
+        status: 400,
+        headers: jsonHeaders,
+      });
+    }
+
+    // Look up pending task from client storage
+    const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+    const pendingStore = new PendingTaskStore(storage);
+    const pending = await pendingStore.get(update.taskId);
+    if (!pending) {
+      return new Response(JSON.stringify({ error: "Unknown task" }), {
+        status: 404,
+        headers: jsonHeaders,
+      });
+    }
+
+    // Verify webhook token
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || authHeader !== `Bearer ${pending.webhookToken}`) {
+      return new Response(JSON.stringify({ error: "Invalid webhook token" }), {
+        status: 401,
+        headers: jsonHeaders,
+      });
+    }
+
+    // Update pending task state
+    const { isTerminalState } = await import("@claw-for-cloudflare/a2a");
+    const state = update.status.state as string;
+    await pendingStore.updateState(
+      update.taskId,
+      state as Parameters<typeof pendingStore.updateState>[1],
+    );
+
+    // Extract result text from the status message
+    const resultParts = update.status.message?.parts ?? [];
+    const resultTexts = resultParts
+      .filter((p): p is { text: string } => typeof p.text === "string")
+      .map((p) => p.text);
+
+    const resultText =
+      state === "completed"
+        ? `[A2A Task Complete] Agent "${pending.targetAgentName}" finished.\nOriginal request: ${pending.originalRequest}\nResult: ${resultTexts.join("\n") || "No response text"}`
+        : state === "failed"
+          ? `[A2A Task Failed] Agent "${pending.targetAgentName}" failed.\nOriginal request: ${pending.originalRequest}\nError: ${resultTexts.join("\n") || "Unknown error"}`
+          : `[A2A Task ${state}] Agent "${pending.targetAgentName}"\nOriginal request: ${pending.originalRequest}`;
+
+    if (isTerminalState(state as "completed")) {
+      // Always persist result to session (survives hibernation)
+      this.sessionStore.appendEntry(pending.originSessionId, {
+        type: "message",
+        data: { role: "user", content: resultText, timestamp: Date.now() },
+      });
+
+      // Check if agent is currently running
+      const agent = this.sessionAgents.get(pending.originSessionId);
+      if (agent?.state.isStreaming) {
+        // Agent is busy — steer result in + queue for post-inference follow-up
+        agent.steer({
+          role: "user",
+          content: resultText,
+          timestamp: Date.now(),
+        });
+        const queue = this.pendingA2AResults.get(pending.originSessionId) ?? [];
+        queue.push(resultText);
+        this.pendingA2AResults.set(pending.originSessionId, queue);
+      } else {
+        // Agent is idle — trigger inference immediately
+        this.handleAgentPrompt({
+          text: resultText,
+          sessionId: pending.originSessionId,
+          source: "a2a-callback",
+        }).catch((err) => console.error("[a2a] callback prompt failed:", err));
+      }
+
+      // Clean up pending task
+      await pendingStore.delete(update.taskId);
+    }
+
+    // Broadcast to WebSocket clients
+    this.broadcastCustomToAll("a2a_task_update", {
+      taskId: pending.taskId,
+      targetAgent: pending.targetAgent,
+      targetAgentName: pending.targetAgentName,
+      state,
+      originalRequest: pending.originalRequest,
+    });
+
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: jsonHeaders,
+    });
   }
 
   // --- HTTP fallback ---
