@@ -1652,6 +1652,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         });
       }
 
+      // Version negotiation
+      const a2aVersion = request.headers.get("A2A-Version") ?? "1.0";
+      if (a2aVersion !== "1.0") {
+        return new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32009, message: `A2A version not supported: ${a2aVersion}` },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json", "A2A-Version": "1.0" } },
+        );
+      }
+
       // Optional auth
       if (config.a2a?.authenticate) {
         const authResponse = await config.a2a.authenticate(request);
@@ -1712,9 +1725,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         });
       }
 
-      const isError = "error" in result;
+      if ("error" in result) {
+        const { httpStatusForError } = await import("@claw-for-cloudflare/a2a");
+        const status = httpStatusForError(
+          (result as { error: { code: number } }).error.code,
+        );
+        return new Response(JSON.stringify(result), {
+          status,
+          headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
+        });
+      }
       return new Response(JSON.stringify(result), {
-        status: isError ? 500 : 200,
+        status: 200,
         headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
       });
     }
