@@ -186,6 +186,17 @@ context.emitCost({
 - No mocking of `SessionStore` — test against real SQLite via Workers pool
 - Every public function must have at least one test
 
+### DO integration test isolation
+
+`isolatedStorage` is **disabled** in `vitest.config.ts` for `agent-runtime`. The pool-workers runner's storage frame checker doesn't handle SQLite WAL auxiliary files (`.sqlite-shm`) created by DO KV storage operations, causing spurious `AssertionError` crashes during suite teardown (see cloudflare/workers-sdk#5629).
+
+Instead, tests isolate via **unique DO names per describe block** (e.g., `getStub("a2a-do-1")`, `getStub("a2a-do-2")`). Each DO name maps to a separate SQLite database in a temporary directory that is wiped per test run. Rules:
+
+- **Use a unique DO name per describe block.** Tests within the same block can share a stub but tests in different blocks must use different names.
+- **Never reuse DO names across describe blocks.** State written by one block's tests is visible to another block sharing the same name.
+- **Await all DO operations.** Fire-and-forget async operations (like the A2A callback handler's `handleAgentPrompt`) must be tracked and drained before the test ends. Use the `/wait-idle` test endpoint to drain pending ops.
+- **Keep DO count reasonable.** Each unique name creates a separate SQLite database. Avoid creating dozens of DOs per test file.
+
 ### Test file locations
 
 - `packages/agent-runtime/test/` — integration tests
