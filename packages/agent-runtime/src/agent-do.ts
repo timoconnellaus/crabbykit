@@ -1904,16 +1904,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const isStreaming = agent?.state.isStreaming ?? false;
       console.log(`[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`);
       if (isStreaming) {
-        // Agent is busy — steer result in + queue for post-inference follow-up
+        // Agent is busy — steer the result in so it sees it mid-inference.
+        // The result is already persisted to the session (above), so the agent
+        // will have it in context. No post-inference follow-up needed — the
+        // steer delivers it within the current turn.
         console.log(`[a2a:callback] steering result into running agent`);
         agent.steer({
           role: "user",
           content: resultText,
           timestamp: Date.now(),
         });
-        const queue = this.pendingA2AResults.get(pending.originSessionId) ?? [];
-        queue.push(resultText);
-        this.pendingA2AResults.set(pending.originSessionId, queue);
       } else {
         // Agent is idle — trigger inference immediately
         console.log(`[a2a:callback] triggering inference on idle agent`);
