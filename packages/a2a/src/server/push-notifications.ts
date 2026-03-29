@@ -22,15 +22,21 @@ export async function deliverPushNotification(
       headers.Authorization = `Bearer ${token}`;
     }
 
+    console.log(`[a2a:push] delivering to ${url}, token=${token ? "yes" : "no"}, fetchFn=${fetchFn === fetch ? "global" : "custom"}`);
     const response = await fetchFn(url, {
       method: "POST",
       headers,
       body: JSON.stringify(event),
     });
 
+    console.log(`[a2a:push] response: ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      const body = await response.text().catch(() => "(no body)");
+      console.error(`[a2a:push] delivery failed: ${response.status} — ${body}`);
+    }
     return response.ok;
-  } catch {
-    // Silent failure — best-effort delivery
+  } catch (err) {
+    console.error(`[a2a:push] delivery error:`, err instanceof Error ? err.message : err);
     return false;
   }
 }

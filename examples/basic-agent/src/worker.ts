@@ -1,5 +1,4 @@
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
-import { agentMessaging } from "@claw-for-cloudflare/agent-messaging";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
 import type {
@@ -111,13 +110,6 @@ export class BasicAgent extends AgentDO<Env> {
 
     return [
       peering.capability,
-      agentMessaging({
-        secret: this.env.AGENT_SECRET,
-        getAgentStub,
-        resolveDoId,
-        agentId,
-        peeringService: peering.service,
-      }),
       agentFleet({
         registry,
         secret: this.env.AGENT_SECRET,
@@ -189,7 +181,6 @@ export class BasicAgent extends AgentDO<Env> {
             "save_secret",
             "list_secrets",
             "delete_secret",
-            "agent_message",
             "agent_list",
             "agent_create",
             "agent_delete",
@@ -213,7 +204,13 @@ export class BasicAgent extends AgentDO<Env> {
 
   protected getA2AClientOptions() {
     return {
-      getAgentStub: (id: string) => this.env.AGENT.get(this.env.AGENT.idFromName(id)),
+      getAgentStub: (id: string) => {
+        // Support both DO names ("bob") and hex IDs ("fcc50dec...")
+        const doId = /^[0-9a-f]{64}$/i.test(id)
+          ? this.env.AGENT.idFromString(id)
+          : this.env.AGENT.idFromName(id);
+        return this.env.AGENT.get(doId);
+      },
       resolveDoId: (id: string) => this.env.AGENT.idFromName(id).toString(),
       callbackBaseUrl: "https://agent",
     };

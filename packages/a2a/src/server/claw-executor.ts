@@ -267,9 +267,11 @@ export class ClawExecutor implements AgentExecutor {
     // Fire and forget — run inference in the background
     const ctx = this.requireContext();
     const pushFetchFn = ctx.fetchFn;
+    console.log(`[a2a] executeNonBlocking: taskId=${taskId}, hasFetchFn=${!!pushFetchFn}`);
     ctx
       .sendPrompt({ text, sessionId, source: "a2a" })
       .then(({ response }: { response: string }) => {
+        console.log(`[a2a] non-blocking sendPrompt complete: taskId=${taskId}, response="${response.slice(0, 80)}"`);
         const completedStatus: TaskStatus = {
           state: "completed",
           timestamp: new Date().toISOString(),
@@ -283,14 +285,19 @@ export class ClawExecutor implements AgentExecutor {
         eventBus.emitStatusUpdate(taskId, contextId, completedStatus, true);
 
         // Fire push notification if configured
+        const pushConfig = taskStore.getPushConfig(taskId);
+        console.log(`[a2a] push config for ${taskId}:`, pushConfig ? `url=${pushConfig.url}` : "NONE");
         firePushNotificationsForTask(
           taskStore,
           taskId,
           { taskId, contextId, status: completedStatus, final: true },
           pushFetchFn,
-        );
+        ).then((result) => {
+          console.log(`[a2a] push notification sent for ${taskId}`);
+        });
       })
       .catch((err: unknown) => {
+        console.error(`[a2a] non-blocking sendPrompt failed: taskId=${taskId}`, err instanceof Error ? err.message : err);
         const failedStatus: TaskStatus = {
           state: "failed",
           timestamp: new Date().toISOString(),

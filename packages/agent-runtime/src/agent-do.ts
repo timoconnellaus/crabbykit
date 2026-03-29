@@ -231,6 +231,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     };
     /** Resolve a registry UUID or friendly name to the DO identifier used by getAgentStub. */
     resolveDoId?: (id: string) => string;
+    /**
+     * The name other agents can pass to getAgentStub to reach THIS DO.
+     * Used in push notification callback URLs so the receiving agent can
+     * route back via the DO stub. If not set, falls back to ctx.id hex string
+     * (which won't work with idFromName-based stubs).
+     */
+    callbackAgentName?: string;
     callbackBaseUrl?: string;
     maxDepth?: number;
     authHeaders?: (target: string) => Record<string, string> | Promise<Record<string, string>>;
@@ -1603,7 +1610,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const getSessionId = () => sessionId;
 
     const toolOpts: A2AToolOptions = {
-      agentId: this.ctx.id.toString(),
+      agentId: clientOpts.callbackAgentName ?? this.ctx.id.toString(),
       agentName: this.getPromptOptions().agentName,
       getAgentStub: clientOpts.getAgentStub,
       resolveDoId: clientOpts.resolveDoId,
@@ -1638,15 +1645,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       // Match callback URLs with embedded agent ID: .../a2a-callback/{agentId}
+      // The agentId here is whatever start_task embedded — pass directly to getAgentStub.
+      // Do NOT use resolveDoId here (that's for outbound registry UUID resolution).
       const callbackMatch = url.match(/\/a2a-callback\/([^/?]+)/);
       if (callbackMatch) {
-        const rawAgentId = callbackMatch[1];
-        const targetAgentId = clientOpts.resolveDoId
-          ? clientOpts.resolveDoId(rawAgentId)
-          : rawAgentId;
-        const stub = clientOpts.getAgentStub(targetAgentId);
+        const callbackAgentId = callbackMatch[1];
+        const stub = clientOpts.getAgentStub(callbackAgentId);
         // Rewrite URL to the stub's perspective (strip the agent ID segment)
-        const stubUrl = url.replace(`/a2a-callback/${rawAgentId}`, "/a2a-callback");
+        const stubUrl = url.replace(`/a2a-callback/${callbackAgentId}`, "/a2a-callback");
         return stub.fetch(stubUrl, init);
       }
 
@@ -1807,6 +1813,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   private async handleA2ACallback(request: Request): Promise<Response> {
+    console.log("[a2a:callback] received callback request");
     const jsonHeaders = { "Content-Type": "application/json" };
 
     let body: unknown;
@@ -1834,6 +1841,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Look up pending task from client storage
     const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
     const pendingStore = new PendingTaskStore(storage);
+    const allPending = await pendingStore.list();
+    console.log(`[a2a:callback] looking up taskId=${update.taskId}, pending tasks in store: ${allPending.length}`, allPending.map((t) => t.taskId));
     const pending = await pendingStore.get(update.taskId);
     if (!pending) {
       return new Response(JSON.stringify({ error: "Unknown task" }), {
@@ -1872,8 +1881,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           ? `[A2A Task Failed] Agent "${pending.targetAgentName}" failed.\nOriginal request: ${pending.originalRequest}\nError: ${resultTexts.join("\n") || "Unknown error"}`
           : `[A2A Task ${state}] Agent "${pending.targetAgentName}"\nOriginal request: ${pending.originalRequest}`;
 
+    console.log(`[a2a:callback] taskId=${update.taskId}, state=${state}, originSession=${pending.originSessionId}`);
+
     if (isTerminalState(state as "completed")) {
       // Always persist result to session (survives hibernation)
+      console.log(`[a2a:callback] persisting result to session ${pending.originSessionId}`);
       this.sessionStore.appendEntry(pending.originSessionId, {
         type: "message",
         data: { role: "user", content: resultText, timestamp: Date.now() },
@@ -1881,8 +1893,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       // Check if agent is currently running
       const agent = this.sessionAgents.get(pending.originSessionId);
-      if (agent?.state.isStreaming) {
+      const isStreaming = agent?.state.isStreaming ?? false;
+      console.log(`[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`);
+      if (isStreaming) {
         // Agent is busy — steer result in + queue for post-inference follow-up
+        console.log(`[a2a:callback] steering result into running agent`);
         agent.steer({
           role: "user",
           content: resultText,
@@ -1892,9 +1907,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         queue.push(resultText);
         this.pendingA2AResults.set(pending.originSessionId, queue);
       } else {
-        // Agent is idle — trigger inference in the background.
-        // Use ctx.waitUntil so the DO runtime keeps the I/O context alive
-        // until inference completes (important for tests and hibernation).
+        // Agent is idle — trigger inference immediately
+        console.log(`[a2a:callback] triggering inference on idle agent`);
         const op = this.handleAgentPrompt({
           text: resultText,
           sessionId: pending.originSessionId,
