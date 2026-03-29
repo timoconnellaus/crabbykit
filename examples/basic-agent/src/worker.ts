@@ -214,6 +214,7 @@ export class BasicAgent extends AgentDO<Env> {
   protected getA2AClientOptions() {
     return {
       getAgentStub: (id: string) => this.env.AGENT.get(this.env.AGENT.idFromName(id)),
+      resolveDoId: (id: string) => this.env.AGENT.idFromName(id).toString(),
       callbackBaseUrl: "https://agent",
     };
   }

@@ -229,6 +229,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     getAgentStub: (id: string) => {
       fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
     };
+    /** Resolve a registry UUID or friendly name to the DO identifier used by getAgentStub. */
+    resolveDoId?: (id: string) => string;
     callbackBaseUrl?: string;
     maxDepth?: number;
     authHeaders?: (target: string) => Record<string, string> | Promise<Record<string, string>>;
@@ -1604,6 +1606,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       agentId: this.ctx.id.toString(),
       agentName: this.getPromptOptions().agentName,
       getAgentStub: clientOpts.getAgentStub,
+      resolveDoId: clientOpts.resolveDoId,
       callbackBaseUrl: clientOpts.callbackBaseUrl ?? "https://agent",
       maxDepth: clientOpts.maxDepth ?? 5,
       authHeaders: clientOpts.authHeaders,
@@ -1637,10 +1640,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       // Match callback URLs with embedded agent ID: .../a2a-callback/{agentId}
       const callbackMatch = url.match(/\/a2a-callback\/([^/?]+)/);
       if (callbackMatch) {
-        const targetAgentId = callbackMatch[1];
+        const rawAgentId = callbackMatch[1];
+        const targetAgentId = clientOpts.resolveDoId
+          ? clientOpts.resolveDoId(rawAgentId)
+          : rawAgentId;
         const stub = clientOpts.getAgentStub(targetAgentId);
         // Rewrite URL to the stub's perspective (strip the agent ID segment)
-        const stubUrl = url.replace(`/a2a-callback/${targetAgentId}`, "/a2a-callback");
+        const stubUrl = url.replace(`/a2a-callback/${rawAgentId}`, "/a2a-callback");
         return stub.fetch(stubUrl, init);
       }
 

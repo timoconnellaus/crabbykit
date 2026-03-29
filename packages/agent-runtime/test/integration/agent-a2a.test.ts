@@ -401,4 +401,71 @@ describe("A2A Integration", () => {
       expect(hasCallbackResult).toBe(true);
     });
   });
+
+  describe("call_agent tool (client-side)", () => {
+    it("reaches the correct target DO via resolveDoId", async () => {
+      const callerStub = getStub("a2a-caller-1");
+      const targetStub = getStub("a2a-target-1");
+
+      // Prime the target DO so it exists (send a direct A2A message to it)
+      setMockResponses([{ text: "target ready" }]);
+      const { body: targetBody } = await sendMessage(targetStub, "Init");
+      expect((targetBody.result as R).status.state).toBe("completed");
+
+      // Now set up responses for the caller's tool call flow:
+      // 1. Caller's first turn: invoke call_agent tool
+      // 2. Target DO processes the A2A request (shifts next mock)
+      // 3. Caller's follow-up turn after tool result
+      setMockResponses([
+        {
+          text: "",
+          toolCalls: [
+            { name: "call_agent", args: { targetAgent: "a2a-target-1", message: "Hello target" } },
+          ],
+        },
+        { text: "I am the target agent" },
+        { text: "The target responded" },
+      ]);
+
+      // Send prompt to the caller DO — it will invoke call_agent which hits target DO
+      const res = await callerStub.fetch("http://fake/prompt", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "Please call the target agent" }),
+      });
+      const result = (await res.json()) as R;
+      expect(res.status).toBe(200);
+
+      // Check that the caller's session contains the tool result from the target
+      const entriesRes = await callerStub.fetch("http://fake/entries");
+      const entries = (await entriesRes.json()) as { entries: R[] };
+      const toolResults = entries.entries.filter(
+        (e: R) => e.type === "tool_result" || (e.type === "custom" && e.customType === "tool_end"),
+      );
+
+      // The call_agent tool should have executed and returned a result
+      const messageTexts = entries.entries
+        .filter((e: R) => e.type === "message")
+        .map((e: R) => e.data?.content)
+        .filter(Boolean);
+
+      // The target agent's response should appear somewhere in the session
+      // (either as a tool result detail or in the follow-up message)
+      const allTexts = JSON.stringify(entries.entries);
+      expect(allTexts).toContain("I am the target agent");
+    });
+
+    it("A2A messages do not require peering authorization", async () => {
+      const stub = getStub("a2a-no-peer-1");
+      setMockResponses([{ text: "No peering needed" }]);
+
+      // Send an A2A message directly — no peering headers, no auth
+      const { res, body } = await sendMessage(stub, "Hello without peering");
+
+      expect(res.status).toBe(200);
+      expect((body.result as R).status.state).toBe("completed");
+      const responseParts = (body.result as R).status.message.parts;
+      expect(responseParts.some((p: R) => p.text?.includes("No peering needed"))).toBe(true);
+    });
+  });
 });

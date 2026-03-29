@@ -16,6 +16,8 @@ export interface A2AToolOptions {
   getAgentStub: (id: string) => {
     fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   };
+  /** Resolve a registry UUID or friendly name to the DO identifier used by getAgentStub. */
+  resolveDoId?: (id: string) => string;
   callbackBaseUrl: string;
   maxDepth: number;
   authHeaders?: (targetAgent: string) => Record<string, string> | Promise<Record<string, string>>;
@@ -51,8 +53,9 @@ function resolveClient(targetAgent: string, options: A2AToolOptions): A2AHttpCli
     );
   }
 
-  // Same-platform agent — use DO stub
-  const stub = options.getAgentStub(targetAgent);
+  // Same-platform agent — resolve registry UUID / friendly name to DO identifier
+  const resolvedId = options.resolveDoId ? options.resolveDoId(targetAgent) : targetAgent;
+  const stub = options.getAgentStub(resolvedId);
   return new A2AHttpClient(
     "https://agent",
     stub.fetch.bind(stub) as typeof fetch,

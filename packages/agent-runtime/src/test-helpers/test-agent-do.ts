@@ -390,6 +390,16 @@ export class TestAgentDO extends AgentDO {
     return "You are a test agent. Respond concisely.";
   }
 
+  protected getA2AClientOptions() {
+    // biome-ignore lint/suspicious/noExplicitAny: Test environment — env is Record<string, unknown>
+    const agentNs = (this.env as any).AGENT as DurableObjectNamespace;
+    return {
+      getAgentStub: (id: string) => agentNs.get(agentNs.idFromName(id)),
+      resolveDoId: (id: string) => agentNs.idFromName(id).toString(),
+      callbackBaseUrl: "https://agent",
+    };
+  }
+
   /**
    * Override fetch to add test-specific endpoints.
    */
