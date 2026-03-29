@@ -1,3 +1,4 @@
+import { a2aClient, a2aServer, TaskStore } from "@claw-for-cloudflare/a2a";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentMessaging } from "@claw-for-cloudflare/agent-messaging";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
@@ -48,6 +49,13 @@ interface Env {
  * Demonstrates extending AgentDO with custom tools.
  */
 export class BasicAgent extends AgentDO<Env> {
+  private taskStore: TaskStore;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.taskStore = new TaskStore(ctx.storage.sql);
+  }
+
   getConfig(): AgentConfig {
     return {
       provider: "openrouter",
@@ -124,6 +132,18 @@ export class BasicAgent extends AgentDO<Env> {
         resolveDoId,
         agentId,
         ownerId: "default",
+      }),
+      a2aServer({
+        name: "Basic Agent",
+        url: "https://basic-agent.workers.dev",
+        taskStore: this.taskStore,
+        getSessionAgentHandle: (sid) => this.getSessionAgentHandle(sid),
+      }),
+      a2aClient({
+        agentId,
+        agentName: "Basic Agent",
+        getAgentStub,
+        callbackBaseUrl: "https://agent",
       }),
     ];
   }

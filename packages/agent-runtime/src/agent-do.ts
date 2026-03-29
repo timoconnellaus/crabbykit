@@ -1453,6 +1453,22 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
    * on busy agents (rejects with error instead), and creates sessions with
    * source: "agent".
    */
+
+  /**
+   * Get a handle to a session's running agent for external control (e.g., abort).
+   * Returns null if no agent is running for the session.
+   */
+  protected getSessionAgentHandle(
+    sessionId: string,
+  ): { abort: () => void; isStreaming: boolean } | null {
+    const agent = this.sessionAgents.get(sessionId);
+    if (!agent) return null;
+    return {
+      abort: () => agent.abort(),
+      isStreaming: agent.state.isStreaming,
+    };
+  }
+
   protected async handleAgentPrompt(opts: {
     text: string;
     sessionId?: string;

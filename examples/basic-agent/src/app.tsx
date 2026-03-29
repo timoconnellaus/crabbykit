@@ -152,9 +152,7 @@ function AgentRail({
         </button>
       </div>
       <div data-agent-ui="agent-rail-list">
-        {agents.length === 0 && (
-          <div data-agent-ui="agent-rail-empty">No agents</div>
-        )}
+        {agents.length === 0 && <div data-agent-ui="agent-rail-empty">No agents</div>}
         {agents.map((a) => (
           <button
             key={a.id}
@@ -290,9 +288,7 @@ export default function App() {
 
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const chat = useAgentChat({
-    url: selectedAgentId
-      ? `${wsProtocol}//${window.location.host}/agent/${selectedAgentId}`
-      : "",
+    url: selectedAgentId ? `${wsProtocol}//${window.location.host}/agent/${selectedAgentId}` : "",
     onCustomEvent,
   });
 

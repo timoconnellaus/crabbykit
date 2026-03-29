@@ -11,6 +11,7 @@
     "examples/basic-agent": {
       "name": "example-basic-agent",
       "dependencies": {
+        "@claw-for-cloudflare/a2a": "workspace:*",
         "@claw-for-cloudflare/agent-auth": "workspace:*",
         "@claw-for-cloudflare/agent-fleet": "workspace:*",
         "@claw-for-cloudflare/agent-messaging": "workspace:*",
@@ -40,6 +41,23 @@
         "typescript": "^5.7.0",
         "vite": "^6.0.0",
         "wrangler": "^4.0.0",
+      },
+    },
+    "packages/a2a": {
+      "name": "@claw-for-cloudflare/a2a",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+        "nanoid": "^5.1.5",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
       },
     },
     "packages/agent-auth": {
@@ -376,6 +394,8 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.4.9", "", { "os": "win32", "cpu": "arm64" }, "sha512-aDZr0RBC3sMGJOU10BvG7eZIlWLK/i51HRIfScE2lVhfts2dQTreowLiJJd+UYg/tHKxS470IbzpuKmd0MiD6g=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.4.9", "", { "os": "win32", "cpu": "x64" }, "sha512-NS4g/2G9SoQ4ktKtz31pvyc/rmgzlcIDCGU/zWbmHJAqx6gcRj2gj5Q/guXhoWTzCUaQZDIqiCQXHS7BcGYc0w=="],
+
+    "@claw-for-cloudflare/a2a": ["@claw-for-cloudflare/a2a@workspace:packages/a2a"],
 
     "@claw-for-cloudflare/agent-auth": ["@claw-for-cloudflare/agent-auth@workspace:packages/agent-auth"],
 

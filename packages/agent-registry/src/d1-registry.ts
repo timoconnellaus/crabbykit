@@ -45,9 +45,7 @@ export class D1AgentRegistry implements AgentRegistry {
         "CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_id TEXT NOT NULL, parent_agent_id TEXT, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL DEFAULT (datetime('now')))",
       )
       .run();
-    await this.db
-      .prepare("CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner_id)")
-      .run();
+    await this.db.prepare("CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner_id)").run();
     this.initialized = true;
   }
 

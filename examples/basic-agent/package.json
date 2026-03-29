@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@cloudflare/containers": "^0.1.0",
+    "@claw-for-cloudflare/a2a": "workspace:*",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-ui": "workspace:*",
     "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
