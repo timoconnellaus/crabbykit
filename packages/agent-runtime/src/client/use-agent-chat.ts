@@ -78,6 +78,8 @@ export interface UseAgentChatReturn {
   switchSession: (sessionId: string) => void;
   createSession: (name?: string) => void;
   deleteSession: (sessionId: string) => void;
+  /** Enable or disable a schedule by ID. */
+  toggleSchedule: (scheduleId: string, enabled: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -694,6 +696,13 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     [send],
   );
 
+  const toggleSchedule = useCallback(
+    (scheduleId: string, enabled: boolean) => {
+      send({ type: "toggle_schedule", scheduleId, enabled } as ClientMessage);
+    },
+    [send],
+  );
+
   const sendCommand = useCallback(
     (name: string, args?: string) => {
       if (!state.currentSessionId) return;
@@ -734,5 +743,6 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     switchSession,
     createSession,
     deleteSession,
+    toggleSchedule,
   };
 }

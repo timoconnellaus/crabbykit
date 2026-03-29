@@ -52,8 +52,9 @@ describe("Client Types", () => {
         command: true,
         ping: true,
         request_sync: true,
+        toggle_schedule: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(9);
+      expect(Object.keys(handlers)).toHaveLength(10);
     });
   });
 

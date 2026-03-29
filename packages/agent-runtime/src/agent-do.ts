@@ -516,6 +516,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     "delete_session",
     "command",
     "request_sync",
+    "toggle_schedule",
     "ping",
   ]);
 
@@ -538,6 +539,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     if (obj.type === "switch_session" && typeof obj.sessionId !== "string") {
       return '"switch_session" message requires a "sessionId" string field';
+    }
+
+    if (
+      obj.type === "toggle_schedule" &&
+      (typeof obj.scheduleId !== "string" || typeof obj.enabled !== "boolean")
+    ) {
+      return '"toggle_schedule" message requires a "scheduleId" string and "enabled" boolean field';
     }
 
     return null;
@@ -667,6 +675,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           cursor: pageLastSeq,
           hasMore: pageHasMore,
         });
+        break;
+      }
+
+      case "toggle_schedule": {
+        await this.updateSchedule(msg.scheduleId, { enabled: msg.enabled });
         break;
       }
 

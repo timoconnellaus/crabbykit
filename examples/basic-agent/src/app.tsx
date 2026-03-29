@@ -12,7 +12,7 @@ import {
 import { useCallback, useState } from "react";
 
 function SchedulePanel() {
-  const { schedules } = useChat();
+  const { schedules, toggleSchedule } = useChat();
 
   if (schedules.length === 0) return null;
 
@@ -20,11 +20,42 @@ function SchedulePanel() {
     <div data-agent-ui="schedule-list">
       <div data-agent-ui="schedule-heading">Schedules</div>
       {schedules.map((s) => (
-        <div key={s.id} data-agent-ui="schedule-item" data-status={s.status}>
+        <div key={s.id} data-agent-ui="schedule-item" data-status={s.status} style={{ position: "relative" }}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={s.enabled}
+            onClick={() => toggleSchedule(s.id, !s.enabled)}
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 36,
+              height: 20,
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+              background: s.enabled ? "#4ade80" : "#555",
+              transition: "background 0.2s",
+              padding: 0,
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "transform 0.2s",
+                transform: s.enabled ? "translateX(18px)" : "translateX(2px)",
+              }}
+            />
+          </button>
           <div data-agent-ui="schedule-name">{s.name}</div>
           <div data-agent-ui="schedule-meta">
             {!s.enabled ? "disabled" : s.status === "idle" ? "active" : s.status}
-            {s.nextFireAt && ` \u00B7 next ${new Date(s.nextFireAt).toLocaleTimeString()}`}
+            {s.nextFireAt && s.enabled && ` \u00B7 next ${new Date(s.nextFireAt).toLocaleTimeString()}`}
           </div>
         </div>
       ))}

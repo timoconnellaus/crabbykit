@@ -174,6 +174,12 @@ export interface RequestSyncMessage {
   afterSeq?: number;
 }
 
+export interface ToggleScheduleMessage {
+  type: "toggle_schedule";
+  scheduleId: string;
+  enabled: boolean;
+}
+
 export interface PingMessage {
   type: "ping";
 }
@@ -187,4 +193,5 @@ export type ClientMessage =
   | DeleteSessionMessage
   | CommandMessage
   | RequestSyncMessage
+  | ToggleScheduleMessage
   | PingMessage;

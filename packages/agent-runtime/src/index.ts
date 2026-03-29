@@ -25,7 +25,9 @@ export type {
   BeforeToolExecutionResult,
   Capability,
   CapabilityHookContext,
+  CapabilityHttpContext,
   CapabilityStorage,
+  HttpHandler,
   ResolvedCapabilities,
   ToolExecutionEvent,
 } from "./capabilities/index.js";
@@ -125,5 +127,6 @@ export type {
   RequestSyncMessage,
   SteerMessage,
   SwitchSessionMessage,
+  ToggleScheduleMessage,
   ToolEventMessage,
 } from "./transport/types.js";
