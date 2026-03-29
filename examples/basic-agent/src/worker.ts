@@ -134,8 +134,6 @@ export class BasicAgent extends AgentDO<Env> {
         ownerId: "default",
       }),
       a2aServer({
-        name: "Basic Agent",
-        url: "https://basic-agent.workers.dev",
         taskStore: this.taskStore,
         getSessionAgentHandle: (sid) => this.getSessionAgentHandle(sid),
       }),
