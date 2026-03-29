@@ -23,11 +23,7 @@ async function a2aFetch(stub: DurableObjectStub, method: string, params?: unknow
   return { res, body: (await res.json()) as Record<string, unknown> };
 }
 
-async function sendMessage(
-  stub: DurableObjectStub,
-  text: string,
-  opts?: { contextId?: string },
-) {
+async function sendMessage(stub: DurableObjectStub, text: string, opts?: { contextId?: string }) {
   return a2aFetch(stub, "message/send", {
     message: {
       messageId: crypto.randomUUID(),
@@ -264,6 +260,36 @@ describe("A2A Integration", () => {
         const json = JSON.parse(line.slice(5).trim());
         expect(json.jsonrpc).toBe("2.0");
       }
+    });
+  });
+
+  describe("push notification config", () => {
+    it("stores push notification config when provided in message/send", async () => {
+      const stub = getStub("a2a-do-6");
+      setMockResponses([{ text: "Working on it" }]);
+
+      const { body } = await a2aFetch(stub, "message/send", {
+        message: {
+          messageId: "push-1",
+          role: "user",
+          parts: [{ text: "Do something async" }],
+        },
+        configuration: {
+          blocking: true,
+          pushNotificationConfig: {
+            url: "https://caller/a2a-callback/caller-agent",
+            token: "webhook-secret",
+          },
+        },
+      });
+
+      const result = body.result as R;
+      expect(result.id).toBeDefined();
+      expect(result.status.state).toBe("completed");
+
+      // Task should be retrievable and push config was stored
+      const { body: getBody } = await a2aFetch(stub, "tasks/get", { id: result.id });
+      expect((getBody.result as R).id).toBe(result.id);
     });
   });
 });

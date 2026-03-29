@@ -176,10 +176,11 @@ export function createStartTaskTool(
       try {
         const depth = await checkDepth(storage, options.maxDepth);
 
-        // Generate webhook token for push notification verification
+        // Generate webhook token for push notification verification.
+        // Encode the caller's agent ID in the URL so the server can route via DO stub.
         const webhookToken = crypto.randomUUID();
         const pushConfig: PushNotificationConfig = {
-          url: `${options.callbackBaseUrl}/a2a-callback`,
+          url: `${options.callbackBaseUrl}/a2a-callback/${options.agentId}`,
           token: webhookToken,
         };
 

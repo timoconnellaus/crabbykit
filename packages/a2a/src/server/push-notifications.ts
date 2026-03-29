@@ -4,11 +4,15 @@ import type { TaskStore } from "./task-store.js";
 /**
  * Deliver a push notification to a registered webhook URL.
  * Best-effort — returns true on success, false on failure.
+ *
+ * @param fetchFn - Custom fetch function (e.g., DO stub fetch for same-platform delivery).
+ *                  Defaults to global fetch.
  */
 export async function deliverPushNotification(
   url: string,
   token: string | undefined,
   event: TaskStatusUpdateEvent,
+  fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
 ): Promise<boolean> {
   try {
     const headers: Record<string, string> = {
@@ -18,7 +22,7 @@ export async function deliverPushNotification(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    const response = await fetchFn(url, {
       method: "POST",
       headers,
       body: JSON.stringify(event),
@@ -34,14 +38,17 @@ export async function deliverPushNotification(
 /**
  * Look up push notification config for a task and deliver if configured.
  * Called by the executor when a task reaches a terminal state.
+ *
+ * @param fetchFn - Custom fetch function for delivery (e.g., stub-based fetch).
  */
 export async function firePushNotificationsForTask(
   taskStore: TaskStore,
   taskId: string,
   event: TaskStatusUpdateEvent,
+  fetchFn?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
 ): Promise<void> {
   const config = taskStore.getPushConfig(taskId);
   if (!config) return;
 
-  await deliverPushNotification(config.url, config.token, event);
+  await deliverPushNotification(config.url, config.token, event, fetchFn);
 }

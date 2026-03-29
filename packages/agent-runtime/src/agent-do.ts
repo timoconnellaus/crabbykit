@@ -1598,6 +1598,38 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     ];
   }
 
+  /**
+   * Build a fetch function that routes push notification callbacks through
+   * DO stubs for same-platform agents. Falls back to global fetch for external URLs.
+   *
+   * The callback URL format is: `{baseUrl}/a2a-callback/{agentId}`
+   * This extracts the agentId and uses getAgentStub to reach the target DO.
+   */
+  private buildA2AStubFetch():
+    | ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>)
+    | undefined {
+    const clientOpts = this.getA2AClientOptions();
+    if (!clientOpts) return undefined;
+
+    return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      // Match callback URLs with embedded agent ID: .../a2a-callback/{agentId}
+      const callbackMatch = url.match(/\/a2a-callback\/([^/?]+)/);
+      if (callbackMatch) {
+        const targetAgentId = callbackMatch[1];
+        const stub = clientOpts.getAgentStub(targetAgentId);
+        // Rewrite URL to the stub's perspective (strip the agent ID segment)
+        const stubUrl = url.replace(`/a2a-callback/${targetAgentId}`, "/a2a-callback");
+        return stub.fetch(stubUrl, init);
+      }
+
+      // Fallback to global fetch for external URLs
+      return fetch(input, init);
+    };
+  }
+
   private ensureA2AHandler(): { handler: A2AHandler; executor: ClawExecutor } {
     if (this.a2aHandler && this.a2aExecutor) {
       return { handler: this.a2aHandler, executor: this.a2aExecutor };
@@ -1677,6 +1709,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       executor.setContext({
         sendPrompt: (opts) => this.handleAgentPrompt(opts),
         sessionStore: this.sessionStore,
+        fetchFn: this.buildA2AStubFetch(),
       });
 
       // Parse and validate JSON-RPC
@@ -1727,9 +1760,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       if ("error" in result) {
         const { httpStatusForError } = await import("@claw-for-cloudflare/a2a");
-        const status = httpStatusForError(
-          (result as { error: { code: number } }).error.code,
-        );
+        const status = httpStatusForError((result as { error: { code: number } }).error.code);
         return new Response(JSON.stringify(result), {
           status,
           headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },

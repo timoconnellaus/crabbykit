@@ -50,6 +50,8 @@ export interface ClawExecutorOptions {
 export interface ClawExecutorContext {
   sendPrompt: SendPromptFn;
   sessionStore: SessionStore;
+  /** Custom fetch for push notification delivery (e.g., DO stub-based fetch). */
+  fetchFn?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
 
 // ============================================================================
@@ -264,6 +266,7 @@ export class ClawExecutor implements AgentExecutor {
   ): Promise<ExecuteResult> {
     // Fire and forget — run inference in the background
     const ctx = this.requireContext();
+    const pushFetchFn = ctx.fetchFn;
     ctx
       .sendPrompt({ text, sessionId, source: "a2a" })
       .then(({ response }: { response: string }) => {
@@ -280,12 +283,12 @@ export class ClawExecutor implements AgentExecutor {
         eventBus.emitStatusUpdate(taskId, contextId, completedStatus, true);
 
         // Fire push notification if configured
-        firePushNotificationsForTask(taskStore, taskId, {
+        firePushNotificationsForTask(
+          taskStore,
           taskId,
-          contextId,
-          status: completedStatus,
-          final: true,
-        });
+          { taskId, contextId, status: completedStatus, final: true },
+          pushFetchFn,
+        );
       })
       .catch((err: unknown) => {
         const failedStatus: TaskStatus = {
@@ -303,12 +306,12 @@ export class ClawExecutor implements AgentExecutor {
         };
         taskStore.updateStatus(taskId, failedStatus);
 
-        firePushNotificationsForTask(taskStore, taskId, {
+        firePushNotificationsForTask(
+          taskStore,
           taskId,
-          contextId,
-          status: failedStatus,
-          final: true,
-        });
+          { taskId, contextId, status: failedStatus, final: true },
+          pushFetchFn,
+        );
       });
 
     // Return immediately with working state
