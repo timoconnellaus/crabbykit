@@ -1584,13 +1584,21 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     await agent.prompt(opts.text);
     await agent.waitForIdle();
 
-    // Extract last assistant message
+    // Extract last assistant message text
     const messages = this.sessionStore.buildContext(sessionId);
     let response = "";
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (msg.role === "assistant" && typeof msg.content === "string") {
-        response = msg.content;
+      if (msg.role === "assistant") {
+        if (typeof msg.content === "string") {
+          response = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          // Content blocks from LLM: extract text from TextContent items
+          response = (msg.content as Array<{ type?: string; text?: string }>)
+            .filter((block) => block.type === "text" && typeof block.text === "string")
+            .map((block) => block.text)
+            .join("");
+        }
         break;
       }
     }
