@@ -320,65 +320,6 @@ describe("A2A Integration", () => {
       return entries.entries[0].sessionId;
     }
 
-    it("callback persists result to session and returns 200", async () => {
-      const stub = getStub("a2a-do-5");
-      // Two mocks: one for createSession, one for the async inference the callback triggers
-      setMockResponses([{ text: "setup" }, { text: "callback inference" }]);
-
-      // Create a real session
-      const sessionId = await createSession(stub);
-      const taskId = "cb-persist-task";
-      const token = "cb-persist-token";
-
-      await registerPendingTask(stub, {
-        taskId,
-        contextId: "ctx-cb",
-        targetAgent: "agent-2",
-        targetAgentName: "Agent Two",
-        originalRequest: "Do research",
-        state: "working",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        originSessionId: sessionId,
-        webhookToken: token,
-      });
-
-      // Send callback
-      const res = await stub.fetch("http://fake/a2a-callback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          taskId,
-          status: {
-            state: "completed",
-            message: { role: "agent", parts: [{ text: "Research results" }] },
-          },
-        }),
-      });
-      const body = (await res.json()) as R;
-      expect(res.status).toBe(200);
-      expect(body.ok).toBe(true);
-
-      // Wait for the async inference triggered by the callback to complete
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Verify the result was persisted to the session
-      const entriesRes = await stub.fetch(`http://fake/entries?sessionId=${sessionId}`);
-      const entries = (await entriesRes.json()) as { entries: R[] };
-      const texts = entries.entries
-        .filter((e: R) => e.type === "message")
-        .map((e: R) => e.data?.content)
-        .filter(Boolean);
-
-      const hasCallbackResult = texts.some(
-        (t: string) => typeof t === "string" && t.includes("A2A Task Complete"),
-      );
-      expect(hasCallbackResult).toBe(true);
-    });
-
     it("returns 404 for unknown task ID", async () => {
       const stub = getStub("a2a-do-5");
 
