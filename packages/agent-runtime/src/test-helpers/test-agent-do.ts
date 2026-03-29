@@ -354,6 +354,10 @@ export class TestAgentDO extends AgentDO {
       modelId: "openrouter/auto",
       apiKey: "test-key",
       maxSteps: 10,
+      a2a: {
+        discoverable: true,
+        acceptMessages: true,
+      },
     };
   }
 
