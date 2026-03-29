@@ -164,6 +164,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private a2aExecutor: ClawExecutor | null = null;
   /** Queued A2A task results that arrived while agent was busy. Processed on agent_end. */
   private pendingA2AResults = new Map<string, string[]>();
+  /** Tracked fire-and-forget async operations (e.g., callback-triggered prompts). */
+  protected pendingAsyncOps = new Set<Promise<unknown>>();
 
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
@@ -1018,11 +1020,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         const pendingResults = this.pendingA2AResults.get(sessionId);
         if (pendingResults && pendingResults.length > 0) {
           this.pendingA2AResults.delete(sessionId);
-          this.handleAgentPrompt({
+          const op = this.handleAgentPrompt({
             text: pendingResults.join("\n\n"),
             sessionId,
             source: "a2a-callback",
-          }).catch((err) => console.error("[a2a] post-inference callback prompt failed:", err));
+          })
+            .catch((err) => console.error("[a2a] post-inference callback prompt failed:", err))
+            .finally(() => this.pendingAsyncOps.delete(op));
+          this.pendingAsyncOps.add(op);
+          this.ctx.waitUntil(op);
         }
       }
     });
@@ -1880,12 +1886,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         queue.push(resultText);
         this.pendingA2AResults.set(pending.originSessionId, queue);
       } else {
-        // Agent is idle — trigger inference immediately
-        this.handleAgentPrompt({
+        // Agent is idle — trigger inference in the background.
+        // Use ctx.waitUntil so the DO runtime keeps the I/O context alive
+        // until inference completes (important for tests and hibernation).
+        const op = this.handleAgentPrompt({
           text: resultText,
           sessionId: pending.originSessionId,
           source: "a2a-callback",
-        }).catch((err) => console.error("[a2a] callback prompt failed:", err));
+        })
+          .catch((err) => console.error("[a2a] callback prompt failed:", err))
+          .finally(() => this.pendingAsyncOps.delete(op));
+        this.pendingAsyncOps.add(op);
+        this.ctx.waitUntil(op);
       }
 
       // Clean up pending task

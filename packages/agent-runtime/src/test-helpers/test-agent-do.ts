@@ -488,6 +488,14 @@ export class TestAgentDO extends AgentDO {
       });
     }
 
+    // Wait for all pending async operations (e.g., fire-and-forget callback prompts)
+    if (request.method === "POST" && url.pathname === "/wait-idle") {
+      await Promise.all(this.pendingAsyncOps);
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     // Register a pending A2A task for testing callback injection
     if (request.method === "POST" && url.pathname === "/register-pending-task") {
       const { PendingTaskStore } = await import("@claw-for-cloudflare/a2a");

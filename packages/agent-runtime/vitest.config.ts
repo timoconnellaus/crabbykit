@@ -9,6 +9,10 @@ export default defineWorkersConfig({
     ],
     poolOptions: {
       workers: {
+        // Disabled because @cloudflare/vitest-pool-workers' isolated storage
+        // frame checker doesn't handle .sqlite-shm/.sqlite-wal files created
+        // by DO KV storage operations. Tests use unique DO names for isolation.
+        isolatedStorage: false,
         wrangler: {
           configPath: "./wrangler.test.jsonc",
         },

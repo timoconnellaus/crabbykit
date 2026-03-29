@@ -37,8 +37,10 @@ async function sendMessage(stub: DurableObjectStub, text: string, opts?: { conte
 // biome-ignore lint/suspicious/noExplicitAny: Test type flexibility
 type R = any;
 
-// Use a small number of DO instances to avoid isolated storage issues.
-// Tests within a describe block share a stub but use unique contextIds.
+// Each describe block uses a unique DO instance name for test isolation.
+// Isolated storage is disabled in vitest.config.ts because the pool-workers
+// runner's storage frame checker doesn't handle .sqlite-shm files created
+// by DO KV storage operations (used by the A2A callback handler).
 describe("A2A Integration", () => {
   beforeEach(() => {
     clearMockResponses();
@@ -321,7 +323,7 @@ describe("A2A Integration", () => {
     }
 
     it("returns 404 for unknown task ID", async () => {
-      const stub = getStub("a2a-do-5");
+      const stub = getStub("a2a-do-7");
 
       const res = await stub.fetch("http://fake/a2a-callback", {
         method: "POST",
@@ -337,11 +339,8 @@ describe("A2A Integration", () => {
       expect(res.status).toBe(404);
     });
 
-    // NOTE: This test must be LAST in the suite because the callback triggers
-    // an async handleAgentPrompt that creates DO storage operations which can
-    // interfere with the isolated storage frame cleanup.
     it("callback persists result to session and returns 200", async () => {
-      const stub = getStub("a2a-do-5");
+      const stub = getStub("a2a-do-7");
       // Two mocks: one for createSession, one for the async inference the callback triggers
       setMockResponses([{ text: "setup" }, { text: "callback inference" }]);
 
@@ -382,8 +381,11 @@ describe("A2A Integration", () => {
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
 
-      // Wait for the async inference triggered by the callback to complete
-      await new Promise((r) => setTimeout(r, 500));
+      // Wait for the async inference triggered by the callback to complete.
+      // The callback fires handleAgentPrompt as fire-and-forget; this endpoint
+      // drains all tracked pending async operations on the DO.
+      const waitRes = await stub.fetch("http://fake/wait-idle", { method: "POST" });
+      await waitRes.json();
 
       // Verify the result was persisted to the session
       const entriesRes = await stub.fetch(`http://fake/entries?sessionId=${sessionId}`);
