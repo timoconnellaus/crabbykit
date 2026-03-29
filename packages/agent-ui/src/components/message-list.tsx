@@ -99,7 +99,13 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   }, [messageCount]);
 
   return (
-    <ScrollArea.Root data-agent-ui="message-list-root" role="log" aria-live="polite" ref={ref} {...props}>
+    <ScrollArea.Root
+      data-agent-ui="message-list-root"
+      role="log"
+      aria-live="polite"
+      ref={ref}
+      {...props}
+    >
       <ScrollArea.Viewport data-agent-ui="message-list-viewport" ref={viewportRef}>
         {messages.length === 0 && agentStatus === "idle" && !error && (
           <div data-agent-ui="message-list-empty">Send a message to get started</div>

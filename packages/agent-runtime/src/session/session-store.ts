@@ -1,10 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import { nanoid } from "nanoid";
-import type {
-  Session,
-  SessionEntry,
-  SessionEntryType,
-} from "./types.js";
+import type { Session, SessionEntry, SessionEntryType } from "./types.js";
 
 const DEFAULT_SESSION_SOURCE = "websocket";
 
@@ -329,10 +325,7 @@ export class SessionStore {
 
     const ids = unreachable.map((e) => e.id);
     const placeholders = ids.map(() => "?").join(",");
-    this.sql.exec(
-      `DELETE FROM session_entries WHERE id IN (${placeholders})`,
-      ...ids,
-    );
+    this.sql.exec(`DELETE FROM session_entries WHERE id IN (${placeholders})`, ...ids);
 
     return unreachable.length;
   }

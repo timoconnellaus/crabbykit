@@ -92,7 +92,10 @@ describe("createFetchTool", () => {
     mockFetch.mockResolvedValue(jsonResponse({ key: "value" }));
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute({ url: "https://api.example.com/data" }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { url: "https://api.example.com/data" },
+      { toolCallId: "test" },
+    );
 
     expect(textOf(result)).toBe('{\n  "key": "value"\n}');
   });
@@ -137,7 +140,10 @@ describe("createFetchTool", () => {
     mockFetch.mockResolvedValue(new Response("Not Found", { status: 404 }));
 
     const tool = createFetchTool(undefined, undefined, mockContext());
-    const result = await tool.execute({ url: "https://example.com/missing" }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { url: "https://example.com/missing" },
+      { toolCallId: "test" },
+    );
 
     expect(textOf(result)).toContain("404");
   });

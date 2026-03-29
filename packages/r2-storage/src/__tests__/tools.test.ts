@@ -89,7 +89,10 @@ describe("file_write", () => {
   });
 
   it("writes a file", async () => {
-    const result = await tool.execute({ path: "new.txt", content: "hello world" }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { path: "new.txt", content: "hello world" },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("Successfully wrote");
     expect(textOf(result)).toContain("11 bytes");
 
@@ -109,7 +112,10 @@ describe("file_write", () => {
 
   it("rejects content exceeding 1MB", async () => {
     const bigContent = "x".repeat(1_048_577);
-    const result = await tool.execute({ path: "big.txt", content: bigContent }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { path: "big.txt", content: bigContent },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("Error: Content size");
     expect(textOf(result)).toContain("1MB limit");
   });
@@ -136,11 +142,14 @@ describe("file_edit", () => {
   });
 
   it("replaces a unique string", async () => {
-    const result = await tool.execute({
-      path: "code.ts",
-      old_string: '"hello"',
-      new_string: '"hi"',
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "code.ts",
+        old_string: '"hello"',
+        new_string: '"hi"',
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("Successfully replaced 1 occurrence");
 
     const obj = await bucket.get(`${PREFIX}/code.ts`);
@@ -150,51 +159,66 @@ describe("file_edit", () => {
 
   it("errors on ambiguous match without replace_all", async () => {
     await bucket.put(`${PREFIX}/dup.ts`, "foo foo foo");
-    const result = await tool.execute({
-      path: "dup.ts",
-      old_string: "foo",
-      new_string: "bar",
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "dup.ts",
+        old_string: "foo",
+        new_string: "bar",
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("Found 3 occurrences");
   });
 
   it("replaces all occurrences with replace_all", async () => {
     await bucket.put(`${PREFIX}/dup.ts`, "foo foo foo");
-    const result = await tool.execute({
-      path: "dup.ts",
-      old_string: "foo",
-      new_string: "bar",
-      replace_all: true,
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "dup.ts",
+        old_string: "foo",
+        new_string: "bar",
+        replace_all: true,
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("Successfully replaced 3 occurrences");
     const obj = await bucket.get(`${PREFIX}/dup.ts`);
     expect(await obj!.text()).toBe("bar bar bar");
   });
 
   it("returns no-op for identical strings", async () => {
-    const result = await tool.execute({
-      path: "code.ts",
-      old_string: "same",
-      new_string: "same",
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "code.ts",
+        old_string: "same",
+        new_string: "same",
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("No changes made");
   });
 
   it("errors when string not found", async () => {
-    const result = await tool.execute({
-      path: "code.ts",
-      old_string: "nonexistent",
-      new_string: "replacement",
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "code.ts",
+        old_string: "nonexistent",
+        new_string: "replacement",
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("String not found");
   });
 
   it("errors for missing file", async () => {
-    const result = await tool.execute({
-      path: "nope.ts",
-      old_string: "a",
-      new_string: "b",
-    }, { toolCallId: "test" });
+    const result = await tool.execute(
+      {
+        path: "nope.ts",
+        old_string: "a",
+        new_string: "b",
+      },
+      { toolCallId: "test" },
+    );
     expect(textOf(result)).toContain("File not found");
   });
 });

@@ -47,7 +47,12 @@ export function tavilyWebSearch(options: TavilyWebSearchOptions): Capability {
     name: "Web Search (Tavily)",
     description: "Search the web and fetch URLs for current information.",
     tools: (context: AgentContext) => [
-      createSearchTool(getApiKey, options.maxResults ?? DEFAULT_MAX_RESULTS, context, options.searchDefaults),
+      createSearchTool(
+        getApiKey,
+        options.maxResults ?? DEFAULT_MAX_RESULTS,
+        context,
+        options.searchDefaults,
+      ),
       createFetchTool(options.userAgent, options.maxFetchSize, context),
     ],
     promptSections: () => [

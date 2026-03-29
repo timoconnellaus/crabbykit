@@ -109,6 +109,13 @@ export interface Capability {
    */
   configNamespaces?: (context: AgentContext) => ConfigNamespace[];
 
+  /**
+   * HTTP request handlers contributed by this capability.
+   * Registered on the Durable Object's fetch() method.
+   * Use for inter-agent communication, webhooks, or any HTTP API surface.
+   */
+  httpHandlers?: (context: AgentContext) => HttpHandler[];
+
   /** Lifecycle hooks. */
   hooks?: {
     /**
@@ -158,4 +165,36 @@ export interface Capability {
       ctx: CapabilityHookContext,
     ) => Promise<void>;
   };
+}
+
+/** An HTTP request handler contributed by a capability. */
+export interface HttpHandler {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  /** Path to match (e.g., "/agent-handshake"). Must start with /. */
+  path: string;
+  handler: (request: Request, ctx: CapabilityHttpContext) => Promise<Response>;
+}
+
+/**
+ * Context provided to capability HTTP handlers.
+ * Similar to CapabilityHookContext but without sessionId (HTTP handlers are session-less)
+ * and with sendPrompt for triggering agent inference.
+ */
+export interface CapabilityHttpContext {
+  sessionStore: SessionStore;
+  /** Persistent key-value storage scoped to this capability. */
+  storage: CapabilityStorage;
+  /** Broadcast a custom event to ALL connected WebSocket clients. */
+  broadcastToAll: (name: string, data: Record<string, unknown>) => void;
+  /**
+   * Inject a prompt and run agent inference. Returns when the agent completes.
+   * Creates a new session if sessionId is not provided.
+   * Rejects with 409 if the session's agent is already busy.
+   */
+  sendPrompt: (opts: {
+    text: string;
+    sessionId?: string;
+    sessionName?: string;
+    source?: string;
+  }) => Promise<{ sessionId: string; response: string }>;
 }

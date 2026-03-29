@@ -6,10 +6,7 @@ import { toR2Key, validatePath } from "./paths.js";
  * Create a file_move tool backed by an R2 bucket.
  * Implemented as copy + delete (R2 has no native move/rename).
  */
-export function createFileMoveTool(
-  getBucket: () => R2Bucket,
-  getPrefix: () => string,
-): AgentTool {
+export function createFileMoveTool(getBucket: () => R2Bucket, getPrefix: () => string): AgentTool {
   return defineTool({
     name: "file_move",
     description:

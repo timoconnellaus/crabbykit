@@ -102,6 +102,7 @@ interface ChatState {
 }
 
 type ChatAction =
+  | { type: "RESET" }
   | { type: "SET_MESSAGES"; messages: AgentMessage[] }
   | { type: "ADD_MESSAGE"; message: AgentMessage }
   | { type: "SET_CONNECTION_STATUS"; connectionStatus: ConnectionStatus }
@@ -144,6 +145,8 @@ type ChatAction =
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
+    case "RESET":
+      return createInitialState(undefined);
     case "SET_MESSAGES":
       return { ...state, messages: action.messages };
     case "ADD_MESSAGE":
@@ -210,7 +213,10 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       if (thinkingToAttach && messages.length > 0) {
         const last = messages[messages.length - 1] as StreamableMessage;
         if ("role" in last && last.role === "assistant") {
-          messages = [...messages.slice(0, -1), { ...last, _thinking: thinkingToAttach } as AgentMessage];
+          messages = [
+            ...messages.slice(0, -1),
+            { ...last, _thinking: thinkingToAttach } as AgentMessage,
+          ];
         }
       }
       return {
@@ -287,6 +293,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const currentSessionIdRef = useRef<string | null>(config.sessionId ?? null);
   /** Set to true by effect cleanup to suppress reconnect from stale onclose handlers. */
   const disposedRef = useRef(false);
+  /** Tracks the active URL so stale onclose handlers from a previous URL don't trigger reconnects. */
+  const activeUrlRef = useRef(config.url);
   const onCustomEventRef = useRef(config.onCustomEvent);
   onCustomEventRef.current = config.onCustomEvent;
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -533,11 +541,23 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   }, []);
 
   const connect = useCallback(async () => {
+    // Skip connection when URL is empty (e.g. before agent ID is loaded)
+    if (!config.url) {
+      dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "disconnected" });
+      return;
+    }
+
+    // Capture the URL this connection was created for, so the onclose handler
+    // can detect whether it belongs to a stale connection (URL changed).
+    const connectUrl = config.url;
+
     dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "connecting" });
 
     let url = config.url;
     if (config.getToken) {
       const token = await config.getToken();
+      // If the URL changed while we were awaiting the token, bail out
+      if (activeUrlRef.current !== connectUrl) return;
       const separator = url.includes("?") ? "&" : "?";
       url = `${url}${separator}token=${encodeURIComponent(token)}`;
     }
@@ -574,7 +594,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
     ws.onclose = () => {
       dispatch({ type: "SET_CONNECTION_STATUS", connectionStatus: "disconnected" });
-      wsRef.current = null;
+      // Only clear wsRef if this is still the active connection
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+      }
 
       // Clean up heartbeat timers
       if (pingIntervalRef.current) {
@@ -586,8 +609,11 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         pongTimeoutRef.current = null;
       }
 
-      // Don't reconnect if the effect was cleaned up (HMR / unmount)
+      // Don't reconnect if:
+      // 1. The effect was cleaned up (HMR / unmount)
+      // 2. The URL has changed since this connection was created (agent switch)
       if (disposedRef.current) return;
+      if (activeUrlRef.current !== connectUrl) return;
 
       if (config.autoReconnect !== false) {
         const delay = Math.min(
@@ -609,11 +635,21 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
   useEffect(() => {
     disposedRef.current = false;
+    activeUrlRef.current = config.url;
+
+    // Reset all agent-specific state so stale data from the previous agent
+    // is never rendered while waiting for the new agent's session_sync.
+    dispatch({ type: "RESET" });
+    currentSessionIdRef.current = null;
+    streamMessageRef.current = null;
+    reconnectAttemptRef.current = 0;
+
     connect();
     return () => {
       disposedRef.current = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);

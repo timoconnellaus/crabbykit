@@ -10,6 +10,7 @@ import type {
   BeforeToolExecutionResult,
   Capability,
   CapabilityHookContext,
+  CapabilityHttpContext,
   ToolExecutionEvent,
 } from "./types.js";
 
@@ -32,6 +33,13 @@ export interface ResolvedCapabilities {
   >;
   onConnectHooks: Array<(ctx: CapabilityHookContext) => Promise<void>>;
   schedules: ResolvedScheduleDeclaration[];
+  httpHandlers: Array<{
+    method: string;
+    path: string;
+    handler: (request: Request, ctx: CapabilityHttpContext) => Promise<Response>;
+    capabilityId: string;
+    storage: CapabilityStorage;
+  }>;
 }
 
 /**
@@ -60,6 +68,8 @@ export function resolveCapabilities(
   const afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   const onConnectHooks: ResolvedCapabilities["onConnectHooks"] = [];
   const schedules: ResolvedScheduleDeclaration[] = [];
+  const httpHandlers: ResolvedCapabilities["httpHandlers"] = [];
+  const httpHandlerKeys = new Set<string>();
   const getStorage = createStorage ?? (() => createNoopStorage());
 
   for (const cap of capabilities) {
@@ -131,6 +141,25 @@ export function resolveCapabilities(
       const rawHook = cap.hooks.onConnect;
       onConnectHooks.push(async (ctx) => rawHook({ ...ctx, storage: capStorage }));
     }
+
+    if (cap.httpHandlers) {
+      for (const h of cap.httpHandlers(capContext)) {
+        const key = `${h.method}:${h.path}`;
+        if (httpHandlerKeys.has(key)) {
+          throw new Error(
+            `[capabilities] HTTP handler collision: ${h.method} ${h.path} from capability "${cap.id}" — already registered`,
+          );
+        }
+        httpHandlerKeys.add(key);
+        httpHandlers.push({
+          method: h.method,
+          path: h.path,
+          handler: h.handler,
+          capabilityId: cap.id,
+          storage: capStorage,
+        });
+      }
+    }
   }
 
   return {
@@ -143,5 +172,6 @@ export function resolveCapabilities(
     afterToolExecutionHooks,
     onConnectHooks,
     schedules,
+    httpHandlers,
   };
 }

@@ -18,11 +18,7 @@ function findNamespace(
  * Create the config_get tool that reads agent configuration by namespace.
  */
 export function createConfigGet(ctx: ConfigContext) {
-  const namespaceList = [
-    "capability:{id}",
-    "session",
-    ...ctx.namespaces.map((ns) => ns.id),
-  ];
+  const namespaceList = ["capability:{id}", "session", ...ctx.namespaces.map((ns) => ns.id)];
 
   return defineTool({
     name: "config_get",
@@ -43,8 +39,7 @@ export function createConfigGet(ctx: ConfigContext) {
         const id = capMatch[1];
         const cap = ctx.capabilities.find((c) => c.id === id);
         if (!cap) return toolResult.error(`Unknown capability: ${id}`);
-        const config =
-          (await ctx.configStore.getCapabilityConfig(id)) ?? cap.configDefault ?? {};
+        const config = (await ctx.configStore.getCapabilityConfig(id)) ?? cap.configDefault ?? {};
         return toolResult.text(JSON.stringify(config, null, 2));
       }
 

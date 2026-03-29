@@ -11,6 +11,11 @@
     "examples/basic-agent": {
       "name": "example-basic-agent",
       "dependencies": {
+        "@claw-for-cloudflare/agent-auth": "workspace:*",
+        "@claw-for-cloudflare/agent-fleet": "workspace:*",
+        "@claw-for-cloudflare/agent-messaging": "workspace:*",
+        "@claw-for-cloudflare/agent-peering": "workspace:*",
+        "@claw-for-cloudflare/agent-registry": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@claw-for-cloudflare/agent-ui": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
@@ -37,6 +42,15 @@
         "wrangler": "^4.0.0",
       },
     },
+    "packages/agent-auth": {
+      "name": "@claw-for-cloudflare/agent-auth",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/agent-core": {
       "name": "@claw-for-cloudflare/agent-core",
       "version": "0.0.1",
@@ -46,6 +60,60 @@
       },
       "devDependencies": {
         "typescript": "^5.7.0",
+      },
+    },
+    "packages/agent-fleet": {
+      "name": "@claw-for-cloudflare/agent-fleet",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-auth": "workspace:*",
+        "@claw-for-cloudflare/agent-registry": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@claw-for-cloudflare/agent-peering": "workspace:*",
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/agent-messaging": {
+      "name": "@claw-for-cloudflare/agent-messaging",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-auth": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@claw-for-cloudflare/agent-peering": "workspace:*",
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/agent-peering": {
+      "name": "@claw-for-cloudflare/agent-peering",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-auth": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/agent-registry": {
+      "name": "@claw-for-cloudflare/agent-registry",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
       },
     },
     "packages/agent-runtime": {
@@ -309,7 +377,17 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.4.9", "", { "os": "win32", "cpu": "x64" }, "sha512-NS4g/2G9SoQ4ktKtz31pvyc/rmgzlcIDCGU/zWbmHJAqx6gcRj2gj5Q/guXhoWTzCUaQZDIqiCQXHS7BcGYc0w=="],
 
+    "@claw-for-cloudflare/agent-auth": ["@claw-for-cloudflare/agent-auth@workspace:packages/agent-auth"],
+
     "@claw-for-cloudflare/agent-core": ["@claw-for-cloudflare/agent-core@workspace:packages/agent-core"],
+
+    "@claw-for-cloudflare/agent-fleet": ["@claw-for-cloudflare/agent-fleet@workspace:packages/agent-fleet"],
+
+    "@claw-for-cloudflare/agent-messaging": ["@claw-for-cloudflare/agent-messaging@workspace:packages/agent-messaging"],
+
+    "@claw-for-cloudflare/agent-peering": ["@claw-for-cloudflare/agent-peering@workspace:packages/agent-peering"],
+
+    "@claw-for-cloudflare/agent-registry": ["@claw-for-cloudflare/agent-registry@workspace:packages/agent-registry"],
 
     "@claw-for-cloudflare/agent-runtime": ["@claw-for-cloudflare/agent-runtime@workspace:packages/agent-runtime"],
 

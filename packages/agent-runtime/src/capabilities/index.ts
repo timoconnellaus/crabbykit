@@ -7,5 +7,7 @@ export type {
   BeforeToolExecutionResult,
   Capability,
   CapabilityHookContext,
+  CapabilityHttpContext,
+  HttpHandler,
   ToolExecutionEvent,
 } from "./types.js";

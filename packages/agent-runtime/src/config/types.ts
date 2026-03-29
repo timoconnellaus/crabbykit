@@ -4,6 +4,7 @@ import type { ConfigStore } from "./config-store.js";
 
 // Re-export from shared location
 export type { ConfigNamespace } from "./config-namespace.js";
+
 import type { ConfigNamespace } from "./config-namespace.js";
 
 /**

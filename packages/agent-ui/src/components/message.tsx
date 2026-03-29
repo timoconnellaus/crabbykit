@@ -18,7 +18,10 @@ function formatRelativeTime(timestamp: number): string {
 
 /** AgentMessage with an optional streaming flag added during live updates. */
 // biome-ignore lint/style/useNamingConvention: _streaming/_thinking are conventions for internal transient state
-type StreamableMessage = AgentMessage & { _streaming?: boolean; _thinking?: string } & Partial<CommandResultTag>;
+type StreamableMessage = AgentMessage & {
+  _streaming?: boolean;
+  _thinking?: string;
+} & Partial<CommandResultTag>;
 
 export interface MessageProps extends ComponentPropsWithoutRef<"div"> {
   message: StreamableMessage;
@@ -247,7 +250,7 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
         const src =
           img.source?.type === "base64" && img.source.data
             ? `data:${img.source.media_type ?? "image/png"};base64,${img.source.data}`
-            : img.url ?? undefined;
+            : (img.url ?? undefined);
         if (!src) return null;
         return (
           <img

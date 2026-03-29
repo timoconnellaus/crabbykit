@@ -40,9 +40,6 @@ export {
 export type { Command, CommandContext, CommandResult } from "./commands/index.js";
 // Commands
 export { defineCommand } from "./commands/index.js";
-// Config tools
-export { ConfigStore, createConfigGet, createConfigSchema, createConfigSet } from "./config/index.js";
-export type { ConfigContext, ConfigNamespace } from "./config/index.js";
 // Compaction
 export {
   buildSummarizationPrompt,
@@ -63,6 +60,14 @@ export type {
   CompactionResult,
   SummarizeFn,
 } from "./compaction/types.js";
+export type { ConfigContext, ConfigNamespace } from "./config/index.js";
+// Config tools
+export {
+  ConfigStore,
+  createConfigGet,
+  createConfigSchema,
+  createConfigSet,
+} from "./config/index.js";
 // Costs
 export type { CostEvent } from "./costs/index.js";
 // MCP client
@@ -117,14 +122,14 @@ export type {
   ErrorMessage,
   McpStatusMessage,
   NewSessionMessage,
+  PingMessage,
+  PongMessage,
   PromptMessage,
+  RequestSyncMessage,
   ScheduleListMessage,
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,
-  PingMessage,
-  PongMessage,
-  RequestSyncMessage,
   SteerMessage,
   SwitchSessionMessage,
   ToggleScheduleMessage,

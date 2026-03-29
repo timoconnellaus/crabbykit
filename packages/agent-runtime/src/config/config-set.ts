@@ -29,11 +29,7 @@ function findNamespace(
  * Create the config_set tool that updates agent configuration by namespace.
  */
 export function createConfigSet(ctx: ConfigContext) {
-  const namespaceList = [
-    "capability:{id}",
-    "session",
-    ...ctx.namespaces.map((ns) => ns.id),
-  ];
+  const namespaceList = ["capability:{id}", "session", ...ctx.namespaces.map((ns) => ns.id)];
 
   return defineTool({
     name: "config_set",
@@ -86,7 +82,12 @@ export function createConfigSet(ctx: ConfigContext) {
           const hookContext: CapabilityHookContext = {
             sessionId: ctx.sessionId,
             sessionStore: ctx.sessionStore,
-            storage: { get: async () => undefined, put: async () => {}, delete: async () => false, list: async () => new Map() },
+            storage: {
+              get: async () => undefined,
+              put: async () => {},
+              delete: async () => false,
+              list: async () => new Map(),
+            },
           };
           try {
             await cap.hooks.onConfigChange(
@@ -136,9 +137,7 @@ export function createConfigSet(ctx: ConfigContext) {
             typeof result === "string" ? result : `Configuration updated: ${namespace}`,
           );
         } catch (err) {
-          return toolResult.error(
-            err instanceof Error ? err.message : String(err),
-          );
+          return toolResult.error(err instanceof Error ? err.message : String(err));
         }
       }
 

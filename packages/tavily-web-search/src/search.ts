@@ -46,7 +46,7 @@ export function createSearchTool(
       ),
       include_domains: Type.Optional(
         Type.Array(Type.String(), {
-          description: "Restrict results to these domains (e.g. [\"example.com\"]).",
+          description: 'Restrict results to these domains (e.g. ["example.com"]).',
         }),
       ),
       exclude_domains: Type.Optional(
@@ -73,10 +73,10 @@ export function createSearchTool(
             query,
             max_results: maxResults,
             search_depth: search_depth ?? defaults?.searchDepth ?? "basic",
-            ...(include_domains ?? defaults?.includeDomains
+            ...((include_domains ?? defaults?.includeDomains)
               ? { include_domains: include_domains ?? defaults?.includeDomains }
               : {}),
-            ...(exclude_domains ?? defaults?.excludeDomains
+            ...((exclude_domains ?? defaults?.excludeDomains)
               ? { exclude_domains: exclude_domains ?? defaults?.excludeDomains }
               : {}),
           }),

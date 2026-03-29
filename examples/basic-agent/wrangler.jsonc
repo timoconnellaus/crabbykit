@@ -8,7 +8,9 @@
   "vars": {
     // R2 bucket name — must match the r2_buckets bucket_name below.
     // Used by SandboxContainer to configure FUSE mount inside the container.
-    "R2_BUCKET_NAME": "basic-agent-storage"
+    "R2_BUCKET_NAME": "basic-agent-storage",
+    // Agent-ops shared secret (override in production via wrangler secret put)
+    "AGENT_SECRET": "dev-secret-change-in-production"
   },
   // Secrets (set via `wrangler secret put`):
   // - OPENROUTER_API_KEY
@@ -50,6 +52,13 @@
       "binding": "MEMORY_INDEX",
       "index_name": "basic-agent-memory",
       "remote": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "AGENT_DB",
+      "database_name": "agent-registry",
+      "database_id": "local"
     }
   ],
   "migrations": [

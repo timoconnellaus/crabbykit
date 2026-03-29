@@ -75,7 +75,12 @@ function resolveSchema(namespace: string, ctx: ConfigContext): unknown | null {
   if (capMatch) {
     const cap = ctx.capabilities.find((c) => c.id === capMatch[1]);
     if (!cap) return null;
-    return cap.configSchema ?? { type: "object", description: `${cap.name} does not accept configuration.` };
+    return (
+      cap.configSchema ?? {
+        type: "object",
+        description: `${cap.name} does not accept configuration.`,
+      }
+    );
   }
 
   const ns = ctx.namespaces.find((n) => n.id === namespace);

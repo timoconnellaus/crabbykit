@@ -56,7 +56,10 @@ describe("start_process tool", () => {
   it("rejects when not elevated", async () => {
     const ctx = mockContext(false);
     const tool = getTool("start_process", ctx);
-    const result = await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { name: "dev", command: "npm start" },
+      { toolCallId: "test" },
+    );
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("elevate");
   });
@@ -66,7 +69,10 @@ describe("start_process tool", () => {
     const ctx = mockContext(true);
     const tool = getToolWithProvider("start_process", provider, ctx);
 
-    const result = await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
+    const result = await tool.execute(
+      { name: "dev", command: "npm start" },
+      { toolCallId: "test" },
+    );
     expect(provider.processStart).toHaveBeenCalledWith("dev", "npm start", "/mnt/r2");
 
     const text = (result.content[0] as { text: string }).text;

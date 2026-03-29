@@ -1,8 +1,4 @@
-import type {
-  AgentContext,
-  Capability,
-  ConfigNamespace,
-} from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, Capability, ConfigNamespace } from "@claw-for-cloudflare/agent-runtime";
 import { Type, validateCron } from "@claw-for-cloudflare/agent-runtime";
 
 /** Schema for schedule creation via config_set('schedules', { ... }). */

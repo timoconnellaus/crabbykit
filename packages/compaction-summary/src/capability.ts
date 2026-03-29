@@ -91,7 +91,10 @@ export function compactionSummary(options: CompactionSummaryOptions): Capability
             return ctx.sessionStore.buildContext(ctx.sessionId);
           }
         } catch (err) {
-          console.error("[compaction-summary] Compaction failed, returning original messages:", err);
+          console.error(
+            "[compaction-summary] Compaction failed, returning original messages:",
+            err,
+          );
         }
 
         return messages;

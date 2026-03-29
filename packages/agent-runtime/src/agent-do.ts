@@ -5,14 +5,18 @@ import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
-import type { Capability, CapabilityHookContext } from "./capabilities/types.js";
+import type {
+  Capability,
+  CapabilityHookContext,
+  CapabilityHttpContext,
+} from "./capabilities/types.js";
 import type { Command, CommandContext, CommandResult } from "./commands/define-command.js";
-import { ConfigStore } from "./config/config-store.js";
+import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import { createConfigGet } from "./config/config-get.js";
 import { createConfigSchema } from "./config/config-schema.js";
 import { createConfigSet } from "./config/config-set.js";
+import { ConfigStore } from "./config/config-store.js";
 import type { ConfigNamespace } from "./config/types.js";
-import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
@@ -359,6 +363,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // MCP OAuth callback
     if (url.pathname === "/mcp/callback") {
       return this.handleMcpCallback(request);
+    }
+
+    // Capability-contributed HTTP handlers
+    const httpMatch = await this.matchHttpHandler(request.method, url.pathname);
+    if (httpMatch) {
+      return httpMatch.handler(request, httpMatch.ctx);
     }
 
     return new Response("Not found", { status: 404 });
@@ -772,18 +782,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const baseCommands = this.getCommands(context);
 
     // Use cached capabilities if available, otherwise resolve fresh
-    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
-      this.getCapabilities(),
-      {
-        sessionId,
-        stepNumber: 0,
-        emitCost: () => {},
-        broadcast: () => {},
-        broadcastToAll: () => {},
-        schedules: this.buildScheduleManager(),
-      },
-      (capId) => createCapabilityStorage(this.ctx.storage, capId),
-    );
+    const resolved =
+      this.resolvedCapabilitiesCache ??
+      resolveCapabilities(
+        this.getCapabilities(),
+        {
+          sessionId,
+          stepNumber: 0,
+          emitCost: () => {},
+          broadcast: () => {},
+          broadcastToAll: () => {},
+          schedules: this.buildScheduleManager(),
+        },
+        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+      );
 
     const commandMap = new Map<string, Command>();
     for (const cmd of baseCommands) {
@@ -1026,23 +1038,25 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Fire onConnect hooks for all registered capabilities. */
   private async fireOnConnectHooks(sessionId: string): Promise<void> {
     // Use cached capabilities if available, otherwise resolve fresh
-    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
-      this.getCapabilities(),
-      {
-        sessionId,
-        stepNumber: 0,
-        emitCost: () => {},
-        broadcast: (name, data) =>
-          this.broadcastToSession(sessionId, {
-            type: "custom_event",
-            sessionId,
-            event: { name, data },
-          }),
-        broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
-        schedules: this.buildScheduleManager(),
-      },
-      (capId) => createCapabilityStorage(this.ctx.storage, capId),
-    );
+    const resolved =
+      this.resolvedCapabilitiesCache ??
+      resolveCapabilities(
+        this.getCapabilities(),
+        {
+          sessionId,
+          stepNumber: 0,
+          emitCost: () => {},
+          broadcast: (name, data) =>
+            this.broadcastToSession(sessionId, {
+              type: "custom_event",
+              sessionId,
+              event: { name, data },
+            }),
+          broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          schedules: this.buildScheduleManager(),
+        },
+        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+      );
 
     const broadcastFn = (name: string, data: Record<string, unknown>) =>
       this.broadcastToSession(sessionId, {
@@ -1273,18 +1287,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     if (this.scheduleCallbacks.size > 0) return;
 
     // Use cached capabilities if available, otherwise resolve fresh
-    const resolved = this.resolvedCapabilitiesCache ?? resolveCapabilities(
-      this.getCapabilities(),
-      {
-        sessionId: "",
-        stepNumber: 0,
-        emitCost: () => {},
-        broadcast: () => {},
-        broadcastToAll: () => {},
-        schedules: this.buildScheduleManager(),
-      },
-      (capId) => createCapabilityStorage(this.ctx.storage, capId),
-    );
+    const resolved =
+      this.resolvedCapabilitiesCache ??
+      resolveCapabilities(
+        this.getCapabilities(),
+        {
+          sessionId: "",
+          stepNumber: 0,
+          emitCost: () => {},
+          broadcast: () => {},
+          broadcastToAll: () => {},
+          schedules: this.buildScheduleManager(),
+        },
+        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+      );
 
     for (const { config } of resolved.schedules) {
       if ("callback" in config) {
@@ -1382,6 +1398,106 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.sessionStore.delete(s.id);
       }
     }
+  }
+
+  // --- Capability HTTP handlers ---
+
+  /** Cache for resolved HTTP handlers (lazily populated on first HTTP request). */
+  private resolvedHttpHandlers: ResolvedCapabilities["httpHandlers"] | null = null;
+
+  private resolveHttpHandlers(): ResolvedCapabilities["httpHandlers"] {
+    if (this.resolvedHttpHandlers) return this.resolvedHttpHandlers;
+
+    const capabilities = this.getCapabilities();
+    const baseContext: AgentContext = {
+      sessionId: "",
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: () => {},
+      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      schedules: this.buildScheduleManager(),
+    };
+
+    const resolved = resolveCapabilities(capabilities, baseContext, (capId) =>
+      createCapabilityStorage(this.ctx.storage, capId),
+    );
+    this.resolvedHttpHandlers = resolved.httpHandlers;
+    return this.resolvedHttpHandlers;
+  }
+
+  private async matchHttpHandler(
+    method: string,
+    pathname: string,
+  ): Promise<{
+    handler: (request: Request, ctx: CapabilityHttpContext) => Promise<Response>;
+    ctx: CapabilityHttpContext;
+  } | null> {
+    const handlers = this.resolveHttpHandlers();
+    for (const h of handlers) {
+      if (h.method === method && h.path === pathname) {
+        const ctx: CapabilityHttpContext = {
+          sessionStore: this.sessionStore,
+          storage: h.storage,
+          broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          sendPrompt: (opts) => this.handleAgentPrompt(opts),
+        };
+        return { handler: h.handler, ctx };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Programmatic inference entry point for inter-agent communication.
+   * Unlike handlePrompt(), this does NOT auto-name sessions, does NOT steer
+   * on busy agents (rejects with error instead), and creates sessions with
+   * source: "agent".
+   */
+  protected async handleAgentPrompt(opts: {
+    text: string;
+    sessionId?: string;
+    sessionName?: string;
+    source?: string;
+  }): Promise<{ sessionId: string; response: string }> {
+    const sessionId =
+      opts.sessionId ??
+      this.sessionStore.create({
+        name: opts.sessionName ?? "Agent message",
+        source: opts.source ?? "agent",
+      }).id;
+
+    // Reject if the session's agent is already busy
+    const existingAgent = this.sessionAgents.get(sessionId);
+    if (existingAgent?.state.isStreaming) {
+      throw new Error("Agent is busy on this session");
+    }
+
+    // Persist user message
+    this.sessionStore.appendEntry(sessionId, {
+      type: "message",
+      data: { role: "user", content: opts.text, timestamp: Date.now() },
+    });
+
+    // Create agent and run inference
+    await this.ensureAgent(sessionId);
+    const agent = this.sessionAgents.get(sessionId);
+    if (!agent) throw new Error("Agent failed to initialize");
+
+    await agent.prompt(opts.text);
+    await agent.waitForIdle();
+
+    // Extract last assistant message
+    const messages = this.sessionStore.buildContext(sessionId);
+    let response = "";
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && typeof msg.content === "string") {
+        response = msg.content;
+        break;
+      }
+    }
+
+    return { sessionId, response };
   }
 
   // --- HTTP fallback ---

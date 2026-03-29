@@ -1,3 +1,7 @@
+import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
+import { agentMessaging } from "@claw-for-cloudflare/agent-messaging";
+import { agentPeering } from "@claw-for-cloudflare/agent-peering";
+import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
 import type {
   AgentConfig,
   AgentContext,
@@ -34,6 +38,9 @@ interface Env {
   AWS_SECRET_ACCESS_KEY: string;
   R2_ACCOUNT_ID: string;
   R2_BUCKET_NAME: string;
+  // Agent-ops (set via wrangler secret put)
+  AGENT_SECRET: string;
+  AGENT_DB: D1Database;
 }
 
 /**
@@ -72,6 +79,7 @@ export class BasicAgent extends AgentDO<Env> {
       promptScheduler(),
       credentialStore(),
       heartbeat({ every: "30m" }),
+      ...this.buildAgentOpsCapabilities(),
       sandboxCapability({
         provider: new CloudflareSandboxProvider({
           getStub: () => {
@@ -81,6 +89,41 @@ export class BasicAgent extends AgentDO<Env> {
           agentId: "default",
           containerMode: "dev",
         }),
+      }),
+    ];
+  }
+
+  private buildAgentOpsCapabilities(): Capability[] {
+    const agentId = this.ctx.id.toString();
+    const getAgentStub = (id: string) => this.env.AGENT.get(this.env.AGENT.idFromName(id));
+    // resolveDoId converts registry UUIDs to DO hex IDs for HMAC token signing,
+    // ensuring the token target matches the receiving DO's this.ctx.id.toString().
+    const resolveDoId = (id: string) => this.env.AGENT.idFromName(id).toString();
+    const registry = new D1AgentRegistry(this.env.AGENT_DB);
+
+    const peering = agentPeering({
+      secret: this.env.AGENT_SECRET,
+      getAgentStub,
+      resolveDoId,
+      agentId,
+    });
+
+    return [
+      peering.capability,
+      agentMessaging({
+        secret: this.env.AGENT_SECRET,
+        getAgentStub,
+        resolveDoId,
+        agentId,
+        peeringService: peering.service,
+      }),
+      agentFleet({
+        registry,
+        secret: this.env.AGENT_SECRET,
+        getAgentStub,
+        resolveDoId,
+        agentId,
+        ownerId: "default",
       }),
     ];
   }
@@ -145,6 +188,12 @@ export class BasicAgent extends AgentDO<Env> {
             "save_secret",
             "list_secrets",
             "delete_secret",
+            "agent_message",
+            "agent_list",
+            "agent_create",
+            "agent_delete",
+            "agent_attach",
+            "agent_detach",
             "elevate",
             "de_elevate",
             "bash",
@@ -175,16 +224,40 @@ export { SandboxContainer };
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const jsonHeaders = { "content-type": "application/json" };
 
-    // Route to the agent DO
-    if (url.pathname.startsWith("/agent")) {
-      const id = env.AGENT.idFromName("default");
-      const stub = env.AGENT.get(id);
-      return stub.fetch(request);
+    // GET /agents — list all agents from registry
+    if (url.pathname === "/agents" && request.method === "GET") {
+      const registry = new D1AgentRegistry(env.AGENT_DB);
+      const agents = await registry.list("default");
+      return new Response(JSON.stringify(agents), { headers: jsonHeaders });
     }
 
-    return new Response("Basic Agent Example. Connect WebSocket to /agent", {
-      status: 200,
-    });
+    // POST /agents — create a new root agent
+    if (url.pathname === "/agents" && request.method === "POST") {
+      const body = (await request.json()) as { name: string };
+      const registry = new D1AgentRegistry(env.AGENT_DB);
+      const agent = await registry.create({
+        id: crypto.randomUUID(),
+        name: body.name,
+        ownerId: "default",
+        parentAgentId: null,
+      });
+      return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
+    }
+
+    // /agent/:agentId[/...] — route to agent DO by ID
+    const agentMatch = url.pathname.match(/^\/agent\/([^/]+)(\/.*)?$/);
+    if (agentMatch) {
+      const agentId = agentMatch[1];
+      const id = env.AGENT.idFromName(agentId);
+      const stub = env.AGENT.get(id);
+      // Strip the /agent/:agentId prefix so the DO sees clean paths
+      const doUrl = new URL(request.url);
+      doUrl.pathname = agentMatch[2] || "/";
+      return stub.fetch(new Request(doUrl.toString(), request));
+    }
+
+    return new Response("Basic Agent Example", { status: 200 });
   },
 };
