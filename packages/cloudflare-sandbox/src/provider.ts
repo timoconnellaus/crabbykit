@@ -1,5 +1,10 @@
 import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import type { ProcessInfo, SandboxExecResult, SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type {
+  ExecStreamEvent,
+  ProcessInfo,
+  SandboxExecResult,
+  SandboxProvider,
+} from "@claw-for-cloudflare/sandbox";
 
 export interface CloudflareSandboxOptions {
   /**
@@ -87,7 +92,7 @@ export class CloudflareSandboxProvider implements SandboxProvider {
 
   async exec(
     command: string,
-    options?: { timeout?: number; cwd?: string },
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
   ): Promise<SandboxExecResult> {
     const res = await this.fetch("/exec", {
       method: "POST",
@@ -96,6 +101,7 @@ export class CloudflareSandboxProvider implements SandboxProvider {
         timeout: options?.timeout,
         cwd: options?.cwd,
       }),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
@@ -103,6 +109,60 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     }
 
     return (await res.json()) as SandboxExecResult;
+  }
+
+  async *execStream(
+    command: string,
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
+  ): AsyncGenerator<ExecStreamEvent> {
+    const res = await this.fetch("/exec-stream", {
+      method: "POST",
+      body: JSON.stringify({
+        command,
+        timeout: options?.timeout,
+        cwd: options?.cwd,
+      }),
+      signal: options?.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`exec-stream failed: ${res.status} ${await res.text()}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("exec-stream: no response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const parsed = JSON.parse(line.slice(6)) as {
+            type: string;
+            data?: string;
+            code?: number;
+          };
+          if (parsed.type === "stdout" || parsed.type === "stderr") {
+            yield { type: parsed.type, data: parsed.data ?? "" };
+          } else if (parsed.type === "exit") {
+            yield { type: "exit", code: parsed.code ?? 1 };
+            return;
+          }
+          // Skip heartbeat
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async processStart(name: string, command: string, cwd?: string): Promise<{ pid?: number }> {

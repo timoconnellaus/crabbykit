@@ -543,6 +543,114 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
   }
 
+  // --- Exec Stream (SSE) ---
+  if (url.pathname === "/exec-stream" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const command = body.command as string;
+    if (!command) {
+      error(res, "Missing command");
+      return;
+    }
+    const timeout = (body.timeout as number) ?? DEFAULT_EXEC_TIMEOUT;
+    const cwd = body.cwd as string | undefined;
+    const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
+
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    });
+
+    const proc = spawn("/bin/sh", ["-c", command], {
+      cwd: effectiveCwd,
+      env: buildSanitizedEnv(),
+    });
+
+    let killed = false;
+    let killedReason = "";
+    const timer = setTimeout(() => {
+      killed = true;
+      killedReason = "timeout";
+      proc.kill("SIGKILL");
+    }, timeout);
+
+    let lastOutputAt = Date.now();
+    const idleCheck = setInterval(() => {
+      if (Date.now() - lastOutputAt > IDLE_INPUT_TIMEOUT) {
+        killed = true;
+        killedReason = "idle";
+        proc.kill("SIGKILL");
+        clearInterval(idleCheck);
+      }
+    }, 2000);
+
+    let seq = 0;
+
+    const sendEvent = (data: unknown) => {
+      try {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        // Connection closed
+      }
+    };
+
+    proc.stdout?.on("data", (data: Buffer) => {
+      lastOutputAt = Date.now();
+      sendEvent({ type: "stdout", data: data.toString(), seq: ++seq });
+    });
+
+    proc.stderr?.on("data", (data: Buffer) => {
+      lastOutputAt = Date.now();
+      sendEvent({ type: "stderr", data: data.toString(), seq: ++seq });
+    });
+
+    const heartbeat = setInterval(() => {
+      sendEvent({ type: "heartbeat" });
+    }, 5000);
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      clearInterval(idleCheck);
+      if (killed && killedReason === "timeout") {
+        sendEvent({
+          type: "stderr",
+          data: `\nProcess exceeded ${timeout}ms timeout and was killed.`,
+          seq: ++seq,
+        });
+      } else if (killed && killedReason === "idle") {
+        sendEvent({
+          type: "stderr",
+          data:
+            "\nProcess produced no output for 10s and was killed — " +
+            "it was likely waiting for interactive input. " +
+            "Use non-interactive flags (e.g., --yes, -y) or avoid interactive commands.",
+          seq: ++seq,
+        });
+      }
+      sendEvent({ type: "exit", code: code ?? (killed ? 137 : 1) });
+      res.end();
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      clearInterval(idleCheck);
+      sendEvent({ type: "stderr", data: err.message, seq: ++seq });
+      sendEvent({ type: "exit", code: 1 });
+      res.end();
+    });
+
+    req.on("close", () => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      clearInterval(idleCheck);
+      if (!proc.killed) proc.kill("SIGKILL");
+    });
+
+    return;
+  }
+
   // --- Not found ---
   error(res, "Not found", 404);
 }

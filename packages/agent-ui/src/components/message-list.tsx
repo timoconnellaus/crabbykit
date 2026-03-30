@@ -18,6 +18,7 @@ const VIRTUALIZATION_THRESHOLD = 100;
 
 export type ToolResultInfo =
   | { status: "executing"; toolName: string }
+  | { status: "streaming"; toolName: string; content: string }
   | { status: "complete"; toolName: string; content: string; isError: boolean };
 
 /** Build a map from toolCallId → ToolResultInfo, merging persisted messages and live tool states. */
@@ -45,6 +46,12 @@ function buildToolResultMap(
     if (map.has(toolCallId)) continue;
     if (state.status === "executing") {
       map.set(toolCallId, { status: "executing", toolName: state.toolName });
+    } else if (state.status === "streaming") {
+      map.set(toolCallId, {
+        status: "streaming",
+        toolName: state.toolName,
+        content: extractResultText(state.partialResult),
+      });
     } else {
       map.set(toolCallId, {
         status: "complete",

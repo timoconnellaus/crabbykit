@@ -35,16 +35,49 @@ export function createBashTool(
         }),
       ),
     }),
-    execute: async (args) => {
+    execute: async (args, execCtx) => {
       // Check elevation
       const notElevated = await checkElevation(context.storage);
       if (notElevated) return notElevated;
 
       const timeout = args.timeout ?? config.defaultExecTimeout;
-      const result = await provider.exec(args.command, {
-        timeout,
-        cwd: config.defaultCwd,
-      });
+      const execOpts = { timeout, cwd: config.defaultCwd, signal: execCtx?.signal };
+
+      let result: { stdout: string; stderr: string; exitCode: number };
+
+      // Stream output if provider supports it and caller can receive updates
+      if (provider.execStream && execCtx?.onUpdate) {
+        let stdout = "";
+        let stderr = "";
+        let exitCode = 1;
+
+        for await (const event of provider.execStream(args.command, execOpts)) {
+          if (event.type === "stdout") {
+            stdout += event.data;
+            execCtx.onUpdate({
+              content: [
+                {
+                  type: "text" as const,
+                  text: stderr ? `${stdout}\n[stderr]\n${stderr}` : stdout,
+                },
+              ],
+              details: { exitCode: null, stdout, stderr },
+            });
+          } else if (event.type === "stderr") {
+            stderr += event.data;
+            execCtx.onUpdate({
+              content: [{ type: "text" as const, text: `${stdout || ""}\n[stderr]\n${stderr}` }],
+              details: { exitCode: null, stdout, stderr },
+            });
+          } else if (event.type === "exit") {
+            exitCode = event.code;
+          }
+        }
+
+        result = { stdout, stderr, exitCode };
+      } else {
+        result = await provider.exec(args.command, execOpts);
+      }
 
       // Reset de-elevation timer on activity
       // Use activeTimeout if processes are running

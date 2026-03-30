@@ -5,6 +5,12 @@ export interface SandboxExecResult {
   exitCode: number;
 }
 
+/** A single event from a streaming exec. */
+export type ExecStreamEvent =
+  | { type: "stdout"; data: string }
+  | { type: "stderr"; data: string }
+  | { type: "exit"; code: number };
+
 /** Information about a managed long-running process. */
 export interface ProcessInfo {
   name: string;
@@ -27,7 +33,7 @@ export interface SandboxProvider {
   /** Check if the sandbox is ready. */
   health(): Promise<{ ready: boolean; [key: string]: unknown }>;
   /** Execute a shell command and return the result. */
-  exec(command: string, options?: { timeout?: number; cwd?: string }): Promise<SandboxExecResult>;
+  exec(command: string, options?: { timeout?: number; cwd?: string; signal?: AbortSignal }): Promise<SandboxExecResult>;
 
   // --- Optional process management ---
 
@@ -37,6 +43,12 @@ export interface SandboxProvider {
   processStop?(name: string): Promise<void>;
   /** List managed processes and their status. */
   processList?(): Promise<ProcessInfo[]>;
+
+  /** Execute a command and stream stdout/stderr chunks as they arrive. */
+  execStream?(
+    command: string,
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
+  ): AsyncIterable<ExecStreamEvent>;
 
   /** Trigger a persist volume backup (dev mode). */
   triggerSync?(): Promise<void>;

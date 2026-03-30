@@ -26,6 +26,7 @@ export type CommandResultTag = { _commandResult: true; _commandName: string; _is
 /** Per-tool-call execution state, tracked during live streaming. */
 export type ToolState =
   | { status: "executing"; toolName: string }
+  | { status: "streaming"; toolName: string; partialResult: unknown }
   | { status: "complete"; toolName: string; result: unknown; isError: boolean };
 
 export interface UseAgentChatConfig {
@@ -143,6 +144,12 @@ type ChatAction =
       toolName: string;
     }
   | {
+      type: "TOOL_EXECUTION_UPDATE";
+      toolCallId: string;
+      toolName: string;
+      partialResult: unknown;
+    }
+  | {
       type: "TOOL_EXECUTION_END";
       toolCallId: string;
       toolName: string;
@@ -246,6 +253,15 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         agentStatus: "executing_tools",
         toolStates: next,
       };
+    }
+    case "TOOL_EXECUTION_UPDATE": {
+      const next = new Map(state.toolStates);
+      next.set(action.toolCallId, {
+        status: "streaming",
+        toolName: action.toolName,
+        partialResult: action.partialResult,
+      });
+      return { ...state, toolStates: next };
     }
     case "TOOL_EXECUTION_END": {
       const next = new Map(state.toolStates);
@@ -468,6 +484,14 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             type: "TOOL_EXECUTION_START",
             toolCallId: toolEvent.toolCallId,
             toolName: toolEvent.toolName,
+          });
+        }
+        if (toolEvent.type === "tool_execution_update") {
+          dispatch({
+            type: "TOOL_EXECUTION_UPDATE",
+            toolCallId: toolEvent.toolCallId,
+            toolName: toolEvent.toolName,
+            partialResult: toolEvent.partialResult,
           });
         }
         if (toolEvent.type === "tool_execution_end") {

@@ -316,6 +316,12 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
                 Running...
               </div>
             )}
+            {toolResult?.status === "streaming" && (
+              <div data-agent-ui="tool-result-inline" data-status="streaming">
+                <pre data-agent-ui="tool-result-content">{toolResult.content}</pre>
+                <span data-agent-ui="tool-result-spinner" />
+              </div>
+            )}
             {toolResult?.status === "complete" && (
               <div
                 data-agent-ui="tool-result-inline"
