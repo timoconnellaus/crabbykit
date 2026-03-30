@@ -117,9 +117,12 @@ export type {
 } from "./session/types.js";
 // Tool system
 export { defineTool, mcpToolToAgentTool, toolResult } from "./tools/define-tool.js";
+// Transport interfaces
+export { CfWebSocketTransport } from "./transport/cloudflare.js";
 export type { ErrorCode } from "./transport/error-codes.js";
 // Transport
 export { ErrorCodes } from "./transport/error-codes.js";
+export type { Transport, TransportConnection } from "./transport/transport.js";
 export type {
   AbortMessage,
   AgentEventMessage,
