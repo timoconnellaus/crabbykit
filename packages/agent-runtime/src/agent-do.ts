@@ -1931,6 +1931,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         data: { role: "user", content: resultText, timestamp: Date.now() },
       });
 
+      // Broadcast updated session to connected clients so the A2A note appears immediately
+      const session = this.sessionStore.get(pending.originSessionId);
+      if (session) {
+        this.broadcastToSession(pending.originSessionId, {
+          type: "session_sync",
+          sessionId: pending.originSessionId,
+          session,
+          messages: this.sessionStore.buildContext(pending.originSessionId),
+          streamMessage: this.sessionAgents.get(pending.originSessionId)?.state.isStreaming
+            ? (this.sessionAgents.get(pending.originSessionId)?.state.streamMessage ?? null)
+            : null,
+        });
+      }
+
       // Check if agent is currently running
       const agent = this.sessionAgents.get(pending.originSessionId);
       const isStreaming = agent?.state.isStreaming ?? false;
