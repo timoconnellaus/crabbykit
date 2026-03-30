@@ -777,8 +777,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
             typeof block === "object" &&
             block !== null &&
             "type" in block &&
-            (block as { type: string; text?: string }).type === "text" &&
-            (block as { text?: string }).text?.length,
+            ((block as { type: string }).type === "toolCall" ||
+              ((block as { type: string }).type === "text" &&
+                (block as { text?: string }).text?.length)),
         );
       }
       return true;

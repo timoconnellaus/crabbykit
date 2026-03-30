@@ -454,11 +454,25 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     if (session) {
       const { entries, hasMore } = this.sessionStore.getEntriesPaginated(sessionId);
       const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
+      const contextMessages = this.sessionStore.buildContext(sessionId);
+      const a2aNotes = contextMessages.filter(
+        (m) => m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
+      );
+      if (a2aNotes.length > 0) {
+        console.log(`[a2a:debug] session_sync includes ${a2aNotes.length} A2A note(s)`);
+      } else {
+        console.log(
+          `[a2a:debug] session_sync has ${contextMessages.length} messages, NO A2A notes. User messages:`,
+          contextMessages
+            .filter((m) => m.role === "user")
+            .map((m) => (typeof m.content === "string" ? m.content.slice(0, 60) : "[array]")),
+        );
+      }
       this.sendToSocket(server, {
         type: "session_sync",
         sessionId,
         session,
-        messages: this.sessionStore.buildContext(sessionId),
+        messages: contextMessages,
         streamMessage: this.sessionAgents.get(sessionId)?.state.isStreaming
           ? (this.sessionAgents.get(sessionId)?.state.streamMessage ?? null)
           : null,
@@ -821,10 +835,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const timestamp = Date.now();
 
     // Persist steer message to session store
-    this.sessionStore.appendEntry(sessionId, {
+    const steerEntry = this.sessionStore.appendEntry(sessionId, {
       type: "message",
       data: { role: "user", content: text, timestamp },
     });
+    console.log(`[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`);
 
     // Broadcast to clients so the message appears immediately.
     // Only enabled for server-originated steers (e.g. A2A callbacks) — for
