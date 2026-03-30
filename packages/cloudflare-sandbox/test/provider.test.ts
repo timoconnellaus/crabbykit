@@ -9,10 +9,17 @@ function mockStub() {
   };
 }
 
-function createProvider(stub = mockStub(), agentId?: string) {
+function mockStorage(namespace = "test-agent") {
+  return {
+    bucket: () => ({}) as R2Bucket,
+    namespace: () => namespace,
+  };
+}
+
+function createProvider(stub = mockStub(), namespace?: string) {
   return new CloudflareSandboxProvider({
+    storage: mockStorage(namespace ?? "test-agent"),
     getStub: () => stub as unknown as DurableObjectStub,
-    agentId,
   });
 }
 
@@ -191,7 +198,7 @@ describe("CloudflareSandboxProvider", () => {
   });
 
   describe("headers", () => {
-    it("includes x-agent-id when agentId is set", async () => {
+    it("includes x-agent-id from storage namespace", async () => {
       const stub = mockStub();
       const provider = createProvider(stub, "agent-123");
 
@@ -206,16 +213,6 @@ describe("CloudflareSandboxProvider", () => {
           }),
         }),
       );
-    });
-
-    it("omits x-agent-id when not set", async () => {
-      const stub = mockStub();
-      const provider = createProvider(stub);
-
-      await provider.health();
-
-      const headers = (stub.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers;
-      expect(headers).not.toHaveProperty("x-agent-id");
     });
   });
 });

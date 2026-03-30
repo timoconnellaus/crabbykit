@@ -13,10 +13,10 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-auth": "workspace:*",
         "@claw-for-cloudflare/agent-fleet": "workspace:*",
-        "@claw-for-cloudflare/agent-messaging": "workspace:*",
         "@claw-for-cloudflare/agent-peering": "workspace:*",
         "@claw-for-cloudflare/agent-registry": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/agent-ui": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
@@ -95,21 +95,6 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-messaging": {
-      "name": "@claw-for-cloudflare/agent-messaging",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-auth": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@claw-for-cloudflare/agent-peering": "workspace:*",
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
     "packages/agent-peering": {
       "name": "@claw-for-cloudflare/agent-peering",
       "version": "0.0.1",
@@ -159,6 +144,15 @@
         "react",
       ],
     },
+    "packages/agent-storage": {
+      "name": "@claw-for-cloudflare/agent-storage",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/agent-ui": {
       "name": "@claw-for-cloudflare/agent-ui",
       "version": "0.0.1",
@@ -201,6 +195,7 @@
       "name": "@claw-for-cloudflare/cloudflare-sandbox",
       "version": "0.0.1",
       "dependencies": {
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
         "@cloudflare/containers": "^0.1.0",
       },
@@ -273,6 +268,7 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
@@ -320,6 +316,7 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/r2-storage": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
       },
@@ -403,13 +400,13 @@
 
     "@claw-for-cloudflare/agent-fleet": ["@claw-for-cloudflare/agent-fleet@workspace:packages/agent-fleet"],
 
-    "@claw-for-cloudflare/agent-messaging": ["@claw-for-cloudflare/agent-messaging@workspace:packages/agent-messaging"],
-
     "@claw-for-cloudflare/agent-peering": ["@claw-for-cloudflare/agent-peering@workspace:packages/agent-peering"],
 
     "@claw-for-cloudflare/agent-registry": ["@claw-for-cloudflare/agent-registry@workspace:packages/agent-registry"],
 
     "@claw-for-cloudflare/agent-runtime": ["@claw-for-cloudflare/agent-runtime@workspace:packages/agent-runtime"],
+
+    "@claw-for-cloudflare/agent-storage": ["@claw-for-cloudflare/agent-storage@workspace:packages/agent-storage"],
 
     "@claw-for-cloudflare/agent-ui": ["@claw-for-cloudflare/agent-ui@workspace:packages/agent-ui"],
 

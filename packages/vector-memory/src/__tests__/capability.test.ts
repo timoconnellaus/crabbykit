@@ -12,12 +12,18 @@ function mockBucket(): R2Bucket {
   return {} as R2Bucket;
 }
 
+function mockStorage(bucket?: R2Bucket) {
+  return {
+    bucket: () => bucket ?? mockBucket(),
+    namespace: () => "agent-1",
+  };
+}
+
 describe("vectorMemory", () => {
   it("returns correct capability structure", () => {
     const cap = vectorMemory({
-      bucket: mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: createMockVectorize(),
-      prefix: "agent-1",
       ai: mockAi(),
     });
 
@@ -28,9 +34,8 @@ describe("vectorMemory", () => {
 
   it("provides memory_search and memory_get tools", () => {
     const cap = vectorMemory({
-      bucket: mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: createMockVectorize(),
-      prefix: "agent-1",
       ai: mockAi(),
     });
 
@@ -50,9 +55,8 @@ describe("vectorMemory", () => {
 
   it("provides prompt sections", () => {
     const cap = vectorMemory({
-      bucket: mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: createMockVectorize(),
-      prefix: "agent-1",
       ai: mockAi(),
     });
 
@@ -73,9 +77,8 @@ describe("vectorMemory", () => {
 
   it("has afterToolExecution hook", () => {
     const cap = vectorMemory({
-      bucket: mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: createMockVectorize(),
-      prefix: "agent-1",
       ai: mockAi(),
     });
 
@@ -85,9 +88,8 @@ describe("vectorMemory", () => {
   it("throws if neither embed nor ai is provided", () => {
     expect(() =>
       vectorMemory({
-        bucket: mockBucket(),
+        storage: mockStorage(),
         vectorizeIndex: createMockVectorize(),
-        prefix: "agent-1",
       }),
     ).toThrow("vectorMemory: provide either 'embed' or 'ai' option");
   });
@@ -96,9 +98,8 @@ describe("vectorMemory", () => {
     const customEmbed = async (texts: string[]) => texts.map(() => [0.1, 0.2, 0.3]);
 
     const cap = vectorMemory({
-      bucket: mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: createMockVectorize(),
-      prefix: "agent-1",
       embed: customEmbed,
     });
 
@@ -106,11 +107,10 @@ describe("vectorMemory", () => {
     expect(cap.id).toBe("vector-memory");
   });
 
-  it("accepts getter functions for bucket, index, and prefix", () => {
+  it("accepts getter function for vectorize index", () => {
     const cap = vectorMemory({
-      bucket: () => mockBucket(),
+      storage: mockStorage(),
       vectorizeIndex: () => createMockVectorize(),
-      prefix: () => "agent-1",
       ai: () => mockAi(),
     });
 

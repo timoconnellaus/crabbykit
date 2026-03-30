@@ -1,3 +1,4 @@
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { createFileCopyTool } from "./file-copy.js";
 import { createFileDeleteTool } from "./file-delete.js";
@@ -12,13 +13,8 @@ import { createFileWriteTool } from "./file-write.js";
 const DEFAULT_MAX_READ_BYTES = 512 * 1024;
 
 export interface R2StorageOptions {
-  /** R2 bucket — instance or getter function. */
-  bucket: R2Bucket | (() => R2Bucket);
-  /**
-   * Key prefix for namespace isolation. All R2 keys are stored under `{prefix}/`.
-   * Typically an agent ID, user ID, or project ID.
-   */
-  prefix: string | (() => string);
+  /** Shared agent storage identity. Provides the R2 bucket and namespace prefix. */
+  storage: AgentStorage;
   /** Maximum bytes to return from file_read (default 512KB). */
   maxReadBytes?: number;
 }
@@ -26,11 +22,13 @@ export interface R2StorageOptions {
 /**
  * Create an R2-backed file storage capability.
  *
- * Provides seven tools:
+ * Provides nine tools:
  * - `file_read` — Read file contents with optional offset/limit
  * - `file_write` — Create or overwrite a file (max 1MB)
  * - `file_edit` — String replacement editing
  * - `file_delete` — Delete a file
+ * - `file_copy` — Duplicate a file
+ * - `file_move` — Rename/move a file
  * - `file_list` — List directory contents (one level)
  * - `file_tree` — Hierarchical tree view
  * - `file_find` — Search files by glob pattern
@@ -38,20 +36,17 @@ export interface R2StorageOptions {
  * @example
  * ```ts
  * getCapabilities() {
- *   return [
- *     r2Storage({
- *       bucket: () => this.env.STORAGE_BUCKET,
- *       prefix: () => this.agentId,
- *     }),
- *   ];
+ *   const storage = agentStorage({
+ *     bucket: () => this.env.STORAGE_BUCKET,
+ *     namespace: agentId,
+ *   });
+ *   return [r2Storage({ storage })];
  * }
  * ```
  */
 export function r2Storage(options: R2StorageOptions): Capability {
-  const getBucket =
-    typeof options.bucket === "function" ? options.bucket : () => options.bucket as R2Bucket;
-  const getPrefix =
-    typeof options.prefix === "function" ? options.prefix : () => options.prefix as string;
+  const getBucket = options.storage.bucket;
+  const getPrefix = options.storage.namespace;
   const maxReadBytes = options.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
 
   return {

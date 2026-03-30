@@ -1,3 +1,4 @@
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import type {
   AgentContext,
@@ -16,18 +17,11 @@ const DEFAULT_MAX_READ_BYTES = 512 * 1024;
 const CAPABILITY_ID = "vector-memory";
 
 export interface VectorMemoryOptions {
-  /** R2 bucket for storing memory files — instance or getter function. */
-  bucket: R2Bucket | (() => R2Bucket);
+  /** Shared agent storage identity. Provides the R2 bucket and namespace prefix. */
+  storage: AgentStorage;
 
   /** Vectorize index — instance or getter function. */
   vectorizeIndex: VectorizeIndex | (() => VectorizeIndex);
-
-  /**
-   * Key prefix for namespace isolation. All R2 keys are stored under `{prefix}/`.
-   * All Vectorize vectors are filtered by this namespace.
-   * Typically an agent ID.
-   */
-  prefix: string | (() => string);
 
   /**
    * Embedding function. Defaults to Workers AI `@cf/baai/bge-base-en-v1.5`.
@@ -69,15 +63,15 @@ export interface VectorMemoryOptions {
  * @example
  * ```ts
  * getCapabilities() {
+ *   const storage = agentStorage({
+ *     bucket: () => this.env.STORAGE_BUCKET,
+ *     namespace: agentId,
+ *   });
  *   return [
- *     r2Storage({
- *       bucket: () => this.env.STORAGE_BUCKET,
- *       prefix: () => this.agentId,
- *     }),
+ *     r2Storage({ storage }),
  *     vectorMemory({
- *       bucket: () => this.env.STORAGE_BUCKET,
+ *       storage,
  *       vectorizeIndex: () => this.env.MEMORY_INDEX,
- *       prefix: () => this.agentId,
  *       ai: () => this.env.AI,
  *     }),
  *   ];
@@ -85,14 +79,12 @@ export interface VectorMemoryOptions {
  * ```
  */
 export function vectorMemory(options: VectorMemoryOptions): Capability {
-  const getBucket =
-    typeof options.bucket === "function" ? options.bucket : () => options.bucket as R2Bucket;
+  const getBucket = options.storage.bucket;
   const getIndex =
     typeof options.vectorizeIndex === "function"
       ? options.vectorizeIndex
       : () => options.vectorizeIndex as VectorizeIndex;
-  const getPrefix =
-    typeof options.prefix === "function" ? options.prefix : () => options.prefix as string;
+  const getPrefix = options.storage.namespace;
   const maxSearchResults = options.maxSearchResults ?? DEFAULT_MAX_SEARCH_RESULTS;
   const maxReadBytes = options.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
   const shouldIndex = options.isMemoryPath ?? isMemoryPath;

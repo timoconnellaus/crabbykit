@@ -1,6 +1,12 @@
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { ProcessInfo, SandboxExecResult, SandboxProvider } from "@claw-for-cloudflare/sandbox";
 
 export interface CloudflareSandboxOptions {
+  /**
+   * Shared agent storage identity. The namespace is sent as x-agent-id header
+   * to the container and used as the FUSE mount prefix for R2.
+   */
+  storage: AgentStorage;
   /**
    * Returns the Container Durable Object stub.
    * @example `() => env.SANDBOX.get(env.SANDBOX.idFromName(agentId))`
@@ -8,8 +14,6 @@ export interface CloudflareSandboxOptions {
   getStub: () => DurableObjectStub;
   /** Base URL for proxying requests to the container (default "http://container"). */
   baseUrl?: string;
-  /** Agent ID sent via x-agent-id header to the container. */
-  agentId?: string;
   /** Container mode: "normal" or "dev". Dev mode enables restic persist sync. */
   containerMode?: "normal" | "dev";
 }
@@ -32,9 +36,7 @@ export class CloudflareSandboxProvider implements SandboxProvider {
 
   private get headers(): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (this.options.agentId) {
-      h["x-agent-id"] = this.options.agentId;
-    }
+    h["x-agent-id"] = this.options.storage.namespace();
     if (this.options.containerMode) {
       h["x-container-mode"] = this.options.containerMode;
     }

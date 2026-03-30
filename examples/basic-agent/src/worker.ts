@@ -1,6 +1,7 @@
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
+import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import type {
   AgentConfig,
   AgentContext,
@@ -57,6 +58,11 @@ export class BasicAgent extends AgentDO<Env> {
   }
 
   protected getCapabilities(): Capability[] {
+    const storage = agentStorage({
+      bucket: () => this.env.STORAGE_BUCKET,
+      namespace: this.ctx.id.toString(),
+    });
+
     return [
       compactionSummary({
         provider: "openrouter",
@@ -66,14 +72,10 @@ export class BasicAgent extends AgentDO<Env> {
       tavilyWebSearch({
         tavilyApiKey: () => this.env.TAVILY_API_KEY,
       }),
-      r2Storage({
-        bucket: () => this.env.STORAGE_BUCKET,
-        prefix: "default",
-      }),
+      r2Storage({ storage }),
       vectorMemory({
-        bucket: () => this.env.STORAGE_BUCKET,
+        storage,
         vectorizeIndex: () => this.env.MEMORY_INDEX,
-        prefix: "default",
         ai: () => this.env.AI,
       }),
       promptScheduler(),
@@ -82,11 +84,11 @@ export class BasicAgent extends AgentDO<Env> {
       ...this.buildAgentOpsCapabilities(),
       sandboxCapability({
         provider: new CloudflareSandboxProvider({
+          storage,
           getStub: () => {
             const id = this.env.SANDBOX_CONTAINER.idFromName("default");
             return this.env.SANDBOX_CONTAINER.get(id);
           },
-          agentId: "default",
           containerMode: "dev",
         }),
       }),

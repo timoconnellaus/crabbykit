@@ -1,18 +1,12 @@
 {
-  "name": "@claw-for-cloudflare/agent-messaging",
+  "name": "@claw-for-cloudflare/agent-storage",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
-  "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/agent-auth": "workspace:*",
-    "@sinclair/typebox": "^0.34.0"
-  },
   "devDependencies": {
-    "@claw-for-cloudflare/agent-peering": "workspace:*",
     "@cloudflare/workers-types": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
