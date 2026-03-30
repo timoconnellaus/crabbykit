@@ -69,6 +69,8 @@ export interface ScheduleCallbackContext {
   schedule: Schedule;
   sessionStore: SessionStore;
   emitCost: (cost: CostEvent) => void;
+  /** Abort all running agent sessions. Use before stopping infrastructure they depend on. */
+  abortAllSessions: () => void;
 }
 
 /** A schedule declaration with its owning capability tagged. */

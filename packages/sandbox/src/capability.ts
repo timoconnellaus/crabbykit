@@ -160,6 +160,11 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
             const elevated = await storage.get<boolean>("elevated");
             if (!elevated) return;
 
+            // Abort all running agent sessions so in-flight tool calls
+            // (e.g., bash awaiting a response from the container) don't hang
+            // after the container is stopped.
+            scheduleCtx.abortAllSessions();
+
             // Stop running processes before de-elevating
             if (options.provider.processList && options.provider.processStop) {
               try {

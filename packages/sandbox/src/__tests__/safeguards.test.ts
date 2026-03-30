@@ -206,7 +206,7 @@ describe("Auto-de-elevate", () => {
     const timerConfig = schedules[0];
 
     // Call the timer callback directly
-    await (timerConfig as any).callback({ sessionStore: { list: () => [], appendEntry: vi.fn() } });
+    await (timerConfig as any).callback({ sessionStore: { list: () => [], appendEntry: vi.fn() }, abortAllSessions: vi.fn() });
 
     expect(provider.processStop).toHaveBeenCalledWith("dev");
     expect(provider.stop).toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe("Auto-de-elevate", () => {
     const schedules = cap.schedules!(ctx);
     const timerConfig = schedules[0];
 
-    await (timerConfig as any).callback({ sessionStore: { list: () => [], appendEntry: vi.fn() } });
+    await (timerConfig as any).callback({ sessionStore: { list: () => [], appendEntry: vi.fn() }, abortAllSessions: vi.fn() });
 
     expect(ctx.broadcastToAll).toHaveBeenCalledWith("sandbox_elevation", { elevated: false });
   });
