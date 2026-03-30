@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createMockSqlStorage } from "../../test-helpers/mock-sql-storage.js";
+import { createMockSqlStore } from "../../test-helpers/mock-sql-storage.js";
 import { SessionStore } from "../session-store.js";
 
 describe("SessionStore", () => {
   let store: SessionStore;
 
   beforeEach(() => {
-    store = new SessionStore(createMockSqlStorage());
+    store = new SessionStore(createMockSqlStore());
   });
 
   describe("Session CRUD", () => {

@@ -1,16 +1,17 @@
 import { nanoid } from "nanoid";
+import type { SqlStore } from "../storage/types.js";
 import type { Schedule } from "./types.js";
 
 const DEFAULT_RETENTION = 10;
 
 /**
- * Schedule store backed by Durable Object SQLite.
+ * Schedule store backed by SQL storage.
  * Manages persistent schedule records for alarm-based execution.
  */
 export class ScheduleStore {
-  private sql: SqlStorage;
+  private sql: SqlStore;
 
-  constructor(sql: SqlStorage) {
+  constructor(sql: SqlStore) {
     this.sql = sql;
     this.initSchema();
   }
@@ -224,7 +225,7 @@ export class ScheduleStore {
   }
 }
 
-function rowToSchedule(row: Record<string, SqlStorageValue>): Schedule {
+function rowToSchedule(row: Record<string, unknown>): Schedule {
   return {
     id: row.id as string,
     name: row.name as string,

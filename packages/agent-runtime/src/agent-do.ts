@@ -16,6 +16,8 @@ import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
+import type { KvStore, SqlStore } from "./storage/types.js";
+import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import type {
   Capability,
   CapabilityHookContext,
@@ -165,13 +167,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Tracked fire-and-forget async operations (e.g., callback-triggered prompts). */
   protected pendingAsyncOps = new Set<Promise<unknown>>();
 
+  /** Platform-agnostic KV store adapter, created from CF storage in constructor. */
+  protected kvStore: KvStore;
+
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
-    this.sessionStore = new SessionStore(ctx.storage.sql);
+    const sqlStore: SqlStore = createCfSqlStore(ctx.storage.sql);
+    this.kvStore = createCfKvStore(ctx.storage);
+    this.sessionStore = new SessionStore(sqlStore);
     this.taskStore = new TaskStore(ctx.storage.sql);
-    this.scheduleStore = new ScheduleStore(ctx.storage.sql);
-    this.configStore = new ConfigStore(ctx.storage);
-    this.mcpManager = new McpManager(ctx.storage.sql, () => this.broadcastMcpStatus());
+    this.scheduleStore = new ScheduleStore(sqlStore);
+    this.configStore = new ConfigStore(this.kvStore);
+    this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
   }
 
   // --- Abstract methods (consumers implement these) ---
@@ -884,7 +891,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcastToAll: () => {},
           schedules: this.buildScheduleManager(),
         },
-        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+        (capId) => createCapabilityStorage(this.kvStore, capId),
       );
 
     const commandMap = new Map<string, Command>();
@@ -1025,7 +1032,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     // Resolve capabilities with scoped storage per capability (and cache the result)
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+      createCapabilityStorage(this.kvStore, capId),
     );
     this.resolvedCapabilitiesCache = resolved;
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
@@ -1191,7 +1198,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
           schedules: this.buildScheduleManager(),
         },
-        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+        (capId) => createCapabilityStorage(this.kvStore, capId),
       );
 
     const broadcastFn = (name: string, data: Record<string, unknown>) =>
@@ -1217,7 +1224,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     // Broadcast active pending A2A tasks for this session
     try {
-      const a2aStorage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+      const a2aStorage = createCapabilityStorage(this.kvStore, "a2a-client");
       const pendingStore = new PendingTaskStore(a2aStorage);
       const activeTasks = await pendingStore.listActive();
       const sessionTasks = activeTasks.filter((t) => t.originSessionId === sessionId);
@@ -1456,7 +1463,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcastToAll: () => {},
           schedules: this.buildScheduleManager(),
         },
-        (capId) => createCapabilityStorage(this.ctx.storage, capId),
+        (capId) => createCapabilityStorage(this.kvStore, capId),
       );
 
     for (const { config } of resolved.schedules) {
@@ -1574,7 +1581,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     };
 
     const resolved = resolveCapabilities(capabilities, baseContext, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+      createCapabilityStorage(this.kvStore, capId),
     );
     this.resolvedHttpHandlers = resolved.httpHandlers;
     return this.resolvedHttpHandlers;
@@ -1686,7 +1693,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const clientOpts = this.getA2AClientOptions();
     if (!clientOpts) return [];
 
-    const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+    const storage = createCapabilityStorage(this.kvStore, "a2a-client");
     const getStorage = () => storage;
     const getSessionId = () => sessionId;
 
@@ -1926,7 +1933,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     // Look up pending task from client storage
-    const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+    const storage = createCapabilityStorage(this.kvStore, "a2a-client");
     const pendingStore = new PendingTaskStore(storage);
     const allPending = await pendingStore.list();
     console.log(

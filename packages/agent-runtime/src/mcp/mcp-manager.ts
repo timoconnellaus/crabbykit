@@ -2,6 +2,7 @@ import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { ContentBlock, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { SqlStore } from "../storage/types.js";
 import { mcpToolToAgentTool } from "../tools/define-tool.js";
 import type { McpServerConfig, McpServerConnectionStatus, McpServerStatus } from "./types.js";
 
@@ -24,11 +25,11 @@ const CLIENT_INFO = { name: "claw-agent-runtime", version: "0.1.0" };
  * OAuth flows, and hibernation recovery.
  */
 export class McpManager {
-  private sql: SqlStorage;
+  private sql: SqlStore;
   private connections = new Map<string, McpConnection>();
   private onStatusChange?: () => void;
 
-  constructor(sql: SqlStorage, onStatusChange?: () => void) {
+  constructor(sql: SqlStore, onStatusChange?: () => void) {
     this.sql = sql;
     this.onStatusChange = onStatusChange;
     this.initSchema();

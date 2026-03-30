@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createMockSqlStorage } from "../../test-helpers/mock-sql-storage.js";
+import { createMockSqlStore } from "../../test-helpers/mock-sql-storage.js";
 import { ScheduleStore } from "../schedule-store.js";
 
 function createStore(): ScheduleStore {
-  return new ScheduleStore(createMockSqlStorage());
+  return new ScheduleStore(createMockSqlStore());
 }
 
 describe("ScheduleStore", () => {

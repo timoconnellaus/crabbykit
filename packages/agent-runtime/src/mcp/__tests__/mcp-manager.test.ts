@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createMockSqlStorage } from "../../test-helpers/mock-sql-storage.js";
+import { createMockSqlStore } from "../../test-helpers/mock-sql-storage.js";
 import { McpManager } from "../mcp-manager.js";
 
 describe("McpManager", () => {
@@ -8,7 +8,7 @@ describe("McpManager", () => {
 
   beforeEach(() => {
     statusChangeCalled = 0;
-    manager = new McpManager(createMockSqlStorage(), () => {
+    manager = new McpManager(createMockSqlStore(), () => {
       statusChangeCalled++;
     });
   });
@@ -93,7 +93,7 @@ describe("McpManager", () => {
         }
       }
 
-      const m = new ConnectedManager(createMockSqlStorage());
+      const m = new ConnectedManager(createMockSqlStore());
       await m.register({
         name: "test",
         serverUrl: "https://example.com",
@@ -119,7 +119,7 @@ describe("McpManager", () => {
 
   describe("Hibernation Recovery", () => {
     it("restores connections from SQLite on wake", async () => {
-      const sql = createMockSqlStorage();
+      const sql = createMockSqlStore();
       const m1 = new McpManager(sql);
 
       await m1.register({
@@ -138,7 +138,7 @@ describe("McpManager", () => {
     });
 
     it("handles connection failure on restore", async () => {
-      const sql = createMockSqlStorage();
+      const sql = createMockSqlStore();
 
       // Create a manager subclass that fails to connect
       class FailingManager extends McpManager {
@@ -164,7 +164,7 @@ describe("McpManager", () => {
     });
 
     it("restores with auth data and options", async () => {
-      const sql = createMockSqlStorage();
+      const sql = createMockSqlStore();
       const m1 = new McpManager(sql);
 
       await m1.register({

@@ -1,17 +1,18 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import { nanoid } from "nanoid";
+import type { SqlStore } from "../storage/types.js";
 import type { Session, SessionEntry, SessionEntryType } from "./types.js";
 
 const DEFAULT_SESSION_SOURCE = "websocket";
 
 /**
- * Session store backed by Durable Object SQLite.
+ * Session store backed by SQL storage.
  * Manages sessions and tree-structured session entries.
  */
 export class SessionStore {
-  private sql: SqlStorage;
+  private sql: SqlStore;
 
-  constructor(sql: SqlStorage) {
+  constructor(sql: SqlStore) {
     this.sql = sql;
     this.initSchema();
   }
@@ -332,7 +333,7 @@ export class SessionStore {
 
   // --- Private helpers ---
 
-  private rowToSession(row: Record<string, SqlStorageValue>): Session {
+  private rowToSession(row: Record<string, unknown>): Session {
     return {
       id: row.id as string,
       name: row.name as string,
@@ -343,7 +344,7 @@ export class SessionStore {
     };
   }
 
-  private rowToEntry(row: Record<string, SqlStorageValue>): SessionEntry {
+  private rowToEntry(row: Record<string, unknown>): SessionEntry {
     const base = {
       id: row.id as string,
       parentId: (row.parent_id as string) ?? null,

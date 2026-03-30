@@ -1,7 +1,9 @@
 /**
  * Scoped persistent key-value storage for capabilities.
- * Each capability gets its own key namespace in Durable Object storage.
+ * Each capability gets its own key namespace via a KvStore backend.
  */
+
+import type { KvStore } from "../storage/types.js";
 
 /**
  * Key-value storage scoped to a single capability.
@@ -15,31 +17,28 @@ export interface CapabilityStorage {
 }
 
 /**
- * Create a CapabilityStorage backed by Durable Object KV storage.
+ * Create a CapabilityStorage backed by a KvStore.
  * All keys are prefixed with `cap:{capabilityId}:` to isolate capability data.
  */
-export function createCapabilityStorage(
-  doStorage: DurableObjectStorage,
-  capabilityId: string,
-): CapabilityStorage {
+export function createCapabilityStorage(kvStore: KvStore, capabilityId: string): CapabilityStorage {
   const keyPrefix = `cap:${capabilityId}:`;
 
   return {
     async get<T = unknown>(key: string): Promise<T | undefined> {
-      return doStorage.get<T>(`${keyPrefix}${key}`);
+      return kvStore.get<T>(`${keyPrefix}${key}`);
     },
 
     async put(key: string, value: unknown): Promise<void> {
-      await doStorage.put(`${keyPrefix}${key}`, value);
+      await kvStore.put(`${keyPrefix}${key}`, value);
     },
 
     async delete(key: string): Promise<boolean> {
-      return doStorage.delete(`${keyPrefix}${key}`);
+      return kvStore.delete(`${keyPrefix}${key}`);
     },
 
     async list<T = unknown>(prefix?: string): Promise<Map<string, T>> {
       const fullPrefix = `${keyPrefix}${prefix ?? ""}`;
-      const raw = await doStorage.list<T>({ prefix: fullPrefix });
+      const raw = await kvStore.list<T>({ prefix: fullPrefix });
       const stripped = new Map<string, T>();
       for (const [k, v] of raw) {
         stripped.set(k.slice(keyPrefix.length), v);

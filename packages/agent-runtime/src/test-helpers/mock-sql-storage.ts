@@ -1,19 +1,28 @@
 /**
- * In-memory SqlStorage mock for testing.
+ * In-memory SqlStore mock for testing.
  * Uses a simple table/row model with proper SQL parsing for our use cases.
  */
 
+import type { SqlResult, SqlStore } from "../storage/types.js";
+
 interface Row {
-  [key: string]: SqlStorageValue;
+  [key: string]: unknown;
 }
 
 interface Table {
   rows: Row[];
   columns: string[];
-  defaults: Record<string, () => SqlStorageValue>;
+  defaults: Record<string, () => unknown>;
 }
 
-export function createMockSqlStorage(): SqlStorage {
+/**
+ * @deprecated Use createMockSqlStore() instead.
+ */
+export function createMockSqlStorage(): SqlStore {
+  return createMockSqlStore();
+}
+
+export function createMockSqlStore(): SqlStore {
   const tables = new Map<string, Table>();
 
   function getTable(name: string): Table {
@@ -22,10 +31,7 @@ export function createMockSqlStorage(): SqlStorage {
     return t;
   }
 
-  function execSql(
-    sql: string,
-    ...bindings: SqlStorageValue[]
-  ): SqlStorageCursor<Record<string, SqlStorageValue>> {
+  function execSql(sql: string, ...bindings: unknown[]): SqlResult<Record<string, unknown>> {
     const trimmed = sql.replace(/\s+/g, " ").trim();
 
     // CREATE TABLE
@@ -33,7 +39,7 @@ export function createMockSqlStorage(): SqlStorage {
       const nameMatch = trimmed.match(/CREATE TABLE IF NOT EXISTS (\w+)/i);
       if (nameMatch && !tables.has(nameMatch[1])) {
         const colDefs = trimmed.match(/\((.+)\)$/s);
-        const defaults: Record<string, () => SqlStorageValue> = {};
+        const defaults: Record<string, () => unknown> = {};
 
         if (colDefs) {
           const parts = colDefs[1].split(/,(?![^(]*\))/);
@@ -58,18 +64,18 @@ export function createMockSqlStorage(): SqlStorage {
 
         tables.set(nameMatch[1], { rows: [], columns: [], defaults });
       }
-      return createCursor([]);
+      return createResult([]);
     }
 
     // CREATE INDEX
     if (/^CREATE INDEX/i.test(trimmed)) {
-      return createCursor([]);
+      return createResult([]);
     }
 
     // INSERT
     if (/^INSERT INTO/i.test(trimmed)) {
       const match = trimmed.match(/INSERT INTO (\w+)\s*\(([^)]+)\)\s*VALUES\s*\((.+)\)$/i);
-      if (!match) return createCursor([]);
+      if (!match) return createResult([]);
 
       const tableName = match[1];
       const table = getTable(tableName);
@@ -100,15 +106,15 @@ export function createMockSqlStorage(): SqlStorage {
       }
 
       table.rows.push(row);
-      return createCursor([]);
+      return createResult([]);
     }
 
     // SELECT with COALESCE/MAX aggregate
     if (/COALESCE\s*\(MAX/i.test(trimmed)) {
       const tableMatch = trimmed.match(/FROM\s+(\w+)/i);
-      if (!tableMatch) return createCursor([{ next_seq: 1 }]);
+      if (!tableMatch) return createResult([{ next_seq: 1 }]);
       const table = tables.get(tableMatch[1]);
-      if (!table) return createCursor([{ next_seq: 1 }]);
+      if (!table) return createResult([{ next_seq: 1 }]);
 
       const whereMatch = trimmed.match(/WHERE\s+(.+)$/i);
       let filtered = table.rows;
@@ -117,16 +123,16 @@ export function createMockSqlStorage(): SqlStorage {
         filtered = table.rows.filter((r) => r.session_id === sessionId);
       }
       const maxSeq = filtered.reduce((max, r) => Math.max(max, Number(r.seq) || 0), 0);
-      return createCursor([{ next_seq: maxSeq + 1 }]);
+      return createResult([{ next_seq: maxSeq + 1 }]);
     }
 
     // SELECT
     if (/^SELECT/i.test(trimmed)) {
       const fromMatch = trimmed.match(/FROM\s+(\w+)/i);
-      if (!fromMatch) return createCursor([]);
+      if (!fromMatch) return createResult([]);
 
       const table = tables.get(fromMatch[1]);
-      if (!table) return createCursor([]);
+      if (!table) return createResult([]);
 
       let rows = [...table.rows];
 
@@ -161,20 +167,20 @@ export function createMockSqlStorage(): SqlStorage {
         });
       }
 
-      return createCursor(rows);
+      return createResult(rows);
     }
 
     // UPDATE
     if (/^UPDATE/i.test(trimmed)) {
       const match = trimmed.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE\s+(.+)$/i);
-      if (!match) return createCursor([]);
+      if (!match) return createResult([]);
 
       const table = getTable(match[1]);
       const setParts = match[2].split(",").map((s) => s.trim());
       const whereClause = match[3].trim();
 
       // Parse SET values
-      const updates: Array<{ col: string; val: SqlStorageValue | (() => SqlStorageValue) }> = [];
+      const updates: Array<{ col: string; val: unknown | (() => unknown) }> = [];
       let setBi = 0;
       for (const part of setParts) {
         const eqMatch = part.match(/(\w+)\s*=\s*(.+)/);
@@ -211,17 +217,17 @@ export function createMockSqlStorage(): SqlStorage {
         }
       }
 
-      return createCursor([]);
+      return createResult([]);
     }
 
     // DELETE
     if (/^DELETE FROM/i.test(trimmed)) {
       const match = trimmed.match(/DELETE FROM\s+(\w+)\s+WHERE\s+(.+)$/i);
-      if (!match) return createCursor([]);
+      if (!match) return createResult([]);
 
       const tableName = match[1];
       const table = tables.get(tableName);
-      if (!table) return createCursor([]);
+      if (!table) return createResult([]);
 
       const whereClause = match[2].trim();
       const conditions = whereClause.split(/\s+AND\s+/i);
@@ -255,47 +261,24 @@ export function createMockSqlStorage(): SqlStorage {
         }
       }
 
-      return createCursor([]);
+      return createResult([]);
     }
 
-    return createCursor([]);
+    return createResult([]);
   }
 
-  function createCursor(rows: Row[]): SqlStorageCursor<Record<string, SqlStorageValue>> {
-    let index = 0;
+  function createResult(rows: Row[]): SqlResult<Record<string, unknown>> {
     return {
       toArray: () => [...rows],
       one: () => (rows.length > 0 ? rows[0] : null),
       [Symbol.iterator]() {
         return rows[Symbol.iterator]();
       },
-      next() {
-        if (index < rows.length) return { value: rows[index++], done: false };
-        return { value: undefined as any, done: true };
-      },
-      return(v?: any) {
-        return { value: v, done: true };
-      },
-      throw(e?: any) {
-        throw e;
-      },
-      raw: () => rows.map((r) => Object.values(r))[Symbol.iterator](),
-      get columnNames() {
-        return rows.length > 0 ? Object.keys(rows[0]) : [];
-      },
-      get rowsRead() {
-        return rows.length;
-      },
-      get rowsWritten() {
-        return 0;
-      },
-    } as unknown as SqlStorageCursor<Record<string, SqlStorageValue>>;
+    };
   }
 
   return {
-    exec: execSql,
-    get databaseSize() {
-      return 0;
-    },
-  } as unknown as SqlStorage;
+    exec: <T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlResult<T> =>
+      execSql(query, ...bindings) as SqlResult<T>,
+  };
 }

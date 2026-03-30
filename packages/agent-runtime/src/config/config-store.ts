@@ -1,9 +1,11 @@
+import type { KvStore } from "../storage/types.js";
+
 /**
  * Persists capability config and consumer namespace values
- * in Durable Object key-value storage.
+ * in key-value storage.
  */
 export class ConfigStore {
-  constructor(private storage: DurableObjectStorage) {}
+  constructor(private storage: KvStore) {}
 
   /** Read a capability's config. Returns `undefined` if not set. */
   async getCapabilityConfig<T = unknown>(capabilityId: string): Promise<T | undefined> {

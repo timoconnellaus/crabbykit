@@ -1,35 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { createMockKvStore } from "../../test-helpers/mock-kv-storage.js";
 import type { CapabilityStorage } from "../storage.js";
 import { createCapabilityStorage, createNoopStorage } from "../storage.js";
 
-/**
- * In-memory mock of DurableObjectStorage for unit testing.
- * Only implements the methods used by CapabilityStorage.
- */
-function createMockDoStorage() {
-  const store = new Map<string, unknown>();
-  return {
-    get: async <T = unknown>(key: string): Promise<T | undefined> =>
-      store.get(key) as T | undefined,
-    put: async (key: string, value: unknown): Promise<void> => {
-      store.set(key, value);
-    },
-    delete: async (key: string): Promise<boolean> => store.delete(key),
-    list: async <T = unknown>(opts?: { prefix?: string }): Promise<Map<string, T>> => {
-      const result = new Map<string, T>();
-      for (const [k, v] of store) {
-        if (!opts?.prefix || k.startsWith(opts.prefix)) {
-          result.set(k, v as T);
-        }
-      }
-      return result;
-    },
-  } as unknown as DurableObjectStorage;
-}
-
 describe("createCapabilityStorage", () => {
   it("round-trips a value through put and get", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
 
     await storage.put("key1", { foo: "bar" });
     const result = await storage.get<{ foo: string }>("key1");
@@ -38,7 +14,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("returns undefined for a missing key", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
 
     const result = await storage.get("nonexistent");
 
@@ -46,7 +22,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("deletes a key and returns true", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
     await storage.put("to-delete", 42);
 
     const deleted = await storage.delete("to-delete");
@@ -56,7 +32,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("returns false when deleting a missing key", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
 
     const deleted = await storage.delete("nonexistent");
 
@@ -64,7 +40,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("lists all keys with prefix stripped", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
     await storage.put("a", 1);
     await storage.put("b", 2);
     await storage.put("c", 3);
@@ -78,7 +54,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("lists with a sub-prefix filter", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
     await storage.put("settings:theme", "dark");
     await storage.put("settings:lang", "en");
     await storage.put("data:items", [1, 2, 3]);
@@ -91,7 +67,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("isolates storage between capabilities", async () => {
-    const doStorage = createMockDoStorage();
+    const doStorage = createMockKvStore();
     const storageA = createCapabilityStorage(doStorage, "cap-a");
     const storageB = createCapabilityStorage(doStorage, "cap-b");
 
@@ -103,7 +79,7 @@ describe("createCapabilityStorage", () => {
   });
 
   it("handles complex values", async () => {
-    const storage = createCapabilityStorage(createMockDoStorage(), "my-cap");
+    const storage = createCapabilityStorage(createMockKvStore(), "my-cap");
     const complex = { nested: { array: [1, "two", { three: true }] }, date: "2024-01-01" };
 
     await storage.put("complex", complex);

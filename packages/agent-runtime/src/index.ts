@@ -1,3 +1,6 @@
+// Storage interfaces
+export type { KvStore, SqlResult, SqlStore } from "./storage/index.js";
+export { createCfKvStore, createCfSqlStore } from "./storage/index.js";
 // Session management
 
 // Re-export key pi-* types for consumers
