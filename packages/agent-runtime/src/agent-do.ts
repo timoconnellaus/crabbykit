@@ -1221,6 +1221,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       getApiKey: () => config.apiKey,
       transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
       convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
+      steerThresholdMs: 5000,
       ...this.getAgentOptions(),
     });
 
@@ -1581,6 +1582,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         const sessions = this.sessionStore.list();
         if (sessions.length > 0) {
           this.handleCostEvent(cost, sessions[0].id);
+        }
+      },
+      abortAllSessions: () => {
+        for (const agent of this.sessionAgents.values()) {
+          if (agent.state.isStreaming) {
+            agent.abort();
+          }
         }
       },
     };
