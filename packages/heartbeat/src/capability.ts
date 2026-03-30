@@ -19,6 +19,8 @@ export interface HeartbeatOptions {
   retention?: number;
   /** Custom prompt override. Defaults to reading HEARTBEAT.md. */
   prompt?: string;
+  /** Whether the heartbeat schedule is enabled on creation. Defaults to false. */
+  enabled?: boolean;
 }
 
 /**
@@ -43,6 +45,7 @@ export function heartbeat(options: HeartbeatOptions): Capability {
         id: "heartbeat",
         name: "Heartbeat",
         cron: options.every,
+        enabled: options.enabled ?? false,
         prompt: options.prompt ?? HEARTBEAT_PROMPT,
         timezone: options.timezone,
         sessionPrefix: options.sessionPrefix ?? DEFAULT_SESSION_PREFIX,

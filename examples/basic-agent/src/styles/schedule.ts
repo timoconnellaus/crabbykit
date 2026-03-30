@@ -6,6 +6,7 @@ export const scheduleStyles = `
   overflow-y: auto;
   font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.75rem;
+  background: var(--agent-ui-bg);
 }
 
 [data-agent-ui="schedule-panel-header"] {

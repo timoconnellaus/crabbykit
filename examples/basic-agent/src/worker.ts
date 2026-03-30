@@ -79,7 +79,7 @@ export class BasicAgent extends AgentDO<Env> {
       }),
       promptScheduler(),
       credentialStore(),
-      heartbeat({ every: "30m" }),
+      heartbeat({ every: "30m", enabled: false }),
       ...this.buildAgentOpsCapabilities(),
       sandboxCapability({
         provider: new CloudflareSandboxProvider({
