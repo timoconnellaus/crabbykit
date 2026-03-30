@@ -1436,16 +1436,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const tz = config.timezone ?? undefined;
 
       if (existing) {
-        // Update cron/timezone if changed
+        // Update cron/timezone if changed (enabled is user-owned via toggleSchedule, not reconciled)
         if (
           existing.cron !== config.cron ||
-          existing.enabled !== (config.enabled ?? true) ||
           existing.timezone !== (config.timezone ?? null)
         ) {
           const next = nextFireTime(config.cron, undefined, tz);
           this.scheduleStore.update(config.id, {
             cron: config.cron,
-            enabled: config.enabled ?? true,
             timezone: config.timezone ?? null,
             nextFireAt: next.toISOString(),
           });
