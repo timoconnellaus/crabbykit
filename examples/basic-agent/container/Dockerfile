@@ -3,8 +3,8 @@
 
 FROM node:22-alpine
 
-# Install FUSE support, privilege-drop, and restic dependencies
-RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic
+# Install FUSE support, privilege-drop, restic, and build tools for nm-intercept
+RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic gcc musl-dev linux-headers
 
 # Create unprivileged user
 RUN useradd -m -s /bin/sh gia
@@ -35,6 +35,12 @@ ENV BUN_INSTALL="/opt/gia/persist/bun" \
 ENV PATH="$PATH:/opt/gia/persist/bun/bin:/opt/gia/persist/npm/bin:/opt/gia/persist/pnpm"
 
 WORKDIR /app
+
+# Compile nm-intercept (LD_PRELOAD library for instant node_modules bind-mounts)
+COPY nm-intercept.c /tmp/nm-intercept.c
+RUN gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
+    rm /tmp/nm-intercept.c && \
+    apk del gcc musl-dev linux-headers
 
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/

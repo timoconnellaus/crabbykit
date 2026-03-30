@@ -96,8 +96,18 @@ if [ "$CONTAINER_MODE" = "dev" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
   unset SYNCD_AWS_ACCESS_KEY_ID SYNCD_AWS_SECRET_ACCESS_KEY SYNCD_R2_ACCOUNT_ID SYNCD_R2_BUCKET_NAME SYNCD_AGENT_ID SYNCD_ENCRYPTION_KEY
 fi
 
-# --- 3. Start nm-guard daemon (as root, before privilege drop) ---
+# --- 3. node_modules interception ---
+# LD_PRELOAD intercepts mkdir/mkdirat and bind-mounts local disk over
+# node_modules directories the instant they're created under the FUSE mount.
+# This eliminates the race condition where npm writes to FUSE before a
+# polling daemon can detect and mount the directory.
 
+export LD_PRELOAD="/usr/local/lib/nm-intercept.so"
+export NM_INTERCEPT_MOUNT="$MOUNT_POINT"
+export NM_INTERCEPT_BASE="/opt/gia/nm"
+
+# Keep nm-guard as fallback for edge cases (e.g. node_modules created by
+# processes that don't inherit LD_PRELOAD, or pre-existing directories)
 /app/nm-guard.sh &
 
 # --- 4. Scrub credentials ---
