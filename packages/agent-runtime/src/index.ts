@@ -120,6 +120,7 @@ export type {
   CostEventMessage,
   CustomEventMessage,
   ErrorMessage,
+  InjectMessageMessage,
   McpStatusMessage,
   NewSessionMessage,
   PingMessage,

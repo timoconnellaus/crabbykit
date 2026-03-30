@@ -106,6 +106,12 @@ export interface CustomEventMessage {
   };
 }
 
+export interface InjectMessageMessage {
+  type: "inject_message";
+  sessionId: string;
+  message: AgentMessage;
+}
+
 export interface PongMessage {
   type: "pong";
 }
@@ -122,6 +128,7 @@ export type ServerMessage =
   | CommandResultMessage
   | CommandListMessage
   | CustomEventMessage
+  | InjectMessageMessage
   | PongMessage;
 
 // --- Client → Server messages ---

@@ -162,8 +162,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Cached A2A handler — lazily created on first A2A request. */
   private a2aHandler: A2AHandler | null = null;
   private a2aExecutor: ClawExecutor | null = null;
-  /** Queued A2A task results that arrived while agent was busy. Processed on agent_end. */
-  private pendingA2AResults = new Map<string, string[]>();
   /** Tracked fire-and-forget async operations (e.g., callback-triggered prompts). */
   protected pendingAsyncOps = new Set<Promise<unknown>>();
 
@@ -819,12 +817,25 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
   }
 
-  private handleSteer(sessionId: string, text: string): void {
+  private handleSteer(sessionId: string, text: string, broadcast = false): void {
+    const timestamp = Date.now();
+
     // Persist steer message to session store
     this.sessionStore.appendEntry(sessionId, {
       type: "message",
-      data: { role: "user", content: text, timestamp: Date.now() },
+      data: { role: "user", content: text, timestamp },
     });
+
+    // Broadcast to clients so the message appears immediately.
+    // Only enabled for server-originated steers (e.g. A2A callbacks) — for
+    // human steers the client already optimistically added the message.
+    if (broadcast) {
+      this.broadcastToSession(sessionId, {
+        type: "inject_message",
+        sessionId,
+        message: { role: "user", content: text, timestamp } as AgentMessage,
+      });
+    }
 
     // Inject into this session's agent if it's actively streaming
     const agent = this.sessionAgents.get(sessionId);
@@ -832,7 +843,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       agent.steer({
         role: "user",
         content: text,
-        timestamp: Date.now(),
+        timestamp,
       } as AgentMessage);
     }
   }
@@ -1024,21 +1035,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       if (event.type === "agent_end") {
         this.sessionAgents.delete(sessionId);
         this.resolvedCapabilitiesCache = null;
-
-        // Process any A2A task results that arrived during inference
-        const pendingResults = this.pendingA2AResults.get(sessionId);
-        if (pendingResults && pendingResults.length > 0) {
-          this.pendingA2AResults.delete(sessionId);
-          const op = this.handleAgentPrompt({
-            text: pendingResults.join("\n\n"),
-            sessionId,
-            source: "a2a-callback",
-          })
-            .catch((err) => console.error("[a2a] post-inference callback prompt failed:", err))
-            .finally(() => this.pendingAsyncOps.delete(op));
-          this.pendingAsyncOps.add(op);
-          this.ctx.waitUntil(op);
-        }
       }
     });
 
@@ -1931,15 +1927,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       if (isStreaming) {
         // Agent is busy — steer the result in so it can respond about it.
-        // Don't persist a separate A2A note entry — the agent's own response
-        // will be the user-facing notification (e.g., "Bob says: Hello!").
-        // This avoids the note appearing before the agent's response in the UI.
-        console.log(`[a2a:callback] steering result into running agent (no note persisted)`);
-        agent.steer({
-          role: "user",
-          content: resultText,
-          timestamp: Date.now(),
-        });
+        // handleSteer persists, broadcasts inject_message to clients, and steers.
+        console.log(`[a2a:callback] steering result into running agent`);
+        this.handleSteer(pending.originSessionId, resultText, true);
       } else {
         // Agent is idle — handleAgentPrompt will persist the message AND trigger inference.
         // Don't persist separately to avoid duplicates.

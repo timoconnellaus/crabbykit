@@ -516,6 +516,11 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         break;
       }
 
+      case "inject_message":
+        if (msg.sessionId !== currentSessionIdRef.current) break;
+        dispatch({ type: "ADD_MESSAGE", message: msg.message });
+        break;
+
       case "custom_event":
         if (msg.sessionId !== currentSessionIdRef.current) break;
         onCustomEventRef.current?.(msg.event.name, msg.event.data);

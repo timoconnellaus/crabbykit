@@ -36,9 +36,10 @@ describe("Client Types", () => {
         command_result: true,
         command_list: true,
         custom_event: true,
+        inject_message: true,
         pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(12);
+      expect(Object.keys(handlers)).toHaveLength(13);
     });
 
     it("discriminates client messages by type", () => {
