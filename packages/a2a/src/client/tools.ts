@@ -188,7 +188,9 @@ export function createStartTaskTool(
           url: `${options.callbackBaseUrl}/a2a-callback/${options.agentId}`,
           token: webhookToken,
         };
-        console.log(`[a2a:start_task] pushConfig: url=${pushConfig.url}, agentId=${options.agentId}`);
+        console.log(
+          `[a2a:start_task] pushConfig: url=${pushConfig.url}, agentId=${options.agentId}`,
+        );
 
         const client = resolveClient(args.targetAgent, options);
 

@@ -1,3 +1,7 @@
+// App preview
+export type { AppPreviewProps, ConsoleLogEntry } from "./components/app-preview";
+export { AppPreview } from "./components/app-preview";
+
 // Context
 
 export type { ChatInputProps } from "./components/chat-input";

@@ -23,6 +23,7 @@ const ctx: AgentContext = {
   emitCost: () => {},
   broadcast: () => {},
   broadcastToAll: () => {},
+  requestFromClient: () => Promise.reject(new Error("Not available")),
   schedules: mockSchedules,
 };
 

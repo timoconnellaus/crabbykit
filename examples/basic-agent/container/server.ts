@@ -36,6 +36,26 @@ let lastActivityAt = Date.now();
 let containerMode = process.env.CONTAINER_MODE ?? "normal";
 let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
+let devServerPort: number | null = null;
+
+const CONSOLE_CAPTURE_SCRIPT = `<script>
+(function(){
+  var orig={error:console.error,warn:console.warn,log:console.log,info:console.info};
+  var count=0,lastReset=Date.now();
+  function throttle(){var now=Date.now();if(now-lastReset>1000){count=0;lastReset=now}return ++count<=10}
+  function report(level,args){
+    if(!throttle())return;
+    var msg=Array.from(args).map(function(a){return typeof a==='object'?JSON.stringify(a):String(a)}).join(' ');
+    try{parent.postMessage({type:'claw:console',level:level,text:msg,ts:Date.now()},'*')}catch(e){}
+  }
+  console.error=function(){report('error',arguments);orig.error.apply(console,arguments)};
+  console.warn=function(){report('warn',arguments);orig.warn.apply(console,arguments)};
+  console.log=function(){report('log',arguments);orig.log.apply(console,arguments)};
+  console.info=function(){report('info',arguments);orig.info.apply(console,arguments)};
+  window.addEventListener('error',function(e){report('error',[(e.message||'Error')+' at '+(e.filename||'unknown')+':'+(e.lineno||0)])});
+  window.addEventListener('unhandledrejection',function(e){report('error',['Unhandled rejection: '+(e.reason&&e.reason.message||e.reason)])});
+})();
+</script>`;
 
 interface BufferEntry {
   seq: number;
@@ -459,6 +479,70 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
+  // --- Set dev port ---
+  if (url.pathname === "/set-dev-port" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const port = body.port as number;
+    if (!port || typeof port !== "number" || port < 1 || port > 65535) {
+      error(res, "Invalid port");
+      return;
+    }
+    devServerPort = port;
+    json(res, { ok: true, port: devServerPort });
+    return;
+  }
+
+  // --- Clear dev port ---
+  if (url.pathname === "/clear-dev-port" && method === "POST") {
+    devServerPort = null;
+    json(res, { ok: true });
+    return;
+  }
+
+  // --- Dev server proxy fallback ---
+  if (devServerPort) {
+    try {
+      const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
+      const proxyRes = await fetch(proxyUrl, {
+        method,
+        headers: Object.fromEntries(
+          Object.entries(req.headers)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v!]),
+        ),
+        body: method !== "GET" && method !== "HEAD" ? await readBody(req) : undefined,
+      });
+
+      const contentType = proxyRes.headers.get("content-type") ?? "";
+
+      if (contentType.includes("text/html")) {
+        let html = await proxyRes.text();
+        if (html.includes("</head>")) {
+          html = html.replace("</head>", `${CONSOLE_CAPTURE_SCRIPT}</head>`);
+        } else if (html.includes("<head>")) {
+          html = html.replace("<head>", `<head>${CONSOLE_CAPTURE_SCRIPT}`);
+        } else {
+          html = CONSOLE_CAPTURE_SCRIPT + html;
+        }
+        res.writeHead(proxyRes.status, {
+          "content-type": contentType,
+        });
+        res.end(html);
+      } else {
+        const headers: Record<string, string> = {};
+        proxyRes.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        res.writeHead(proxyRes.status, headers);
+        const arrayBuf = await proxyRes.arrayBuffer();
+        res.end(Buffer.from(arrayBuf));
+      }
+      return;
+    } catch {
+      // Dev server not ready — fall through to 404
+    }
+  }
+
   // --- Not found ---
   error(res, "Not found", 404);
 }
@@ -472,6 +556,32 @@ const server = http.createServer((req, res) => {
       error(res, "Internal server error", 500);
     }
   });
+});
+
+// --- WebSocket upgrade bridging (HMR) ---
+
+server.on("upgrade", (req, socket, head) => {
+  if (!devServerPort) {
+    socket.destroy();
+    return;
+  }
+
+  const { createConnection } = require("node:net") as typeof import("node:net");
+  const upstream = createConnection({ port: devServerPort, host: "127.0.0.1" }, () => {
+    const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    const headers = Object.entries(req.headers)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+      .join("\r\n");
+    upstream.write(`${reqLine}${headers}\r\n\r\n`);
+    if (head.length > 0) upstream.write(head);
+
+    socket.pipe(upstream);
+    upstream.pipe(socket);
+  });
+
+  upstream.on("error", () => socket.destroy());
+  socket.on("error", () => upstream.destroy());
 });
 
 server.listen(PORT, () => {

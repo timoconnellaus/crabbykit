@@ -1,6 +1,7 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
-import type { SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
+import type { ConsoleLogEntry, SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
 import {
+  AppPreview,
   ChatInput,
   ChatPanel,
   MessageList,
@@ -309,6 +310,13 @@ export default function App() {
     elevated: false,
   });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
+  const [previewState, setPreviewState] = useState<{ open: boolean; port?: number }>({
+    open: false,
+  });
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([]);
+  const [logFilter, setLogFilter] = useState<"all" | "error" | "warn" | "info" | "log">("all");
+
+  const MAX_CONSOLE_LOGS = 1000;
 
   // Fetch agent list from registry
   const fetchAgents = useCallback(async () => {
@@ -354,6 +362,13 @@ export default function App() {
         timeoutSeconds: data.timeoutSeconds as number,
       }));
     }
+    if (name === "preview_open") {
+      setPreviewState({ open: true, port: data.port as number });
+      setConsoleLogs([]);
+    }
+    if (name === "preview_close") {
+      setPreviewState({ open: false });
+    }
     if (name === "a2a_active_tasks") {
       setPendingTasks(data.tasks as PendingA2ATask[]);
     }
@@ -384,10 +399,48 @@ export default function App() {
     }
   }, []);
 
+  // Ref for console logs so the onCustomRequest handler always reads latest
+  const consoleLogsRef = useRef(consoleLogs);
+  consoleLogsRef.current = consoleLogs;
+
+  const onCustomRequest = useCallback(
+    (name: string, data: Record<string, unknown>): Record<string, unknown> => {
+      if (name === "get_console_logs") {
+        const level = data.level as string;
+        const logs = consoleLogsRef.current;
+        const filtered = level === "all" ? logs : logs.filter((l) => l.level === level);
+        return { logs: filtered };
+      }
+      // biome-ignore lint/style/useNamingConvention: _error is a protocol convention for error responses
+      return { _error: true, message: `Unknown request: ${name}` };
+    },
+    [],
+  );
+
+  // Listen for console messages from the preview iframe
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "claw:console") {
+        const entry: ConsoleLogEntry = {
+          level: event.data.level,
+          text: event.data.text,
+          ts: event.data.ts,
+        };
+        setConsoleLogs((prev) => {
+          const next = [...prev, entry];
+          return next.length > MAX_CONSOLE_LOGS ? next.slice(-MAX_CONSOLE_LOGS) : next;
+        });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const chat = useAgentChat({
     url: selectedAgentId ? `${wsProtocol}//${window.location.host}/agent/${selectedAgentId}` : "",
     onCustomEvent,
+    onCustomRequest,
   });
 
   const handleCreateAgent = useCallback(async () => {
@@ -420,12 +473,34 @@ export default function App() {
               <SessionList />
               <SchedulePanel />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-              <StatusBar sandboxState={sandboxState} />
-              <MessageList />
-              <ThinkingIndicator />
-              <PendingTasksBanner tasks={pendingTasks} />
-              <ChatInput />
+            <div style={{ display: "flex", flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: previewState.open ? 3 : 1,
+                  minWidth: 0,
+                }}
+              >
+                <StatusBar sandboxState={sandboxState} />
+                <MessageList />
+                <ThinkingIndicator />
+                <PendingTasksBanner tasks={pendingTasks} />
+                <ChatInput />
+              </div>
+              {previewState.open && selectedAgentId && (
+                <div style={{ flex: 7, minWidth: 0 }}>
+                  <AppPreview
+                    previewUrl={`/preview/${selectedAgentId}/`}
+                    logs={consoleLogs}
+                    onClearLogs={() => setConsoleLogs([])}
+                    logFilter={logFilter}
+                    onLogFilterChange={(f) =>
+                      setLogFilter(f as "all" | "error" | "warn" | "info" | "log")
+                    }
+                  />
+                </div>
+              )}
             </div>
           </ChatPanel>
         ) : (

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   abortMessage,
   agentEventMessage,
+  customResponseMessage,
   errorMessage,
   mcpStatusMessage,
   newSessionMessage,
@@ -134,6 +135,17 @@ describe("Transport Message Types", () => {
       }
     });
 
+    it("custom_response has requestId and data", () => {
+      const msg: ClientMessage = customResponseMessage;
+      expect(msg.type).toBe("custom_response");
+      if (msg.type === "custom_response") {
+        expect(msg.sessionId).toBeTruthy();
+        expect(msg.requestId).toBeTruthy();
+        expect(msg.data).toBeDefined();
+        expect(msg.data.logs).toBeInstanceOf(Array);
+      }
+    });
+
     it("all client messages are JSON-serializable", () => {
       const messages = [
         promptMessage,
@@ -141,6 +153,7 @@ describe("Transport Message Types", () => {
         abortMessage,
         switchSessionMessage,
         newSessionMessage,
+        customResponseMessage,
       ];
 
       for (const msg of messages) {

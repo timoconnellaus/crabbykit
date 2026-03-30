@@ -22,7 +22,9 @@ export async function deliverPushNotification(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    console.log(`[a2a:push] delivering to ${url}, token=${token ? "yes" : "no"}, fetchFn=${fetchFn === fetch ? "global" : "custom"}`);
+    console.log(
+      `[a2a:push] delivering to ${url}, token=${token ? "yes" : "no"}, fetchFn=${fetchFn === fetch ? "global" : "custom"}`,
+    );
     const response = await fetchFn(url, {
       method: "POST",
       headers,

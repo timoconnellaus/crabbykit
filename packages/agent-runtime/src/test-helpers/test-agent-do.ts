@@ -535,6 +535,7 @@ export class TestAgentDO extends AgentDO {
       emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: (this as any).buildScheduleManager(),
     };
 

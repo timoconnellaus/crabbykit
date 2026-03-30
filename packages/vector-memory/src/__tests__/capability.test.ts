@@ -45,6 +45,7 @@ describe("vectorMemory", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     };
 
@@ -66,6 +67,7 @@ describe("vectorMemory", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     };
 

@@ -119,6 +119,9 @@ export interface ScheduleManager {
   cancelTimer(id: string): Promise<void>;
 }
 
+/** Default timeout in milliseconds for requestFromClient. */
+const DEFAULT_CLIENT_REQUEST_TIMEOUT_MS = 5_000;
+
 export interface AgentContext {
   sessionId: string;
   stepNumber: number;
@@ -128,6 +131,16 @@ export interface AgentContext {
   broadcast: (name: string, data: Record<string, unknown>) => void;
   /** Broadcast a custom event to ALL connected clients across all sessions. */
   broadcastToAll: (name: string, data: Record<string, unknown>) => void;
+  /**
+   * Send a custom event to the client and await a response.
+   * The client must have an `onCustomRequest` handler configured.
+   * Rejects on timeout or if no client responds.
+   */
+  requestFromClient: (
+    eventName: string,
+    eventData: Record<string, unknown>,
+    timeoutMs?: number,
+  ) => Promise<Record<string, unknown>>;
   /** Persistent key-value storage scoped to a capability. Only set for capability-contributed tools. */
   storage?: CapabilityStorage;
   /** Manage prompt-based schedules and one-shot timers. */
@@ -166,6 +179,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private a2aExecutor: ClawExecutor | null = null;
   /** Tracked fire-and-forget async operations (e.g., callback-triggered prompts). */
   protected pendingAsyncOps = new Set<Promise<unknown>>();
+  /** Pending client request/response round-trips (requestId -> resolver). */
+  private pendingClientRequests = new Map<
+    string,
+    { resolve: (data: Record<string, unknown>) => void; timer: ReturnType<typeof setTimeout> }
+  >();
 
   /** Platform-agnostic KV store adapter, created from CF storage in constructor. */
   protected kvStore: KvStore;
@@ -463,7 +481,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
       const contextMessages = this.sessionStore.buildContext(sessionId);
       const a2aNotes = contextMessages.filter(
-        (m) => m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
+        (m) =>
+          m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
       );
       if (a2aNotes.length > 0) {
         console.log(`[a2a:debug] session_sync includes ${a2aNotes.length} A2A note(s)`);
@@ -610,6 +629,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     "command",
     "request_sync",
     "toggle_schedule",
+    "custom_response",
     "ping",
   ]);
 
@@ -776,6 +796,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
       }
 
+      case "custom_response": {
+        const pending = this.pendingClientRequests.get(msg.requestId);
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingClientRequests.delete(msg.requestId);
+          pending.resolve(msg.data);
+        }
+        break;
+      }
+
       case "ping": {
         this.sendToSocket(ws, { type: "pong" } as ServerMessage);
         break;
@@ -846,7 +876,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       type: "message",
       data: { role: "user", content: text, timestamp },
     });
-    console.log(`[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`);
+    console.log(
+      `[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`,
+    );
 
     // Broadcast to clients so the message appears immediately.
     // Only enabled for server-originated steers (e.g. A2A callbacks) — for
@@ -889,6 +921,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           emitCost: () => {},
           broadcast: () => {},
           broadcastToAll: () => {},
+          requestFromClient: () => Promise.reject(new Error("Not available")),
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1021,6 +1054,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           event: { name, data },
         }),
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      requestFromClient: (eventName, eventData, timeoutMs) =>
+        this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
       schedules: this.buildScheduleManager(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
@@ -1196,6 +1231,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
               event: { name, data },
             }),
           broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          requestFromClient: (eventName, eventData, timeoutMs) =>
+            this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1461,6 +1498,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           emitCost: () => {},
           broadcast: () => {},
           broadcastToAll: () => {},
+          requestFromClient: () => Promise.reject(new Error("Not available")),
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1498,10 +1536,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       if (existing) {
         // Update cron/timezone if changed (enabled is user-owned via toggleSchedule, not reconciled)
-        if (
-          existing.cron !== config.cron ||
-          existing.timezone !== (config.timezone ?? null)
-        ) {
+        if (existing.cron !== config.cron || existing.timezone !== (config.timezone ?? null)) {
           const next = nextFireTime(config.cron, undefined, tz);
           this.scheduleStore.update(config.id, {
             cron: config.cron,
@@ -1577,6 +1612,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: this.buildScheduleManager(),
     };
 
@@ -2057,6 +2093,40 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private async handleMcpCallback(_request: Request): Promise<Response> {
     // TODO: Implement OAuth callback handling
     return new Response("OK");
+  }
+
+  // --- Client request/response ---
+
+  /**
+   * Send a custom event to a session's connected clients and await a response.
+   * The first client to reply resolves the promise.
+   */
+  private requestFromClient(
+    sessionId: string,
+    eventName: string,
+    eventData: Record<string, unknown>,
+    timeoutMs = DEFAULT_CLIENT_REQUEST_TIMEOUT_MS,
+  ): Promise<Record<string, unknown>> {
+    const requestId = crypto.randomUUID();
+
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingClientRequests.delete(requestId);
+        reject(new Error(`Client request "${eventName}" timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      this.pendingClientRequests.set(requestId, { resolve, timer });
+
+      // Broadcast a custom_event with _requestId so the client knows to respond
+      this.broadcastToSession(sessionId, {
+        type: "custom_event",
+        sessionId,
+        event: {
+          name: eventName,
+          data: { ...eventData, _requestId: requestId },
+        },
+      });
+    });
   }
 
   // --- Broadcasting ---

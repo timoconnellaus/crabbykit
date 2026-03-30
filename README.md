@@ -26,6 +26,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 | `vector-memory` | Semantic memory search backed by Cloudflare Vectorize + R2 |
 | `sandbox` | Controlled shell execution with elevation model and process management |
 | `cloudflare-sandbox` | Sandbox provider implementation for Cloudflare Containers |
+| `vibe-coder` | Live app preview with console capture (show_preview, hide_preview, get_console_logs) |
 
 Internal (not published): `agent-core` (LLM agent loop), `ai` (model provider abstraction).
 

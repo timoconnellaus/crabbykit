@@ -122,6 +122,7 @@ export type {
   CommandResultMessage,
   CostEventMessage,
   CustomEventMessage,
+  CustomResponseMessage,
   ErrorMessage,
   InjectMessageMessage,
   McpStatusMessage,

@@ -145,4 +145,21 @@ export class CloudflareSandboxProvider implements SandboxProvider {
       throw new Error(`trigger-sync failed: ${res.status} ${await res.text()}`);
     }
   }
+
+  async setDevPort(port: number): Promise<void> {
+    const res = await this.fetch("/set-dev-port", {
+      method: "POST",
+      body: JSON.stringify({ port }),
+    });
+    if (!res.ok) {
+      throw new Error(`set-dev-port failed: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  async clearDevPort(): Promise<void> {
+    const res = await this.fetch("/clear-dev-port", { method: "POST" });
+    if (!res.ok) {
+      throw new Error(`clear-dev-port failed: ${res.status} ${await res.text()}`);
+    }
+  }
 }

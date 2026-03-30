@@ -93,3 +93,10 @@ export const newSessionMessage: ClientMessage = {
   type: "new_session",
   name: "Research Task",
 };
+
+export const customResponseMessage: ClientMessage = {
+  type: "custom_response",
+  sessionId: "sess_123",
+  requestId: "req_abc",
+  data: { logs: [{ level: "error", text: "Something failed", ts: 1234567890 }] },
+};

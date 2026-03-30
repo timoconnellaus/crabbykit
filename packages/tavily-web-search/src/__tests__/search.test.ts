@@ -26,6 +26,7 @@ function mockContext(): AgentContext {
     emitCost: vi.fn(),
     broadcast: () => {},
     broadcastToAll: () => {},
+    requestFromClient: () => Promise.reject(new Error("Not available")),
     schedules: {} as any,
   };
 }

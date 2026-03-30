@@ -9,6 +9,7 @@ export type {
   CommandMessage,
   CommandResultMessage,
   CostEventMessage,
+  CustomResponseMessage,
   DeleteSessionMessage,
   ErrorMessage,
   McpStatusMessage,

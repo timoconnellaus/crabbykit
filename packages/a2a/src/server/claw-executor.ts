@@ -271,7 +271,9 @@ export class ClawExecutor implements AgentExecutor {
     ctx
       .sendPrompt({ text, sessionId, source: "a2a" })
       .then(({ response }: { response: string }) => {
-        console.log(`[a2a] non-blocking sendPrompt complete: taskId=${taskId}, response="${response.slice(0, 80)}"`);
+        console.log(
+          `[a2a] non-blocking sendPrompt complete: taskId=${taskId}, response="${response.slice(0, 80)}"`,
+        );
         const completedStatus: TaskStatus = {
           state: "completed",
           timestamp: new Date().toISOString(),
@@ -286,7 +288,10 @@ export class ClawExecutor implements AgentExecutor {
 
         // Fire push notification if configured
         const pushConfig = taskStore.getPushConfig(taskId);
-        console.log(`[a2a] push config for ${taskId}:`, pushConfig ? `url=${pushConfig.url}` : "NONE");
+        console.log(
+          `[a2a] push config for ${taskId}:`,
+          pushConfig ? `url=${pushConfig.url}` : "NONE",
+        );
         firePushNotificationsForTask(
           taskStore,
           taskId,
@@ -297,7 +302,10 @@ export class ClawExecutor implements AgentExecutor {
         });
       })
       .catch((err: unknown) => {
-        console.error(`[a2a] non-blocking sendPrompt failed: taskId=${taskId}`, err instanceof Error ? err.message : err);
+        console.error(
+          `[a2a] non-blocking sendPrompt failed: taskId=${taskId}`,
+          err instanceof Error ? err.message : err,
+        );
         const failedStatus: TaskStatus = {
           state: "failed",
           timestamp: new Date().toISOString(),

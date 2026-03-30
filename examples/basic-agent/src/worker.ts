@@ -22,6 +22,7 @@ import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
+import { vibeCoder } from "@claw-for-cloudflare/vibe-coder";
 
 interface Env {
   AGENT: DurableObjectNamespace;
@@ -81,6 +82,16 @@ export class BasicAgent extends AgentDO<Env> {
       heartbeat({ every: "30m" }),
       ...this.buildAgentOpsCapabilities(),
       sandboxCapability({
+        provider: new CloudflareSandboxProvider({
+          storage,
+          getStub: () => {
+            const id = this.env.SANDBOX_CONTAINER.idFromName("default");
+            return this.env.SANDBOX_CONTAINER.get(id);
+          },
+          containerMode: "dev",
+        }),
+      }),
+      vibeCoder({
         provider: new CloudflareSandboxProvider({
           storage,
           getStub: () => {
@@ -207,6 +218,16 @@ export default {
         parentAgentId: null,
       });
       return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
+    }
+
+    // /preview/:agentId[/...] — proxy to sandbox container for dev server preview
+    const previewMatch = url.pathname.match(/^\/preview\/([^/]+)(\/.*)?$/);
+    if (previewMatch) {
+      const id = env.SANDBOX_CONTAINER.idFromName("default");
+      const stub = env.SANDBOX_CONTAINER.get(id);
+      const proxyUrl = new URL(request.url);
+      proxyUrl.pathname = previewMatch[2] || "/";
+      return stub.fetch(new Request(proxyUrl.toString(), request));
     }
 
     // /agent/:agentId[/...] — route to agent DO by ID

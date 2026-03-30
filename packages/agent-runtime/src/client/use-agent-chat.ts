@@ -41,6 +41,15 @@ export interface UseAgentChatConfig {
   maxReconnectDelay?: number;
   /** Called when a custom event is received from a capability. */
   onCustomEvent?: (name: string, data: Record<string, unknown>) => void;
+  /**
+   * Called when the server requests data from the client (via requestFromClient).
+   * The handler receives the event name and data, and should return the response data.
+   * If not provided or if it throws, an error response is sent back.
+   */
+  onCustomRequest?: (
+    name: string,
+    data: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
 }
 
 export interface UseAgentChatReturn {
@@ -297,6 +306,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const activeUrlRef = useRef(config.url);
   const onCustomEventRef = useRef(config.onCustomEvent);
   onCustomEventRef.current = config.onCustomEvent;
+  const onCustomRequestRef = useRef(config.onCustomRequest);
+  onCustomRequestRef.current = config.onCustomRequest;
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPongAtRef = useRef<number>(0);
@@ -521,10 +532,46 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         dispatch({ type: "ADD_MESSAGE", message: msg.message });
         break;
 
-      case "custom_event":
+      case "custom_event": {
         if (msg.sessionId !== currentSessionIdRef.current) break;
-        onCustomEventRef.current?.(msg.event.name, msg.event.data);
+        const eventData = msg.event.data;
+        const requestId = eventData._requestId as string | undefined;
+
+        if (requestId) {
+          // Server is requesting data from the client — handle and respond
+          const handler = onCustomRequestRef.current;
+          const respondWith = (data: Record<string, unknown>) => {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(
+                JSON.stringify({
+                  type: "custom_response",
+                  sessionId: msg.sessionId,
+                  requestId,
+                  data,
+                }),
+              );
+            }
+          };
+
+          if (handler) {
+            // Strip _requestId from the data passed to the handler
+            const { _requestId: _, ...cleanData } = eventData;
+            Promise.resolve(handler(msg.event.name, cleanData))
+              .then(respondWith)
+              .catch((err: unknown) => {
+                respondWith({
+                  _error: true,
+                  message: err instanceof Error ? err.message : String(err),
+                });
+              });
+          } else {
+            respondWith({ _error: true, message: "No onCustomRequest handler configured" });
+          }
+        } else {
+          onCustomEventRef.current?.(msg.event.name, msg.event.data);
+        }
         break;
+      }
 
       case "pong":
         lastPongAtRef.current = Date.now();

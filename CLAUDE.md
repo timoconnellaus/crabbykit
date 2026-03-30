@@ -34,6 +34,7 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/vector-memory`** — Semantic memory search using Cloudflare Vectorize + R2. Auto-indexes markdown files, uses Workers AI embeddings, falls back to keyword search.
 - **`packages/sandbox`** — Controlled shell execution with elevation model. Tools: elevate, de-elevate, bash, start_process, stop_process, get_process_status. Auto-deactivates after idle timeout.
 - **`packages/cloudflare-sandbox`** — Sandbox provider implementation for Cloudflare Containers. Proxies sandbox operations to a Container DO via HTTP.
+- **`packages/vibe-coder`** — Live app preview capability. Provides 3 tools: show_preview, hide_preview, get_console_logs. Proxies dev server traffic through the container, injects console capture script, retrieves logs from the browser via client round-trip.
 
 ### Internal Packages (not published)
 - **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
@@ -53,6 +54,7 @@ packages/r2-storage        — R2 file storage capability
 packages/vector-memory     — Semantic memory search (Vectorize + R2)
 packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
+packages/vibe-coder        — Live app preview with console capture
 examples/basic-agent       — Full-stack example (Vite + Cloudflare Worker)
 ```
 

@@ -25,6 +25,7 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -45,6 +46,7 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     };
     const sections = cap.promptSections!(context);
@@ -64,6 +66,7 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);
@@ -84,6 +87,7 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);

@@ -27,6 +27,7 @@
         "@claw-for-cloudflare/sandbox": "workspace:*",
         "@claw-for-cloudflare/tavily-web-search": "workspace:*",
         "@claw-for-cloudflare/vector-memory": "workspace:*",
+        "@claw-for-cloudflare/vibe-coder": "workspace:*",
         "@cloudflare/containers": "^0.1.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -328,6 +329,21 @@
         "vitest": "^3.2.0",
       },
     },
+    "packages/vibe-coder": {
+      "name": "@claw-for-cloudflare/vibe-coder",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
@@ -429,6 +445,8 @@
     "@claw-for-cloudflare/tavily-web-search": ["@claw-for-cloudflare/tavily-web-search@workspace:packages/tavily-web-search"],
 
     "@claw-for-cloudflare/vector-memory": ["@claw-for-cloudflare/vector-memory@workspace:packages/vector-memory"],
+
+    "@claw-for-cloudflare/vibe-coder": ["@claw-for-cloudflare/vibe-coder@workspace:packages/vibe-coder"],
 
     "@cloudflare/containers": ["@cloudflare/containers@0.1.1", "", {}, "sha512-YTdobRTnTlUOUPMFemufH367A9Z8pDfZ+UboYMLbGpO0VlvEXZDiioSmXPQMHld2vRtkL31mcRii3bcbQU6fdw=="],
 

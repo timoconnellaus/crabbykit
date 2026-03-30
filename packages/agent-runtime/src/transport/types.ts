@@ -187,6 +187,13 @@ export interface ToggleScheduleMessage {
   enabled: boolean;
 }
 
+export interface CustomResponseMessage {
+  type: "custom_response";
+  sessionId: string;
+  requestId: string;
+  data: Record<string, unknown>;
+}
+
 export interface PingMessage {
   type: "ping";
 }
@@ -201,4 +208,5 @@ export type ClientMessage =
   | CommandMessage
   | RequestSyncMessage
   | ToggleScheduleMessage
+  | CustomResponseMessage
   | PingMessage;

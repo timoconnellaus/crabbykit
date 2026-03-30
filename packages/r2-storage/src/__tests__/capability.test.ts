@@ -29,6 +29,7 @@ describe("r2Storage", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -55,6 +56,7 @@ describe("r2Storage", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     });
     expect(sections).toHaveLength(1);

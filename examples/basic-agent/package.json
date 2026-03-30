@@ -20,6 +20,7 @@
     "@claw-for-cloudflare/sandbox": "workspace:*",
     "@claw-for-cloudflare/tavily-web-search": "workspace:*",
     "@claw-for-cloudflare/vector-memory": "workspace:*",
+    "@claw-for-cloudflare/vibe-coder": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

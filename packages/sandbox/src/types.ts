@@ -40,6 +40,13 @@ export interface SandboxProvider {
 
   /** Trigger a persist volume backup (dev mode). */
   triggerSync?(): Promise<void>;
+
+  // --- Optional dev server management ---
+
+  /** Set the port of a dev server to proxy traffic to. */
+  setDevPort?(port: number): Promise<void>;
+  /** Clear the dev server port (stop proxying). */
+  clearDevPort?(): Promise<void>;
 }
 
 /** Configuration for the sandbox capability. */
