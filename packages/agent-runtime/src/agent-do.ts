@@ -16,8 +16,6 @@ import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
-import type { KvStore, SqlStore } from "./storage/types.js";
-import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import type {
   Capability,
   CapabilityHookContext,
@@ -43,7 +41,11 @@ import type {
   ScheduleConfig,
 } from "./scheduling/types.js";
 import { SessionStore } from "./session/session-store.js";
+import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
+import type { KvStore, SqlStore } from "./storage/types.js";
+import { CfWebSocketTransport } from "./transport/cloudflare.js";
 import { ErrorCodes } from "./transport/error-codes.js";
+import type { Transport, TransportConnection } from "./transport/transport.js";
 import type { ClientMessage, ServerMessage } from "./transport/types.js";
 
 // Lazy-loaded pi-* SDK (pi-agent-core imports pi-ai which has partial-json CJS issue in Workers test pool)
@@ -164,8 +166,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Per-session agent instances. Present only while inference is active, cleaned up on agent_end. */
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
   private sessionAgents = new Map<string, any>();
-  private connections = new Map<WebSocket, { sessionId: string }>();
-  private connectionRateLimits = new Map<WebSocket, { count: number; windowStart: number }>();
+  protected transport: Transport;
+  private connectionRateLimits = new Map<string, { count: number; windowStart: number }>();
   private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   private beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
@@ -197,6 +199,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.scheduleStore = new ScheduleStore(sqlStore);
     this.configStore = new ConfigStore(this.kvStore);
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
+    this.transport = new CfWebSocketTransport(ctx);
+    this.transport.onOpen((connection) => this.handleTransportOpen(connection));
+    this.transport.onMessage((connection, data) => this.handleTransportMessage(connection, data));
+    this.transport.onClose((connection) => this.handleTransportClose(connection));
   }
 
   // --- Abstract methods (consumers implement these) ---
@@ -435,7 +441,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     // WebSocket upgrade
     if (request.headers.get("upgrade") === "websocket") {
-      return this.handleWebSocket(request);
+      return this.transport.handleUpgrade(request);
     }
 
     // HTTP POST fallback for prompting
@@ -560,18 +566,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     return new Response("Not found", { status: 404 });
   }
 
-  private handleWebSocket(_request: Request): Response {
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-
-    this.ctx.acceptWebSocket(server);
-
+  private handleTransportOpen(connection: TransportConnection): void {
     // Default to first session or create one
     const sessions = this.sessionStore.list();
     const sessionId = sessions[0]?.id ?? this.sessionStore.create().id;
 
-    this.connections.set(server, { sessionId });
-    server.serializeAttachment({ sessionId });
+    connection.setSessionId(sessionId);
 
     // Send initial sync (paginated)
     const session = this.sessionStore.get(sessionId);
@@ -593,7 +593,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
             .map((m) => (typeof m.content === "string" ? m.content.slice(0, 60) : "[array]")),
         );
       }
-      this.sendToSocket(server, {
+      connection.send({
         type: "session_sync",
         sessionId,
         session,
@@ -607,46 +607,38 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     // Send session list, schedule list, and command list
-    this.sendSessionList(server);
-    this.sendCommandList(server, sessionId);
+    this.sendSessionList(connection);
+    this.sendCommandList(connection, sessionId);
     this.broadcastScheduleList();
 
     // Fire onConnect hooks asynchronously (don't block WS handshake)
     this.fireOnConnectHooks(sessionId).catch((err) => {
       console.error("[AgentDO] onConnect hooks error:", err);
     });
-
-    return new Response(null, { status: 101, webSocket: client });
   }
 
   webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): void {
-    // Restore connection mapping after DO hibernation/eviction.
-    // The in-memory connections Map is lost, but the WebSocket and its
-    // serialized attachment survive via Cloudflare's hibernation API.
-    let restoredFromHibernation = false;
-    if (!this.connections.has(ws)) {
-      const attachment = ws.deserializeAttachment() as { sessionId: string } | null;
-      if (attachment?.sessionId) {
-        this.connections.set(ws, { sessionId: attachment.sessionId });
-        restoredFromHibernation = true;
+    (this.transport as CfWebSocketTransport).handleMessage(ws, data);
+  }
 
-        // Fire onConnect hooks to reconcile state (e.g., stale elevation cleanup)
-        this.fireOnConnectHooks(attachment.sessionId).catch((err) => {
-          console.error("[AgentDO] onConnect hooks error (reconnect):", err);
-        });
-      }
+  private handleTransportMessage(connection: TransportConnection, data: string): void {
+    // Fire onConnect hooks on hibernation recovery to reconcile state
+    if (connection.wasRestoredFromHibernation) {
+      this.fireOnConnectHooks(connection.getSessionId()).catch((err) => {
+        console.error("[AgentDO] onConnect hooks error (reconnect):", err);
+      });
     }
 
     // Rate limiting: sliding window per connection
     const now = Date.now();
-    let rateLimit = this.connectionRateLimits.get(ws);
+    let rateLimit = this.connectionRateLimits.get(connection.id);
     if (!rateLimit || now - rateLimit.windowStart > AgentDO.RATE_LIMIT_WINDOW_MS) {
       rateLimit = { count: 0, windowStart: now };
-      this.connectionRateLimits.set(ws, rateLimit);
+      this.connectionRateLimits.set(connection.id, rateLimit);
     }
     rateLimit.count++;
     if (rateLimit.count > AgentDO.RATE_LIMIT_MAX) {
-      this.sendToSocket(ws, {
+      connection.send({
         type: "error",
         code: ErrorCodes.RATE_LIMITED,
         message: "Too many messages — slow down",
@@ -656,9 +648,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     let msg: ClientMessage;
     try {
-      msg = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data));
+      msg = JSON.parse(data);
     } catch {
-      this.sendToSocket(ws, {
+      connection.send({
         type: "error",
         code: ErrorCodes.PARSE_ERROR,
         message: "Invalid message format",
@@ -669,7 +661,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Validate message structure before dispatching
     const validationError = this.validateClientMessage(msg);
     if (validationError) {
-      this.sendToSocket(ws, {
+      connection.send({
         type: "error",
         code: ErrorCodes.PARSE_ERROR,
         message: validationError,
@@ -683,29 +675,27 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Skip for prompt/steer — those persist the user message first and then
     // trigger agent events, so a sync here would race with the optimistic
     // client-side message and overwrite it with stale server state.
-    if (restoredFromHibernation && msg.type !== "prompt" && msg.type !== "steer") {
-      const conn = this.connections.get(ws);
-      if (conn) {
-        const session = this.sessionStore.get(conn.sessionId);
-        if (session) {
-          const { entries, hasMore } = this.sessionStore.getEntriesPaginated(conn.sessionId);
-          const messages = this.sessionStore.buildContext(conn.sessionId);
-          const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
-          this.sendToSocket(ws, {
-            type: "session_sync",
-            sessionId: conn.sessionId,
-            session,
-            messages,
-            streamMessage: null,
-            cursor: lastSeq,
-            hasMore,
-          });
-        }
+    if (connection.wasRestoredFromHibernation && msg.type !== "prompt" && msg.type !== "steer") {
+      const sessionId = connection.getSessionId();
+      const session = this.sessionStore.get(sessionId);
+      if (session) {
+        const { entries, hasMore } = this.sessionStore.getEntriesPaginated(sessionId);
+        const messages = this.sessionStore.buildContext(sessionId);
+        const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
+        connection.send({
+          type: "session_sync",
+          sessionId,
+          session,
+          messages,
+          streamMessage: null,
+          cursor: lastSeq,
+          hasMore,
+        });
       }
     }
 
-    this.handleClientMessage(ws, msg).catch((err) => {
-      this.sendToSocket(ws, {
+    this.handleClientMessage(connection, msg).catch((err) => {
+      connection.send({
         type: "error",
         code: ErrorCodes.INTERNAL_ERROR,
         message: err instanceof Error ? err.message : "An unexpected error occurred",
@@ -714,8 +704,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   webSocketClose(ws: WebSocket): void {
-    this.connections.delete(ws);
-    this.connectionRateLimits.delete(ws);
+    (this.transport as CfWebSocketTransport).handleClose(ws);
+  }
+
+  private handleTransportClose(connection: TransportConnection): void {
+    this.connectionRateLimits.delete(connection.id);
   }
 
   private static readonly VALID_CLIENT_MESSAGE_TYPES = new Set([
@@ -763,7 +756,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     return null;
   }
 
-  private async handleClientMessage(ws: WebSocket, msg: ClientMessage): Promise<void> {
+  private async handleClientMessage(
+    connection: TransportConnection,
+    msg: ClientMessage,
+  ): Promise<void> {
     switch (msg.type) {
       case "prompt":
         await this.handlePrompt(msg.sessionId, msg.text);
@@ -778,14 +774,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
 
       case "switch_session": {
-        this.connections.set(ws, { sessionId: msg.sessionId });
-        ws.serializeAttachment({ sessionId: msg.sessionId });
+        connection.setSessionId(msg.sessionId);
         const session = this.sessionStore.get(msg.sessionId);
         if (session) {
           const sessionAgent = this.sessionAgents.get(msg.sessionId);
           const { entries, hasMore } = this.sessionStore.getEntriesPaginated(msg.sessionId);
           const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
-          this.sendToSocket(ws, {
+          connection.send({
             type: "session_sync",
             sessionId: msg.sessionId,
             session,
@@ -802,10 +797,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       case "new_session": {
         const session = this.sessionStore.create({ name: msg.name });
-        this.connections.set(ws, { sessionId: session.id });
-        ws.serializeAttachment({ sessionId: session.id });
+        connection.setSessionId(session.id);
         this.onSessionCreated?.({ id: session.id, name: session.name });
-        this.sendToSocket(ws, {
+        connection.send({
           type: "session_sync",
           sessionId: session.id,
           session,
@@ -827,18 +821,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.sessionStore.delete(msg.sessionId);
 
         // If the client was on the deleted session, switch them to another
-        const conn = this.connections.get(ws);
-        if (conn?.sessionId === msg.sessionId) {
+        const connSessionId = connection.getSessionId();
+        if (connSessionId === msg.sessionId) {
           const remaining = this.sessionStore.list();
           if (remaining.length > 0) {
             const target = remaining[0];
-            this.connections.set(ws, { sessionId: target.id });
-            ws.serializeAttachment({ sessionId: target.id });
+            connection.setSessionId(target.id);
             const { entries: delEntries, hasMore: delHasMore } =
               this.sessionStore.getEntriesPaginated(target.id);
             const delLastSeq =
               delEntries.length > 0 ? delEntries[delEntries.length - 1].seq : undefined;
-            this.sendToSocket(ws, {
+            connection.send({
               type: "session_sync",
               sessionId: target.id,
               session: target,
@@ -855,14 +848,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       }
 
       case "command": {
-        await this.handleCommand(ws, msg.sessionId, msg.name, msg.args);
+        await this.handleCommand(connection, msg.sessionId, msg.name, msg.args);
         break;
       }
 
       case "request_sync": {
         const syncSession = this.sessionStore.get(msg.sessionId);
         if (!syncSession) {
-          this.sendToSocket(ws, {
+          connection.send({
             type: "error",
             code: ErrorCodes.SESSION_NOT_FOUND,
             message: `Session not found: ${msg.sessionId}`,
@@ -876,7 +869,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         const pageLastSeq =
           pageEntries.length > 0 ? pageEntries[pageEntries.length - 1].seq : msg.afterSeq;
         const sessionAgent = this.sessionAgents.get(msg.sessionId);
-        this.sendToSocket(ws, {
+        connection.send({
           type: "session_sync",
           sessionId: msg.sessionId,
           session: syncSession,
@@ -906,7 +899,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       }
 
       case "ping": {
-        this.sendToSocket(ws, { type: "pong" } as ServerMessage);
+        connection.send({ type: "pong" } as ServerMessage);
         break;
       }
     }
@@ -1048,18 +1041,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     return commandMap;
   }
 
-  private handleClearCommand(ws: WebSocket, sessionId: string): void {
+  private handleClearCommand(connection: TransportConnection, sessionId: string): void {
     // Abort any running inference on the current session
     this.sessionAgents.get(sessionId)?.abort();
 
     // Create a fresh session
     const newSession = this.sessionStore.create({});
-    this.connections.set(ws, { sessionId: newSession.id });
-    ws.serializeAttachment({ sessionId: newSession.id });
+    connection.setSessionId(newSession.id);
     this.onSessionCreated?.({ id: newSession.id, name: newSession.name });
 
     // Sync client to the new empty session
-    this.sendToSocket(ws, {
+    connection.send({
       type: "session_sync",
       sessionId: newSession.id,
       session: newSession,
@@ -1077,21 +1069,21 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   private async handleCommand(
-    ws: WebSocket,
+    connection: TransportConnection,
     sessionId: string,
     name: string,
     rawArgs?: string,
   ): Promise<void> {
-    // Built-in commands that need WebSocket/connection access
+    // Built-in commands that need connection access
     if (name === "clear") {
-      return this.handleClearCommand(ws, sessionId);
+      return this.handleClearCommand(connection, sessionId);
     }
 
     const commands = this.resolveCommands(sessionId);
     const command = commands.get(name);
 
     if (!command) {
-      this.sendToSocket(ws, {
+      connection.send({
         type: "error",
         code: ErrorCodes.COMMAND_NOT_FOUND,
         message: `Unknown command: /${name}`,
@@ -1121,7 +1113,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         context,
       );
 
-      this.sendToSocket(ws, {
+      connection.send({
         type: "command_result",
         sessionId,
         name,
@@ -1129,7 +1121,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         isError: false,
       });
     } catch (err: unknown) {
-      this.sendToSocket(ws, {
+      connection.send({
         type: "command_result",
         sessionId,
         name,
@@ -2231,18 +2223,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   // --- Broadcasting ---
 
   private broadcastToSession(sessionId: string, msg: ServerMessage): void {
-    for (const [ws, state] of this.connections) {
-      if (state.sessionId === sessionId) {
-        this.sendToSocket(ws, msg);
-      }
-    }
+    this.transport.broadcastToSession(sessionId, msg);
   }
 
   private broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
-    for (const [ws, state] of this.connections) {
-      this.sendToSocket(ws, {
+    for (const connection of this.transport.getConnections()) {
+      connection.send({
         type: "custom_event",
-        sessionId: state.sessionId,
+        sessionId: connection.getSessionId(),
         event: { name, data },
       });
     }
@@ -2263,9 +2251,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         lastFiredAt: s.lastFiredAt,
       })),
     };
-    for (const [ws] of this.connections) {
-      this.sendToSocket(ws, msg);
-    }
+    this.transport.broadcast(msg);
   }
 
   private broadcastMcpStatus(): void {
@@ -2280,9 +2266,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         error: s.error,
       })),
     };
-    for (const [ws] of this.connections) {
-      this.sendToSocket(ws, msg);
-    }
+    this.transport.broadcast(msg);
   }
 
   private broadcastSessionList(): void {
@@ -2296,14 +2280,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         updatedAt: s.updatedAt,
       })),
     };
-    for (const [ws] of this.connections) {
-      this.sendToSocket(ws, msg);
-    }
+    this.transport.broadcast(msg);
   }
 
-  private sendCommandList(ws: WebSocket, sessionId: string): void {
+  private sendCommandList(connection: TransportConnection, sessionId: string): void {
     const commands = this.resolveCommands(sessionId);
-    this.sendToSocket(ws, {
+    connection.send({
       type: "command_list",
       commands: Array.from(commands.values()).map((cmd) => ({
         name: cmd.name,
@@ -2312,9 +2294,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     });
   }
 
-  private sendSessionList(ws: WebSocket): void {
+  private sendSessionList(connection: TransportConnection): void {
     const sessions = this.sessionStore.list();
-    this.sendToSocket(ws, {
+    connection.send({
       type: "session_list",
       sessions: sessions.map((s) => ({
         id: s.id,
@@ -2323,15 +2305,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         updatedAt: s.updatedAt,
       })),
     });
-  }
-
-  private sendToSocket(ws: WebSocket, msg: ServerMessage): void {
-    try {
-      ws.send(JSON.stringify(msg));
-    } catch {
-      // Connection may be closed
-      this.connections.delete(ws);
-    }
   }
 }
 
