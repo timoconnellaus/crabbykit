@@ -7,6 +7,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import * as pty from "node-pty";
 
 // --- Constants ---
 
@@ -112,6 +113,12 @@ function isAllowedPath(targetPath: string): boolean {
   return isUnderWorkspace(targetPath) || isUnderPersist(targetPath);
 }
 
+/** Strip ANSI escape codes from PTY output. */
+function stripAnsi(str: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escape sequences requires matching control chars
+  return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1B\][^\x07]*\x07/g, "");
+}
+
 function execCommand(
   command: string,
   timeout: number,
@@ -120,38 +127,38 @@ function execCommand(
   return new Promise((resolve) => {
     const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
 
-    const proc = spawn("/bin/sh", ["-c", command], {
+    const proc = pty.spawn("/bin/sh", ["-c", command], {
       cwd: effectiveCwd,
       env: buildSanitizedEnv(),
+      cols: 120,
+      rows: 40,
     });
 
-    let stdout = "";
-    let stderr = "";
+    let output = "";
     let killed = false;
 
     const timer = setTimeout(() => {
       killed = true;
-      proc.kill("SIGKILL");
+      proc.kill();
     }, timeout);
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-    proc.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
+    proc.onData((data) => {
+      output += data;
     });
 
-    proc.on("close", (code) => {
+    proc.onExit(({ exitCode }) => {
       clearTimeout(timer);
+      const cleaned = stripAnsi(output);
       if (killed) {
-        stderr += `\nProcess exceeded ${timeout}ms timeout and was killed.`;
+        resolve({
+          stdout: cleaned,
+          stderr: `\nProcess exceeded ${timeout}ms timeout and was killed.`,
+          exitCode: exitCode ?? 137,
+        });
+      } else {
+        // PTY merges stdout/stderr — return all output as stdout
+        resolve({ stdout: cleaned, stderr: "", exitCode: exitCode ?? 1 });
       }
-      resolve({ stdout, stderr, exitCode: code ?? (killed ? 137 : 1) });
-    });
-
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr: err.message, exitCode: 1 });
     });
   });
 }
@@ -561,28 +568,18 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       connection: "keep-alive",
     });
 
-    const proc = spawn("/bin/sh", ["-c", command], {
+    const proc = pty.spawn("/bin/sh", ["-c", command], {
       cwd: effectiveCwd,
       env: buildSanitizedEnv(),
+      cols: 120,
+      rows: 40,
     });
 
     let killed = false;
-    let killedReason = "";
     const timer = setTimeout(() => {
       killed = true;
-      killedReason = "timeout";
-      proc.kill("SIGKILL");
+      proc.kill();
     }, timeout);
-
-    let lastOutputAt = Date.now();
-    const idleCheck = setInterval(() => {
-      if (Date.now() - lastOutputAt > IDLE_INPUT_TIMEOUT) {
-        killed = true;
-        killedReason = "idle";
-        proc.kill("SIGKILL");
-        clearInterval(idleCheck);
-      }
-    }, 2000);
 
     let seq = 0;
 
@@ -594,58 +591,33 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
     };
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      lastOutputAt = Date.now();
-      sendEvent({ type: "stdout", data: data.toString(), seq: ++seq });
-    });
-
-    proc.stderr?.on("data", (data: Buffer) => {
-      lastOutputAt = Date.now();
-      sendEvent({ type: "stderr", data: data.toString(), seq: ++seq });
+    // PTY merges stdout/stderr into a single stream — send all as stdout
+    proc.onData((data) => {
+      sendEvent({ type: "stdout", data: stripAnsi(data), seq: ++seq });
     });
 
     const heartbeat = setInterval(() => {
       sendEvent({ type: "heartbeat" });
     }, 5000);
 
-    proc.on("close", (code) => {
+    proc.onExit(({ exitCode }) => {
       clearTimeout(timer);
       clearInterval(heartbeat);
-      clearInterval(idleCheck);
-      if (killed && killedReason === "timeout") {
+      if (killed) {
         sendEvent({
           type: "stderr",
           data: `\nProcess exceeded ${timeout}ms timeout and was killed.`,
           seq: ++seq,
         });
-      } else if (killed && killedReason === "idle") {
-        sendEvent({
-          type: "stderr",
-          data:
-            "\nProcess produced no output for 10s and was killed — " +
-            "it was likely waiting for interactive input. " +
-            "Use non-interactive flags (e.g., --yes, -y) or avoid interactive commands.",
-          seq: ++seq,
-        });
       }
-      sendEvent({ type: "exit", code: code ?? (killed ? 137 : 1) });
-      res.end();
-    });
-
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      clearInterval(heartbeat);
-      clearInterval(idleCheck);
-      sendEvent({ type: "stderr", data: err.message, seq: ++seq });
-      sendEvent({ type: "exit", code: 1 });
+      sendEvent({ type: "exit", code: exitCode ?? (killed ? 137 : 1) });
       res.end();
     });
 
     req.on("close", () => {
       clearTimeout(timer);
       clearInterval(heartbeat);
-      clearInterval(idleCheck);
-      if (!proc.killed) proc.kill("SIGKILL");
+      proc.kill();
     });
 
     return;

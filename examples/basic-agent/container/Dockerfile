@@ -3,8 +3,8 @@
 
 FROM node:22-alpine
 
-# Install FUSE support, privilege-drop, restic, and build tools for nm-intercept
-RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic gcc musl-dev linux-headers
+# Install FUSE support, privilege-drop, restic, and build tools for nm-intercept + node-pty
+RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic gcc musl-dev linux-headers python3 make g++
 
 # Create unprivileged user
 RUN useradd -m -s /bin/sh gia
@@ -39,8 +39,11 @@ WORKDIR /app
 # Compile nm-intercept (LD_PRELOAD library for instant node_modules bind-mounts)
 COPY nm-intercept.c /tmp/nm-intercept.c
 RUN gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
-    rm /tmp/nm-intercept.c && \
-    apk del gcc musl-dev linux-headers
+    rm /tmp/nm-intercept.c
+
+# Install node-pty (native module — must be compiled inside the container)
+RUN cd /app && npm install node-pty && \
+    apk del gcc musl-dev linux-headers python3 make g++
 
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/

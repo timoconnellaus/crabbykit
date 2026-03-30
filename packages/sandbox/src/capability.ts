@@ -201,7 +201,7 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
                   type: "message",
                   data: {
                     role: "assistant",
-                    content: DE_ELEVATION_NOTICE,
+                    content: [{ type: "text", text: DE_ELEVATION_NOTICE }],
                     timestamp: Date.now(),
                   },
                 });

@@ -1392,7 +1392,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const serverMsg: ServerMessage =
       event.type === "tool_execution_start" ||
       event.type === "tool_execution_update" ||
-      event.type === "tool_execution_end"
+      event.type === "tool_execution_end" ||
+      event.type === "tool_execution_checkpoint"
         ? { type: "tool_event", sessionId, event }
         : { type: "agent_event", sessionId, event };
 

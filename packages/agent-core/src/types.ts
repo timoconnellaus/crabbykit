@@ -370,6 +370,7 @@ export type AgentEvent =
       type: "tool_execution_checkpoint";
       toolCallId: string;
       toolName: string;
+      /** Time in milliseconds since tool execution started. */
       elapsed: number;
       partialOutput: string | null;
     };

@@ -224,4 +224,30 @@ describe("Auto-de-elevate", () => {
 
     expect(ctx.broadcastToAll).toHaveBeenCalledWith("sandbox_elevation", { elevated: false });
   });
+
+  it("injects de-elevation notice with array content format", async () => {
+    const provider = mockProvider();
+    const ctx = mockContext(true);
+    const appendEntry = vi.fn();
+
+    const cap = sandboxCapability({ provider });
+    const schedules = cap.schedules!(ctx);
+    const timerConfig = schedules[0];
+
+    await (timerConfig as any).callback({
+      sessionStore: {
+        list: () => [{ id: "session-1" }],
+        appendEntry,
+      },
+      abortAllSessions: vi.fn(),
+    });
+
+    expect(appendEntry).toHaveBeenCalledWith("session-1", {
+      type: "message",
+      data: expect.objectContaining({
+        role: "assistant",
+        content: [{ type: "text", text: expect.stringContaining("automatically deactivated") }],
+      }),
+    });
+  });
 });
