@@ -1,3 +1,4 @@
+import type { SqlStore } from "@claw-for-cloudflare/agent-runtime";
 import { nanoid } from "nanoid";
 import type {
   Artifact,
@@ -56,10 +57,7 @@ CREATE TABLE IF NOT EXISTS a2a_push_configs (
 // TaskStore
 // ============================================================================
 
-// Row types use index signatures to satisfy SqlStorageValue constraint
-type SqlRow = Record<string, string | number | null | ArrayBuffer>;
-
-interface TaskRow extends SqlRow {
+interface TaskRow {
   id: string;
   context_id: string;
   session_id: string;
@@ -71,7 +69,7 @@ interface TaskRow extends SqlRow {
   updated_at: string;
 }
 
-interface ArtifactRow extends SqlRow {
+interface ArtifactRow {
   id: string;
   task_id: string;
   artifact_id: string;
@@ -82,7 +80,7 @@ interface ArtifactRow extends SqlRow {
   metadata: string | null;
 }
 
-interface PushConfigRow extends SqlRow {
+interface PushConfigRow {
   task_id: string;
   url: string;
   token: string | null;
@@ -90,7 +88,7 @@ interface PushConfigRow extends SqlRow {
 }
 
 export class TaskStore {
-  constructor(private sql: SqlStorage) {
+  constructor(private sql: SqlStore) {
     this.sql.exec(INIT_SQL);
   }
 
