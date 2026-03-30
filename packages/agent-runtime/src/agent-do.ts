@@ -1646,6 +1646,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       callbackBaseUrl: clientOpts.callbackBaseUrl ?? "https://agent",
       maxDepth: clientOpts.maxDepth ?? 5,
       authHeaders: clientOpts.authHeaders,
+      broadcast: (name, data) =>
+        this.broadcastToSession(sessionId, {
+          type: "custom_event",
+          sessionId,
+          event: { name, data },
+        }),
     };
 
     return [

@@ -21,6 +21,8 @@ export interface A2AToolOptions {
   callbackBaseUrl: string;
   maxDepth: number;
   authHeaders?: (targetAgent: string) => Record<string, string> | Promise<Record<string, string>>;
+  /** Broadcast a custom event to connected WebSocket clients on the current session. */
+  broadcast?: (name: string, data: Record<string, unknown>) => void;
 }
 
 // ============================================================================
@@ -226,6 +228,15 @@ export function createStartTaskTool(
           updatedAt: new Date().toISOString(),
           originSessionId: getSessionId(),
           webhookToken,
+        });
+
+        // Broadcast to WebSocket clients so the UI can show a pending task indicator
+        options.broadcast?.("a2a_task_update", {
+          taskId: task.id,
+          targetAgent: args.targetAgent,
+          targetAgentName,
+          state: task.status.state,
+          originalRequest: args.message,
         });
 
         return {
