@@ -38,13 +38,14 @@ export function ChatView({
       <div data-agent-ui="sidebar">
         <SessionList />
       </div>
-      <div style={{ display: "flex", flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", flex: 1, minWidth: 0, overflow: "hidden" }}>
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             flex: previewState.open ? 3 : 1,
             minWidth: 0,
+            overflow: "hidden",
           }}
         >
           <StatusBar sandboxState={sandboxState} />

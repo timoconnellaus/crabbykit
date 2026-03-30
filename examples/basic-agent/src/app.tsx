@@ -179,7 +179,7 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
           <TabBar tabs={[...TABS]} activeTab={activeTab} onTabChange={setActiveTab} />
           {/* Chat stays mounted (hidden) to keep WebSocket alive */}
-          <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0 }}>
+          <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0, overflow: "hidden" }}>
             <ChatView
               chat={chat}
               sandboxState={sandboxState}
