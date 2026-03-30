@@ -1932,26 +1932,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       );
 
       if (isStreaming) {
-        // Agent is busy — persist the result and steer it in.
-        // Don't use handleAgentPrompt (which would double-persist).
-        console.log(`[a2a:callback] persisting result and steering into running agent`);
-        this.sessionStore.appendEntry(pending.originSessionId, {
-          type: "message",
-          data: { role: "user", content: resultText, timestamp: Date.now() },
-        });
-
-        // Broadcast so the A2A note appears immediately in the UI
-        const session = this.sessionStore.get(pending.originSessionId);
-        if (session) {
-          this.broadcastToSession(pending.originSessionId, {
-            type: "session_sync",
-            sessionId: pending.originSessionId,
-            session,
-            messages: this.sessionStore.buildContext(pending.originSessionId),
-            streamMessage: agent?.state.streamMessage ?? null,
-          });
-        }
-
+        // Agent is busy — steer the result in so it can respond about it.
+        // Don't persist a separate A2A note entry — the agent's own response
+        // will be the user-facing notification (e.g., "Bob says: Hello!").
+        // This avoids the note appearing before the agent's response in the UI.
+        console.log(`[a2a:callback] steering result into running agent (no note persisted)`);
         agent.steer({
           role: "user",
           content: resultText,
