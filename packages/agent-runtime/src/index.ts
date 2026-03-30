@@ -90,10 +90,17 @@ export type {
   Schedule,
   ScheduleCallbackContext,
   ScheduleConfig,
+  Scheduler,
   TimerScheduleConfig,
 } from "./scheduling/index.js";
 // Scheduling
-export { intervalToCron, nextFireTime, ScheduleStore, validateCron } from "./scheduling/index.js";
+export {
+  createCfScheduler,
+  intervalToCron,
+  nextFireTime,
+  ScheduleStore,
+  validateCron,
+} from "./scheduling/index.js";
 export { SessionStore } from "./session/session-store.js";
 export type {
   CompactionEntry,

@@ -1,5 +1,7 @@
+export { createCfScheduler } from "./cloudflare-scheduler.js";
 export { expiresAtFromDuration, intervalToCron, nextFireTime, validateCron } from "./cron.js";
 export { ScheduleStore } from "./schedule-store.js";
+export type { Scheduler } from "./scheduler-types.js";
 export type {
   CallbackScheduleConfig,
   PromptScheduleConfig,

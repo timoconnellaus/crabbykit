@@ -16,8 +16,6 @@ import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
-import type { KvStore, SqlStore } from "./storage/types.js";
-import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import type {
   Capability,
   CapabilityHookContext,
@@ -34,8 +32,10 @@ import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
 import type { PromptOptions } from "./prompt/types.js";
+import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
+import type { Scheduler } from "./scheduling/scheduler-types.js";
 import type {
   PromptScheduleConfig,
   Schedule,
@@ -43,6 +43,8 @@ import type {
   ScheduleConfig,
 } from "./scheduling/types.js";
 import { SessionStore } from "./session/session-store.js";
+import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
+import type { KvStore, SqlStore } from "./storage/types.js";
 import { ErrorCodes } from "./transport/error-codes.js";
 import type { ClientMessage, ServerMessage } from "./transport/types.js";
 
@@ -187,11 +189,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   /** Platform-agnostic KV store adapter, created from CF storage in constructor. */
   protected kvStore: KvStore;
+  /** Platform-agnostic scheduler adapter, created from CF storage in constructor. */
+  protected scheduler: Scheduler;
 
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env);
     const sqlStore: SqlStore = createCfSqlStore(ctx.storage.sql);
     this.kvStore = createCfKvStore(ctx.storage);
+    this.scheduler = createCfScheduler(ctx.storage);
     this.sessionStore = new SessionStore(sqlStore);
     this.taskStore = new TaskStore(ctx.storage.sql);
     this.scheduleStore = new ScheduleStore(sqlStore);
@@ -1485,8 +1490,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   // --- Scheduling ---
 
-  /** DO alarm handler. Dispatches all due schedules and refreshes the alarm. */
+  /** DO alarm lifecycle handler. Delegates to handleAlarmFired(). */
   async alarm(): Promise<void> {
+    await this.handleAlarmFired();
+  }
+
+  /**
+   * Process all due schedules and refresh the wake time.
+   * Called by the DO alarm() lifecycle method. Non-DO platform base classes
+   * can call this from their own wake mechanism (e.g., setTimeout, node-cron).
+   */
+  protected async handleAlarmFired(): Promise<void> {
     const now = new Date();
     const dueSchedules = this.scheduleStore.getDueSchedules(now);
 
@@ -1673,9 +1687,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private async refreshAlarm(): Promise<void> {
     const earliest = this.scheduleStore.getEarliestFireTime();
     if (earliest) {
-      await this.ctx.storage.setAlarm(earliest);
+      await this.scheduler.setWakeTime(earliest);
     } else {
-      await this.ctx.storage.deleteAlarm();
+      await this.scheduler.cancelWakeTime();
     }
     this.broadcastScheduleList();
   }
