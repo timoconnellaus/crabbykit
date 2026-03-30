@@ -32,7 +32,7 @@ import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
 import type { PromptOptions } from "./prompt/types.js";
-import { expiresAtFromDuration, nextFireTime } from "./scheduling/cron.js";
+import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
 import type {
   PromptScheduleConfig,
@@ -418,6 +418,105 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       return this.handleHttpPrompt(request);
     }
 
+    // Schedule management HTTP API
+    if (url.pathname === "/schedules") {
+      if (request.method === "GET") {
+        return new Response(JSON.stringify(this.listSchedules()), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "POST") {
+        try {
+          const body = (await request.json()) as Record<string, unknown>;
+          if (!body.name || !body.cron || !body.prompt) {
+            return new Response(JSON.stringify({ error: "name, cron, and prompt are required" }), {
+              status: 400,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          if (!validateCron(body.cron as string)) {
+            return new Response(
+              JSON.stringify({ error: `Invalid cron expression: ${body.cron}` }),
+              { status: 400, headers: { "content-type": "application/json" } },
+            );
+          }
+          const schedule = await this.createSchedule({
+            id: (body.id as string) || crypto.randomUUID(),
+            name: body.name as string,
+            cron: body.cron as string,
+            prompt: body.prompt as string,
+            enabled: body.enabled !== false,
+            timezone: (body.timezone as string) || undefined,
+            maxDuration: (body.maxDuration as string) || undefined,
+            retention: (body.retention as number) || undefined,
+          });
+          return new Response(JSON.stringify(schedule), {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          });
+        } catch (e) {
+          return new Response(JSON.stringify({ error: String(e) }), {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          });
+        }
+      }
+    }
+
+    const scheduleMatch = url.pathname.match(/^\/schedules\/(.+)$/);
+    if (scheduleMatch) {
+      const scheduleId = scheduleMatch[1];
+      if (request.method === "GET") {
+        const schedule = this.scheduleStore.get(scheduleId);
+        if (!schedule) {
+          return new Response(JSON.stringify({ error: "Schedule not found" }), {
+            status: 404,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify(schedule), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "PUT") {
+        try {
+          const body = (await request.json()) as Record<string, unknown>;
+          if (body.cron && !validateCron(body.cron as string)) {
+            return new Response(
+              JSON.stringify({ error: `Invalid cron expression: ${body.cron}` }),
+              { status: 400, headers: { "content-type": "application/json" } },
+            );
+          }
+          const updates: Record<string, unknown> = {};
+          for (const key of ["name", "cron", "prompt", "enabled", "timezone", "retention"]) {
+            if (body[key] !== undefined) updates[key] = body[key];
+          }
+          const updated = await this.updateSchedule(
+            scheduleId,
+            updates as Parameters<typeof this.updateSchedule>[1],
+          );
+          if (!updated) {
+            return new Response(JSON.stringify({ error: "Schedule not found" }), {
+              status: 404,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          return new Response(JSON.stringify(updated), {
+            headers: { "content-type": "application/json" },
+          });
+        } catch (e) {
+          return new Response(JSON.stringify({ error: String(e) }), {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          });
+        }
+      }
+      if (request.method === "DELETE") {
+        await this.deleteSchedule(scheduleId);
+        return new Response(null, { status: 204 });
+      }
+    }
+
     // MCP OAuth callback
     if (url.pathname === "/mcp/callback") {
       return this.handleMcpCallback(request);
@@ -456,7 +555,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
       const contextMessages = this.sessionStore.buildContext(sessionId);
       const a2aNotes = contextMessages.filter(
-        (m) => m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
+        (m) =>
+          m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
       );
       if (a2aNotes.length > 0) {
         console.log(`[a2a:debug] session_sync includes ${a2aNotes.length} A2A note(s)`);
@@ -839,7 +939,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       type: "message",
       data: { role: "user", content: text, timestamp },
     });
-    console.log(`[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`);
+    console.log(
+      `[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`,
+    );
 
     // Broadcast to clients so the message appears immediately.
     // Only enabled for server-originated steers (e.g. A2A callbacks) — for
@@ -1491,10 +1593,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
       if (existing) {
         // Update cron/timezone if changed (enabled is user-owned via toggleSchedule, not reconciled)
-        if (
-          existing.cron !== config.cron ||
-          existing.timezone !== (config.timezone ?? null)
-        ) {
+        if (existing.cron !== config.cron || existing.timezone !== (config.timezone ?? null)) {
           const next = nextFireTime(config.cron, undefined, tz);
           this.scheduleStore.update(config.id, {
             cron: config.cron,

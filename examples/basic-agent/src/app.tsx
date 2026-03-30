@@ -1,314 +1,30 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
 import type { SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
-import {
-  ChatInput,
-  ChatPanel,
-  MessageList,
-  SessionList,
-  StatusBar,
-  ThinkingIndicator,
-  useChat,
-} from "@claw-for-cloudflare/agent-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AgentRecord } from "./components/agent-rail";
+import { AgentRail } from "./components/agent-rail";
+import { ChatView } from "./components/chat-view";
+import type { PendingA2ATask } from "./components/pending-tasks";
+import { SchedulePanel } from "./components/schedule-panel";
+import { TabBar } from "./components/tab-bar";
 
-interface AgentRecord {
-  id: string;
-  name: string;
-  status: string;
-  createdAt: string;
-}
-
-interface PendingA2ATask {
-  taskId: string;
-  targetAgent: string;
-  targetAgentName: string;
-  state: string;
-  originalRequest: string;
-}
-
-// --- Agent List Sidebar ---
-
-const agentListStyles = `
-[data-agent-ui="agent-rail"] {
-  display: flex;
-  flex-direction: column;
-  width: 200px;
-  min-width: 200px;
-  background: color-mix(in srgb, var(--agent-ui-bg) 100%, black 0%);
-  border-right: 1px solid var(--agent-ui-border);
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.75rem;
-  overflow-y: auto;
-}
-
-[data-agent-ui="agent-rail-header"] {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 0.75rem 0.5rem;
-  color: var(--agent-ui-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.625rem;
-  font-weight: 600;
-  user-select: none;
-}
-
-[data-agent-ui="agent-rail-add"] {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--agent-ui-border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--agent-ui-text-muted);
-  cursor: pointer;
-  font-size: 0.875rem;
-  line-height: 1;
-  transition: all 0.15s ease;
-}
-[data-agent-ui="agent-rail-add"]:hover {
-  background: var(--agent-ui-bg-surface);
-  color: var(--agent-ui-text);
-  border-color: var(--agent-ui-text-muted);
-}
-
-[data-agent-ui="agent-rail-list"] {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 0 0.375rem 0.5rem;
-}
-
-[data-agent-ui="agent-rail-item"] {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.5rem;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--agent-ui-text-dim);
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: all 0.12s ease;
-  position: relative;
-}
-[data-agent-ui="agent-rail-item"]:hover {
-  background: var(--agent-ui-bg-surface);
-  color: var(--agent-ui-text);
-}
-[data-agent-ui="agent-rail-item"][data-active] {
-  background: var(--agent-ui-primary-highlight);
-  color: var(--agent-ui-primary);
-}
-
-[data-agent-ui="agent-rail-dot"] {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--agent-ui-text-muted);
-  flex-shrink: 0;
-  opacity: 0.5;
-}
-[data-agent-ui="agent-rail-item"][data-active] [data-agent-ui="agent-rail-dot"] {
-  background: var(--agent-ui-primary);
-  opacity: 1;
-  box-shadow: 0 0 6px var(--agent-ui-primary-focus-ring);
-}
-
-[data-agent-ui="agent-rail-name"] {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
-[data-agent-ui="agent-rail-empty"] {
-  padding: 1rem 0.75rem;
-  color: var(--agent-ui-text-muted);
-  font-style: italic;
-  text-align: center;
-}
-`;
-
-function AgentRail({
-  agents,
-  selectedId,
-  onSelect,
-  onCreateAgent,
-}: {
-  agents: AgentRecord[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onCreateAgent: () => void;
-}) {
-  return (
-    <div data-agent-ui="agent-rail">
-      <div data-agent-ui="agent-rail-header">
-        <span>agents</span>
-        <button
-          type="button"
-          data-agent-ui="agent-rail-add"
-          onClick={onCreateAgent}
-          title="Create agent"
-        >
-          +
-        </button>
-      </div>
-      <div data-agent-ui="agent-rail-list">
-        {agents.length === 0 && <div data-agent-ui="agent-rail-empty">No agents</div>}
-        {agents.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            data-agent-ui="agent-rail-item"
-            data-active={a.id === selectedId || undefined}
-            onClick={() => onSelect(a.id)}
-          >
-            <span data-agent-ui="agent-rail-dot" />
-            <span data-agent-ui="agent-rail-name">{a.name}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// --- Schedule Panel ---
-
-function SchedulePanel() {
-  const { schedules, toggleSchedule } = useChat();
-
-  if (schedules.length === 0) return null;
-
-  return (
-    <div data-agent-ui="schedule-list">
-      <div data-agent-ui="schedule-heading">Schedules</div>
-      {schedules.map((s) => (
-        <div
-          key={s.id}
-          data-agent-ui="schedule-item"
-          data-status={s.status}
-          style={{ position: "relative" }}
-        >
-          <button
-            type="button"
-            role="switch"
-            aria-checked={s.enabled}
-            onClick={() => toggleSchedule(s.id, !s.enabled)}
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              width: 36,
-              height: 20,
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              background: s.enabled ? "#4ade80" : "#555",
-              transition: "background 0.2s",
-              padding: 0,
-            }}
-          >
-            <span
-              style={{
-                display: "block",
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                background: "#fff",
-                transition: "transform 0.2s",
-                transform: s.enabled ? "translateX(18px)" : "translateX(2px)",
-              }}
-            />
-          </button>
-          <div data-agent-ui="schedule-name">{s.name}</div>
-          <div data-agent-ui="schedule-meta">
-            {!s.enabled ? "disabled" : s.status === "idle" ? "active" : s.status}
-            {s.nextFireAt &&
-              s.enabled &&
-              ` \u00B7 next ${new Date(s.nextFireAt).toLocaleTimeString()}`}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// --- Pending A2A Tasks Banner ---
-
-const pendingTasksStyles = `
-[data-agent-ui="pending-tasks-banner"] {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  margin: 0 0.75rem;
-  background: color-mix(in srgb, var(--agent-ui-primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--agent-ui-primary) 20%, transparent);
-  border-radius: 6px;
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.6875rem;
-  color: var(--agent-ui-text-dim);
-  letter-spacing: 0.01em;
-}
-
-[data-agent-ui="pending-tasks-dot"] {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--agent-ui-primary);
-  animation: a2a-pulse 2s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
-@keyframes a2a-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-[data-agent-ui="pending-tasks-label"] {
-  color: var(--agent-ui-text-muted);
-}
-
-[data-agent-ui="pending-tasks-names"] {
-  color: var(--agent-ui-text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-}
-`;
-
-function PendingTasksBanner({ tasks }: { tasks: PendingA2ATask[] }) {
-  if (tasks.length === 0) return null;
-
-  const names = tasks.map((t) => t.targetAgentName || t.targetAgent);
-  const label = tasks.length === 1 ? `1 task pending` : `${tasks.length} tasks pending`;
-
-  return (
-    <div data-agent-ui="pending-tasks-banner">
-      <span data-agent-ui="pending-tasks-dot" />
-      <span data-agent-ui="pending-tasks-label">{label}</span>
-      <span data-agent-ui="pending-tasks-names">{names.join(", ")}</span>
-    </div>
-  );
-}
-
-// --- App Root ---
+const TABS = [
+  { id: "chat", label: "Chat" },
+  { id: "schedules", label: "Schedules" },
+] as const;
 
 export default function App() {
   const [agents, setAgents] = useState<AgentRecord[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({
-    elevated: false,
-  });
+  const [activeTab, setActiveTab] = useState("chat");
+  const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
+
+  // Reset tab when switching agents
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedAgentId is the intentional trigger
+  useEffect(() => {
+    setActiveTab("chat");
+  }, [selectedAgentId]);
 
   // Fetch agent list from registry
   const fetchAgents = useCallback(async () => {
@@ -326,7 +42,7 @@ export default function App() {
     return list;
   }, []);
 
-  // Bootstrap on mount + poll for changes (agents can be created by tools)
+  // Bootstrap on mount + poll for changes
   const bootstrapRef = useRef(false);
   useEffect(() => {
     if (bootstrapRef.current) return;
@@ -342,10 +58,7 @@ export default function App() {
 
   const onCustomEvent = useCallback((name: string, data: Record<string, unknown>) => {
     if (name === "sandbox_elevation") {
-      setSandboxState((prev) => ({
-        ...prev,
-        elevated: data.elevated as boolean,
-      }));
+      setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
     }
     if (name === "sandbox_timeout") {
       setSandboxState((prev) => ({
@@ -363,7 +76,6 @@ export default function App() {
       if (state === "completed" || state === "failed" || state === "canceled") {
         setPendingTasks((prev) => prev.filter((t) => t.taskId !== taskId));
       } else {
-        // Update existing or add new
         setPendingTasks((prev) => {
           const exists = prev.find((t) => t.taskId === taskId);
           if (exists) {
@@ -404,46 +116,43 @@ export default function App() {
   }, []);
 
   return (
-    <>
-      <style>{agentListStyles}</style>
-      <style>{pendingTasksStyles}</style>
-      <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
-        <AgentRail
-          agents={agents}
-          selectedId={selectedAgentId}
-          onSelect={setSelectedAgentId}
-          onCreateAgent={handleCreateAgent}
-        />
-        {selectedAgentId ? (
-          <ChatPanel chat={chat} style={{ flexDirection: "row", flex: 1 }}>
-            <div data-agent-ui="sidebar">
-              <SessionList />
-              <SchedulePanel />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-              <StatusBar sandboxState={sandboxState} />
-              <MessageList />
-              <ThinkingIndicator />
-              <PendingTasksBanner tasks={pendingTasks} />
-              <ChatInput />
-            </div>
-          </ChatPanel>
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--agent-ui-text-muted)",
-              fontFamily: "SF Mono, Fira Code, JetBrains Mono, ui-monospace, monospace",
-              fontSize: "0.8rem",
-            }}
-          >
-            Select an agent to start
+    <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
+      <AgentRail
+        agents={agents}
+        selectedId={selectedAgentId}
+        onSelect={setSelectedAgentId}
+        onCreateAgent={handleCreateAgent}
+      />
+      {selectedAgentId ? (
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+          <TabBar tabs={[...TABS]} activeTab={activeTab} onTabChange={setActiveTab} />
+          {/* Chat stays mounted (hidden) to keep WebSocket alive */}
+          <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0 }}>
+            <ChatView chat={chat} sandboxState={sandboxState} pendingTasks={pendingTasks} />
           </div>
-        )}
-      </div>
-    </>
+          {activeTab === "schedules" && (
+            <SchedulePanel
+              agentId={selectedAgentId}
+              schedules={chat.schedules}
+              toggleSchedule={chat.toggleSchedule}
+            />
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--agent-ui-text-muted)",
+            fontFamily: "SF Mono, Fira Code, JetBrains Mono, ui-monospace, monospace",
+            fontSize: "0.8rem",
+          }}
+        >
+          Select an agent to start
+        </div>
+      )}
+    </div>
   );
 }
