@@ -1947,8 +1947,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.handleSteer(pending.originSessionId, resultText, true);
       } else {
         // Agent is idle — handleAgentPrompt will persist the message AND trigger inference.
-        // Don't persist separately to avoid duplicates.
+        // Broadcast the note to clients before handleAgentPrompt persists + runs inference.
+        // handleAgentPrompt will persist it, but the client needs to see it now.
         console.log(`[a2a:callback] triggering inference on idle agent`);
+        this.broadcastToSession(pending.originSessionId, {
+          type: "inject_message",
+          sessionId: pending.originSessionId,
+          message: { role: "user", content: resultText, timestamp: Date.now() } as AgentMessage,
+        });
         const op = this.handleAgentPrompt({
           text: resultText,
           sessionId: pending.originSessionId,
