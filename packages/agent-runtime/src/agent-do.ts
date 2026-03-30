@@ -1918,19 +1918,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     );
 
     if (isTerminalState(state as "completed")) {
-      // Persist result to session and broadcast to connected clients
+      // Persist result to session
       console.log(`[a2a:callback] persisting result to session ${pending.originSessionId}`);
-      const entry = this.sessionStore.appendEntry(pending.originSessionId, {
+      this.sessionStore.appendEntry(pending.originSessionId, {
         type: "message",
         data: { role: "user", content: resultText, timestamp: Date.now() },
-      });
-
-      // Broadcast the entry so the UI shows the A2A note immediately
-      this.broadcastToSession(pending.originSessionId, {
-        type: "session_sync",
-        sessionId: pending.originSessionId,
-        entries: [entry],
-        hasMore: false,
       });
 
       // Check if agent is currently running
@@ -1975,6 +1967,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       targetAgentName: pending.targetAgentName,
       state,
       originalRequest: pending.originalRequest,
+      resultText: isTerminalState(state as "completed") ? resultText : undefined,
     });
 
     return new Response(JSON.stringify({ ok: true }), {
