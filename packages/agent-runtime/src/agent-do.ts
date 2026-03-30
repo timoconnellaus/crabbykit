@@ -193,7 +193,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const sqlStore: SqlStore = createCfSqlStore(ctx.storage.sql);
     this.kvStore = createCfKvStore(ctx.storage);
     this.sessionStore = new SessionStore(sqlStore);
-    this.taskStore = new TaskStore(ctx.storage.sql);
+    this.taskStore = new TaskStore(sqlStore);
     this.scheduleStore = new ScheduleStore(sqlStore);
     this.configStore = new ConfigStore(this.kvStore);
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
