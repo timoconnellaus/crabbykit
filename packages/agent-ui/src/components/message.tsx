@@ -187,6 +187,23 @@ function renderMarkdown(text: string): string {
   return `<p>${html}</p>`.replace(/<p><\/p>/g, "");
 }
 
+/** Check if a message is an A2A system note (task result injected by callback handler). */
+function isA2ASystemNote(role: string, text: string): boolean {
+  return role === "user" && text.startsWith("[A2A Task");
+}
+
+/** Parse an A2A system note into structured parts. */
+function parseA2ANote(text: string): { status: "complete" | "failed" | "other"; body: string } {
+  const status = text.startsWith("[A2A Task Complete]")
+    ? ("complete" as const)
+    : text.startsWith("[A2A Task Failed]")
+      ? ("failed" as const)
+      : ("other" as const);
+  // Strip the prefix tag to get the body
+  const body = text.replace(/^\[A2A Task[^\]]*\]\s*/, "");
+  return { status, body };
+}
+
 export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const role = ("role" in message ? message.role : "unknown") ?? "unknown";
   const text = getTextContent(message);
@@ -202,6 +219,23 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
     () => (role === "assistant" && text && !isCommandResult ? renderMarkdown(text) : null),
     [role, text, isCommandResult],
   );
+
+  // A2A task results render as system notes, not user bubbles
+  if (isA2ASystemNote(role, text)) {
+    const { status, body } = parseA2ANote(text);
+    return (
+      <div data-agent-ui="a2a-note" data-status={status} {...props}>
+        <span data-agent-ui="a2a-note-tag">
+          {status === "complete"
+            ? "Task complete"
+            : status === "failed"
+              ? "Task failed"
+              : "Task update"}
+        </span>
+        <span data-agent-ui="a2a-note-body">{body}</span>
+      </div>
+    );
+  }
 
   if (isCommandResult) {
     return (

@@ -18,6 +18,14 @@ interface AgentRecord {
   createdAt: string;
 }
 
+interface PendingA2ATask {
+  taskId: string;
+  targetAgent: string;
+  targetAgentName: string;
+  state: string;
+  originalRequest: string;
+}
+
 // --- Agent List Sidebar ---
 
 const agentListStyles = `
@@ -231,6 +239,67 @@ function SchedulePanel() {
   );
 }
 
+// --- Pending A2A Tasks Banner ---
+
+const pendingTasksStyles = `
+[data-agent-ui="pending-tasks-banner"] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  margin: 0 0.75rem;
+  background: color-mix(in srgb, var(--agent-ui-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent-ui-primary) 20%, transparent);
+  border-radius: 6px;
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: var(--agent-ui-text-dim);
+  letter-spacing: 0.01em;
+}
+
+[data-agent-ui="pending-tasks-dot"] {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-ui-primary);
+  animation: a2a-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes a2a-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+[data-agent-ui="pending-tasks-label"] {
+  color: var(--agent-ui-text-muted);
+}
+
+[data-agent-ui="pending-tasks-names"] {
+  color: var(--agent-ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+`;
+
+function PendingTasksBanner({ tasks }: { tasks: PendingA2ATask[] }) {
+  if (tasks.length === 0) return null;
+
+  const names = tasks.map((t) => t.targetAgentName || t.targetAgent);
+  const label = tasks.length === 1 ? `1 task pending` : `${tasks.length} tasks pending`;
+
+  return (
+    <div data-agent-ui="pending-tasks-banner">
+      <span data-agent-ui="pending-tasks-dot" />
+      <span data-agent-ui="pending-tasks-label">{label}</span>
+      <span data-agent-ui="pending-tasks-names">{names.join(", ")}</span>
+    </div>
+  );
+}
+
 // --- App Root ---
 
 export default function App() {
@@ -239,6 +308,7 @@ export default function App() {
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({
     elevated: false,
   });
+  const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
 
   // Fetch agent list from registry
   const fetchAgents = useCallback(async () => {
@@ -284,6 +354,34 @@ export default function App() {
         timeoutSeconds: data.timeoutSeconds as number,
       }));
     }
+    if (name === "a2a_active_tasks") {
+      setPendingTasks(data.tasks as PendingA2ATask[]);
+    }
+    if (name === "a2a_task_update") {
+      const state = data.state as string;
+      const taskId = data.taskId as string;
+      if (state === "completed" || state === "failed" || state === "canceled") {
+        setPendingTasks((prev) => prev.filter((t) => t.taskId !== taskId));
+      } else {
+        // Update existing or add new
+        setPendingTasks((prev) => {
+          const exists = prev.find((t) => t.taskId === taskId);
+          if (exists) {
+            return prev.map((t) => (t.taskId === taskId ? { ...t, state } : t));
+          }
+          return [
+            ...prev,
+            {
+              taskId,
+              targetAgent: data.targetAgent as string,
+              targetAgentName: data.targetAgentName as string,
+              state,
+              originalRequest: data.originalRequest as string,
+            },
+          ];
+        });
+      }
+    }
   }, []);
 
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -308,6 +406,7 @@ export default function App() {
   return (
     <>
       <style>{agentListStyles}</style>
+      <style>{pendingTasksStyles}</style>
       <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
         <AgentRail
           agents={agents}
@@ -325,6 +424,7 @@ export default function App() {
               <StatusBar sandboxState={sandboxState} />
               <MessageList />
               <ThinkingIndicator />
+              <PendingTasksBanner tasks={pendingTasks} />
               <ChatInput />
             </div>
           </ChatPanel>

@@ -1160,6 +1160,27 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         console.error("[capabilities] onConnect hook error:", err);
       }
     }
+
+    // Broadcast active pending A2A tasks for this session
+    try {
+      const a2aStorage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+      const pendingStore = new PendingTaskStore(a2aStorage);
+      const activeTasks = await pendingStore.listActive();
+      const sessionTasks = activeTasks.filter((t) => t.originSessionId === sessionId);
+      if (sessionTasks.length > 0) {
+        broadcastFn("a2a_active_tasks", {
+          tasks: sessionTasks.map((t) => ({
+            taskId: t.taskId,
+            targetAgent: t.targetAgent,
+            targetAgentName: t.targetAgentName,
+            state: t.state,
+            originalRequest: t.originalRequest,
+          })),
+        });
+      }
+    } catch (err) {
+      console.error("[AgentDO] Failed to broadcast active A2A tasks:", err);
+    }
   }
 
   private convertToLlm(messages: AgentMessage[]): Message[] {
@@ -1850,7 +1871,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
     const pendingStore = new PendingTaskStore(storage);
     const allPending = await pendingStore.list();
-    console.log(`[a2a:callback] looking up taskId=${update.taskId}, pending tasks in store: ${allPending.length}`, allPending.map((t) => t.taskId));
+    console.log(
+      `[a2a:callback] looking up taskId=${update.taskId}, pending tasks in store: ${allPending.length}`,
+      allPending.map((t) => t.taskId),
+    );
     const pending = await pendingStore.get(update.taskId);
     if (!pending) {
       return new Response(JSON.stringify({ error: "Unknown task" }), {
@@ -1889,7 +1913,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           ? `[A2A Task Failed] Agent "${pending.targetAgentName}" failed.\nOriginal request: ${pending.originalRequest}\nError: ${resultTexts.join("\n") || "Unknown error"}`
           : `[A2A Task ${state}] Agent "${pending.targetAgentName}"\nOriginal request: ${pending.originalRequest}`;
 
-    console.log(`[a2a:callback] taskId=${update.taskId}, state=${state}, originSession=${pending.originSessionId}`);
+    console.log(
+      `[a2a:callback] taskId=${update.taskId}, state=${state}, originSession=${pending.originSessionId}`,
+    );
 
     if (isTerminalState(state as "completed")) {
       // Always persist result to session (survives hibernation)
@@ -1902,7 +1928,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       // Check if agent is currently running
       const agent = this.sessionAgents.get(pending.originSessionId);
       const isStreaming = agent?.state.isStreaming ?? false;
-      console.log(`[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`);
+      console.log(
+        `[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`,
+      );
       if (isStreaming) {
         // Agent is busy — steer the result in so it sees it mid-inference.
         // The result is already persisted to the session (above), so the agent
