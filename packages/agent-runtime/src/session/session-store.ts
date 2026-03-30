@@ -98,7 +98,6 @@ export class SessionStore {
       type: SessionEntryType;
       data: Record<string, unknown>;
     },
-    explicitParentId?: string | null,
   ): SessionEntry {
     const session = this.get(sessionId);
     if (!session) {
@@ -106,7 +105,7 @@ export class SessionStore {
     }
 
     const id = nanoid();
-    const parentId = explicitParentId !== undefined ? explicitParentId : session.leafId;
+    const parentId = session.leafId;
     const now = new Date().toISOString();
 
     // Get next seq value

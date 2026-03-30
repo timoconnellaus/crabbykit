@@ -157,8 +157,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
   /** Cached resolved capabilities — populated in ensureAgent, cleared on agent_end. */
   private resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
-  /** Tracks leafId at message_start so assistant messages persist with correct parent ordering. */
-  private streamingMessageParents = new Map<string, string | null>();
   /** A2A task store — always initialized alongside SessionStore. */
   protected taskStore: TaskStore;
   /** Cached A2A handler — lazily created on first A2A request. */
@@ -1037,7 +1035,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       if (event.type === "agent_end") {
         this.sessionAgents.delete(sessionId);
         this.resolvedCapabilitiesCache = null;
-        this.streamingMessageParents.delete(sessionId);
       }
     });
 
@@ -1202,33 +1199,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     this.broadcastToSession(sessionId, serverMsg);
 
-    // Capture leafId at message_start so assistant messages persist in correct order
-    if (event.type === "message_start") {
-      const session = this.sessionStore.get(sessionId);
-      this.streamingMessageParents.set(sessionId, session?.leafId ?? null);
-    }
-
     // Persist completed messages and emit inference costs
     if (event.type === "message_end") {
       const msg = event.message;
       if ("role" in msg && msg.role === "assistant") {
         const assistantMsg = msg as AssistantMessage;
 
-        const capturedParent = this.streamingMessageParents.get(sessionId);
-        this.streamingMessageParents.delete(sessionId);
-
-        this.sessionStore.appendEntry(
-          sessionId,
-          {
-            type: "message",
-            data: {
-              role: "assistant",
-              content: assistantMsg.content,
-              timestamp: Date.now(),
-            },
+        this.sessionStore.appendEntry(sessionId, {
+          type: "message",
+          data: {
+            role: "assistant",
+            content: assistantMsg.content,
+            timestamp: Date.now(),
           },
-          capturedParent,
-        );
+        });
 
         // Emit LLM inference cost if non-zero
         if (assistantMsg.usage?.cost?.total > 0) {
