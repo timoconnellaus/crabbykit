@@ -30,8 +30,8 @@ export function ChatView({
   agentId: string;
   consoleLogs: ConsoleLogEntry[];
   onClearLogs: () => void;
-  logFilter: string;
-  onLogFilterChange: (filter: string) => void;
+  logFilter: "all" | "error" | "warn" | "info" | "log";
+  onLogFilterChange: (filter: "all" | "error" | "warn" | "info" | "log") => void;
 }) {
   return (
     <ChatPanel chat={chat} style={{ flexDirection: "row", flex: 1 }}>
