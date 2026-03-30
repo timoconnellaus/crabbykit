@@ -1924,46 +1924,42 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     );
 
     if (isTerminalState(state as "completed")) {
-      // Persist result to session
-      console.log(`[a2a:callback] persisting result to session ${pending.originSessionId}`);
-      this.sessionStore.appendEntry(pending.originSessionId, {
-        type: "message",
-        data: { role: "user", content: resultText, timestamp: Date.now() },
-      });
-
-      // Broadcast updated session to connected clients so the A2A note appears immediately
-      const session = this.sessionStore.get(pending.originSessionId);
-      if (session) {
-        this.broadcastToSession(pending.originSessionId, {
-          type: "session_sync",
-          sessionId: pending.originSessionId,
-          session,
-          messages: this.sessionStore.buildContext(pending.originSessionId),
-          streamMessage: this.sessionAgents.get(pending.originSessionId)?.state.isStreaming
-            ? (this.sessionAgents.get(pending.originSessionId)?.state.streamMessage ?? null)
-            : null,
-        });
-      }
-
       // Check if agent is currently running
       const agent = this.sessionAgents.get(pending.originSessionId);
       const isStreaming = agent?.state.isStreaming ?? false;
       console.log(
         `[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`,
       );
+
       if (isStreaming) {
-        // Agent is busy — steer the result in so it sees it mid-inference.
-        // The result is already persisted to the session (above), so the agent
-        // will have it in context. No post-inference follow-up needed — the
-        // steer delivers it within the current turn.
-        console.log(`[a2a:callback] steering result into running agent`);
+        // Agent is busy — persist the result and steer it in.
+        // Don't use handleAgentPrompt (which would double-persist).
+        console.log(`[a2a:callback] persisting result and steering into running agent`);
+        this.sessionStore.appendEntry(pending.originSessionId, {
+          type: "message",
+          data: { role: "user", content: resultText, timestamp: Date.now() },
+        });
+
+        // Broadcast so the A2A note appears immediately in the UI
+        const session = this.sessionStore.get(pending.originSessionId);
+        if (session) {
+          this.broadcastToSession(pending.originSessionId, {
+            type: "session_sync",
+            sessionId: pending.originSessionId,
+            session,
+            messages: this.sessionStore.buildContext(pending.originSessionId),
+            streamMessage: agent?.state.streamMessage ?? null,
+          });
+        }
+
         agent.steer({
           role: "user",
           content: resultText,
           timestamp: Date.now(),
         });
       } else {
-        // Agent is idle — trigger inference immediately
+        // Agent is idle — handleAgentPrompt will persist the message AND trigger inference.
+        // Don't persist separately to avoid duplicates.
         console.log(`[a2a:callback] triggering inference on idle agent`);
         const op = this.handleAgentPrompt({
           text: resultText,
