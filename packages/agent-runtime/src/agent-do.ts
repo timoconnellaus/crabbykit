@@ -888,9 +888,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       );
 
     const commandMap = new Map<string, Command>();
+
+    // Built-in commands (can be overridden by consumer or capability commands)
+    commandMap.set("clear", {
+      name: "clear",
+      description: "Clear conversation and start fresh",
+      execute: () => ({ text: "Cleared" }),
+    });
+
+    // Consumer commands override built-ins
     for (const cmd of baseCommands) {
       commandMap.set(cmd.name, cmd);
     }
+    // Capability commands fill in gaps
     for (const cmd of resolved.commands) {
       if (!commandMap.has(cmd.name)) {
         commandMap.set(cmd.name, cmd);
@@ -899,12 +909,45 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     return commandMap;
   }
 
+  private handleClearCommand(ws: WebSocket, sessionId: string): void {
+    // Abort any running inference on the current session
+    this.sessionAgents.get(sessionId)?.abort();
+
+    // Create a fresh session
+    const newSession = this.sessionStore.create({});
+    this.connections.set(ws, { sessionId: newSession.id });
+    ws.serializeAttachment({ sessionId: newSession.id });
+    this.onSessionCreated?.({ id: newSession.id, name: newSession.name });
+
+    // Sync client to the new empty session
+    this.sendToSocket(ws, {
+      type: "session_sync",
+      sessionId: newSession.id,
+      session: newSession,
+      messages: [],
+      streamMessage: null,
+    });
+
+    // Delete the old session if it's not the only one
+    const allSessions = this.sessionStore.list();
+    if (allSessions.length > 1) {
+      this.sessionStore.delete(sessionId);
+    }
+
+    this.broadcastSessionList();
+  }
+
   private async handleCommand(
     ws: WebSocket,
     sessionId: string,
     name: string,
     rawArgs?: string,
   ): Promise<void> {
+    // Built-in commands that need WebSocket/connection access
+    if (name === "clear") {
+      return this.handleClearCommand(ws, sessionId);
+    }
+
     const commands = this.resolveCommands(sessionId);
     const command = commands.get(name);
 

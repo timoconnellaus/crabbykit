@@ -1,17 +1,15 @@
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
-import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import type {
   AgentConfig,
   AgentContext,
   AgentTool,
   Capability,
-  Command,
-  CommandContext,
   PromptOptions,
 } from "@claw-for-cloudflare/agent-runtime";
-import { AgentDO, defineCommand, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { AgentDO, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
   SandboxContainer,
@@ -155,50 +153,6 @@ export class BasicAgent extends AgentDO<Env> {
               details: { expression, error: errorMessage },
             };
           }
-        },
-      }),
-    ];
-  }
-
-  protected getCommands(_context: CommandContext): Command[] {
-    return [
-      defineCommand({
-        name: "help",
-        description: "List available commands and tools",
-        execute: (_args, ctx) => {
-          const tools = [
-            "get_current_time",
-            "calculate",
-            "web_search",
-            "web_fetch",
-            "file_read",
-            "file_write",
-            "file_edit",
-            "file_delete",
-            "file_list",
-            "file_tree",
-            "file_find",
-            "memory_search",
-            "memory_get",
-            "save_secret",
-            "list_secrets",
-            "delete_secret",
-            "agent_list",
-            "agent_create",
-            "agent_delete",
-            "agent_attach",
-            "agent_detach",
-            "elevate",
-            "de_elevate",
-            "bash",
-            "start_process",
-            "stop_process",
-            "get_process_status",
-          ];
-          const commands = ["/help — List available commands and tools"];
-          return {
-            text: `Available tools: ${tools.join(", ")}\n\nAvailable commands:\n${commands.join("\n")}`,
-          };
         },
       }),
     ];
