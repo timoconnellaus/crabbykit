@@ -18,7 +18,7 @@ export function createHidePreviewTool(
 
       // Clear persisted preview state
       if (context.storage) {
-        await context.storage.delete("previewPort");
+        await context.storage.delete("preview");
       }
 
       // Broadcast preview_close event to connected clients

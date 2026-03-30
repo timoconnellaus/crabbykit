@@ -14,9 +14,9 @@ function mockProvider(): SandboxProvider {
   };
 }
 
-function mockContext(): AgentContext {
+function mockContext(sessionId = "test-session"): AgentContext {
   return {
-    sessionId: "test-session",
+    sessionId,
     stepNumber: 0,
     emitCost: () => {},
     broadcast: vi.fn(),
@@ -65,6 +65,45 @@ describe("vibeCoder", () => {
     expect(sections[0]).toContain("get_console_logs");
   });
 
+  it("provides close_preview command", () => {
+    const cap = vibeCoder({ provider: mockProvider() });
+    const commands = cap.commands!(mockContext());
+    expect(commands).toHaveLength(1);
+    expect(commands[0].name).toBe("close_preview");
+  });
+
+  describe("close_preview command", () => {
+    it("clears dev port, deletes storage, broadcasts, and appends session entry", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext("session-abc");
+      const cap = vibeCoder({ provider });
+      const commands = cap.commands!(ctx);
+      const closeCmd = commands[0];
+
+      const cmdCtx = {
+        sessionId: "session-abc",
+        sessionStore: {
+          appendEntry: vi.fn().mockReturnValue({ id: "e1" }),
+        } as any,
+        schedules: {} as any,
+      };
+
+      const result = await closeCmd.execute(undefined as any, cmdCtx);
+
+      expect(provider.clearDevPort).toHaveBeenCalled();
+      expect(ctx.storage!.delete).toHaveBeenCalledWith("preview");
+      expect(ctx.broadcast).toHaveBeenCalledWith("preview_close", {});
+      expect(cmdCtx.sessionStore.appendEntry).toHaveBeenCalledWith("session-abc", {
+        type: "custom",
+        data: expect.objectContaining({
+          customType: "notification",
+          content: "[The user closed the live preview]",
+        }),
+      });
+      expect(result.text).toContain("Preview closed");
+    });
+  });
+
   it("has onConnect hook", () => {
     const cap = vibeCoder({ provider: mockProvider() });
     expect(cap.hooks?.onConnect).toBeInstanceOf(Function);
@@ -73,13 +112,16 @@ describe("vibeCoder", () => {
   describe("show_preview tool", () => {
     it("calls provider.setDevPort and broadcasts", async () => {
       const provider = mockProvider();
-      const ctx = mockContext();
+      const ctx = mockContext("session-abc");
       const cap = vibeCoder({ provider });
       const tools = cap.tools!(ctx);
       const showPreview = tools.find((t) => t.name === "show_preview")!;
       const result = await showPreview.execute({ port: 5173 }, { toolCallId: "tc1" });
-      expect(provider.setDevPort).toHaveBeenCalledWith(5173);
-      expect(ctx.storage!.put).toHaveBeenCalledWith("previewPort", 5173);
+      expect(provider.setDevPort).toHaveBeenCalledWith(5173, undefined);
+      expect(ctx.storage!.put).toHaveBeenCalledWith("preview", {
+        port: 5173,
+        sessionId: "session-abc",
+      });
       expect(ctx.broadcast).toHaveBeenCalledWith("preview_open", { port: 5173 });
       const text = (result.content[0] as { text: string }).text;
       expect(text).toContain("Preview opened");
@@ -108,7 +150,7 @@ describe("vibeCoder", () => {
       const hidePreview = tools.find((t) => t.name === "hide_preview")!;
       const result = await hidePreview.execute({}, { toolCallId: "tc1" });
       expect(provider.clearDevPort).toHaveBeenCalled();
-      expect(ctx.storage!.delete).toHaveBeenCalledWith("previewPort");
+      expect(ctx.storage!.delete).toHaveBeenCalledWith("preview");
       expect(ctx.broadcast).toHaveBeenCalledWith("preview_close", {});
       const text = (result.content[0] as { text: string }).text;
       expect(text).toContain("closed");
@@ -183,7 +225,7 @@ describe("vibeCoder", () => {
   });
 
   describe("onConnect hook", () => {
-    it("broadcasts preview_close when no port stored", async () => {
+    it("broadcasts preview_close when no preview stored", async () => {
       const cap = vibeCoder({ provider: mockProvider() });
       const hookCtx = {
         sessionId: "test",
@@ -200,14 +242,14 @@ describe("vibeCoder", () => {
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
     });
 
-    it("re-establishes preview when port stored and container healthy", async () => {
+    it("re-establishes preview when session owns it and container healthy", async () => {
       const provider = mockProvider();
       const cap = vibeCoder({ provider });
       const hookCtx = {
-        sessionId: "test",
+        sessionId: "session-abc",
         sessionStore: {} as any,
         storage: {
-          get: vi.fn().mockResolvedValue(5173),
+          get: vi.fn().mockResolvedValue({ port: 5173, sessionId: "session-abc" }),
           put: vi.fn(),
           delete: vi.fn(),
           list: vi.fn(),
@@ -215,8 +257,30 @@ describe("vibeCoder", () => {
         broadcast: vi.fn(),
       };
       await cap.hooks!.onConnect!(hookCtx);
-      expect(provider.setDevPort).toHaveBeenCalledWith(5173);
+      expect(provider.setDevPort).toHaveBeenCalledWith(5173, undefined);
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_open", { port: 5173 });
+    });
+
+    it("clears preview and dev port when session does not own it", async () => {
+      const provider = mockProvider();
+      const cap = vibeCoder({ provider });
+      const hookCtx = {
+        sessionId: "session-xyz",
+        sessionStore: {} as any,
+        storage: {
+          get: vi.fn().mockResolvedValue({ port: 5173, sessionId: "session-abc" }),
+          put: vi.fn(),
+          delete: vi.fn().mockResolvedValue(false),
+          list: vi.fn(),
+        },
+        broadcast: vi.fn(),
+      };
+      await cap.hooks!.onConnect!(hookCtx);
+      expect(provider.clearDevPort).toHaveBeenCalled();
+      expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
+      expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
+      // Should NOT re-establish
+      expect(provider.setDevPort).not.toHaveBeenCalled();
     });
 
     it("clears stale state when container is dead", async () => {
@@ -226,10 +290,10 @@ describe("vibeCoder", () => {
       );
       const cap = vibeCoder({ provider });
       const hookCtx = {
-        sessionId: "test",
+        sessionId: "session-abc",
         sessionStore: {} as any,
         storage: {
-          get: vi.fn().mockResolvedValue(5173),
+          get: vi.fn().mockResolvedValue({ port: 5173, sessionId: "session-abc" }),
           put: vi.fn(),
           delete: vi.fn().mockResolvedValue(false),
           list: vi.fn(),
@@ -237,7 +301,7 @@ describe("vibeCoder", () => {
         broadcast: vi.fn(),
       };
       await cap.hooks!.onConnect!(hookCtx);
-      expect(hookCtx.storage.delete).toHaveBeenCalledWith("previewPort");
+      expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
     });
   });

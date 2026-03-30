@@ -5,6 +5,7 @@ import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
 export function createShowPreviewTool(
   provider: SandboxProvider,
   context: AgentContext,
+  previewBasePath?: string,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -28,11 +29,11 @@ export function createShowPreviewTool(
         };
       }
 
-      await provider.setDevPort(port);
+      await provider.setDevPort(port, previewBasePath);
 
-      // Persist the preview port in capability storage
+      // Persist the preview with session ownership
       if (context.storage) {
-        await context.storage.put("previewPort", port);
+        await context.storage.put("preview", { port, sessionId: context.sessionId });
       }
 
       // Broadcast preview_open event to connected clients

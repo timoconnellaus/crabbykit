@@ -38,9 +38,33 @@ let containerMode = process.env.CONTAINER_MODE ?? "normal";
 let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
 let devServerPort: number | null = null;
+/** Base path for the preview proxy (e.g., "/preview/abc123/"). Used to rewrite absolute paths. */
+let previewBasePath: string | null = null;
 
 const CONSOLE_CAPTURE_SCRIPT = `<script>
 (function(){
+  // --- WebSocket HMR proxy ---
+  // Patch WebSocket so Vite's HMR client connects through the preview proxy
+  // instead of directly to the host origin (which hits the wrong Vite server).
+  var OrigWS=window.WebSocket;
+  var base=window.location.pathname;
+  window.WebSocket=function(url,protocols){
+    try{
+      var p=new URL(url,window.location.href);
+      if(p.origin===window.location.origin && (p.pathname==='/' || p.pathname==='')){
+        p.pathname=base;
+        url=p.toString();
+      }
+    }catch(e){}
+    return new OrigWS(url,protocols);
+  };
+  window.WebSocket.prototype=OrigWS.prototype;
+  window.WebSocket.CONNECTING=OrigWS.CONNECTING;
+  window.WebSocket.OPEN=OrigWS.OPEN;
+  window.WebSocket.CLOSING=OrigWS.CLOSING;
+  window.WebSocket.CLOSED=OrigWS.CLOSED;
+
+  // --- Console capture ---
   var orig={error:console.error,warn:console.warn,log:console.log,info:console.info};
   var count=0,lastReset=Date.now();
   function throttle(){var now=Date.now();if(now-lastReset>1000){count=0;lastReset=now}return ++count<=10}
@@ -111,6 +135,25 @@ function isUnderPersist(targetPath: string): boolean {
 
 function isAllowedPath(targetPath: string): boolean {
   return isUnderWorkspace(targetPath) || isUnderPersist(targetPath);
+}
+
+/**
+ * Rewrite absolute paths in proxied content so they route through the preview proxy.
+ * Converts `="/src/main.tsx"` → `="./src/main.tsx"` (relative to preview base).
+ * Handles HTML attributes (src, href) and JS module imports (from, import()).
+ */
+function rewriteAbsolutePaths(content: string): string {
+  // Rewrites absolute paths (starting with /) to relative (starting with ./)
+  // so the browser resolves them against the preview proxy base URL.
+  // Skips protocol-relative URLs (starting with //).
+  return content
+    // HTML attributes: src="/..." href="/..." action="/..."
+    .replace(/((?:src|href|action)\s*=\s*["'])\/((?!\/)[^"']*["'])/g, "$1./$2")
+    // JS: from "/..." and import("/...")
+    .replace(/(from\s+["'])\/((?!\/)[^"']*["'])/g, "$1./$2")
+    .replace(/(import\s*\(\s*["'])\/((?!\/)[^"']*["'])/g, "$1./$2")
+    // CSS: url(/...)
+    .replace(/(url\(\s*["']?)\/((?!\/)[^"')]*["']?\))/g, "$1./$2");
 }
 
 /** Strip ANSI escape codes from PTY output. */
@@ -495,6 +538,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     devServerPort = port;
+    previewBasePath = (body.basePath as string) ?? null;
     json(res, { ok: true, port: devServerPort });
     return;
   }
@@ -502,6 +546,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   // --- Clear dev port ---
   if (url.pathname === "/clear-dev-port" && method === "POST") {
     devServerPort = null;
+    previewBasePath = null;
     json(res, { ok: true });
     return;
   }
@@ -521,9 +566,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       });
 
       const contentType = proxyRes.headers.get("content-type") ?? "";
+      const isHtml = contentType.includes("text/html");
+      const isJs = contentType.includes("javascript");
+      const isCss = contentType.includes("text/css");
 
-      if (contentType.includes("text/html")) {
+      if (isHtml) {
         let html = await proxyRes.text();
+        // Rewrite absolute paths so sub-resources route through the preview proxy
+        if (previewBasePath) {
+          html = rewriteAbsolutePaths(html);
+        }
         if (html.includes("</head>")) {
           html = html.replace("</head>", `${CONSOLE_CAPTURE_SCRIPT}</head>`);
         } else if (html.includes("<head>")) {
@@ -535,6 +587,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           "content-type": contentType,
         });
         res.end(html);
+      } else if ((isJs || isCss) && previewBasePath) {
+        // Rewrite absolute paths in JS modules and CSS
+        let text = await proxyRes.text();
+        text = rewriteAbsolutePaths(text);
+        res.writeHead(proxyRes.status, {
+          "content-type": contentType,
+        });
+        res.end(text);
       } else {
         const headers: Record<string, string> = {};
         proxyRes.headers.forEach((v, k) => {
@@ -546,7 +606,22 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
       return;
     } catch {
-      // Dev server not ready — fall through to 404
+      // Dev server not ready — return a loading page that auto-retries
+      const retryHtml = `<!DOCTYPE html>
+<html><head><title>Starting...</title><style>
+body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;
+font-family:system-ui,sans-serif;background:#1a1a2e;color:#94a3b8}
+.spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#818cf8;
+border-radius:50%;animation:spin 0.8s linear infinite;margin-right:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<div class="spinner"></div>
+<span>Dev server starting on port ${devServerPort}...</span>
+<script>setTimeout(()=>location.reload(),1500)</script>
+</body></html>`;
+      res.writeHead(503, { "content-type": "text/html" });
+      res.end(retryHtml);
+      return;
     }
   }
 

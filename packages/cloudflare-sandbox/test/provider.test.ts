@@ -197,6 +197,57 @@ describe("CloudflareSandboxProvider", () => {
     });
   });
 
+  describe("setDevPort", () => {
+    it("posts port to /set-dev-port", async () => {
+      const stub = mockStub();
+      const provider = createProvider(stub);
+
+      await provider.setDevPort(5173);
+
+      expect(stub.fetch).toHaveBeenCalledWith(
+        "http://container/set-dev-port",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ port: 5173 }),
+        }),
+      );
+    });
+
+    it("throws on non-ok response", async () => {
+      const stub = mockStub();
+      (stub.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        new Response("bad port", { status: 400 }),
+      );
+      const provider = createProvider(stub);
+
+      await expect(provider.setDevPort(-1)).rejects.toThrow("set-dev-port failed: 400");
+    });
+  });
+
+  describe("clearDevPort", () => {
+    it("posts to /clear-dev-port", async () => {
+      const stub = mockStub();
+      const provider = createProvider(stub);
+
+      await provider.clearDevPort();
+
+      expect(stub.fetch).toHaveBeenCalledWith(
+        "http://container/clear-dev-port",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    it("throws on non-ok response", async () => {
+      const stub = mockStub();
+      (stub.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        new Response("error", { status: 500 }),
+      );
+      const provider = createProvider(stub);
+
+      await expect(provider.clearDevPort()).rejects.toThrow("clear-dev-port failed: 500");
+    });
+  });
+
   describe("headers", () => {
     it("includes x-agent-id from storage namespace", async () => {
       const stub = mockStub();

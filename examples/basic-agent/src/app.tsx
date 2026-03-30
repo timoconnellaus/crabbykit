@@ -154,6 +154,11 @@ export default function App() {
     onCustomRequest,
   });
 
+  const handleClosePreview = useCallback(() => {
+    setPreviewState({ open: false });
+    chat.sendCommand("close_preview");
+  }, [chat]);
+
   const handleCreateAgent = useCallback(async () => {
     const name = prompt("Agent name:");
     if (!name) return;
@@ -188,6 +193,7 @@ export default function App() {
               agentId={selectedAgentId}
               consoleLogs={consoleLogs}
               onClearLogs={() => setConsoleLogs([])}
+              onClosePreview={handleClosePreview}
               logFilter={logFilter}
               onLogFilterChange={(f) => setLogFilter(f as "all" | "error" | "warn" | "info" | "log")}
             />

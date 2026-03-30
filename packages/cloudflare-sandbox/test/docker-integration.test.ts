@@ -204,6 +204,138 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     });
   });
 
+  // --- Dev port proxy tests ---
+
+  describe("Dev port proxy", () => {
+    const DEV_PORT = 9876;
+
+    it("set-dev-port accepts a valid port", async () => {
+      const result = (await fetchJson("/set-dev-port", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ port: DEV_PORT }),
+      })) as { ok: boolean; port: number };
+
+      expect(result.ok).toBe(true);
+      expect(result.port).toBe(DEV_PORT);
+    });
+
+    it("rejects invalid port values", async () => {
+      const res = await fetch_("/set-dev-port", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ port: -1 }),
+      });
+      expect(res.status).toBe(400);
+
+      const res2 = await fetch_("/set-dev-port", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ port: 99999 }),
+      });
+      expect(res2.status).toBe(400);
+    });
+
+    it("proxies requests to the dev server when port is set", async () => {
+      // Start a simple HTTP server inside the container
+      await fetchJson("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "test-dev-server",
+          command: `node -e "require('http').createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html'});res.end('<html><head><title>Test</title></head><body>hello</body></html>')}).listen(${DEV_PORT})"`,
+        }),
+      });
+
+      // Wait for server to start
+      await new Promise((r) => setTimeout(r, 1000));
+
+      // Set the dev port
+      await fetchJson("/set-dev-port", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ port: DEV_PORT }),
+      });
+
+      // Request should be proxied to the dev server
+      const res = await fetch_("/");
+      expect(res.ok).toBe(true);
+      const html = await res.text();
+      expect(html).toContain("hello");
+    });
+
+    it("injects console capture script into proxied HTML", async () => {
+      // The dev server from previous test should still be running
+      const res = await fetch_("/");
+      const html = await res.text();
+
+      // Should contain the injected console capture script
+      expect(html).toContain("claw:console");
+      expect(html).toContain("parent.postMessage");
+      // Should still contain original content
+      expect(html).toContain("<title>Test</title>");
+      expect(html).toContain("hello");
+    });
+
+    it("does not inject script into non-HTML responses", async () => {
+      // Stop the HTML server and start a JSON one
+      await fetchJson("/process-stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "test-dev-server" }),
+      });
+      await new Promise((r) => setTimeout(r, 500));
+
+      await fetchJson("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "test-json-server",
+          command: `node -e "require('http').createServer((req,res)=>{res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({ok:true}))}).listen(${DEV_PORT})"`,
+        }),
+      });
+      await new Promise((r) => setTimeout(r, 1000));
+
+      const res = await fetch_("/some-api");
+      const body = await res.text();
+      expect(body).not.toContain("claw:console");
+      expect(JSON.parse(body)).toEqual({ ok: true });
+    });
+
+    it("returns 404 when dev server is not reachable", async () => {
+      // Stop the server
+      await fetchJson("/process-stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "test-json-server" }),
+      });
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Set a port where nothing is listening
+      await fetchJson("/set-dev-port", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ port: 19999 }),
+      });
+
+      // Should fall through to 404
+      const res = await fetch_("/");
+      expect(res.status).toBe(404);
+    });
+
+    it("clear-dev-port stops proxying", async () => {
+      await fetchJson("/clear-dev-port", { method: "POST" });
+
+      // Known endpoints should still work
+      const health = (await fetchJson("/health")) as Record<string, unknown>;
+      expect(health.ready).toBe(true);
+
+      // Unknown paths should 404 (no proxy fallback)
+      const res = await fetch_("/some-page");
+      expect(res.status).toBe(404);
+    });
+  });
+
   // --- nm-guard tests ---
 
   describe("nm-guard", () => {

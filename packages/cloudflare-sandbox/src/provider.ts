@@ -206,10 +206,10 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     }
   }
 
-  async setDevPort(port: number): Promise<void> {
+  async setDevPort(port: number, basePath?: string): Promise<void> {
     const res = await this.fetch("/set-dev-port", {
       method: "POST",
-      body: JSON.stringify({ port }),
+      body: JSON.stringify({ port, basePath }),
     });
     if (!res.ok) {
       throw new Error(`set-dev-port failed: ${res.status} ${await res.text()}`);

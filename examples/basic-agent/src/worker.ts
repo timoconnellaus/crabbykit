@@ -100,6 +100,7 @@ export class BasicAgent extends AgentDO<Env> {
           },
           containerMode: "dev",
         }),
+        previewBasePath: `/preview/${this.ctx.id.toString()}/`,
       }),
     ];
   }
@@ -225,9 +226,11 @@ export default {
     if (previewMatch) {
       const id = env.SANDBOX_CONTAINER.idFromName("default");
       const stub = env.SANDBOX_CONTAINER.get(id);
-      const proxyUrl = new URL(request.url);
-      proxyUrl.pathname = previewMatch[2] || "/";
-      return stub.fetch(new Request(proxyUrl.toString(), request));
+      // Use http://container as the base URL — this is the internal hostname
+      // that the Container DO class recognizes for proxying to the container.
+      const subPath = previewMatch[2] || "/";
+      const containerUrl = `http://container${subPath}${url.search}`;
+      return stub.fetch(new Request(containerUrl, request));
     }
 
     // /agent/:agentId[/...] — route to agent DO by ID

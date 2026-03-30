@@ -1002,6 +1002,29 @@
   background: white;
 }
 
+[data-agent-ui="app-preview-close-btn"] {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-agent-ui="app-preview-close-btn"]:hover {
+  background: rgba(220, 38, 38, 0.8);
+}
+
 [data-agent-ui="app-preview-loading"] {
   position: absolute;
   inset: 0;

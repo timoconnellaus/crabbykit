@@ -17,6 +17,8 @@ export interface AppPreviewProps {
   logFilter?: "all" | "error" | "warn" | "info" | "log";
   /** Called when the user changes the log filter. */
   onLogFilterChange?: (filter: string) => void;
+  /** Called when the user clicks the close preview button. */
+  onClose?: () => void;
 }
 
 const LOG_FILTERS = ["all", "error", "warn", "info", "log"] as const;
@@ -31,6 +33,7 @@ export function AppPreview({
   onClearLogs,
   logFilter = "all",
   onLogFilterChange,
+  onClose,
 }: AppPreviewProps) {
   const [loaded, setLoaded] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(true);
@@ -49,6 +52,11 @@ export function AppPreview({
     <div data-agent-ui="app-preview">
       <div data-agent-ui="app-preview-iframe-container">
         {!loaded && <div data-agent-ui="app-preview-loading">Loading preview...</div>}
+        {onClose && (
+          <button type="button" data-agent-ui="app-preview-close-btn" onClick={onClose} title="Close preview">
+            ✕
+          </button>
+        )}
         <iframe
           data-agent-ui="app-preview-iframe"
           src={previewUrl}

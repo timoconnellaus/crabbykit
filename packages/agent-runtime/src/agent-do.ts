@@ -797,6 +797,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
             hasMore,
           });
         }
+
+        // Fire onConnect hooks so capabilities can reconcile session-scoped state
+        this.fireOnConnectHooks(msg.sessionId).catch((err) => {
+          console.error("[AgentDO] onConnect hooks error (session switch):", err);
+        });
         break;
       }
 
@@ -812,6 +817,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           streamMessage: null,
         });
         this.broadcastSessionList();
+
+        // Fire onConnect hooks so capabilities can reconcile session-scoped state
+        this.fireOnConnectHooks(session.id).catch((err) => {
+          console.error("[AgentDO] onConnect hooks error (new session):", err);
+        });
         break;
       }
 

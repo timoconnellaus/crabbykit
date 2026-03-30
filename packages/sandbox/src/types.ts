@@ -55,8 +55,8 @@ export interface SandboxProvider {
 
   // --- Optional dev server management ---
 
-  /** Set the port of a dev server to proxy traffic to. */
-  setDevPort?(port: number): Promise<void>;
+  /** Set the port of a dev server to proxy traffic to. basePath is the preview URL prefix for path rewriting. */
+  setDevPort?(port: number, basePath?: string): Promise<void>;
   /** Clear the dev server port (stop proxying). */
   clearDevPort?(): Promise<void>;
 }

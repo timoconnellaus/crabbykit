@@ -20,6 +20,7 @@ export function ChatView({
   agentId,
   consoleLogs,
   onClearLogs,
+  onClosePreview,
   logFilter,
   onLogFilterChange,
 }: {
@@ -30,6 +31,7 @@ export function ChatView({
   agentId: string;
   consoleLogs: ConsoleLogEntry[];
   onClearLogs: () => void;
+  onClosePreview: () => void;
   logFilter: "all" | "error" | "warn" | "info" | "log";
   onLogFilterChange: (filter: "all" | "error" | "warn" | "info" | "log") => void;
 }) {
@@ -60,6 +62,7 @@ export function ChatView({
               previewUrl={`/preview/${agentId}/`}
               logs={consoleLogs}
               onClearLogs={onClearLogs}
+              onClose={onClosePreview}
               logFilter={logFilter}
               onLogFilterChange={onLogFilterChange}
             />
