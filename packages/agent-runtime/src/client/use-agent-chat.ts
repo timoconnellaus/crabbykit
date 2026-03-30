@@ -766,7 +766,23 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   );
 
   return {
-    messages: state.messages,
+    messages: state.messages.filter((m) => {
+      // Skip empty assistant messages (e.g., abandoned partial responses from steer interrupts)
+      if (m.role !== "assistant") return true;
+      const content = m.content as string | unknown[];
+      if (typeof content === "string") return content.length > 0;
+      if (Array.isArray(content)) {
+        return content.some(
+          (block) =>
+            typeof block === "object" &&
+            block !== null &&
+            "type" in block &&
+            (block as { type: string; text?: string }).type === "text" &&
+            (block as { text?: string }).text?.length,
+        );
+      }
+      return true;
+    }),
     connectionStatus: state.connectionStatus,
     agentStatus: state.agentStatus,
     sessions: state.sessions,
