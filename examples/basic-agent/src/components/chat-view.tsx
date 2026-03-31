@@ -67,6 +67,7 @@ export function ChatView({
               onLogFilterChange={(f) =>
                 onLogFilterChange(f as "all" | "error" | "warn" | "info" | "log")
               }
+              connected={chat.connectionStatus === "connected"}
             />
           </div>
         )}

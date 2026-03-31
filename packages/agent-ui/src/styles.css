@@ -1230,6 +1230,21 @@
   z-index: 1;
 }
 
+[data-agent-ui="app-preview-disconnected"] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 58, 95, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  z-index: 5;
+  backdrop-filter: blur(2px);
+}
+
 [data-agent-ui="app-preview-console-bar"] {
   display: flex;
   align-items: center;

@@ -19,6 +19,8 @@ export interface AppPreviewProps {
   onLogFilterChange?: (filter: string) => void;
   /** Called when the user clicks the close preview button. */
   onClose?: () => void;
+  /** Whether the client is connected to the server. When false, shows a disconnected overlay. */
+  connected?: boolean;
 }
 
 const LOG_FILTERS = ["all", "error", "warn", "info", "log"] as const;
@@ -34,6 +36,7 @@ export function AppPreview({
   logFilter = "all",
   onLogFilterChange,
   onClose,
+  connected = true,
 }: AppPreviewProps) {
   const [loaded, setLoaded] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(true);
@@ -52,6 +55,9 @@ export function AppPreview({
     <div data-agent-ui="app-preview">
       <div data-agent-ui="app-preview-iframe-container">
         {!loaded && <div data-agent-ui="app-preview-loading">Loading preview...</div>}
+        {!connected && (
+          <div data-agent-ui="app-preview-disconnected">Lost Connection</div>
+        )}
         {onClose && (
           <button
             type="button"
