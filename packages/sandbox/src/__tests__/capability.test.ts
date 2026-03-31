@@ -1,7 +1,33 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { sandboxCapability } from "../capability.js";
+import { setSessionElevated } from "../session-state.js";
 import type { SandboxProvider } from "../types.js";
+
+/** Map-backed storage for realistic read/write behavior. */
+function createMapStorage(): CapabilityStorage {
+  const store = new Map<string, unknown>();
+  return {
+    async get<T>(key: string): Promise<T | undefined> {
+      return store.get(key) as T | undefined;
+    },
+    async put(key: string, value: unknown): Promise<void> {
+      store.set(key, value);
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async list<T>(prefix?: string): Promise<Map<string, T>> {
+      const result = new Map<string, T>();
+      for (const [k, v] of store) {
+        if (!prefix || k.startsWith(prefix)) {
+          result.set(k, v as T);
+        }
+      }
+      return result;
+    },
+  };
+}
 
 function mockProvider(): SandboxProvider {
   return {
@@ -15,10 +41,10 @@ function mockProvider(): SandboxProvider {
   };
 }
 
-function mockContext(): AgentContext {
+function mockContext(sessionId = "test-session", storage?: CapabilityStorage): AgentContext {
   return {
     agentId: "test-agent",
-    sessionId: "test-session",
+    sessionId,
     stepNumber: 0,
     emitCost: () => {},
     broadcast: vi.fn(),
@@ -33,12 +59,7 @@ function mockContext(): AgentContext {
       setTimer: vi.fn().mockResolvedValue(undefined),
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
-    storage: {
-      get: vi.fn().mockResolvedValue(undefined),
-      put: vi.fn().mockResolvedValue(undefined),
-      delete: vi.fn().mockResolvedValue(false),
-      list: vi.fn().mockResolvedValue(new Map()),
-    },
+    storage: storage ?? createMapStorage(),
   };
 }
 
@@ -86,9 +107,10 @@ describe("sandboxCapability", () => {
   });
 
   describe("elevate tool", () => {
-    it("calls provider.start and sets state", async () => {
+    it("calls provider.start and sets per-session state", async () => {
       const provider = mockProvider();
-      const ctx = mockContext();
+      const storage = createMapStorage();
+      const ctx = mockContext("test-session", storage);
       const cap = sandboxCapability({ provider });
       const tools = cap.tools!(ctx);
       const elevate = tools.find((t) => t.name === "elevate")!;
@@ -96,7 +118,9 @@ describe("sandboxCapability", () => {
       const result = await elevate.execute({ reason: "need shell" }, { toolCallId: "tc1" });
 
       expect(provider.start).toHaveBeenCalled();
-      expect(ctx.storage!.put).toHaveBeenCalledWith("elevated", true);
+      // Per-session state should be set
+      expect(await storage.get("session:test-session:elevated")).toBe(true);
+      expect(await storage.get("session:test-session:reason")).toBe("need shell");
       expect(ctx.schedules.setTimer).toHaveBeenCalled();
       expect(ctx.broadcast).toHaveBeenCalledWith("sandbox_elevation", {
         elevated: true,
@@ -122,8 +146,9 @@ describe("sandboxCapability", () => {
 
     it("executes when elevated", async () => {
       const provider = mockProvider();
-      const ctx = mockContext();
-      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      const storage = createMapStorage();
+      await setSessionElevated(storage, "test-session", "reason");
+      const ctx = mockContext("test-session", storage);
 
       const cap = sandboxCapability({ provider });
       const tools = cap.tools!(ctx);
@@ -142,10 +167,11 @@ describe("sandboxCapability", () => {
   });
 
   describe("de_elevate tool", () => {
-    it("clears state and cancels timer", async () => {
+    it("clears per-session state and stops container when last session", async () => {
       const provider = mockProvider();
-      const ctx = mockContext();
-      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      const storage = createMapStorage();
+      await setSessionElevated(storage, "test-session", "reason");
+      const ctx = mockContext("test-session", storage);
 
       const cap = sandboxCapability({ provider });
       const tools = cap.tools!(ctx);
@@ -153,8 +179,10 @@ describe("sandboxCapability", () => {
 
       const result = await deElevate.execute({}, { toolCallId: "tc1" });
 
-      expect(ctx.storage!.put).toHaveBeenCalledWith("elevated", false);
+      // Per-session state should be cleared
+      expect(await storage.get("session:test-session:elevated")).toBeUndefined();
       expect(ctx.schedules.cancelTimer).toHaveBeenCalledWith("sandbox:de-elevate");
+      expect(provider.stop).toHaveBeenCalled();
       expect(ctx.broadcast).toHaveBeenCalledWith("sandbox_elevation", {
         elevated: false,
       });

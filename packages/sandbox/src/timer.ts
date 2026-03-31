@@ -1,4 +1,5 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { clearAllElevation, clearAllProcessOwners, isAnySessionElevated } from "./session-state.js";
 import type { SandboxConfig, SandboxProvider } from "./types.js";
 
 export const TIMER_ID = "sandbox:de-elevate";
@@ -23,21 +24,20 @@ export async function resetDeElevationTimer(
     const storage = context.storage;
     if (!storage) return;
 
-    const elevated = await storage.get<boolean>("elevated");
-    if (!elevated) return;
+    const anyElevated = await isAnySessionElevated(storage);
+    if (!anyElevated) return;
 
-    // Auto-de-elevate: stop provider and clear state
+    // Auto-de-elevate: stop provider and clear ALL session states
     try {
       await provider.stop();
     } catch {
       // Best-effort stop
     }
 
-    await storage.put("elevated", false);
-    await storage.delete("elevationReason");
-    await storage.delete("elevatedAt");
+    await clearAllElevation(storage);
+    await clearAllProcessOwners(storage);
 
-    context.broadcast("sandbox_elevation", { elevated: false });
+    context.broadcastToAll("sandbox_elevation", { elevated: false });
   });
 }
 

@@ -1,6 +1,7 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { checkElevation } from "../elevation.js";
+import { getOwnedProcessIds, getProcessOwner, removeProcessOwner } from "../session-state.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 export function createProcessTool(
@@ -37,22 +38,42 @@ export function createProcessTool(
       ),
     }),
     execute: async (args) => {
-      const notElevated = await checkElevation(context.storage);
+      const notElevated = await checkElevation(context.storage, context.sessionId);
       if (notElevated) return notElevated;
+
+      // checkElevation above throws if storage is undefined
+      const storage = context.storage as NonNullable<typeof context.storage>;
 
       switch (args.action) {
         case "list":
-          return actionList(provider);
+          return actionList(provider, storage, context.sessionId);
         case "poll":
-          return actionPoll(provider, requireSessionId(args.sessionId));
+          return actionPoll(provider, storage, context.sessionId, requireSessionId(args.sessionId));
         case "log":
-          return actionLog(provider, requireSessionId(args.sessionId), args.tail);
+          return actionLog(
+            provider,
+            storage,
+            context.sessionId,
+            requireSessionId(args.sessionId),
+            args.tail,
+          );
         case "write":
-          return actionWrite(provider, requireSessionId(args.sessionId), args.input);
+          return actionWrite(
+            provider,
+            storage,
+            context.sessionId,
+            requireSessionId(args.sessionId),
+            args.input,
+          );
         case "kill":
-          return actionKill(provider, requireSessionId(args.sessionId));
+          return actionKill(provider, storage, context.sessionId, requireSessionId(args.sessionId));
         case "remove":
-          return actionRemove(provider, requireSessionId(args.sessionId));
+          return actionRemove(
+            provider,
+            storage,
+            context.sessionId,
+            requireSessionId(args.sessionId),
+          );
         default:
           return textResult(`Unknown action: ${args.action}`);
       }
@@ -72,29 +93,59 @@ function textResult(text: string, details: Record<string, unknown> = {}) {
   };
 }
 
-async function actionList(provider: SandboxProvider) {
+const NOT_OWNED_RESULT = textResult("Session not found or not owned by this session.", {
+  error: "not_owned",
+});
+
+async function checkOwnership(
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  containerSessionId: string,
+): Promise<boolean> {
+  const owner = await getProcessOwner(storage, containerSessionId);
+  return owner === agentSessionId;
+}
+
+async function actionList(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+) {
   if (!provider.sessionList) {
     return textResult("Session listing not supported by this sandbox provider.");
   }
 
-  const sessionsList = await provider.sessionList();
+  // Get the set of container session IDs owned by this agent session
+  const ownedIds = new Set(await getOwnedProcessIds(storage, agentSessionId));
 
-  if (sessionsList.length === 0) {
+  const sessionsList = await provider.sessionList();
+  const owned = sessionsList.filter((s) => ownedIds.has(s.sessionId));
+
+  if (owned.length === 0) {
     return textResult("No active sessions.");
   }
 
-  const lines = sessionsList.map((s) => {
+  const lines = owned.map((s) => {
     const status = s.running ? "running" : `exited (code ${s.exitCode ?? "unknown"})`;
     const age = Math.round((Date.now() - s.startedAt) / 1000);
     return `${s.sessionId}: ${status} — ${s.command} (${age}s, ${s.outputBytes} bytes logged to ${s.logFile})`;
   });
 
-  return textResult(lines.join("\n"), { sessions: sessionsList });
+  return textResult(lines.join("\n"), { sessions: owned });
 }
 
-async function actionPoll(provider: SandboxProvider, sessionId: string) {
+async function actionPoll(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  sessionId: string,
+) {
   if (!provider.sessionPoll) {
     return textResult("Session polling not supported by this sandbox provider.");
+  }
+
+  if (!(await checkOwnership(storage, agentSessionId, sessionId))) {
+    return NOT_OWNED_RESULT;
   }
 
   const poll = await provider.sessionPoll(sessionId);
@@ -128,9 +179,19 @@ async function actionPoll(provider: SandboxProvider, sessionId: string) {
   });
 }
 
-async function actionLog(provider: SandboxProvider, sessionId: string, tail?: number) {
+async function actionLog(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  sessionId: string,
+  tail?: number,
+) {
   if (!provider.sessionLog) {
     return textResult("Session log reading not supported by this sandbox provider.");
+  }
+
+  if (!(await checkOwnership(storage, agentSessionId, sessionId))) {
+    return NOT_OWNED_RESULT;
   }
 
   const content = await provider.sessionLog(sessionId, tail);
@@ -142,9 +203,19 @@ async function actionLog(provider: SandboxProvider, sessionId: string, tail?: nu
   return textResult(content, { sessionId });
 }
 
-async function actionWrite(provider: SandboxProvider, sessionId: string, input?: string) {
+async function actionWrite(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  sessionId: string,
+  input?: string,
+) {
   if (!provider.sessionWrite) {
     return textResult("Session writing not supported by this sandbox provider.");
+  }
+
+  if (!(await checkOwnership(storage, agentSessionId, sessionId))) {
+    return NOT_OWNED_RESULT;
   }
 
   if (!input) {
@@ -155,20 +226,39 @@ async function actionWrite(provider: SandboxProvider, sessionId: string, input?:
   return textResult(`Wrote ${input.length} bytes to session ${sessionId}.`, { sessionId });
 }
 
-async function actionKill(provider: SandboxProvider, sessionId: string) {
+async function actionKill(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  sessionId: string,
+) {
   if (!provider.sessionKill) {
     return textResult("Session killing not supported by this sandbox provider.");
+  }
+
+  if (!(await checkOwnership(storage, agentSessionId, sessionId))) {
+    return NOT_OWNED_RESULT;
   }
 
   await provider.sessionKill(sessionId);
   return textResult(`Session ${sessionId} kill requested.`, { sessionId });
 }
 
-async function actionRemove(provider: SandboxProvider, sessionId: string) {
+async function actionRemove(
+  provider: SandboxProvider,
+  storage: CapabilityStorage,
+  agentSessionId: string,
+  sessionId: string,
+) {
   if (!provider.sessionRemove) {
     return textResult("Session removal not supported by this sandbox provider.");
   }
 
+  if (!(await checkOwnership(storage, agentSessionId, sessionId))) {
+    return NOT_OWNED_RESULT;
+  }
+
   await provider.sessionRemove(sessionId);
+  await removeProcessOwner(storage, sessionId);
   return textResult(`Session ${sessionId} removed (log file deleted).`, { sessionId });
 }

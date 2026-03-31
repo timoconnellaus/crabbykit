@@ -1,5 +1,6 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { isAnySessionElevated, isSessionElevated, setSessionElevated } from "../session-state.js";
 import { getTeardownPromise } from "../teardown.js";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
@@ -29,74 +30,75 @@ export function createElevateTool(
       const storage = context.storage;
       if (!storage) throw new Error("Sandbox capability requires storage");
 
-      // Check if already elevated
-      const current = await storage.get<boolean>("elevated");
-      if (current) {
+      // Check if THIS session is already elevated
+      const alreadyElevated = await isSessionElevated(storage, context.sessionId);
+      if (alreadyElevated) {
         return {
           content: [{ type: "text" as const, text: "Already elevated. Sandbox is active." }],
           details: { alreadyElevated: true },
         };
       }
 
-      // Wait for any pending teardown from a previous de-elevation
-      const pending = getTeardownPromise();
-      if (pending) {
-        await pending;
-      }
+      // Check if another session already has the container running
+      const containerRunning = await isAnySessionElevated(storage);
 
-      // Start the sandbox
-      await provider.start();
+      if (!containerRunning) {
+        // No session is elevated — do the full start sequence
+        const pending = getTeardownPromise();
+        if (pending) {
+          await pending;
+        }
 
-      // Verify the container actually started
-      try {
-        const health = await provider.health();
-        if (!health.ready) {
+        await provider.start();
+
+        // Verify the container actually started
+        try {
+          const health = await provider.health();
+          if (!health.ready) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "Sandbox failed to start — container is not ready. Try again.",
+                },
+              ],
+              details: { error: "container_not_ready", health },
+            };
+          }
+        } catch (err) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: "Sandbox failed to start — container is not ready. Try again.",
+                text: `Sandbox failed to start: ${err instanceof Error ? err.message : String(err)}`,
               },
             ],
-            details: { error: "container_not_ready", health },
+            details: { error: "health_check_failed" },
           };
         }
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Sandbox failed to start: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: { error: "health_check_failed" },
-        };
+
+        // Inject saved credentials into the container
+        try {
+          const { envVars, errors } = await injectCredentials(storage, provider);
+          if (Object.keys(envVars).length > 0) {
+            await provider.start({ envVars });
+          }
+          if (errors.length > 0) {
+            console.warn("[sandbox] Credential injection errors:", errors);
+          }
+        } catch (err) {
+          console.warn("[sandbox] Credential injection failed:", err);
+        }
       }
 
-      // Inject saved credentials into the container
-      try {
-        const { files, envVars, errors } = await injectCredentials(storage, provider);
-        if (Object.keys(envVars).length > 0) {
-          // Re-start with credential env vars
-          await provider.start({ envVars });
-        }
-        if (errors.length > 0) {
-          console.warn("[sandbox] Credential injection errors:", errors);
-        }
-      } catch (err) {
-        console.warn("[sandbox] Credential injection failed:", err);
-      }
+      // Mark THIS session as elevated
+      await setSessionElevated(storage, context.sessionId, args.reason);
 
-      // Persist elevation state
-      await storage.put("elevated", true);
-      await storage.put("elevationReason", args.reason);
-      await storage.put("elevatedAt", new Date().toISOString());
-
-      // Start auto-de-elevation timer
+      // Reset the shared idle timer
       const timeout = args.timeout ?? config.idleTimeout ?? DEFAULT_IDLE_TIMEOUT;
       await resetDeElevationTimer(provider, config, context, timeout);
 
-      // Broadcast elevation state to UI
+      // Broadcast elevation state to THIS session's UI
       const expiresAt = Date.now() + timeout * 1000;
       context.broadcast("sandbox_elevation", {
         elevated: true,

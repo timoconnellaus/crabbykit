@@ -1,6 +1,7 @@
 import type { AgentContext, ToolExecuteContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { checkElevation } from "../elevation.js";
+import { setProcessOwner } from "../session-state.js";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
@@ -45,7 +46,7 @@ export function createExecTool(
       ),
     }),
     execute: async (args, execCtx) => {
-      const notElevated = await checkElevation(context.storage);
+      const notElevated = await checkElevation(context.storage, context.sessionId);
       if (notElevated) return notElevated;
 
       if (args.background) {
@@ -190,6 +191,11 @@ async function executeBackground(
   const { sessionId, pid, logFile } = await provider.sessionStart(command, {
     cwd: config.defaultCwd,
   });
+
+  // Record which agent session owns this container process
+  if (context.storage) {
+    await setProcessOwner(context.storage, sessionId, context.sessionId);
+  }
 
   // Brief delay to capture initial output
   await new Promise((resolve) => setTimeout(resolve, INITIAL_POLL_DELAY));
