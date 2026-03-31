@@ -44,49 +44,6 @@ let containerMode = process.env.CONTAINER_MODE ?? "normal";
 let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
 let devServerPort: number | null = null;
-/** Base path for the preview proxy (e.g., "/preview/abc123/"). Used to rewrite absolute paths. */
-let previewBasePath: string | null = null;
-
-const CONSOLE_CAPTURE_SCRIPT = `<script>
-(function(){
-  // --- WebSocket HMR proxy ---
-  // Patch WebSocket so Vite's HMR client connects through the preview proxy
-  // instead of directly to the host origin (which hits the wrong Vite server).
-  var OrigWS=window.WebSocket;
-  var base=window.location.pathname;
-  window.WebSocket=function(url,protocols){
-    try{
-      var p=new URL(url,window.location.href);
-      if(p.origin===window.location.origin && (p.pathname==='/' || p.pathname==='')){
-        p.pathname=base;
-        url=p.toString();
-      }
-    }catch(e){}
-    return new OrigWS(url,protocols);
-  };
-  window.WebSocket.prototype=OrigWS.prototype;
-  window.WebSocket.CONNECTING=OrigWS.CONNECTING;
-  window.WebSocket.OPEN=OrigWS.OPEN;
-  window.WebSocket.CLOSING=OrigWS.CLOSING;
-  window.WebSocket.CLOSED=OrigWS.CLOSED;
-
-  // --- Console capture ---
-  var orig={error:console.error,warn:console.warn,log:console.log,info:console.info};
-  var count=0,lastReset=Date.now();
-  function throttle(){var now=Date.now();if(now-lastReset>1000){count=0;lastReset=now}return ++count<=10}
-  function report(level,args){
-    if(!throttle())return;
-    var msg=Array.from(args).map(function(a){return typeof a==='object'?JSON.stringify(a):String(a)}).join(' ');
-    try{parent.postMessage({type:'claw:console',level:level,text:msg,ts:Date.now()},'*')}catch(e){}
-  }
-  console.error=function(){report('error',arguments);orig.error.apply(console,arguments)};
-  console.warn=function(){report('warn',arguments);orig.warn.apply(console,arguments)};
-  console.log=function(){report('log',arguments);orig.log.apply(console,arguments)};
-  console.info=function(){report('info',arguments);orig.info.apply(console,arguments)};
-  window.addEventListener('error',function(e){report('error',[(e.message||'Error')+' at '+(e.filename||'unknown')+':'+(e.lineno||0)])});
-  window.addEventListener('unhandledrejection',function(e){report('error',['Unhandled rejection: '+(e.reason&&e.reason.message||e.reason)])});
-})();
-</script>`;
 
 interface BufferEntry {
   seq: number;
@@ -170,30 +127,6 @@ function isUnderPersist(targetPath: string): boolean {
 
 function isAllowedPath(targetPath: string): boolean {
   return isUnderWorkspace(targetPath) || isUnderPersist(targetPath);
-}
-
-/**
- * Rewrite absolute paths in proxied content so they route through the preview proxy.
- * Converts `="/src/main.tsx"` → `="/preview/{id}/src/main.tsx"` (absolute with base prefix).
- * Handles HTML attributes (src, href) and JS module imports (from, import()).
- *
- * Uses absolute paths with the preview base prefix rather than relative paths (`./')
- * because relative paths resolve against the current file's directory, which breaks
- * for JS modules served from subdirectories (e.g., `/preview/{id}/src/main.jsx`
- * would resolve `./react.js` to `/preview/{id}/src/react.js` instead of
- * `/preview/{id}/node_modules/.vite/deps/react.js`).
- */
-function rewriteAbsolutePaths(content: string, basePath: string): string {
-  // Ensure basePath ends with / for clean concatenation
-  const base = basePath.endsWith("/") ? basePath : `${basePath}/`;
-  return content
-    // HTML attributes: src="/..." href="/..." action="/..."
-    .replace(/((?:src|href|action)\s*=\s*["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
-    // JS: from "/..." and import("/...")
-    .replace(/(from\s+["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
-    .replace(/(import\s*\(\s*["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
-    // CSS: url(/...)
-    .replace(/(url\(\s*["']?)\/((?!\/)[^"')]*["']?\))/g, `$1${base}$2`);
 }
 
 /** Strip ANSI escape codes from PTY output. */
@@ -691,7 +624,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     devServerPort = port;
-    previewBasePath = (body.basePath as string) ?? null;
     json(res, { ok: true, port: devServerPort });
     return;
   }
@@ -699,12 +631,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   // --- Clear dev port ---
   if (url.pathname === "/clear-dev-port" && method === "POST") {
     devServerPort = null;
-    previewBasePath = null;
     json(res, { ok: true });
     return;
   }
 
   // --- Dev server proxy fallback ---
+  // Simple pass-through: the @claw-for-cloudflare/vite-plugin handles
+  // base path configuration, HMR, and console capture at the source.
   if (devServerPort) {
     try {
       const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
@@ -718,45 +651,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         body: method !== "GET" && method !== "HEAD" ? await readBody(req) : undefined,
       });
 
-      const contentType = proxyRes.headers.get("content-type") ?? "";
-      const isHtml = contentType.includes("text/html");
-      const isJs = contentType.includes("javascript");
-      const isCss = contentType.includes("text/css");
-
-      if (isHtml) {
-        let html = await proxyRes.text();
-        // Rewrite absolute paths so sub-resources route through the preview proxy
-        if (previewBasePath) {
-          html = rewriteAbsolutePaths(html, previewBasePath);
-        }
-        if (html.includes("</head>")) {
-          html = html.replace("</head>", `${CONSOLE_CAPTURE_SCRIPT}</head>`);
-        } else if (html.includes("<head>")) {
-          html = html.replace("<head>", `<head>${CONSOLE_CAPTURE_SCRIPT}`);
-        } else {
-          html = CONSOLE_CAPTURE_SCRIPT + html;
-        }
-        res.writeHead(proxyRes.status, {
-          "content-type": contentType,
-        });
-        res.end(html);
-      } else if ((isJs || isCss) && previewBasePath) {
-        // Rewrite absolute paths in JS modules and CSS
-        let text = await proxyRes.text();
-        text = rewriteAbsolutePaths(text, previewBasePath);
-        res.writeHead(proxyRes.status, {
-          "content-type": contentType,
-        });
-        res.end(text);
-      } else {
-        const headers: Record<string, string> = {};
-        proxyRes.headers.forEach((v, k) => {
-          headers[k] = v;
-        });
-        res.writeHead(proxyRes.status, headers);
-        const arrayBuf = await proxyRes.arrayBuffer();
-        res.end(Buffer.from(arrayBuf));
-      }
+      const headers: Record<string, string> = {};
+      proxyRes.headers.forEach((v, k) => {
+        headers[k] = v;
+      });
+      res.writeHead(proxyRes.status, headers);
+      const arrayBuf = await proxyRes.arrayBuffer();
+      res.end(Buffer.from(arrayBuf));
       return;
     } catch {
       // Dev server not ready — return a loading page that auto-retries

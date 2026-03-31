@@ -61,15 +61,35 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
     ],
 
     promptSections: () => [
-      "You have live preview capabilities for web development. " +
-        "Workflow: scaffold the project, start a dev server (via exec with background=true), " +
-        "then call show_preview with the dev server port. " +
-        "The user will see the app in a live iframe. " +
+      "You have live preview capabilities for web development.\n\n" +
+        "Workflow:\n" +
+        "1. Scaffold a Vite project (mkdir, npm init, npm install vite react react-dom @vitejs/plugin-react)\n" +
+        "2. IMPORTANT: Always add @claw-for-cloudflare/vite-plugin and include clawForCloudflare() in vite.config.ts plugins:\n" +
+        '   import { clawForCloudflare } from "@claw-for-cloudflare/vite-plugin";\n' +
+        "   export default defineConfig({ plugins: [react(), clawForCloudflare()] });\n" +
+        "   This configures the preview proxy, HMR, and console capture automatically.\n" +
+        "3. Start the dev server (via exec with background=true)\n" +
+        "4. Call show_preview with the dev server port\n" +
+        "5. The user will see the app in a live iframe\n\n" +
         "Use get_console_logs to check for errors when debugging. " +
         "Call hide_preview when done.",
     ],
 
     hooks: {
+      afterToolExecution: async (event, ctx) => {
+        // When the sandbox de-elevates, the container is stopping — close the preview
+        if (event.toolName === "de_elevate") {
+          const preview = await ctx.storage.get<{ port: number }>("preview");
+          if (preview) {
+            if (options.provider.clearDevPort) {
+              await options.provider.clearDevPort();
+            }
+            await ctx.storage.delete("preview");
+            ctx.broadcast?.("preview_close", {});
+          }
+        }
+      },
+
       onConnect: async (ctx) => {
         const preview = await ctx.storage.get<{ port: number; sessionId: string }>("preview");
 

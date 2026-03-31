@@ -264,20 +264,20 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       expect(html).toContain("hello");
     });
 
-    it("injects console capture script into proxied HTML", async () => {
+    it("passes HTML through without modification", async () => {
       // The dev server from previous test should still be running
+      // Console capture is now handled by @claw-for-cloudflare/vite-plugin,
+      // not the container proxy — proxy is a simple pass-through.
       const res = await fetch_("/");
       const html = await res.text();
 
-      // Should contain the injected console capture script
-      expect(html).toContain("claw:console");
-      expect(html).toContain("parent.postMessage");
-      // Should still contain original content
       expect(html).toContain("<title>Test</title>");
       expect(html).toContain("hello");
+      // Should NOT contain injected scripts (that's the Vite plugin's job now)
+      expect(html).not.toContain("claw:console");
     });
 
-    it("does not inject script into non-HTML responses", async () => {
+    it("passes non-HTML responses through unchanged", async () => {
       // Stop the HTML server and start a JSON one
       await fetchJson("/process-stop", {
         method: "POST",
