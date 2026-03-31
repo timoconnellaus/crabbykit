@@ -96,7 +96,7 @@ export function createElevateTool(
 
       // Reset the shared idle timer
       const timeout = args.timeout ?? config.idleTimeout ?? DEFAULT_IDLE_TIMEOUT;
-      await resetDeElevationTimer(provider, config, context, timeout);
+      await resetDeElevationTimer(config, context, timeout);
 
       // Broadcast elevation state to THIS session's UI
       const expiresAt = Date.now() + timeout * 1000;

@@ -258,7 +258,7 @@ async function resetTimer(
     }
   }
 
-  await resetDeElevationTimer(provider, config, context, timeoutSeconds);
+  await resetDeElevationTimer(config, context, timeoutSeconds);
 
   context.broadcast("sandbox_timeout", {
     expiresAt: Date.now() + timeoutSeconds * 1000,

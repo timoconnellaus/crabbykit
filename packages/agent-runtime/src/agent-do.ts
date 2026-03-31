@@ -117,7 +117,7 @@ export interface ScheduleManager {
   setTimer(
     id: string,
     delaySeconds: number,
-    callback: (ctx: ScheduleCallbackContext) => Promise<void>,
+    callback?: (ctx: ScheduleCallbackContext) => Promise<void>,
   ): Promise<void>;
   /** Cancel a pending timer by ID. */
   cancelTimer(id: string): Promise<void>;
@@ -337,13 +337,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private async setTimer(
     id: string,
     delaySeconds: number,
-    callback: (ctx: ScheduleCallbackContext) => Promise<void>,
+    callback?: (ctx: ScheduleCallbackContext) => Promise<void>,
   ): Promise<void> {
-    // Remove any existing timer with the same ID
+    // Remove any existing timer with the same ID, preserving callback if not replaced
     const existing = this.scheduleStore.get(id);
+    const existingCallback = this.scheduleCallbacks.get(id);
     if (existing) {
       this.scheduleStore.delete(id);
-      this.scheduleCallbacks.delete(id);
+    }
+
+    const resolved = callback ?? existingCallback;
+    if (!resolved) {
+      throw new Error(`setTimer("${id}"): no callback provided and no existing callback found`);
     }
 
     const firesAt = new Date(Date.now() + delaySeconds * 1000);
@@ -354,7 +359,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       handlerType: "timer",
       nextFireAt: firesAt.toISOString(),
     });
-    this.scheduleCallbacks.set(id, callback);
+    this.scheduleCallbacks.set(id, resolved);
     await this.refreshAlarm();
   }
 
