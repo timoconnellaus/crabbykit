@@ -1,6 +1,12 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import { isAnySessionElevated, isSessionElevated, setSessionElevated } from "../session-state.js";
+import {
+  clearAllElevation,
+  clearAllProcessOwners,
+  isAnySessionElevated,
+  isSessionElevated,
+  setSessionElevated,
+} from "../session-state.js";
 import { getTeardownPromise } from "../teardown.js";
 import { resetDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
@@ -33,17 +39,44 @@ export function createElevateTool(
       // Check if THIS session is already elevated
       const alreadyElevated = await isSessionElevated(storage, context.sessionId);
       if (alreadyElevated) {
-        return {
-          content: [{ type: "text" as const, text: "Already elevated. Sandbox is active." }],
-          details: { alreadyElevated: true },
-        };
+        // Verify the container is actually alive before trusting stale state
+        try {
+          const health = await provider.health();
+          if (health.ready) {
+            return {
+              content: [{ type: "text" as const, text: "Already elevated. Sandbox is active." }],
+              details: { alreadyElevated: true },
+            };
+          }
+        } catch {
+          // Container is dead — fall through to full start sequence
+        }
+        console.warn("[sandbox] Session marked elevated but container is dead — restarting");
+        await clearAllElevation(storage);
+        await clearAllProcessOwners(storage);
       }
 
       // Check if another session already has the container running
       const containerRunning = await isAnySessionElevated(storage);
 
-      if (!containerRunning) {
-        // No session is elevated — do the full start sequence
+      // Even if another session claims to be elevated, verify the container
+      // is actually alive. Stale elevation state from a dead container would
+      // otherwise cause us to skip the start sequence entirely.
+      let containerHealthy = false;
+      if (containerRunning) {
+        try {
+          const health = await provider.health();
+          containerHealthy = health.ready === true;
+        } catch {
+          // Container is dead — clear stale state and proceed with full start
+          console.warn("[sandbox] Stale elevation state detected in elevate — clearing");
+          await clearAllElevation(storage);
+          await clearAllProcessOwners(storage);
+        }
+      }
+
+      if (!containerHealthy) {
+        // No healthy container — do the full start sequence
         const pending = getTeardownPromise();
         if (pending) {
           await pending;

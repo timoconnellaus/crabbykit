@@ -108,12 +108,6 @@ export interface AgentOptions {
   /** Tool execution mode. Default: "parallel" */
   toolExecution?: ToolExecutionMode;
 
-  /**
-   * Milliseconds before a running tool execution triggers a checkpoint.
-   * 0 disables. Default: 0 (disabled).
-   */
-  steerThresholdMs?: number;
-
   /** Called before a tool is executed, after arguments have been validated. */
   beforeToolCall?: (
     context: BeforeToolCallContext,
@@ -161,7 +155,6 @@ export class Agent {
   private _transport: Transport;
   private _maxRetryDelayMs?: number;
   private _toolExecution: ToolExecutionMode;
-  private _steerThresholdMs: number;
   private _beforeToolCall?: (
     context: BeforeToolCallContext,
     signal?: AbortSignal,
@@ -185,7 +178,6 @@ export class Agent {
     this._transport = opts.transport ?? "sse";
     this._maxRetryDelayMs = opts.maxRetryDelayMs;
     this._toolExecution = opts.toolExecution ?? "parallel";
-    this._steerThresholdMs = opts.steerThresholdMs ?? 0;
     this._beforeToolCall = opts.beforeToolCall;
     this._afterToolCall = opts.afterToolCall;
   }
@@ -565,7 +557,6 @@ export class Agent {
       thinkingBudgets: this._thinkingBudgets,
       maxRetryDelayMs: this._maxRetryDelayMs,
       toolExecution: this._toolExecution,
-      steerThresholdMs: this._steerThresholdMs,
       beforeToolCall: this._beforeToolCall,
       afterToolCall: this._afterToolCall,
       convertToLlm: this.convertToLlm,

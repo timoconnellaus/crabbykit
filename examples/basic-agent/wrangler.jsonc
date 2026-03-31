@@ -4,7 +4,7 @@
   "compatibility_date": "2025-03-01",
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/preview/*", "/agent/*", "/agents"]
+    "run_worker_first": ["/preview/*", "/deploy/*", "/agent/*", "/agents"]
   },
   "vars": {
     // R2 bucket name — must match the r2_buckets bucket_name below.
@@ -53,6 +53,11 @@
       "binding": "MEMORY_INDEX",
       "index_name": "basic-agent-memory",
       "remote": true
+    }
+  ],
+  "worker_loaders": [
+    {
+      "binding": "LOADER"
     }
   ],
   "d1_databases": [

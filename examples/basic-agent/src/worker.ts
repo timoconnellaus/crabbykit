@@ -31,7 +31,7 @@ import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
-import { vibeCoder } from "@claw-for-cloudflare/vibe-coder";
+import { handleDeployRequest, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
 import { debugInspector } from "./debug-capability";
 
 interface Env {
@@ -40,6 +40,7 @@ interface Env {
   STORAGE_BUCKET: R2Bucket;
   MEMORY_INDEX: VectorizeIndex;
   AI: Ai;
+  LOADER: WorkerLoader;
   OPENROUTER_API_KEY: string;
   TAVILY_API_KEY: string;
   // R2 credentials for container FUSE mount (set via wrangler secret put)
@@ -111,6 +112,7 @@ export class BasicAgent extends AgentDO<Env> {
           },
           containerMode: "dev",
         }),
+        deploy: { storage },
       }),
     ];
   }
@@ -375,6 +377,15 @@ export default {
       });
       return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
     }
+
+    // /deploy/:agentId/:deployId[/...] — serve deployed apps via worker loader
+    const deployRes = handleDeployRequest({
+      request,
+      agentNamespace: env.AGENT,
+      storageBucket: env.STORAGE_BUCKET,
+      loader: env.LOADER,
+    });
+    if (deployRes) return deployRes;
 
     // /preview/:id[/...] — proxy to sandbox container for dev server preview
     const previewRes = handlePreviewRequest({

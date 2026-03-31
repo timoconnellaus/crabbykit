@@ -15,19 +15,13 @@ export interface ToolEventMessage {
   type: "tool_event";
   sessionId: string;
   event: {
-    type:
-      | "tool_execution_start"
-      | "tool_execution_update"
-      | "tool_execution_end"
-      | "tool_execution_checkpoint";
+    type: "tool_execution_start" | "tool_execution_update" | "tool_execution_end";
     toolCallId: string;
     toolName: string;
     args?: unknown;
     partialResult?: unknown;
     result?: unknown;
     isError?: boolean;
-    elapsed?: number;
-    partialOutput?: string | null;
   };
 }
 

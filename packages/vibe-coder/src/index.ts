@@ -1,2 +1,4 @@
 export { vibeCoder } from "./capability.js";
-export type { VibeCoderOptions } from "./types.js";
+export { handleDeployRequest } from "./deploy-server.js";
+export type { DeployRequestOptions } from "./deploy-server.js";
+export type { DeployOptions, VibeCoderOptions } from "./types.js";

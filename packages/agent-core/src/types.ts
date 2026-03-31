@@ -200,15 +200,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   maxIterations?: number;
 
   /**
-   * Milliseconds before a running tool execution triggers a checkpoint.
-   * When a tool runs longer than this threshold, the loop performs a mini-inference
-   * to let the model decide whether to keep waiting (CONTINUE) or abort and change course.
-   *
-   * 0 disables checkpointing. Default: 0 (disabled).
-   */
-  steerThresholdMs?: number;
-
-  /**
    * Maximum number of retries for transient LLM failures (error stopReason).
    * When an assistant response ends with stopReason "error" and the error message
    * suggests a transient failure (429, 500, 502, 503, 529, network errors),
@@ -365,12 +356,4 @@ export type AgentEvent =
       result: any;
       isError: boolean;
     }
-  // Tool execution checkpoint — emitted when a tool exceeds steerThresholdMs
-  | {
-      type: "tool_execution_checkpoint";
-      toolCallId: string;
-      toolName: string;
-      /** Time in milliseconds since tool execution started. */
-      elapsed: number;
-      partialOutput: string | null;
-    };
+;

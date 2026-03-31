@@ -279,9 +279,8 @@ async function runLoop(
       hasMoreToolCalls = toolCalls.length > 0;
 
       let toolResults: ToolResultMessage[] = [];
-      let checkpointResponse: AssistantMessage | undefined;
       if (hasMoreToolCalls) {
-        const executionResult = await executeToolCalls(
+        toolResults = await executeToolCalls(
           currentContext,
           message,
           config,
@@ -289,44 +288,10 @@ async function runLoop(
           emit,
           streamFn,
         );
-        toolResults = executionResult.toolResults;
-        checkpointResponse = executionResult.checkpointResponse;
 
         for (const result of toolResults) {
           currentContext.messages.push(result);
           newMessages.push(result);
-        }
-
-        // If a checkpoint resulted in the model aborting, process its response
-        if (checkpointResponse) {
-          // Don't emit message_start/message_end — checkpoint responses are internal
-          // agent-loop communication (e.g., "ABORT"), not user-facing output.
-          // The model's *next* response (after seeing the tool result) will be user-facing.
-          currentContext.messages.push(checkpointResponse);
-          newMessages.push(checkpointResponse);
-
-          // Check if the checkpoint response has tool calls to execute
-          const checkpointToolCalls = checkpointResponse.content.filter(
-            (c) => c.type === "toolCall",
-          );
-          if (checkpointToolCalls.length > 0) {
-            // Execute the checkpoint response's tool calls
-            const checkpointExec = await executeToolCalls(
-              currentContext,
-              checkpointResponse,
-              config,
-              signal,
-              emit,
-              streamFn,
-            );
-            for (const result of checkpointExec.toolResults) {
-              currentContext.messages.push(result);
-              newMessages.push(result);
-              toolResults.push(result);
-            }
-            // Force another turn so the model sees the tool results
-            hasMoreToolCalls = true;
-          }
         }
       }
 
@@ -459,7 +424,7 @@ async function executeToolCalls(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
-): Promise<ToolCallExecutionResult> {
+): Promise<ToolResultMessage[]> {
   const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
   if (config.toolExecution === "sequential") {
     return executeToolCallsSequential(
@@ -483,13 +448,6 @@ async function executeToolCalls(
   );
 }
 
-/** Result from tool call execution that may include a checkpoint response. */
-interface ToolCallExecutionResult {
-  toolResults: ToolResultMessage[];
-  /** If the model decided to abort via checkpoint, this is its pending response. */
-  checkpointResponse?: AssistantMessage;
-}
-
 async function executeToolCallsSequential(
   currentContext: AgentContext,
   assistantMessage: AssistantMessage,
@@ -498,7 +456,7 @@ async function executeToolCallsSequential(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
-): Promise<ToolCallExecutionResult> {
+): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
 
   for (const toolCall of toolCalls) {
@@ -521,14 +479,7 @@ async function executeToolCallsSequential(
         await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit),
       );
     } else {
-      const executed = await executeWithCheckpoints(
-        preparation,
-        config,
-        signal,
-        emit,
-        currentContext,
-        streamFn,
-      );
+      const executed = await executePreparedToolCall(preparation, signal, emit);
       results.push(
         await finalizeExecutedToolCall(
           currentContext,
@@ -540,15 +491,10 @@ async function executeToolCallsSequential(
           emit,
         ),
       );
-
-      // If the model decided to abort via checkpoint, skip remaining tool calls
-      if (executed.checkpointResponse) {
-        return { toolResults: results, checkpointResponse: executed.checkpointResponse };
-      }
     }
   }
 
-  return { toolResults: results };
+  return results;
 }
 
 async function executeToolCallsParallel(
@@ -559,7 +505,7 @@ async function executeToolCallsParallel(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
-): Promise<ToolCallExecutionResult> {
+): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
   const runnableCalls: PreparedToolCall[] = [];
 
@@ -587,24 +533,10 @@ async function executeToolCallsParallel(
     }
   }
 
-  // Create a shared abort controller for all parallel tools — if any checkpoint
-  // results in an abort, we cancel all remaining tools in the batch
-  const batchAbort = new AbortController();
-  if (signal) signal.addEventListener("abort", () => batchAbort.abort(), { once: true });
-
   const runningCalls = runnableCalls.map((prepared) => ({
     prepared,
-    execution: executeWithCheckpoints(
-      prepared,
-      config,
-      batchAbort.signal,
-      emit,
-      currentContext,
-      streamFn,
-    ),
+    execution: executePreparedToolCall(prepared, signal, emit),
   }));
-
-  let checkpointResponse: AssistantMessage | undefined;
 
   for (const running of runningCalls) {
     const executed = await running.execution;
@@ -619,15 +551,9 @@ async function executeToolCallsParallel(
         emit,
       ),
     );
-
-    // If any tool's checkpoint results in abort, abort all remaining tools
-    if (executed.checkpointResponse && !checkpointResponse) {
-      checkpointResponse = executed.checkpointResponse;
-      batchAbort.abort();
-    }
   }
 
-  return { toolResults: results, checkpointResponse };
+  return results;
 }
 
 type PreparedToolCall = {
@@ -733,270 +659,6 @@ async function executePreparedToolCall(
       isError: true,
     };
   }
-}
-
-/** Maximum number of checkpoints before letting the tool run to completion. */
-const MAX_CHECKPOINTS = 5;
-
-/** Maximum characters of partial output to include in checkpoint message. */
-const CHECKPOINT_OUTPUT_LIMIT = 500;
-
-/** Regex to parse CONTINUE responses (case-insensitive, optional delay in seconds). */
-const CONTINUE_PATTERN = /^continue(?:\s+(\d+)s)?/i;
-
-/**
- * Extract text content from a tool result for checkpoint messages.
- */
-function extractTextFromToolResult(result: AgentToolResult<unknown>): string {
-  const texts: string[] = [];
-  for (const block of result.content) {
-    if (block.type === "text") {
-      texts.push(block.text);
-    }
-  }
-  const joined = texts.join("\n");
-  if (joined.length > CHECKPOINT_OUTPUT_LIMIT) {
-    return `...${joined.slice(-CHECKPOINT_OUTPUT_LIMIT)}`;
-  }
-  return joined;
-}
-
-/**
- * Outcome from `executeWithCheckpoints` — includes the normal tool result
- * plus an optional checkpoint response from the model if it decided to abort.
- */
-interface CheckpointedToolCallOutcome extends ExecutedToolCallOutcome {
-  /** If the model decided to abort, this is its response (text/tool calls). */
-  checkpointResponse?: AssistantMessage;
-}
-
-/**
- * Execute a prepared tool call with checkpoint support.
- *
- * When `steerThresholdMs > 0` and a tool runs longer than the threshold,
- * the loop emits a checkpoint event, performs a mini-inference to let the model
- * decide whether to keep waiting (CONTINUE) or abort and change course.
- */
-async function executeWithCheckpoints(
-  prepared: PreparedToolCall,
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-  currentContext: AgentContext,
-  streamFn?: StreamFn,
-): Promise<CheckpointedToolCallOutcome> {
-  const threshold = config.steerThresholdMs ?? 0;
-  if (threshold <= 0) {
-    return executePreparedToolCall(prepared, signal, emit);
-  }
-  console.log(
-    `[steerable] executing "${prepared.toolCall.name}" with checkpoint threshold ${threshold}ms`,
-  );
-
-  // Track partial output from onUpdate via an intercepting wrapper.
-  // Use a mutable state object so TS control flow doesn't narrow the closure variable to `never`.
-  const partialState: { result: AgentToolResult<unknown> | null } = { result: null };
-  const startTime = Date.now();
-
-  // Create a child abort controller so we can abort the tool independently
-  const toolAbort = new AbortController();
-  if (signal) signal.addEventListener("abort", () => toolAbort.abort(), { once: true });
-
-  // Start tool execution (non-blocking) with intercepted onUpdate to track partial results
-  const updateEvents: Promise<void>[] = [];
-  const toolPromise = (async (): Promise<ExecutedToolCallOutcome> => {
-    try {
-      const result = await prepared.tool.execute(prepared.args as never, {
-        toolCallId: prepared.toolCall.id,
-        signal: toolAbort.signal,
-        onUpdate: ((partialResult: AgentToolResult<unknown>) => {
-          partialState.result = partialResult;
-          updateEvents.push(
-            Promise.resolve(
-              emit({
-                type: "tool_execution_update",
-                toolCallId: prepared.toolCall.id,
-                toolName: prepared.toolCall.name,
-                args: prepared.toolCall.arguments,
-                partialResult,
-              }),
-            ),
-          );
-        }) as AgentToolUpdateCallback,
-      });
-      await Promise.all(updateEvents);
-      return { result, isError: false };
-    } catch (error) {
-      await Promise.all(updateEvents);
-      return {
-        result: createErrorToolResult(error instanceof Error ? error.message : String(error)),
-        isError: true,
-      };
-    }
-  })();
-
-  let checkpointDelay = threshold;
-  let checkpointCount = 0;
-
-  while (checkpointCount < MAX_CHECKPOINTS) {
-    // Race: tool completion vs checkpoint timer
-    const timer = new Promise<{ kind: "checkpoint" }>((resolve) => {
-      setTimeout(() => resolve({ kind: "checkpoint" as const }), checkpointDelay);
-    });
-
-    const raceResult = await Promise.race([
-      toolPromise.then((r) => ({ kind: "done" as const, result: r })),
-      timer,
-    ]);
-
-    if (raceResult.kind === "done") {
-      return raceResult.result; // Tool finished naturally
-    }
-
-    // Checkpoint fired — tool is still running
-    checkpointCount++;
-    const elapsedMs = Date.now() - startTime;
-    const elapsed = Math.round(elapsedMs / 1000);
-    const partialOutput = partialState.result
-      ? extractTextFromToolResult(partialState.result)
-      : null;
-
-    console.log(
-      `[steerable] checkpoint #${checkpointCount} for "${prepared.toolCall.name}" after ${elapsed}s, hasOutput=${!!partialOutput}`,
-    );
-
-    // Emit checkpoint event
-    await emit({
-      type: "tool_execution_checkpoint",
-      toolCallId: prepared.toolCall.id,
-      toolName: prepared.toolCall.name,
-      elapsed: elapsedMs,
-      partialOutput,
-    });
-
-    // Build checkpoint message for mini-inference
-    const elapsedDisplay = elapsed > 0 ? `${elapsed}s` : `${elapsedMs}ms`;
-    const checkpointText = [
-      `[System: The tool "${prepared.toolCall.name}" has been running for ${elapsedDisplay}.`,
-      partialOutput ? `Output so far:\n${partialOutput}` : "No output received yet.",
-      "",
-      "Reply with EXACTLY one of:",
-      "- CONTINUE — to keep waiting (or CONTINUE 30s to set a specific check-in delay)",
-      "- ABORT — if the command is stuck, waiting for interactive input, or you want to try a different approach",
-      "",
-      "IMPORTANT: Reply with ONLY the single word CONTINUE or ABORT. Do NOT include explanations, tool calls, or any other text.]",
-    ].join("\n");
-
-    const checkpointMessage: AgentMessage = {
-      role: "user",
-      content: [{ type: "text", text: checkpointText }],
-      timestamp: Date.now(),
-    };
-
-    // Mini-inference: race model response vs tool completion
-    const inferenceAbort = new AbortController();
-    if (signal) signal.addEventListener("abort", () => inferenceAbort.abort(), { once: true });
-
-    // Build a temporary context for the mini-inference
-    const miniContext: AgentContext = {
-      systemPrompt: currentContext.systemPrompt,
-      messages: [...currentContext.messages, checkpointMessage],
-      tools: currentContext.tools,
-    };
-
-    const inferencePromise = streamAssistantResponse(
-      miniContext,
-      config,
-      inferenceAbort.signal,
-      // Suppress events from mini-inference — we don't want these to appear as regular messages
-      async () => {},
-      streamFn,
-    ).catch((err) => {
-      // Checkpoint inference failed — log and treat as CONTINUE
-      console.warn("[steerable] checkpoint inference failed:", err?.message ?? err, err?.stack);
-      return null;
-    });
-
-    // Race: tool completes during inference vs inference completes
-    const inferenceRaceResult = await Promise.race([
-      toolPromise.then((r) => ({ kind: "tool_done" as const, result: r })),
-      inferencePromise.then((msg) => ({ kind: "inference_done" as const, message: msg })),
-    ]);
-
-    if (inferenceRaceResult.kind === "tool_done") {
-      // Tool completed during inference — cancel inference, use tool result
-      inferenceAbort.abort();
-      return inferenceRaceResult.result;
-    }
-
-    // Inference failed — treat as CONTINUE and try again next checkpoint
-    if (!inferenceRaceResult.message) {
-      console.log("[steerable] inference returned null, treating as CONTINUE");
-      continue;
-    }
-
-    // Inference completed — parse the model's response
-    const modelResponse = inferenceRaceResult.message;
-    console.log(
-      `[steerable] model responded: stopReason=${modelResponse.stopReason}, content=${JSON.stringify(modelResponse.content.slice(0, 2))}`,
-    );
-    const responseText = modelResponse.content
-      .filter((c): c is { type: "text"; text: string } => c.type === "text")
-      .map((c) => c.text)
-      .join("")
-      .trim();
-
-    const continueMatch = CONTINUE_PATTERN.exec(responseText);
-    if (continueMatch) {
-      // Model says CONTINUE — parse optional delay
-      const delaySeconds = continueMatch[1] ? Number.parseInt(continueMatch[1], 10) : 0;
-      checkpointDelay = delaySeconds > 0 ? delaySeconds * 1000 : threshold;
-      continue; // Loop back to wait again
-    }
-
-    // Model wants to take a different action — abort the tool
-    toolAbort.abort();
-    await toolPromise; // Drain the tool promise after abort
-
-    // Build partial result content from what we've captured
-    const capturedPartial = partialState.result;
-    const partialResultContent = capturedPartial
-      ? capturedPartial.content
-      : [{ type: "text" as const, text: "[Tool aborted by checkpoint — no output captured]" }];
-
-    return {
-      result: {
-        content: partialResultContent,
-        details: capturedPartial?.details ?? {},
-      },
-      isError: true,
-      checkpointResponse: modelResponse,
-    };
-  }
-
-  // Max checkpoints exceeded — abort the tool. If it hasn't finished after
-  // MAX_CHECKPOINTS checks, it's almost certainly stuck (e.g., waiting for input).
-  console.log(
-    `[steerable] max checkpoints (${MAX_CHECKPOINTS}) exceeded for "${prepared.toolCall.name}" — aborting`,
-  );
-  toolAbort.abort();
-  const finalResult = await toolPromise;
-
-  const capturedPartial = partialState.result;
-  return {
-    result: {
-      content: capturedPartial
-        ? capturedPartial.content
-        : [
-            {
-              type: "text" as const,
-              text: "[Tool aborted — exceeded maximum checkpoint attempts with no completion]",
-            },
-          ],
-      details: capturedPartial?.details ?? {},
-    },
-    isError: true,
-  };
 }
 
 async function finalizeExecutedToolCall(

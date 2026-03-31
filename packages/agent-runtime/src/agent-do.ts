@@ -1262,7 +1262,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       getApiKey: () => config.apiKey,
       transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
       convertToLlm: (msgs: AgentMessage[]) => this.convertToLlm(msgs),
-      steerThresholdMs: 5000,
       ...this.getAgentOptions(),
     });
 
@@ -1438,8 +1437,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const serverMsg: ServerMessage =
       event.type === "tool_execution_start" ||
       event.type === "tool_execution_update" ||
-      event.type === "tool_execution_end" ||
-      event.type === "tool_execution_checkpoint"
+      event.type === "tool_execution_end"
         ? { type: "tool_event", sessionId, event }
         : { type: "agent_event", sessionId, event };
 

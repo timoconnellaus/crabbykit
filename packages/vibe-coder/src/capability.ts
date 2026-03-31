@@ -1,5 +1,6 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
+import { createDeployAppTool } from "./tools/deploy-app.js";
 import { createGetConsoleLogsTool } from "./tools/get-console-logs.js";
 import { createHidePreviewTool } from "./tools/hide-preview.js";
 import { createShowPreviewTool } from "./tools/show-preview.js";
@@ -27,6 +28,9 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         createHidePreviewTool(options.provider, context),
         createGetConsoleLogsTool(context),
       ];
+      if (options.deploy) {
+        tools.push(createDeployAppTool(options.provider, context, options.deploy.storage));
+      }
       return tools;
     },
 
@@ -84,7 +88,14 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         "5. Call show_preview with port 3000 (the plugin default)\n" +
         "6. The user will see the app in a live iframe\n\n" +
         "Use get_console_logs to check for errors when debugging. " +
-        "Call hide_preview when done.",
+        "Call hide_preview when done.\n\n" +
+        (options.deploy
+          ? "Deploying:\n" +
+            "After the app is working in preview, you can deploy it:\n" +
+            "1. Build the app: exec `bun run build`\n" +
+            "2. Call deploy_app with the path to the build output directory (e.g. /mnt/r2/my-app/dist)\n" +
+            "3. Share the deploy URL with the user"
+          : ""),
     ],
 
     hooks: {

@@ -29,10 +29,13 @@ export const ToolCallEntry = memo(function ToolCallEntry({
   const detail = summarizeToolInput(args);
 
   const isComplete = result?.status === "complete";
+  const isStreaming = result?.status === "streaming";
   const isError = isComplete && result.isError;
-  const isRunning = !result || result.status === "executing" || result.status === "streaming";
+  const isRunning = !result || result.status === "executing" || isStreaming;
 
-  const outputText = isComplete && result.content ? result.content : null;
+  const outputText =
+    (isComplete && result.content ? result.content : null) ||
+    (isStreaming && result.content ? result.content : null);
   const hasDiff =
     outputText &&
     (outputText.includes("\n+") || outputText.includes("\n-")) &&
