@@ -36,10 +36,13 @@ ENV PATH="$PATH:/opt/sandbox/persist/bun/bin:/opt/sandbox/persist/npm/bin:/opt/s
 
 WORKDIR /app
 
-# Compile nm-intercept (LD_PRELOAD library for instant node_modules bind-mounts)
-COPY nm-intercept.c /tmp/nm-intercept.c
-RUN gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
-    rm /tmp/nm-intercept.c
+# Compile nm-mount-helper (setuid root binary for bind-mounts) and
+# nm-intercept (LD_PRELOAD library that calls the helper on node_modules mkdir)
+COPY nm-mount-helper.c nm-intercept.c /tmp/
+RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
+    chmod u+s /usr/local/bin/nm-mount-helper && \
+    gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
+    rm /tmp/nm-mount-helper.c /tmp/nm-intercept.c
 
 # Install node-pty (native module — must be compiled inside the container)
 RUN cd /app && npm install node-pty && \

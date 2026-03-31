@@ -1,5 +1,5 @@
 # Test Dockerfile — no FUSE/tigrisfs, uses regular directory as workspace.
-# Requires SYS_ADMIN for mount --bind (nm-guard).
+# Requires SYS_ADMIN for mount --bind (nm-guard + nm-intercept).
 
 FROM node:22-alpine
 
@@ -14,6 +14,13 @@ RUN mkdir -p /mnt/r2 /opt/sandbox/persist /opt/sandbox/nm && \
 
 WORKDIR /app
 
+# Compile nm-mount-helper (setuid root binary) and nm-intercept (LD_PRELOAD library)
+COPY container/nm-mount-helper.c container/nm-intercept.c /tmp/
+RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
+    chmod u+s /usr/local/bin/nm-mount-helper && \
+    gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
+    rm /tmp/nm-mount-helper.c /tmp/nm-intercept.c
+
 # Install node-pty (native module — must be compiled inside the container)
 RUN cd /app && npm install node-pty && \
     apk del gcc musl-dev linux-headers python3 make g++
@@ -22,7 +29,13 @@ RUN cd /app && npm install node-pty && \
 COPY container/nm-guard.sh container/server.ts /app/
 RUN chmod +x /app/nm-guard.sh
 
+# Set up LD_PRELOAD for nm-intercept
+ENV LD_PRELOAD=/usr/local/lib/nm-intercept.so \
+    NM_INTERCEPT_MOUNT=/mnt/r2 \
+    NM_INTERCEPT_BASE=/opt/sandbox/nm
+
 EXPOSE 8080
 
-# Test entrypoint: start nm-guard as root, then drop to sandbox for server
+# Test entrypoint: start nm-guard as root fallback, then drop to sandbox for server
+# LD_PRELOAD is inherited by the node process for instant node_modules interception
 CMD sh -c '/app/nm-guard.sh & exec gosu sandbox node --experimental-strip-types /app/server.ts'

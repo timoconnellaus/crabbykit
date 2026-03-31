@@ -28,13 +28,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mount.h>
-/* MS_BIND may not be defined in musl — define it if missing */
-#ifndef MS_BIND
-#define MS_BIND 4096
-#endif
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 /* Original libc functions */
@@ -44,7 +40,6 @@ static int (*real_mkdirat)(int, const char *, mode_t) = NULL;
 /* Configuration (read once from env) */
 static const char *mount_prefix = NULL;
 static size_t mount_prefix_len = 0;
-static const char *nm_base = NULL;
 static int initialized = 0;
 
 static void ensure_init(void) {
@@ -57,20 +52,6 @@ static void ensure_init(void) {
     mount_prefix = getenv("NM_INTERCEPT_MOUNT");
     if (!mount_prefix) mount_prefix = "/mnt/r2";
     mount_prefix_len = strlen(mount_prefix);
-
-    nm_base = getenv("NM_INTERCEPT_BASE");
-    if (!nm_base) nm_base = "/opt/sandbox/nm";
-}
-
-/**
- * Simple DJB2 hash of a string, returned as hex for directory naming.
- */
-static void path_hash(const char *str, char *out, size_t out_len) {
-    unsigned long hash = 5381;
-    int c;
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c;
-    snprintf(out, out_len, "%lx", hash);
 }
 
 /**
@@ -103,31 +84,35 @@ static int should_intercept(const char *path) {
 }
 
 /**
- * Perform the bind-mount: create local backing dir, mount over the FUSE path.
+ * Request a bind-mount via the setuid helper binary.
+ *
+ * We can't call mount() directly because the process typically runs as
+ * an unprivileged user. The helper binary (nm-mount-helper) is installed
+ * setuid root and performs the mount on our behalf, synchronously.
  */
 static void do_bind_mount(const char *nm_path) {
-    char hash[32];
-    char local_dir[PATH_MAX];
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "[nm-intercept] fork failed: %s\n", strerror(errno));
+        return;
+    }
 
-    /* Hash the relative path for a deterministic local directory name */
-    const char *rel = nm_path + mount_prefix_len;
-    if (*rel == '/') rel++;
-    path_hash(rel, hash, sizeof(hash));
-    snprintf(local_dir, sizeof(local_dir), "%s/%s", nm_base, hash);
+    if (pid == 0) {
+        /* Child: exec the setuid mount helper */
+        execl("/usr/local/bin/nm-mount-helper", "nm-mount-helper", nm_path, (char *)NULL);
+        /* If exec fails, exit with error */
+        _exit(127);
+    }
 
-    /* Create local backing directory */
-    real_mkdir(local_dir, 0755);
-    /* Fix ownership (sandbox user — uid/gid typically 1000) */
-    chown(local_dir, 1000, 1000);
+    /* Parent: wait for helper to complete */
+    int status;
+    waitpid(pid, &status, 0);
 
-    /* Bind-mount local disk over the FUSE path */
-    if (mount(local_dir, nm_path, NULL, MS_BIND, NULL) == 0) {
-        fprintf(stderr, "[nm-intercept] Mounted %s -> %s\n", nm_path, local_dir);
-        /* Ensure the mounted dir is writable by sandbox */
-        chown(nm_path, 1000, 1000);
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        fprintf(stderr, "[nm-intercept] Mount requested for %s (helper succeeded)\n", nm_path);
     } else {
-        fprintf(stderr, "[nm-intercept] mount failed for %s: %s\n",
-                nm_path, strerror(errno));
+        fprintf(stderr, "[nm-intercept] Mount helper failed for %s (exit %d)\n",
+                nm_path, WIFEXITED(status) ? WEXITSTATUS(status) : -1);
     }
 }
 
