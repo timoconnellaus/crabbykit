@@ -50,16 +50,48 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     return h;
   }
 
+  /** Default timeout for container requests (excludes streaming endpoints). */
+  private static readonly DEFAULT_FETCH_TIMEOUT_MS = 30_000;
+
   private async fetch(path: string, init?: RequestInit): Promise<Response> {
     const stub = this.options.getStub();
-    return stub.fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { ...this.headers, ...(init?.headers as Record<string, string>) },
-    });
+    // Streaming endpoints manage their own lifetimes — don't impose a timeout.
+    const isStreaming = path === "/exec-stream" || path === "/session-exec";
+    const callerSignal = init?.signal;
+
+    let signal = callerSignal;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (!isStreaming && !callerSignal) {
+      const controller = new AbortController();
+      timer = setTimeout(
+        () => controller.abort(),
+        CloudflareSandboxProvider.DEFAULT_FETCH_TIMEOUT_MS,
+      );
+      signal = controller.signal;
+    }
+
+    try {
+      return await stub.fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        signal,
+        headers: { ...this.headers, ...(init?.headers as Record<string, string>) },
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError" && timer) {
+        throw new Error(
+          `Container request to ${path} timed out after ${CloudflareSandboxProvider.DEFAULT_FETCH_TIMEOUT_MS / 1000}s`,
+        );
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async start(options?: { envVars?: Record<string, string> }): Promise<void> {
-    // Calling /health on a CF Container starts it if not running
+    // Calling /health on a CF Container wakes it from hibernation.
+    // The base fetch() applies a 30s timeout so this won't block forever.
     const healthRes = await this.fetch("/health");
     if (!healthRes.ok) {
       throw new Error(`Container health check failed: ${healthRes.status}`);
