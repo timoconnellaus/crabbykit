@@ -1,0 +1,11 @@
+{
+  "name": "@claw-for-cloudflare/vite-plugin",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0"
+  }
+}

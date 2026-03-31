@@ -48,6 +48,10 @@ RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
 RUN cd /app && npm install node-pty && \
     apk del gcc musl-dev linux-headers python3 make g++
 
+# Install @claw-for-cloudflare/vite-plugin globally so vibe-coded apps can use it
+COPY claw-vite-plugin/ /opt/sandbox/claw-vite-plugin/
+RUN npm install -g /opt/sandbox/claw-vite-plugin
+
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/
 RUN chmod +x /app/startup.sh /app/nm-guard.sh /app/restic-syncd.sh

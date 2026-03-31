@@ -25,9 +25,14 @@ export interface ClawPluginOptions {
 /**
  * Vite plugin for CLAW for Cloudflare.
  *
- * Configures Vite's base path, server settings, and HMR for the sandbox
- * preview proxy. Injects a console capture script so the agent can read
- * browser logs via the get_console_logs tool.
+ * Configures Vite's server settings for the sandbox preview proxy and injects
+ * a `<base>` tag + console capture script so the browser resolves assets
+ * through the preview proxy path.
+ *
+ * Important: We do NOT set Vite's `base` config because the container proxy
+ * strips the preview prefix before forwarding to Vite. Vite must serve from
+ * `/` (its default). Instead we inject a `<base href>` tag so the browser
+ * resolves relative URLs through the preview path.
  *
  * Outside the sandbox (no AGENT_ID env var), the plugin is a no-op —
  * local development works unchanged.
@@ -55,8 +60,10 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
 
       const port = options?.port ?? (Number(process.env.CLAW_PREVIEW_PORT) || 3000);
 
+      // Don't set `base` — Vite must serve from "/" since the container proxy
+      // strips the preview prefix. The <base> tag injected via transformIndexHtml
+      // handles browser-side URL resolution.
       return {
-        base: resolvedBase,
         server: {
           host: true,
           port,
@@ -67,22 +74,31 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
 
     configResolved(config) {
       if (active) {
-        console.log(`[claw] Preview base: ${config.base}`);
+        console.log(`[claw] Preview proxy base: ${resolvedBase}`);
         console.log(`[claw] Dev server: http://localhost:${config.server.port}`);
       }
     },
 
     transformIndexHtml() {
       if (!active) return [];
-      if (options?.consoleCapture === false) return [];
 
       const tags: HtmlTagDescriptor[] = [
+        // Inject <base> tag so browser resolves all relative URLs through the
+        // preview proxy path (e.g., /preview/{agentId}/src/main.tsx)
         {
-          tag: "script",
-          children: CONSOLE_CAPTURE_SCRIPT,
+          tag: "base",
+          attrs: { href: resolvedBase },
           injectTo: "head-prepend",
         },
       ];
+
+      if (options?.consoleCapture !== false) {
+        tags.push({
+          tag: "script",
+          children: CONSOLE_CAPTURE_SCRIPT,
+          injectTo: "head-prepend",
+        });
+      }
 
       return tags;
     },

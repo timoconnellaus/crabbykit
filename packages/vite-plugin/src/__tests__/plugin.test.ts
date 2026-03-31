@@ -58,20 +58,11 @@ describe("clawForCloudflare", () => {
     const result = (plugin as any).config({}, { command: "serve", mode: "development" });
 
     expect(result).toBeDefined();
-    expect(result.base).toBe("/preview/abc123/");
+    // Should NOT set base (Vite serves from /, proxy strips prefix)
+    expect(result.base).toBeUndefined();
     expect(result.server.host).toBe(true);
     expect(result.server.port).toBe(3000);
     expect(result.server.strictPort).toBe(true);
-  });
-
-  it("prefers CLAW_PREVIEW_BASE over AGENT_ID", () => {
-    setEnv("AGENT_ID", "abc123");
-    setEnv("CLAW_PREVIEW_BASE", "/custom/path/");
-    const plugin = clawForCloudflare();
-    // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
-    const result = (plugin as any).config({}, { command: "serve", mode: "development" });
-
-    expect(result.base).toBe("/custom/path/");
   });
 
   it("uses CLAW_PREVIEW_PORT for server port", () => {
@@ -84,42 +75,45 @@ describe("clawForCloudflare", () => {
     expect(result.server.port).toBe(4000);
   });
 
-  it("accepts explicit options over env vars", () => {
+  it("accepts explicit port option over env vars", () => {
     setEnv("AGENT_ID", "abc123");
-    const plugin = clawForCloudflare({ base: "/my-base/", port: 5000 });
+    const plugin = clawForCloudflare({ port: 5000 });
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     const result = (plugin as any).config({}, { command: "serve", mode: "development" });
 
-    expect(result.base).toBe("/my-base/");
     expect(result.server.port).toBe(5000);
   });
 
-  it("ensures base path ends with slash", () => {
-    const plugin = clawForCloudflare({ base: "/no-trailing-slash" });
-    // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
-    const result = (plugin as any).config({}, { command: "serve", mode: "development" });
-
-    expect(result.base).toBe("/no-trailing-slash/");
-  });
-
-  it("injects console capture script when active", () => {
+  it("injects base tag and console capture script when active", () => {
     setEnv("AGENT_ID", "abc123");
     const plugin = clawForCloudflare();
-    // Activate the plugin by calling config first
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     (plugin as any).config({}, { command: "serve", mode: "development" });
 
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     const tags = (plugin as any).transformIndexHtml("");
-    expect(tags).toHaveLength(1);
-    expect(tags[0].tag).toBe("script");
-    expect(tags[0].children).toContain("claw:console");
+    expect(tags).toHaveLength(2);
+    // First tag: <base href>
+    expect(tags[0].tag).toBe("base");
+    expect(tags[0].attrs.href).toBe("/preview/abc123/");
     expect(tags[0].injectTo).toBe("head-prepend");
+    // Second tag: console capture script
+    expect(tags[1].tag).toBe("script");
+    expect(tags[1].children).toContain("claw:console");
   });
 
-  it("does not inject console capture when inactive", () => {
+  it("uses custom base in base tag", () => {
+    const plugin = clawForCloudflare({ base: "/custom/path" });
+    // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
+    (plugin as any).config({}, { command: "serve", mode: "development" });
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
+    const tags = (plugin as any).transformIndexHtml("");
+    expect(tags[0].attrs.href).toBe("/custom/path/");
+  });
+
+  it("does not inject tags when inactive", () => {
     const plugin = clawForCloudflare();
-    // Don't call config, or call with no env — plugin stays inactive
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     (plugin as any).config({}, { command: "serve", mode: "development" });
 
@@ -128,7 +122,7 @@ describe("clawForCloudflare", () => {
     expect(tags).toHaveLength(0);
   });
 
-  it("respects consoleCapture: false option", () => {
+  it("respects consoleCapture: false — still injects base tag", () => {
     setEnv("AGENT_ID", "abc123");
     const plugin = clawForCloudflare({ consoleCapture: false });
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
@@ -136,6 +130,8 @@ describe("clawForCloudflare", () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     const tags = (plugin as any).transformIndexHtml("");
-    expect(tags).toHaveLength(0);
+    // Only the base tag, no console script
+    expect(tags).toHaveLength(1);
+    expect(tags[0].tag).toBe("base");
   });
 });
