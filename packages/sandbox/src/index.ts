@@ -7,4 +7,6 @@ export type {
   SandboxExecResult,
   SandboxProvider,
   SandboxState,
+  SessionInfo,
+  SessionPollResult,
 } from "./types.js";

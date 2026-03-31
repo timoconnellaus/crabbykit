@@ -4,6 +4,8 @@ import type {
   ProcessInfo,
   SandboxExecResult,
   SandboxProvider,
+  SessionInfo,
+  SessionPollResult,
 } from "@claw-for-cloudflare/sandbox";
 
 export interface CloudflareSandboxOptions {
@@ -197,6 +199,152 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     }
 
     return (await res.json()) as ProcessInfo[];
+  }
+
+  async *sessionExecStream(
+    command: string,
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
+  ): AsyncGenerator<ExecStreamEvent & { sessionId?: string; logFile?: string }> {
+    const res = await this.fetch("/session-exec", {
+      method: "POST",
+      body: JSON.stringify({
+        command,
+        timeout: options?.timeout,
+        cwd: options?.cwd,
+      }),
+      signal: options?.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-exec failed: ${res.status} ${await res.text()}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("session-exec: no response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const parsed = JSON.parse(line.slice(6)) as {
+            type: string;
+            data?: string;
+            code?: number;
+            sessionId?: string;
+            logFile?: string;
+          };
+          if (parsed.type === "session") {
+            yield {
+              type: "stdout",
+              data: "",
+              sessionId: parsed.sessionId,
+              logFile: parsed.logFile,
+            };
+          } else if (parsed.type === "stdout" || parsed.type === "stderr") {
+            yield { type: parsed.type, data: parsed.data ?? "" };
+          } else if (parsed.type === "exit") {
+            yield { type: "exit", code: parsed.code ?? 1 };
+            return;
+          }
+          // Skip heartbeat
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  async sessionStart(
+    command: string,
+    options?: { timeout?: number; cwd?: string },
+  ): Promise<{ sessionId: string; pid: number; logFile: string }> {
+    const res = await this.fetch("/session-start", {
+      method: "POST",
+      body: JSON.stringify({ command, timeout: options?.timeout, cwd: options?.cwd }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-start failed: ${res.status} ${await res.text()}`);
+    }
+
+    return (await res.json()) as { sessionId: string; pid: number; logFile: string };
+  }
+
+  async sessionPoll(sessionId: string): Promise<SessionPollResult> {
+    const res = await this.fetch("/session-poll", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-poll failed: ${res.status} ${await res.text()}`);
+    }
+
+    return (await res.json()) as SessionPollResult;
+  }
+
+  async sessionWrite(sessionId: string, input: string): Promise<void> {
+    const res = await this.fetch("/session-write", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, input }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-write failed: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  async sessionKill(sessionId: string): Promise<void> {
+    const res = await this.fetch("/session-kill", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-kill failed: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  async sessionRemove(sessionId: string): Promise<void> {
+    const res = await this.fetch("/session-remove", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`session-remove failed: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  async sessionList(): Promise<SessionInfo[]> {
+    const res = await this.fetch("/session-list");
+
+    if (!res.ok) {
+      throw new Error(`session-list failed: ${res.status} ${await res.text()}`);
+    }
+
+    return (await res.json()) as SessionInfo[];
+  }
+
+  async sessionLog(sessionId: string, tail?: number): Promise<string> {
+    const query = tail ? `?tail=${tail}` : "";
+    const res = await this.fetch(`/session-log/${sessionId}${query}`);
+
+    if (!res.ok) {
+      throw new Error(`session-log failed: ${res.status} ${await res.text()}`);
+    }
+
+    return await res.text();
   }
 
   async triggerSync(): Promise<void> {

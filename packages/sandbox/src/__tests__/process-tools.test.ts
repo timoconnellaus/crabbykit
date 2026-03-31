@@ -9,9 +9,22 @@ function mockProvider(): SandboxProvider {
     stop: vi.fn().mockResolvedValue(undefined),
     health: vi.fn().mockResolvedValue({ ready: true }),
     exec: vi.fn().mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 }),
-    processStart: vi.fn().mockResolvedValue({ pid: 42 }),
-    processStop: vi.fn().mockResolvedValue(undefined),
-    processList: vi.fn().mockResolvedValue([]),
+    sessionList: vi.fn().mockResolvedValue([]),
+    sessionPoll: vi.fn().mockResolvedValue({
+      sessionId: "s-abc",
+      running: true,
+      exitCode: null,
+      pending: "some output",
+      tail: "some output",
+      logFile: "/tmp/sandbox-logs/s-abc.log",
+      retryAfterMs: 5000,
+      outputBytes: 11,
+      truncated: false,
+    }),
+    sessionKill: vi.fn().mockResolvedValue(undefined),
+    sessionRemove: vi.fn().mockResolvedValue(undefined),
+    sessionWrite: vi.fn().mockResolvedValue(undefined),
+    sessionLog: vi.fn().mockResolvedValue("full log content"),
   };
 }
 
@@ -53,111 +66,133 @@ function getToolWithProvider(name: string, provider: SandboxProvider, ctx: Agent
   return tools.find((t) => t.name === name)!;
 }
 
-describe("start_process tool", () => {
+describe("process tool", () => {
   it("rejects when not elevated", async () => {
     const ctx = mockContext(false);
-    const tool = getTool("start_process", ctx);
-    const result = await tool.execute(
-      { name: "dev", command: "npm start" },
-      { toolCallId: "test" },
-    );
+    const tool = getTool("process", ctx);
+    const result = await tool.execute({ action: "list" }, { toolCallId: "test" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("elevate");
   });
 
-  it("calls provider.processStart when elevated", async () => {
-    const provider = mockProvider();
-    const ctx = mockContext(true);
-    const tool = getToolWithProvider("start_process", provider, ctx);
+  describe("list action", () => {
+    it("returns no active sessions when empty", async () => {
+      const ctx = mockContext(true);
+      const tool = getTool("process", ctx);
+      const result = await tool.execute({ action: "list" }, { toolCallId: "test" });
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toBe("No active sessions.");
+    });
 
-    const result = await tool.execute(
-      { name: "dev", command: "npm start" },
-      { toolCallId: "test" },
-    );
-    expect(provider.processStart).toHaveBeenCalledWith("dev", "npm start", "/mnt/r2");
+    it("lists sessions with status", async () => {
+      const provider = mockProvider();
+      (provider.sessionList as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          sessionId: "s-abc",
+          command: "npm test",
+          running: true,
+          exitCode: null,
+          pid: 42,
+          startedAt: Date.now() - 10_000,
+          logFile: "/tmp/sandbox-logs/s-abc.log",
+          outputBytes: 1024,
+        },
+      ]);
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
 
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain("dev");
-    expect(text).toContain("started");
+      const result = await tool.execute({ action: "list" }, { toolCallId: "test" });
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("s-abc");
+      expect(text).toContain("running");
+      expect(text).toContain("npm test");
+    });
   });
 
-  it("resets timer with activeTimeout", async () => {
-    const provider = mockProvider();
-    const ctx = mockContext(true);
-    const tool = getToolWithProvider("start_process", provider, ctx);
+  describe("poll action", () => {
+    it("calls sessionPoll and returns pending output", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
 
-    await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
+      const result = await tool.execute(
+        { action: "poll", sessionId: "s-abc" },
+        { toolCallId: "test" },
+      );
+      expect(provider.sessionPoll).toHaveBeenCalledWith("s-abc");
 
-    expect(ctx.schedules.cancelTimer).toHaveBeenCalled();
-    expect(ctx.schedules.setTimer).toHaveBeenCalled();
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("some output");
+      expect(text).toContain("running");
+      expect(text).toContain("retry in 5s");
+    });
   });
 
-  it("broadcasts sandbox_timeout", async () => {
-    const ctx = mockContext(true);
-    const tool = getTool("start_process", ctx);
-    await tool.execute({ name: "dev", command: "npm start" }, { toolCallId: "test" });
+  describe("kill action", () => {
+    it("calls sessionKill", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
 
-    expect(ctx.broadcast).toHaveBeenCalledWith(
-      "sandbox_timeout",
-      expect.objectContaining({ timeoutSeconds: 900 }),
-    );
-  });
-});
+      const result = await tool.execute(
+        { action: "kill", sessionId: "s-abc" },
+        { toolCallId: "test" },
+      );
+      expect(provider.sessionKill).toHaveBeenCalledWith("s-abc");
 
-describe("stop_process tool", () => {
-  it("rejects when not elevated", async () => {
-    const ctx = mockContext(false);
-    const tool = getTool("stop_process", ctx);
-    const result = await tool.execute({ name: "dev" }, { toolCallId: "test" });
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain("elevate");
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("kill requested");
+    });
   });
 
-  it("calls provider.processStop when elevated", async () => {
-    const provider = mockProvider();
-    const ctx = mockContext(true);
-    const tool = getToolWithProvider("stop_process", provider, ctx);
+  describe("write action", () => {
+    it("calls sessionWrite", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
 
-    const result = await tool.execute({ name: "dev" }, { toolCallId: "test" });
-    expect(provider.processStop).toHaveBeenCalledWith("dev");
+      const result = await tool.execute(
+        { action: "write", sessionId: "s-abc", input: "hello\n" },
+        { toolCallId: "test" },
+      );
+      expect(provider.sessionWrite).toHaveBeenCalledWith("s-abc", "hello\n");
 
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain("stopped");
-  });
-});
-
-describe("get_process_status tool", () => {
-  it("rejects when not elevated", async () => {
-    const ctx = mockContext(false);
-    const tool = getTool("get_process_status", ctx);
-    const result = await tool.execute({}, { toolCallId: "test" });
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain("elevate");
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("Wrote 6 bytes");
+    });
   });
 
-  it("returns 'No managed processes' when empty", async () => {
-    const ctx = mockContext(true);
-    const tool = getTool("get_process_status", ctx);
-    const result = await tool.execute({}, { toolCallId: "test" });
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toBe("No managed processes.");
+  describe("log action", () => {
+    it("calls sessionLog and returns content", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
+
+      const result = await tool.execute(
+        { action: "log", sessionId: "s-abc" },
+        { toolCallId: "test" },
+      );
+      expect(provider.sessionLog).toHaveBeenCalledWith("s-abc", undefined);
+
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toBe("full log content");
+    });
   });
 
-  it("formats running and stopped processes", async () => {
-    const provider = mockProvider();
-    (provider.processList as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { name: "server", command: "node app.js", pid: 100, running: true },
-      { name: "build", command: "tsc -w", pid: 101, running: false, exitCode: 0 },
-    ]);
-    const ctx = mockContext(true);
-    const tool = getToolWithProvider("get_process_status", provider, ctx);
+  describe("remove action", () => {
+    it("calls sessionRemove", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext(true);
+      const tool = getToolWithProvider("process", provider, ctx);
 
-    const result = await tool.execute({}, { toolCallId: "test" });
-    const text = (result.content[0] as { text: string }).text;
+      const result = await tool.execute(
+        { action: "remove", sessionId: "s-abc" },
+        { toolCallId: "test" },
+      );
+      expect(provider.sessionRemove).toHaveBeenCalledWith("s-abc");
 
-    expect(text).toContain("server: running");
-    expect(text).toContain("node app.js");
-    expect(text).toContain("PID 100");
-    expect(text).toContain("build: stopped (exit 0)");
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("removed");
+    });
   });
 });

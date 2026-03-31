@@ -62,7 +62,7 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
 
     promptSections: () => [
       "You have live preview capabilities for web development. " +
-        "Workflow: scaffold the project, start a dev server (via start_process), " +
+        "Workflow: scaffold the project, start a dev server (via exec with background=true), " +
         "then call show_preview with the dev server port. " +
         "The user will see the app in a live iframe. " +
         "Use get_console_logs to check for errors when debugging. " +

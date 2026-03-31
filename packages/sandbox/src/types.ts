@@ -20,6 +20,31 @@ export interface ProcessInfo {
   exitCode?: number;
 }
 
+/** Summary of a session-tracked command execution. */
+export interface SessionInfo {
+  sessionId: string;
+  command: string;
+  running: boolean;
+  exitCode: number | null;
+  pid: number;
+  startedAt: number;
+  logFile: string;
+  outputBytes: number;
+}
+
+/** Result of polling a session for output. */
+export interface SessionPollResult {
+  sessionId: string;
+  running: boolean;
+  exitCode: number | null;
+  pending: string;
+  tail: string;
+  logFile: string;
+  retryAfterMs: number;
+  outputBytes: number;
+  truncated: boolean;
+}
+
 /**
  * Abstraction over a sandbox execution environment.
  * Consumers implement this to connect to their compute backend
@@ -33,7 +58,10 @@ export interface SandboxProvider {
   /** Check if the sandbox is ready. */
   health(): Promise<{ ready: boolean; [key: string]: unknown }>;
   /** Execute a shell command and return the result. */
-  exec(command: string, options?: { timeout?: number; cwd?: string; signal?: AbortSignal }): Promise<SandboxExecResult>;
+  exec(
+    command: string,
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
+  ): Promise<SandboxExecResult>;
 
   // --- Optional process management ---
 
@@ -52,6 +80,31 @@ export interface SandboxProvider {
 
   /** Trigger a persist volume backup (dev mode). */
   triggerSync?(): Promise<void>;
+
+  // --- Optional session-based execution ---
+
+  /** Execute a command with session tracking, streaming output as SSE. First event contains sessionId. */
+  sessionExecStream?(
+    command: string,
+    options?: { timeout?: number; cwd?: string; signal?: AbortSignal },
+  ): AsyncIterable<ExecStreamEvent & { sessionId?: string; logFile?: string }>;
+  /** Start a backgrounded command with session tracking. */
+  sessionStart?(
+    command: string,
+    options?: { timeout?: number; cwd?: string },
+  ): Promise<{ sessionId: string; pid: number; logFile: string }>;
+  /** Poll a session for pending output and status. */
+  sessionPoll?(sessionId: string): Promise<SessionPollResult>;
+  /** Write input to a running session's stdin. */
+  sessionWrite?(sessionId: string, input: string): Promise<void>;
+  /** Kill a running session. */
+  sessionKill?(sessionId: string): Promise<void>;
+  /** Remove a finished session and its log file. */
+  sessionRemove?(sessionId: string): Promise<void>;
+  /** List all sessions. */
+  sessionList?(): Promise<SessionInfo[]>;
+  /** Read session log file contents. */
+  sessionLog?(sessionId: string, tail?: number): Promise<string>;
 
   // --- Optional dev server management ---
 

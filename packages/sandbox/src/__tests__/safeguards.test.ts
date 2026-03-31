@@ -145,9 +145,9 @@ describe("Install detection", () => {
     const ctx = mockContext(true);
 
     const cap = sandboxCapability({ provider });
-    const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
+    const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
 
-    await bash.execute({ command: "npm install express" }, { toolCallId: "test" });
+    await exec.execute({ command: "npm install express" }, { toolCallId: "test" });
     expect(provider.triggerSync).toHaveBeenCalled();
   });
 
@@ -158,9 +158,9 @@ describe("Install detection", () => {
     const ctx = mockContext(true);
 
     const cap = sandboxCapability({ provider });
-    const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
+    const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
 
-    await bash.execute({ command: "bun add react" }, { toolCallId: "test" });
+    await exec.execute({ command: "bun add react" }, { toolCallId: "test" });
     expect(provider.triggerSync).toHaveBeenCalled();
   });
 
@@ -171,9 +171,9 @@ describe("Install detection", () => {
     const ctx = mockContext(true);
 
     const cap = sandboxCapability({ provider });
-    const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
+    const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
 
-    await bash.execute({ command: "ls -la" }, { toolCallId: "test" });
+    await exec.execute({ command: "ls -la" }, { toolCallId: "test" });
     expect(provider.triggerSync).not.toHaveBeenCalled();
   });
 
@@ -185,9 +185,9 @@ describe("Install detection", () => {
     const ctx = mockContext(true);
 
     const cap = sandboxCapability({ provider });
-    const bash = cap.tools!(ctx).find((t) => t.name === "bash")!;
+    const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
 
-    await bash.execute({ command: "npm install nonexistent" }, { toolCallId: "test" });
+    await exec.execute({ command: "npm install nonexistent" }, { toolCallId: "test" });
     expect(provider.triggerSync).not.toHaveBeenCalled();
   });
 });

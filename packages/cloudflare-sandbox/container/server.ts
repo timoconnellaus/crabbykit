@@ -7,6 +7,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import * as pty from "node-pty";
 
 // --- Constants ---
 
@@ -19,6 +20,12 @@ const IDLE_TIMEOUT_DEV = 30 * 60_000;
 const IDLE_CHECK_INTERVAL = 60_000;
 const SYNC_DEBOUNCE_MS = 30_000;
 const SYNC_SOCKET = "/var/run/sync.sock";
+
+// --- Session constants ---
+const LOG_DIR = "/tmp/sandbox-logs";
+const MAX_OUTPUT_CHARS = 204_800; // 200KB in-memory cap
+const SESSION_GC_DELAY = 5 * 60_000; // 5 minutes after exit
+const POLL_BACKOFF_SCHEDULE = [5000, 5000, 5000, 10_000, 10_000, 10_000, 30_000, 30_000, 30_000, 60_000];
 
 const SENSITIVE_KEYS = [
   "AWS_ACCESS_KEY_ID",
@@ -36,6 +43,50 @@ let lastActivityAt = Date.now();
 let containerMode = process.env.CONTAINER_MODE ?? "normal";
 let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
+let devServerPort: number | null = null;
+/** Base path for the preview proxy (e.g., "/preview/abc123/"). Used to rewrite absolute paths. */
+let previewBasePath: string | null = null;
+
+const CONSOLE_CAPTURE_SCRIPT = `<script>
+(function(){
+  // --- WebSocket HMR proxy ---
+  // Patch WebSocket so Vite's HMR client connects through the preview proxy
+  // instead of directly to the host origin (which hits the wrong Vite server).
+  var OrigWS=window.WebSocket;
+  var base=window.location.pathname;
+  window.WebSocket=function(url,protocols){
+    try{
+      var p=new URL(url,window.location.href);
+      if(p.origin===window.location.origin && (p.pathname==='/' || p.pathname==='')){
+        p.pathname=base;
+        url=p.toString();
+      }
+    }catch(e){}
+    return new OrigWS(url,protocols);
+  };
+  window.WebSocket.prototype=OrigWS.prototype;
+  window.WebSocket.CONNECTING=OrigWS.CONNECTING;
+  window.WebSocket.OPEN=OrigWS.OPEN;
+  window.WebSocket.CLOSING=OrigWS.CLOSING;
+  window.WebSocket.CLOSED=OrigWS.CLOSED;
+
+  // --- Console capture ---
+  var orig={error:console.error,warn:console.warn,log:console.log,info:console.info};
+  var count=0,lastReset=Date.now();
+  function throttle(){var now=Date.now();if(now-lastReset>1000){count=0;lastReset=now}return ++count<=10}
+  function report(level,args){
+    if(!throttle())return;
+    var msg=Array.from(args).map(function(a){return typeof a==='object'?JSON.stringify(a):String(a)}).join(' ');
+    try{parent.postMessage({type:'claw:console',level:level,text:msg,ts:Date.now()},'*')}catch(e){}
+  }
+  console.error=function(){report('error',arguments);orig.error.apply(console,arguments)};
+  console.warn=function(){report('warn',arguments);orig.warn.apply(console,arguments)};
+  console.log=function(){report('log',arguments);orig.log.apply(console,arguments)};
+  console.info=function(){report('info',arguments);orig.info.apply(console,arguments)};
+  window.addEventListener('error',function(e){report('error',[(e.message||'Error')+' at '+(e.filename||'unknown')+':'+(e.lineno||0)])});
+  window.addEventListener('unhandledrejection',function(e){report('error',['Unhandled rejection: '+(e.reason&&e.reason.message||e.reason)])});
+})();
+</script>`;
 
 interface BufferEntry {
   seq: number;
@@ -57,6 +108,35 @@ interface ManagedProcess {
 }
 
 const processes = new Map<string, ManagedProcess>();
+
+// --- Session types & state ---
+
+interface Session {
+  id: string;
+  command: string;
+  cwd: string;
+  startedAt: number;
+  pid: number;
+  running: boolean;
+  exitCode: number | null;
+  // Output management
+  output: string;
+  pendingBuffer: string;
+  outputBytes: number;
+  truncated: boolean;
+  // File logging
+  logFile: string;
+  logStream: fs.WriteStream;
+  // Poll backoff
+  lastPollAt: number;
+  consecutiveEmptyPolls: number;
+  // Process handle
+  proc: pty.IPty;
+  gcTimer?: ReturnType<typeof setTimeout>;
+}
+
+const sessions = new Map<string, Session>();
+let logDirCreated = false;
 
 // --- Helpers ---
 
@@ -85,11 +165,154 @@ function isUnderWorkspace(targetPath: string): boolean {
 
 function isUnderPersist(targetPath: string): boolean {
   const resolved = path.resolve(targetPath);
-  return resolved === "/opt/gia/persist" || resolved.startsWith("/opt/gia/persist/");
+  return resolved === "/opt/sandbox/persist" || resolved.startsWith("/opt/sandbox/persist/");
 }
 
 function isAllowedPath(targetPath: string): boolean {
   return isUnderWorkspace(targetPath) || isUnderPersist(targetPath);
+}
+
+/**
+ * Rewrite absolute paths in proxied content so they route through the preview proxy.
+ * Converts `="/src/main.tsx"` → `="/preview/{id}/src/main.tsx"` (absolute with base prefix).
+ * Handles HTML attributes (src, href) and JS module imports (from, import()).
+ *
+ * Uses absolute paths with the preview base prefix rather than relative paths (`./')
+ * because relative paths resolve against the current file's directory, which breaks
+ * for JS modules served from subdirectories (e.g., `/preview/{id}/src/main.jsx`
+ * would resolve `./react.js` to `/preview/{id}/src/react.js` instead of
+ * `/preview/{id}/node_modules/.vite/deps/react.js`).
+ */
+function rewriteAbsolutePaths(content: string, basePath: string): string {
+  // Ensure basePath ends with / for clean concatenation
+  const base = basePath.endsWith("/") ? basePath : `${basePath}/`;
+  return content
+    // HTML attributes: src="/..." href="/..." action="/..."
+    .replace(/((?:src|href|action)\s*=\s*["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
+    // JS: from "/..." and import("/...")
+    .replace(/(from\s+["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
+    .replace(/(import\s*\(\s*["'])\/((?!\/)[^"']*["'])/g, `$1${base}$2`)
+    // CSS: url(/...)
+    .replace(/(url\(\s*["']?)\/((?!\/)[^"')]*["']?\))/g, `$1${base}$2`);
+}
+
+/** Strip ANSI escape codes from PTY output. */
+function stripAnsi(str: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escape sequences requires matching control chars
+  return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1B\][^\x07]*\x07/g, "");
+}
+
+// --- Session helpers ---
+
+function ensureLogDir(): void {
+  if (!logDirCreated) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    logDirCreated = true;
+  }
+}
+
+function generateSessionId(): string {
+  return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getBackoffMs(consecutiveEmptyPolls: number): number {
+  const idx = Math.min(consecutiveEmptyPolls, POLL_BACKOFF_SCHEDULE.length - 1);
+  return POLL_BACKOFF_SCHEDULE[idx] ?? 60_000;
+}
+
+function appendSessionOutput(session: Session, data: string): void {
+  session.pendingBuffer += data;
+  session.output += data;
+  session.outputBytes += data.length;
+
+  // Cap in-memory output at MAX_OUTPUT_CHARS — drop first half when exceeded
+  if (session.output.length > MAX_OUTPUT_CHARS) {
+    session.output = session.output.slice(session.output.length - Math.floor(MAX_OUTPUT_CHARS / 2));
+    session.truncated = true;
+  }
+
+  // Write to log file (unbounded on disk)
+  session.logStream.write(data);
+}
+
+function markSessionExited(session: Session, exitCode: number | null): void {
+  session.running = false;
+  session.exitCode = exitCode;
+
+  // Close log stream
+  session.logStream.end();
+
+  // GC after SESSION_GC_DELAY if not polled
+  session.gcTimer = setTimeout(() => {
+    cleanupSession(session.id);
+  }, SESSION_GC_DELAY);
+}
+
+function cleanupSession(sessionId: string): void {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  if (session.gcTimer) clearTimeout(session.gcTimer);
+
+  // Delete log file
+  try {
+    fs.unlinkSync(session.logFile);
+  } catch {
+    // Best-effort
+  }
+
+  sessions.delete(sessionId);
+}
+
+function createSession(command: string, cwd: string): Session {
+  ensureLogDir();
+  const id = generateSessionId();
+  const logFile = path.join(LOG_DIR, `${id}.log`);
+  const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
+
+  const proc = pty.spawn("/bin/sh", ["-c", command], {
+    cwd: effectiveCwd,
+    env: buildSanitizedEnv(),
+    cols: 120,
+    rows: 40,
+  });
+
+  const session: Session = {
+    id,
+    command,
+    cwd: effectiveCwd,
+    startedAt: Date.now(),
+    pid: proc.pid,
+    running: true,
+    exitCode: null,
+    output: "",
+    pendingBuffer: "",
+    outputBytes: 0,
+    truncated: false,
+    logFile,
+    logStream: fs.createWriteStream(logFile, { flags: "a" }),
+    lastPollAt: 0,
+    consecutiveEmptyPolls: 0,
+    proc,
+  };
+
+  sessions.set(id, session);
+
+  // Capture output
+  proc.onData((data) => {
+    const cleaned = stripAnsi(data);
+    appendSessionOutput(session, cleaned);
+  });
+
+  proc.onExit(({ exitCode }) => {
+    markSessionExited(session, exitCode ?? 1);
+  });
+
+  return session;
+}
+
+function sessionTail(session: Session, chars = 2000): string {
+  if (session.output.length <= chars) return session.output;
+  return session.output.slice(-chars);
 }
 
 function execCommand(
@@ -100,38 +323,38 @@ function execCommand(
   return new Promise((resolve) => {
     const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
 
-    const proc = spawn("/bin/sh", ["-c", command], {
+    const proc = pty.spawn("/bin/sh", ["-c", command], {
       cwd: effectiveCwd,
       env: buildSanitizedEnv(),
+      cols: 120,
+      rows: 40,
     });
 
-    let stdout = "";
-    let stderr = "";
+    let output = "";
     let killed = false;
 
     const timer = setTimeout(() => {
       killed = true;
-      proc.kill("SIGKILL");
+      proc.kill();
     }, timeout);
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-    proc.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
+    proc.onData((data) => {
+      output += data;
     });
 
-    proc.on("close", (code) => {
+    proc.onExit(({ exitCode }) => {
       clearTimeout(timer);
+      const cleaned = stripAnsi(output);
       if (killed) {
-        stderr += `\nProcess exceeded ${timeout}ms timeout and was killed.`;
+        resolve({
+          stdout: cleaned,
+          stderr: `\nProcess exceeded ${timeout}ms timeout and was killed.`,
+          exitCode: exitCode ?? 137,
+        });
+      } else {
+        // PTY merges stdout/stderr — return all output as stdout
+        resolve({ stdout: cleaned, stderr: "", exitCode: exitCode ?? 1 });
       }
-      resolve({ stdout, stderr, exitCode: code ?? (killed ? 137 : 1) });
-    });
-
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr: err.message, exitCode: 1 });
     });
   });
 }
@@ -459,6 +682,359 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
+  // --- Set dev port ---
+  if (url.pathname === "/set-dev-port" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const port = body.port as number;
+    if (!port || typeof port !== "number" || port < 1 || port > 65535) {
+      error(res, "Invalid port");
+      return;
+    }
+    devServerPort = port;
+    previewBasePath = (body.basePath as string) ?? null;
+    json(res, { ok: true, port: devServerPort });
+    return;
+  }
+
+  // --- Clear dev port ---
+  if (url.pathname === "/clear-dev-port" && method === "POST") {
+    devServerPort = null;
+    previewBasePath = null;
+    json(res, { ok: true });
+    return;
+  }
+
+  // --- Dev server proxy fallback ---
+  if (devServerPort) {
+    try {
+      const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
+      const proxyRes = await fetch(proxyUrl, {
+        method,
+        headers: Object.fromEntries(
+          Object.entries(req.headers)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v!]),
+        ),
+        body: method !== "GET" && method !== "HEAD" ? await readBody(req) : undefined,
+      });
+
+      const contentType = proxyRes.headers.get("content-type") ?? "";
+      const isHtml = contentType.includes("text/html");
+      const isJs = contentType.includes("javascript");
+      const isCss = contentType.includes("text/css");
+
+      if (isHtml) {
+        let html = await proxyRes.text();
+        // Rewrite absolute paths so sub-resources route through the preview proxy
+        if (previewBasePath) {
+          html = rewriteAbsolutePaths(html, previewBasePath);
+        }
+        if (html.includes("</head>")) {
+          html = html.replace("</head>", `${CONSOLE_CAPTURE_SCRIPT}</head>`);
+        } else if (html.includes("<head>")) {
+          html = html.replace("<head>", `<head>${CONSOLE_CAPTURE_SCRIPT}`);
+        } else {
+          html = CONSOLE_CAPTURE_SCRIPT + html;
+        }
+        res.writeHead(proxyRes.status, {
+          "content-type": contentType,
+        });
+        res.end(html);
+      } else if ((isJs || isCss) && previewBasePath) {
+        // Rewrite absolute paths in JS modules and CSS
+        let text = await proxyRes.text();
+        text = rewriteAbsolutePaths(text, previewBasePath);
+        res.writeHead(proxyRes.status, {
+          "content-type": contentType,
+        });
+        res.end(text);
+      } else {
+        const headers: Record<string, string> = {};
+        proxyRes.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        res.writeHead(proxyRes.status, headers);
+        const arrayBuf = await proxyRes.arrayBuffer();
+        res.end(Buffer.from(arrayBuf));
+      }
+      return;
+    } catch {
+      // Dev server not ready — return a loading page that auto-retries
+      const retryHtml = `<!DOCTYPE html>
+<html><head><title>Starting...</title><style>
+body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;
+font-family:system-ui,sans-serif;background:#1a1a2e;color:#94a3b8}
+.spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#818cf8;
+border-radius:50%;animation:spin 0.8s linear infinite;margin-right:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<div class="spinner"></div>
+<span>Dev server starting on port ${devServerPort}...</span>
+<script>setTimeout(()=>location.reload(),1500)</script>
+</body></html>`;
+      res.writeHead(503, { "content-type": "text/html" });
+      res.end(retryHtml);
+      return;
+    }
+  }
+
+  // --- Session Exec (SSE with session tracking) ---
+  if (url.pathname === "/session-exec" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const command = body.command as string;
+    if (!command) {
+      error(res, "Missing command");
+      return;
+    }
+    const timeout = (body.timeout as number) ?? DEFAULT_EXEC_TIMEOUT;
+    const cwd = body.cwd as string | undefined;
+
+    const session = createSession(command, cwd ?? workspacePath);
+
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    });
+
+    // First event: session metadata
+    const sendEvent = (data: unknown) => {
+      try {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        // Connection closed
+      }
+    };
+
+    sendEvent({ type: "session", sessionId: session.id, logFile: session.logFile });
+
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      session.proc.kill();
+    }, timeout);
+
+    let seq = 0;
+
+    // Stream output events
+    session.proc.onData((data) => {
+      sendEvent({ type: "stdout", data: stripAnsi(data), seq: ++seq });
+    });
+
+    const heartbeat = setInterval(() => {
+      sendEvent({ type: "heartbeat" });
+    }, 5000);
+
+    session.proc.onExit(({ exitCode }) => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      if (killed) {
+        sendEvent({
+          type: "stderr",
+          data: `\nProcess exceeded ${timeout}ms timeout and was killed.`,
+          seq: ++seq,
+        });
+      }
+      sendEvent({ type: "exit", code: exitCode ?? (killed ? 137 : 1) });
+      res.end();
+    });
+
+    req.on("close", () => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      // Don't kill process on disconnect — it keeps running with session tracking
+    });
+
+    return;
+  }
+
+  // --- Session Start (background) ---
+  if (url.pathname === "/session-start" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const command = body.command as string;
+    if (!command) {
+      error(res, "Missing command");
+      return;
+    }
+    const timeout = body.timeout as number | undefined;
+    const cwd = body.cwd as string | undefined;
+
+    const session = createSession(command, cwd ?? workspacePath);
+
+    // Optional timeout for background processes
+    if (timeout) {
+      setTimeout(() => {
+        if (session.running) {
+          session.proc.kill();
+        }
+      }, timeout);
+    }
+
+    json(res, { sessionId: session.id, pid: session.pid, logFile: session.logFile });
+    return;
+  }
+
+  // --- Session Poll ---
+  if (url.pathname === "/session-poll" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const sessionId = body.sessionId as string;
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      error(res, `Session "${sessionId}" not found`, 404);
+      return;
+    }
+
+    // Reset GC timer on poll (session is still being observed)
+    if (session.gcTimer) {
+      clearTimeout(session.gcTimer);
+      session.gcTimer = undefined;
+    }
+    if (!session.running) {
+      // Re-arm GC since session is finished
+      session.gcTimer = setTimeout(() => cleanupSession(session.id), SESSION_GC_DELAY);
+    }
+
+    // Drain pending buffer
+    const pending = session.pendingBuffer;
+    const hadOutput = pending.length > 0;
+    session.pendingBuffer = "";
+
+    // Backoff tracking
+    if (hadOutput) {
+      session.consecutiveEmptyPolls = 0;
+    } else {
+      session.consecutiveEmptyPolls++;
+    }
+    session.lastPollAt = Date.now();
+
+    json(res, {
+      sessionId: session.id,
+      running: session.running,
+      exitCode: session.exitCode,
+      pending,
+      tail: sessionTail(session),
+      logFile: session.logFile,
+      retryAfterMs: getBackoffMs(session.consecutiveEmptyPolls),
+      outputBytes: session.outputBytes,
+      truncated: session.truncated,
+    });
+    return;
+  }
+
+  // --- Session Write ---
+  if (url.pathname === "/session-write" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const sessionId = body.sessionId as string;
+    const input = body.input as string;
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      error(res, `Session "${sessionId}" not found`, 404);
+      return;
+    }
+    if (!session.running) {
+      error(res, "Session has exited", 400);
+      return;
+    }
+
+    session.proc.write(input);
+    json(res, { ok: true, bytes: input.length });
+    return;
+  }
+
+  // --- Session Kill ---
+  if (url.pathname === "/session-kill" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const sessionId = body.sessionId as string;
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      error(res, `Session "${sessionId}" not found`, 404);
+      return;
+    }
+    if (!session.running) {
+      json(res, { ok: true, alreadyExited: true });
+      return;
+    }
+
+    session.proc.kill();
+    // Force kill after 5s if still running
+    const killTimer = setTimeout(() => {
+      if (session.running) {
+        session.proc.kill(9);
+      }
+    }, 5000);
+
+    session.proc.onExit(() => clearTimeout(killTimer));
+    json(res, { ok: true });
+    return;
+  }
+
+  // --- Session Remove ---
+  if (url.pathname === "/session-remove" && method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const sessionId = body.sessionId as string;
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      error(res, `Session "${sessionId}" not found`, 404);
+      return;
+    }
+    if (session.running) {
+      error(res, "Cannot remove a running session — kill it first", 400);
+      return;
+    }
+
+    cleanupSession(sessionId);
+    json(res, { ok: true });
+    return;
+  }
+
+  // --- Session List ---
+  if (url.pathname === "/session-list" && method === "GET") {
+    const list = Array.from(sessions.values()).map((s) => ({
+      sessionId: s.id,
+      command: s.command,
+      running: s.running,
+      exitCode: s.exitCode,
+      pid: s.pid,
+      startedAt: s.startedAt,
+      logFile: s.logFile,
+      outputBytes: s.outputBytes,
+    }));
+    json(res, list);
+    return;
+  }
+
+  // --- Session Log ---
+  if (url.pathname.startsWith("/session-log/") && method === "GET") {
+    const sessionId = url.pathname.slice("/session-log/".length);
+    const tailLines = url.searchParams.get("tail");
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      error(res, `Session "${sessionId}" not found`, 404);
+      return;
+    }
+
+    try {
+      let content = fs.readFileSync(session.logFile, "utf-8");
+      if (tailLines) {
+        const n = Number.parseInt(tailLines, 10);
+        if (n > 0) {
+          const lines = content.split("\n");
+          content = lines.slice(-n).join("\n");
+        }
+      }
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end(content);
+    } catch {
+      error(res, "Failed to read log file", 500);
+    }
+    return;
+  }
+
   // --- Exec Stream (SSE) ---
   if (url.pathname === "/exec-stream" && method === "POST") {
     const body = JSON.parse(await readBody(req));
@@ -477,15 +1053,17 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       connection: "keep-alive",
     });
 
-    const proc = spawn("/bin/sh", ["-c", command], {
+    const proc = pty.spawn("/bin/sh", ["-c", command], {
       cwd: effectiveCwd,
       env: buildSanitizedEnv(),
+      cols: 120,
+      rows: 40,
     });
 
     let killed = false;
     const timer = setTimeout(() => {
       killed = true;
-      proc.kill("SIGKILL");
+      proc.kill();
     }, timeout);
 
     let seq = 0;
@@ -498,19 +1076,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
     };
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      sendEvent({ type: "stdout", data: data.toString(), seq: ++seq });
-    });
-
-    proc.stderr?.on("data", (data: Buffer) => {
-      sendEvent({ type: "stderr", data: data.toString(), seq: ++seq });
+    // PTY merges stdout/stderr into a single stream — send all as stdout
+    proc.onData((data) => {
+      sendEvent({ type: "stdout", data: stripAnsi(data), seq: ++seq });
     });
 
     const heartbeat = setInterval(() => {
       sendEvent({ type: "heartbeat" });
     }, 5000);
 
-    proc.on("close", (code) => {
+    proc.onExit(({ exitCode }) => {
       clearTimeout(timer);
       clearInterval(heartbeat);
       if (killed) {
@@ -520,22 +1095,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           seq: ++seq,
         });
       }
-      sendEvent({ type: "exit", code: code ?? (killed ? 137 : 1) });
-      res.end();
-    });
-
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      clearInterval(heartbeat);
-      sendEvent({ type: "stderr", data: err.message, seq: ++seq });
-      sendEvent({ type: "exit", code: 1 });
+      sendEvent({ type: "exit", code: exitCode ?? (killed ? 137 : 1) });
       res.end();
     });
 
     req.on("close", () => {
       clearTimeout(timer);
       clearInterval(heartbeat);
-      if (!proc.killed) proc.kill("SIGKILL");
+      proc.kill();
     });
 
     return;
@@ -554,6 +1121,32 @@ const server = http.createServer((req, res) => {
       error(res, "Internal server error", 500);
     }
   });
+});
+
+// --- WebSocket upgrade bridging (HMR) ---
+
+server.on("upgrade", (req, socket, head) => {
+  if (!devServerPort) {
+    socket.destroy();
+    return;
+  }
+
+  const { createConnection } = require("node:net") as typeof import("node:net");
+  const upstream = createConnection({ port: devServerPort, host: "127.0.0.1" }, () => {
+    const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    const headers = Object.entries(req.headers)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+      .join("\r\n");
+    upstream.write(`${reqLine}${headers}\r\n\r\n`);
+    if (head.length > 0) upstream.write(head);
+
+    socket.pipe(upstream);
+    upstream.pipe(socket);
+  });
+
+  upstream.on("error", () => socket.destroy());
+  socket.on("error", () => upstream.destroy());
 });
 
 server.listen(PORT, () => {
@@ -580,6 +1173,11 @@ async function gracefulShutdown(): Promise<void> {
     if (managed.running) managed.proc.kill("SIGTERM");
   }
 
+  // Kill all running sessions
+  for (const [, session] of sessions) {
+    if (session.running) session.proc.kill();
+  }
+
   // Final backup in dev mode
   if (containerMode === "dev") {
     console.log("[sandbox] Dev mode — running final backup before shutdown");
@@ -595,7 +1193,9 @@ async function gracefulShutdown(): Promise<void> {
 const idleTimeout = containerMode === "dev" ? IDLE_TIMEOUT_DEV : IDLE_TIMEOUT_NORMAL;
 
 const idleCheck = setInterval(() => {
-  const hasRunning = Array.from(processes.values()).some((p) => p.running);
+  const hasRunning =
+    Array.from(processes.values()).some((p) => p.running) ||
+    Array.from(sessions.values()).some((s) => s.running);
   if (hasRunning) {
     lastActivityAt = Date.now();
     return;

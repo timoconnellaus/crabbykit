@@ -48,48 +48,20 @@ describe("sandboxCapability", () => {
     expect(cap.name).toBe("Sandbox");
   });
 
-  it("provides elevate, de_elevate, and bash tools", () => {
+  it("provides elevate, de_elevate, exec, and process tools", () => {
     const cap = sandboxCapability({ provider: mockProvider() });
     const tools = cap.tools!(mockContext());
 
     const names = tools.map((t) => t.name);
     expect(names).toContain("elevate");
     expect(names).toContain("de_elevate");
-    expect(names).toContain("bash");
-  });
-
-  it("provides process tools when provider supports them", () => {
-    const cap = sandboxCapability({ provider: mockProvider() });
-    const tools = cap.tools!(mockContext());
-
-    const names = tools.map((t) => t.name);
-    expect(names).toContain("start_process");
-    expect(names).toContain("stop_process");
-    expect(names).toContain("get_process_status");
+    expect(names).toContain("exec");
+    expect(names).toContain("process");
     expect(names).toContain("save_file_credential");
     expect(names).toContain("list_file_credentials");
     expect(names).toContain("delete_file_credential");
-    expect(tools).toHaveLength(9);
-  });
-
-  it("omits process tools when provider does not support them", () => {
-    const provider = mockProvider();
-    // biome-ignore lint/performance/noDelete: test needs to remove optional methods
-    delete (provider as unknown as Record<string, unknown>).processStart;
-    // biome-ignore lint/performance/noDelete: test needs to remove optional methods
-    delete (provider as unknown as Record<string, unknown>).processStop;
-    // biome-ignore lint/performance/noDelete: test needs to remove optional methods
-    delete (provider as unknown as Record<string, unknown>).processList;
-
-    const cap = sandboxCapability({ provider });
-    const tools = cap.tools!(mockContext());
-
-    const names = tools.map((t) => t.name);
-    expect(names).not.toContain("start_process");
-    expect(names).not.toContain("stop_process");
-    expect(names).not.toContain("get_process_status");
-    // 3 core tools + 3 credential tools = 6
-    expect(tools).toHaveLength(6);
+    // 4 core tools + 3 credential tools = 7
+    expect(tools).toHaveLength(7);
   });
 
   it("provides prompt sections", () => {
@@ -133,14 +105,14 @@ describe("sandboxCapability", () => {
     });
   });
 
-  describe("bash tool", () => {
+  describe("exec tool", () => {
     it("rejects when not elevated", async () => {
       const ctx = mockContext();
       const cap = sandboxCapability({ provider: mockProvider() });
       const tools = cap.tools!(ctx);
-      const bash = tools.find((t) => t.name === "bash")!;
+      const exec = tools.find((t) => t.name === "exec")!;
 
-      const result = await bash.execute({ command: "ls" }, { toolCallId: "tc1" });
+      const result = await exec.execute({ command: "ls" }, { toolCallId: "tc1" });
 
       expect(result.content[0]).toHaveProperty("text");
       const text = (result.content[0] as { text: string }).text;
@@ -154,13 +126,14 @@ describe("sandboxCapability", () => {
 
       const cap = sandboxCapability({ provider });
       const tools = cap.tools!(ctx);
-      const bash = tools.find((t) => t.name === "bash")!;
+      const exec = tools.find((t) => t.name === "exec")!;
 
-      const result = await bash.execute({ command: "echo hello" }, { toolCallId: "tc1" });
+      const result = await exec.execute({ command: "echo hello" }, { toolCallId: "tc1" });
 
       expect(provider.exec).toHaveBeenCalledWith("echo hello", {
         timeout: 60_000,
         cwd: "/mnt/r2",
+        signal: undefined,
       });
       const text = (result.content[0] as { text: string }).text;
       expect(text).toBe("hello");

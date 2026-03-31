@@ -1,6 +1,5 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { TIMER_ID } from "./timer.js";
-import { createBashTool } from "./tools/bash.js";
 import {
   createDeleteFileCredentialTool,
   createListFileCredentialsTool,
@@ -8,11 +7,8 @@ import {
 } from "./tools/credentials.js";
 import { createDeElevateTool } from "./tools/de-elevate.js";
 import { createElevateTool } from "./tools/elevate.js";
-import {
-  createGetProcessStatusTool,
-  createStartProcessTool,
-  createStopProcessTool,
-} from "./tools/process.js";
+import { createExecTool } from "./tools/exec.js";
+import { createProcessTool } from "./tools/process.js";
 import type { SandboxConfig, SandboxProvider } from "./types.js";
 
 const DEFAULT_IDLE_TIMEOUT = 180;
@@ -37,10 +33,8 @@ export interface SandboxCapabilityOptions {
  * Tools provided:
  * - `elevate` — Activate the sandbox
  * - `de_elevate` — Deactivate the sandbox
- * - `bash` — Execute shell commands (requires elevation)
- * - `start_process` — Start a long-running process (if provider supports it)
- * - `stop_process` — Stop a process (if provider supports it)
- * - `get_process_status` — List process status (if provider supports it)
+ * - `exec` — Execute shell commands with session tracking (requires elevation)
+ * - `process` — Manage backgrounded sessions (poll, log, write, kill, list, remove)
  */
 export function sandboxCapability(options: SandboxCapabilityOptions): Capability {
   const resolvedConfig: Required<SandboxConfig> = {
@@ -70,18 +64,9 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
       const tools: any[] = [
         createElevateTool(options.provider, resolvedConfig, context),
         createDeElevateTool(options.provider, resolvedConfig, context),
-        createBashTool(options.provider, resolvedConfig, context),
+        createExecTool(options.provider, resolvedConfig, context),
+        createProcessTool(options.provider, resolvedConfig, context),
       ];
-
-      if (options.provider.processStart) {
-        tools.push(createStartProcessTool(options.provider, resolvedConfig, context));
-      }
-      if (options.provider.processStop) {
-        tools.push(createStopProcessTool(options.provider, resolvedConfig, context));
-      }
-      if (options.provider.processList) {
-        tools.push(createGetProcessStatusTool(options.provider, resolvedConfig, context));
-      }
 
       // File credential tools (always available — reads/writes files in the container)
       tools.push(createSaveFileCredentialTool(options.provider, resolvedConfig, context));
@@ -92,7 +77,7 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
     },
 
     promptSections: () => [
-      "You have access to a sandbox environment for shell access. Use the `elevate` tool to activate it when you need to run shell commands, install packages, or start servers. The sandbox will auto-deactivate after a period of inactivity to conserve resources. Use the `bash` tool for one-off commands and `start_process` for long-running tasks like dev servers.",
+      "You have access to a sandbox environment for shell access. Use the `elevate` tool to activate it when you need to run shell commands, install packages, or start servers. The sandbox will auto-deactivate after a period of inactivity to conserve resources.\n\nUse `exec` to run commands. All output is logged to a file in the container. For long-running commands (dev servers, watchers, builds), set `background=true` to get a session ID, then use the `process` tool to poll output, send input, or kill the session.",
     ],
 
     hooks: {
@@ -103,9 +88,10 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
           const reason = await ctx.storage.get<string>("elevationReason");
           const guidance = [
             `[Sandbox Status: ACTIVE${reason ? ` — ${reason}` : ""}]`,
-            "You have an active Linux sandbox. Use the bash tool freely for shell commands.",
-            "For long-running processes (servers, watchers), use start_process instead of bash.",
-            "Packages installed globally (npm -g, pip) persist via environment configuration.",
+            "You have an active Linux sandbox. Use the exec tool for shell commands.",
+            "For long-running processes (servers, watchers), use exec with background=true.",
+            "Use the process tool (poll/log/write/kill) to manage backgrounded sessions.",
+            "All command output is logged to files in the container for later inspection.",
           ].join("\n");
 
           return [{ role: "user" as const, content: guidance, timestamp: 0 }, ...messages];
