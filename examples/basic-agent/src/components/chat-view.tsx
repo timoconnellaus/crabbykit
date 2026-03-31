@@ -27,7 +27,7 @@ export function ChatView({
   chat: UseAgentChatReturn;
   sandboxState: SandboxBadgeProps;
   pendingTasks: PendingA2ATask[];
-  previewState: { open: boolean; port?: number };
+  previewState: { open: boolean; port?: number; previewBasePath?: string };
   agentId: string;
   consoleLogs: ConsoleLogEntry[];
   onClearLogs: () => void;
@@ -59,7 +59,7 @@ export function ChatView({
         {previewState.open && (
           <div style={{ flex: 7, minWidth: 0 }}>
             <AppPreview
-              previewUrl={`/preview/${agentId}/`}
+              previewUrl={previewState.previewBasePath || `/preview/${agentId}/`}
               logs={consoleLogs}
               onClearLogs={onClearLogs}
               onClose={onClosePreview}

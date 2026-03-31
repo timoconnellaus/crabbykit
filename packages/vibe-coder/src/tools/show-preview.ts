@@ -37,7 +37,7 @@ export function createShowPreviewTool(
       }
 
       // Broadcast preview_open event to connected clients
-      context.broadcast("preview_open", { port });
+      context.broadcast("preview_open", { port, previewBasePath });
 
       return {
         content: [

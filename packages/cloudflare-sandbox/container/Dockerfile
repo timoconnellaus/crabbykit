@@ -29,7 +29,8 @@ ENV BUN_INSTALL="/opt/sandbox/persist/bun" \
     PIP_TARGET="/opt/sandbox/persist/pip" \
     CARGO_HOME="/opt/sandbox/persist/cargo" \
     GOPATH="/opt/sandbox/persist/go" \
-    GEM_HOME="/opt/sandbox/persist/gems"
+    GEM_HOME="/opt/sandbox/persist/gems" \
+    NODE_PATH="/opt/sandbox/persist/npm/lib/node_modules"
 
 # Add persist volume bin paths (appended, not prepended, to avoid shadowing system binaries)
 ENV PATH="$PATH:/opt/sandbox/persist/bun/bin:/opt/sandbox/persist/npm/bin:/opt/sandbox/persist/pnpm"
@@ -48,9 +49,11 @@ RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
 RUN cd /app && npm install node-pty && \
     apk del gcc musl-dev linux-headers python3 make g++
 
-# Install @claw-for-cloudflare/vite-plugin globally so vibe-coded apps can use it
-COPY claw-vite-plugin/ /opt/sandbox/claw-vite-plugin/
-RUN npm install -g /opt/sandbox/claw-vite-plugin
+# Install @claw-for-cloudflare/vite-plugin so vibe-coded apps can import it.
+# Placed at /node_modules/ (root) so ESM resolution finds it from any project path.
+COPY claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
+RUN mkdir -p /node_modules/@claw-for-cloudflare && \
+    ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
 
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/

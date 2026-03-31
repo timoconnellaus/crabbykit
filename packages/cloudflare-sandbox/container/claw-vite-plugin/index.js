@@ -2,13 +2,8 @@
  * @claw-for-cloudflare/vite-plugin
  *
  * Configures Vite for the CLAW sandbox preview proxy.
- * Injects <base> tag and console capture script.
+ * Sets Vite's `base` to the preview path and injects a console capture script.
  * Outside the sandbox (no AGENT_ID), this is a no-op.
- *
- * Important: We do NOT set Vite's `base` config because the container proxy
- * strips the preview prefix before forwarding to Vite. Vite must serve from
- * "/" (its default). Instead we inject a <base href> tag so the browser
- * resolves relative URLs through the preview path.
  */
 
 const CONSOLE_CAPTURE_SCRIPT = `(function(){
@@ -50,6 +45,7 @@ export function clawForCloudflare(options) {
       const port = options?.port ?? (Number(process.env.CLAW_PREVIEW_PORT) || 3000);
 
       return {
+        base: resolvedBase,
         server: {
           host: true,
           port,
@@ -68,23 +64,15 @@ export function clawForCloudflare(options) {
     transformIndexHtml() {
       if (!active) return [];
 
-      const tags = [
-        {
-          tag: "base",
-          attrs: { href: resolvedBase },
-          injectTo: "head-prepend",
-        },
-      ];
+      if (options?.consoleCapture === false) return [];
 
-      if (options?.consoleCapture !== false) {
-        tags.push({
+      return [
+        {
           tag: "script",
           children: CONSOLE_CAPTURE_SCRIPT,
           injectTo: "head-prepend",
-        });
-      }
-
-      return tags;
+        },
+      ];
     },
   };
 }

@@ -25,14 +25,13 @@ export interface ClawPluginOptions {
 /**
  * Vite plugin for CLAW for Cloudflare.
  *
- * Configures Vite's server settings for the sandbox preview proxy and injects
- * a `<base>` tag + console capture script so the browser resolves assets
- * through the preview proxy path.
+ * Configures Vite's `base` and server settings for the sandbox preview proxy,
+ * and injects a console capture script for the agent to read browser logs.
  *
- * Important: We do NOT set Vite's `base` config because the container proxy
- * strips the preview prefix before forwarding to Vite. Vite must serve from
- * `/` (its default). Instead we inject a `<base href>` tag so the browser
- * resolves relative URLs through the preview path.
+ * Setting `base` to the preview path (e.g., `/preview/<agentId>/`) ensures Vite
+ * emits prefixed absolute paths in transformed JS/HTML. The preview proxy
+ * forwards the full path (including prefix) to Vite, which strips the base
+ * on incoming requests and serves files from `/`.
  *
  * Outside the sandbox (no AGENT_ID env var), the plugin is a no-op —
  * local development works unchanged.
@@ -60,10 +59,8 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
 
       const port = options?.port ?? (Number(process.env.CLAW_PREVIEW_PORT) || 3000);
 
-      // Don't set `base` — Vite must serve from "/" since the container proxy
-      // strips the preview prefix. The <base> tag injected via transformIndexHtml
-      // handles browser-side URL resolution.
       return {
+        base: resolvedBase,
         server: {
           host: true,
           port,
@@ -82,25 +79,15 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
     transformIndexHtml() {
       if (!active) return [];
 
-      const tags: HtmlTagDescriptor[] = [
-        // Inject <base> tag so browser resolves all relative URLs through the
-        // preview proxy path (e.g., /preview/{agentId}/src/main.tsx)
-        {
-          tag: "base",
-          attrs: { href: resolvedBase },
-          injectTo: "head-prepend",
-        },
-      ];
+      if (options?.consoleCapture === false) return [];
 
-      if (options?.consoleCapture !== false) {
-        tags.push({
+      return [
+        {
           tag: "script",
           children: CONSOLE_CAPTURE_SCRIPT,
           injectTo: "head-prepend",
-        });
-      }
-
-      return tags;
+        },
+      ];
     },
   };
 }

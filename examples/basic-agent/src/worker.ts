@@ -15,6 +15,7 @@ import {
   defineTool,
   resolveCapabilities,
   Type,
+  Value,
 } from "@claw-for-cloudflare/agent-runtime";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
@@ -221,15 +222,15 @@ export class BasicAgent extends AgentDO<Env> {
       body.sessionId ?? this.sessionStore.list()[0]?.id ?? this.sessionStore.create().id;
 
     // Build a minimal AgentContext for tool resolution
-    const notAvailable = () => Promise.reject(new Error("Not available in debug mode"));
+    const noopAsync = () => Promise.resolve();
     const noopSchedules: ScheduleManager = {
-      create: notAvailable,
-      update: notAvailable,
-      delete: notAvailable,
+      create: noopAsync,
+      update: noopAsync,
+      delete: noopAsync,
       list: () => [],
       get: () => null,
-      setTimer: notAvailable,
-      cancelTimer: notAvailable,
+      setTimer: noopAsync,
+      cancelTimer: noopAsync,
     };
     const context: AgentContext = {
       sessionId,
@@ -265,6 +266,22 @@ export class BasicAgent extends AgentDO<Env> {
     if (!tool) {
       const available = allTools.map((t) => t.name);
       return Response.json({ error: `Tool "${toolName}" not found`, available }, { status: 404 });
+    }
+
+    // Validate args against the tool's TypeBox schema
+    if (tool.parameters) {
+      const errors = [...Value.Errors(tool.parameters, args)];
+      if (errors.length > 0) {
+        const issues = errors.map((e) => `${e.path || "/"}: ${e.message}`);
+        return Response.json(
+          {
+            error: "Invalid tool arguments",
+            issues,
+            schema: tool.parameters,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const toolCallId = crypto.randomUUID();
@@ -357,15 +374,21 @@ export default {
       return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
     }
 
-    // /preview/:agentId[/...] — proxy to sandbox container for dev server preview
+    // /preview/:id[/...] — proxy to sandbox container for dev server preview
+    // The ID in the URL may be a registry UUID (from the frontend iframe) or an
+    // agent DO hex ID (from Vite-emitted absolute paths using the base config).
+    // We normalize to the agent DO hex ID so the path matches Vite's `base`.
     const previewMatch = url.pathname.match(/^\/preview\/([^/]+)(\/.*)?$/);
     if (previewMatch) {
-      const id = env.SANDBOX_CONTAINER.idFromName("default");
-      const stub = env.SANDBOX_CONTAINER.get(id);
-      // Use http://container as the base URL — this is the internal hostname
-      // that the Container DO class recognizes for proxying to the container.
+      const rawId = previewMatch[1];
+      // If it looks like a UUID (has dashes), resolve to DO hex ID; otherwise pass through
+      const agentDoId = rawId.includes("-")
+        ? env.AGENT.idFromName(rawId).toString()
+        : rawId;
+      const containerId = env.SANDBOX_CONTAINER.idFromName("default");
+      const stub = env.SANDBOX_CONTAINER.get(containerId);
       const subPath = previewMatch[2] || "/";
-      const containerUrl = `http://container${subPath}${url.search}`;
+      const containerUrl = `http://container/preview/${agentDoId}${subPath}${url.search}`;
       return stub.fetch(new Request(containerUrl, request));
     }
 

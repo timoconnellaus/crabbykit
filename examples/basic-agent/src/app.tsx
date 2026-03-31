@@ -19,7 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("chat");
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
-  const [previewState, setPreviewState] = useState<{ open: boolean; port?: number }>({
+  const [previewState, setPreviewState] = useState<{ open: boolean; port?: number; previewBasePath?: string }>({
     open: false,
   });
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([]);
@@ -66,6 +66,10 @@ export default function App() {
   const onCustomEvent = useCallback((name: string, data: Record<string, unknown>) => {
     if (name === "sandbox_elevation") {
       setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
+      // Close preview when sandbox de-elevates — the container is going down
+      if (!data.elevated) {
+        setPreviewState({ open: false });
+      }
     }
     if (name === "sandbox_timeout") {
       setSandboxState((prev) => ({
@@ -75,7 +79,7 @@ export default function App() {
       }));
     }
     if (name === "preview_open") {
-      setPreviewState({ open: true, port: data.port as number });
+      setPreviewState({ open: true, port: data.port as number, previewBasePath: data.previewBasePath as string | undefined });
       setConsoleLogs([]);
     }
     if (name === "preview_close") {
