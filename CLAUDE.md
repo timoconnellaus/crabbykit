@@ -78,49 +78,64 @@ cd examples/basic-agent && bun dev              # Dev server
 
 ## Debugging the Example App
 
-The basic-agent example (`examples/basic-agent`) includes a debug/inspection API for observing agent behavior and simulating tool calls without LLM inference. Start the dev server with `cd examples/basic-agent && bun dev`.
+The basic-agent example (`examples/basic-agent`) includes a debug/inspection API and an interactive CLI for observing agent behavior and simulating tool calls without LLM inference. Start the dev server with `cd examples/basic-agent && bun dev`.
 
-### Debug Endpoints
+### Debug CLI (`claw`)
 
-All endpoints are under `/agent/:agentId/debug/...`. Get the agent ID from `GET /agents`.
+The `claw` CLI is an interactive REPL for the debug API. Set it up once:
 
-**Inspection:**
 ```bash
-# List all sessions
-curl http://localhost:5173/agent/$AGENT_ID/debug/sessions
-
-# Get paginated messages for a session
-curl "http://localhost:5173/agent/$AGENT_ID/debug/messages?sessionId=$SID&limit=10"
-
-# Send a prompt (runs LLM inference, waits for completion)
-curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/prompt \
-  -H 'Content-Type: application/json' \
-  -d '{"text": "hello", "sessionName": "my-test"}'
+cd examples/basic-agent && bun link   # Registers the `claw` command globally
 ```
 
-**Tool simulation** — executes a tool and persists it to the session as if the AI called it:
-```bash
-# Execute any tool by name (returns available tools on 404)
-curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/execute-tool \
-  -H 'Content-Type: application/json' \
-  -d '{"sessionId": "...", "toolName": "elevate", "args": {"reason": "testing"}}'
+Then with the dev server running, use it from any terminal:
 
-# Discover available tools
-curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/execute-tool \
-  -H 'Content-Type: application/json' \
-  -d '{"toolName": "nonexistent", "args": {}}'
+```bash
+claw                        # Connect to localhost:5173 (default)
+claw --url=http://host:port # Connect to a custom server
 ```
 
-**Broadcast custom events to all connected WebSocket clients:**
-```bash
-curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/broadcast \
-  -H 'Content-Type: application/json' \
-  -d '{"event": "test", "data": {"hello": "world"}}'
+**Commands:**
 ```
+agents                    List agents (auto-selects if only one)
+use <id>                  Set active agent
+sessions                  List sessions
+session <id>              Set active session
+messages [limit]          Show messages (default: 20)
+prompt <text>             Send a prompt (alias: p)
+tools                     List available tools
+tool <name> [json-args]   Execute a tool (alias: t)
+broadcast <event> [json]  Broadcast a custom event (alias: bc)
+status                    Show current agent/session/server
+```
+
+**Example session:**
+```
+claw> sessions
+claw> session Oq_mDM-g1pXuoB-Qjp3FL
+claw> messages
+claw> prompt what time is it?
+claw> messages
+claw> tool get_current_time
+claw> tools
+```
+
+The CLI auto-discovers agents on startup, tracks the active session across commands, and filters out thinking blocks from message output.
+
+### Debug HTTP API
+
+The CLI wraps these HTTP endpoints, which can also be called directly. All endpoints are under `/agent/:agentId/debug/...`. Get the agent ID from `GET /agents`.
+
+- `GET /debug/sessions` — List all sessions
+- `GET /debug/messages?sessionId=...&limit=50&afterSeq=...` — Paginated message history
+- `POST /debug/prompt` — Send a prompt (`{"text": "...", "sessionId": "..."}`)
+- `POST /debug/execute-tool` — Execute a tool (`{"toolName": "...", "args": {...}, "sessionId": "..."}`)
+- `POST /debug/broadcast` — Broadcast event (`{"event": "...", "data": {...}}`)
 
 ### Implementation
 
-The debug API is implemented in two parts, both in the example app (not the runtime):
+The debug system has three parts, all in the example app (not the runtime):
+- `examples/basic-agent/cli/index.ts` — Interactive REPL CLI wrapping the debug HTTP API
 - `examples/basic-agent/src/debug-capability.ts` — Capability with HTTP handlers for inspection endpoints (sessions, messages, prompt, broadcast)
 - `examples/basic-agent/src/worker.ts` — `BasicAgent.fetch()` override for `/debug/execute-tool`, which needs access to protected AgentDO members for tool resolution and session entry persistence
 

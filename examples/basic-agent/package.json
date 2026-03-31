@@ -2,6 +2,9 @@
   "name": "example-basic-agent",
   "private": true,
   "type": "module",
+  "bin": {
+    "claw": "./cli/index.ts"
+  },
   "dependencies": {
     "@cloudflare/containers": "^0.1.0",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",

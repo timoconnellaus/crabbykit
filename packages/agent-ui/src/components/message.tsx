@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
 import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client";
-import { type ComponentPropsWithoutRef, useMemo } from "react";
+import type { ComponentPropsWithoutRef } from "react";
+import { MarkdownContent } from "./markdown-content";
 import type { ToolResultInfo } from "./message-list";
 
 /** Format a timestamp as a relative time string (e.g., "2m ago", "1h ago"). */
@@ -139,54 +140,6 @@ function getToolCalls(message: StreamableMessage): Array<{
   );
 }
 
-/** Lightweight markdown → HTML for assistant messages. No external deps. */
-function renderMarkdown(text: string): string {
-  let html = text
-    // Escape HTML
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // Code blocks (``` ... ```)
-  html = html.replace(
-    /```(\w*)\n([\s\S]*?)```/g,
-    (_m, _lang, code) => `<pre><code>${code.trimEnd()}</code></pre>`,
-  );
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-  // Headings (### ... )
-  html = html.replace(/^### (.+)$/gm, "<strong>$1</strong>");
-  html = html.replace(/^## (.+)$/gm, "<strong>$1</strong>");
-  html = html.replace(/^# (.+)$/gm, "<strong>$1</strong>");
-
-  // Bold + italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  // Links [text](url)
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
-  );
-
-  // Unordered lists (- item)
-  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
-  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-  // Collapse adjacent </ul><ul>
-  html = html.replace(/<\/ul>\s*<ul>/g, "");
-
-  // Ordered lists (1. item)
-  html = html.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
-
-  // Line breaks (double newline → paragraph break, single → <br>)
-  html = html.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>");
-
-  return `<p>${html}</p>`.replace(/<p><\/p>/g, "");
-}
-
 /** Check if a message is an A2A system note (task result injected by callback handler). */
 function isA2ASystemNote(role: string, text: string): boolean {
   return role === "user" && text.startsWith("[A2A Task");
@@ -215,10 +168,7 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const timestamp = "timestamp" in message ? (message.timestamp as number) : undefined;
 
   const toolResultName = "toolName" in message ? (message.toolName as string) : "";
-  const renderedHtml = useMemo(
-    () => (role === "assistant" && text && !isCommandResult ? renderMarkdown(text) : null),
-    [role, text, isCommandResult],
-  );
+  const useMarkdown = role === "assistant" && text && !isCommandResult;
 
   // A2A task results render as system notes, not user bubbles
   if (isA2ASystemNote(role, text)) {
@@ -269,13 +219,8 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
 
       {text &&
         role !== "toolResult" &&
-        (renderedHtml ? (
-          <div
-            data-agent-ui="message-content"
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: Markdown rendered from agent text content, not user input
-            // biome-ignore lint/style/useNamingConvention: React API requires __html key
-            dangerouslySetInnerHTML={{ __html: renderedHtml }}
-          />
+        (useMarkdown ? (
+          <MarkdownContent content={text} />
         ) : (
           <div data-agent-ui="message-content">{text}</div>
         ))}
