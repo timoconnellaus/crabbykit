@@ -4,3 +4,4 @@ coverage
 .wrangler
 *.tsbuildinfo
 .dev.vars
+.claude/worktrees
