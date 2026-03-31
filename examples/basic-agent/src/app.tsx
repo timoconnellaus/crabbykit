@@ -1,5 +1,6 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
-import type { ConsoleLogEntry, SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
+import type { SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
+import { usePreview } from "@claw-for-cloudflare/agent-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentRecord } from "./components/agent-rail";
 import { AgentRail } from "./components/agent-rail";
@@ -19,13 +20,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("chat");
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
-  const [previewState, setPreviewState] = useState<{ open: boolean; port?: number; previewBasePath?: string }>({
-    open: false,
-  });
-  const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([]);
-  const [logFilter, setLogFilter] = useState<"all" | "error" | "warn" | "info" | "log">("all");
 
-  const MAX_CONSOLE_LOGS = 1000;
+  const preview = usePreview();
 
   // Reset tab when switching agents
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedAgentId is the intentional trigger
@@ -63,93 +59,66 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchAgents, selectedAgentId]);
 
-  const onCustomEvent = useCallback((name: string, data: Record<string, unknown>) => {
-    if (name === "sandbox_elevation") {
-      setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
-      // Close preview when sandbox de-elevates — the container is going down
-      if (!data.elevated) {
-        setPreviewState({ open: false });
-      }
-    }
-    if (name === "sandbox_timeout") {
-      setSandboxState((prev) => ({
-        ...prev,
-        expiresAt: data.expiresAt as number,
-        timeoutSeconds: data.timeoutSeconds as number,
-      }));
-    }
-    if (name === "preview_open") {
-      setPreviewState({ open: true, port: data.port as number, previewBasePath: data.previewBasePath as string | undefined });
-      setConsoleLogs([]);
-    }
-    if (name === "preview_close") {
-      setPreviewState({ open: false });
-    }
-    if (name === "a2a_active_tasks") {
-      setPendingTasks(data.tasks as PendingA2ATask[]);
-    }
-    if (name === "a2a_task_update") {
-      const state = data.state as string;
-      const taskId = data.taskId as string;
-      if (state === "completed" || state === "failed" || state === "canceled") {
-        setPendingTasks((prev) => prev.filter((t) => t.taskId !== taskId));
-      } else {
-        setPendingTasks((prev) => {
-          const exists = prev.find((t) => t.taskId === taskId);
-          if (exists) {
-            return prev.map((t) => (t.taskId === taskId ? { ...t, state } : t));
-          }
-          return [
-            ...prev,
-            {
-              taskId,
-              targetAgent: data.targetAgent as string,
-              targetAgentName: data.targetAgentName as string,
-              state,
-              originalRequest: data.originalRequest as string,
-            },
-          ];
-        });
-      }
-    }
-  }, []);
+  const onCustomEvent = useCallback(
+    (name: string, data: Record<string, unknown>) => {
+      // Let the preview hook handle preview events first
+      if (preview.handleCustomEvent(name, data)) return;
 
-  // Ref for console logs so the onCustomRequest handler always reads latest
-  const consoleLogsRef = useRef(consoleLogs);
-  consoleLogsRef.current = consoleLogs;
+      if (name === "sandbox_elevation") {
+        setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
+        // Close preview when sandbox de-elevates -- the container is going down
+        if (!data.elevated) {
+          preview.closePreview();
+        }
+      }
+      if (name === "sandbox_timeout") {
+        setSandboxState((prev) => ({
+          ...prev,
+          expiresAt: data.expiresAt as number,
+          timeoutSeconds: data.timeoutSeconds as number,
+        }));
+      }
+      if (name === "a2a_active_tasks") {
+        setPendingTasks(data.tasks as PendingA2ATask[]);
+      }
+      if (name === "a2a_task_update") {
+        const state = data.state as string;
+        const taskId = data.taskId as string;
+        if (state === "completed" || state === "failed" || state === "canceled") {
+          setPendingTasks((prev) => prev.filter((t) => t.taskId !== taskId));
+        } else {
+          setPendingTasks((prev) => {
+            const exists = prev.find((t) => t.taskId === taskId);
+            if (exists) {
+              return prev.map((t) => (t.taskId === taskId ? { ...t, state } : t));
+            }
+            return [
+              ...prev,
+              {
+                taskId,
+                targetAgent: data.targetAgent as string,
+                targetAgentName: data.targetAgentName as string,
+                state,
+                originalRequest: data.originalRequest as string,
+              },
+            ];
+          });
+        }
+      }
+    },
+    [preview],
+  );
 
   const onCustomRequest = useCallback(
     (name: string, data: Record<string, unknown>): Record<string, unknown> => {
-      if (name === "get_console_logs") {
-        const level = data.level as string;
-        const logs = consoleLogsRef.current;
-        const filtered = level === "all" ? logs : logs.filter((l) => l.level === level);
-        return { logs: filtered };
-      }
+      const previewResponse = preview.handleCustomRequest(name, data);
+      if (previewResponse) return previewResponse;
+
       // biome-ignore lint/style/useNamingConvention: _error is a protocol convention for error responses
       return { _error: true, message: `Unknown request: ${name}` };
     },
-    [],
+    [preview],
   );
-
-  // Listen for console messages from the preview iframe
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === "claw:console") {
-        const entry: ConsoleLogEntry = {
-          level: event.data.level,
-          text: event.data.text,
-          ts: event.data.ts,
-        };
-        setConsoleLogs((prev) => {
-          const next = [...prev, entry];
-          return next.length > MAX_CONSOLE_LOGS ? next.slice(-MAX_CONSOLE_LOGS) : next;
-        });
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, []);
 
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const chat = useAgentChat({
@@ -159,9 +128,9 @@ export default function App() {
   });
 
   const handleClosePreview = useCallback(() => {
-    setPreviewState({ open: false });
+    preview.closePreview();
     chat.sendCommand("close_preview");
-  }, [chat]);
+  }, [preview, chat]);
 
   const handleCreateAgent = useCallback(async () => {
     const name = prompt("Agent name:");
@@ -188,18 +157,25 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
           <TabBar tabs={[...TABS]} activeTab={activeTab} onTabChange={setActiveTab} />
           {/* Chat stays mounted (hidden) to keep WebSocket alive */}
-          <div style={{ display: activeTab === "chat" ? "flex" : "none", flex: 1, minWidth: 0, overflow: "hidden" }}>
+          <div
+            style={{
+              display: activeTab === "chat" ? "flex" : "none",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+            }}
+          >
             <ChatView
               chat={chat}
               sandboxState={sandboxState}
               pendingTasks={pendingTasks}
-              previewState={previewState}
+              previewState={preview.previewState}
               agentId={selectedAgentId}
-              consoleLogs={consoleLogs}
-              onClearLogs={() => setConsoleLogs([])}
+              consoleLogs={preview.consoleLogs}
+              onClearLogs={preview.clearLogs}
               onClosePreview={handleClosePreview}
-              logFilter={logFilter}
-              onLogFilterChange={(f) => setLogFilter(f as "all" | "error" | "warn" | "info" | "log")}
+              logFilter={preview.logFilter}
+              onLogFilterChange={preview.setLogFilter}
             />
           </div>
           {activeTab === "schedules" && (

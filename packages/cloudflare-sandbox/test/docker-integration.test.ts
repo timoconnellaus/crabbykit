@@ -427,7 +427,8 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          command: "mkdir -p /mnt/r2/intercept-test/node_modules && grep -q /mnt/r2/intercept-test/node_modules /proc/mounts && echo mounted || echo not-mounted",
+          command:
+            "mkdir -p /mnt/r2/intercept-test/node_modules && grep -q /mnt/r2/intercept-test/node_modules /proc/mounts && echo mounted || echo not-mounted",
         }),
       })) as { stdout: string; exitCode: number };
 

@@ -8,6 +8,7 @@ vi.stubGlobal("fetch", mockFetch);
 
 function mockContext(): AgentContext {
   return {
+    agentId: "test-agent",
     sessionId: "test-session",
     stepNumber: 0,
     emitCost: vi.fn(),

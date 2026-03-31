@@ -13,6 +13,8 @@ import type { CapabilityStorage } from "./storage.js";
  * Context provided to capability lifecycle hooks.
  */
 export interface CapabilityHookContext {
+  /** The Durable Object ID of the agent (hex string). */
+  agentId: string;
   sessionId: string;
   sessionStore: SessionStore;
   /** Persistent key-value storage scoped to this capability. */

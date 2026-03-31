@@ -127,6 +127,8 @@ export interface ScheduleManager {
 const DEFAULT_CLIENT_REQUEST_TIMEOUT_MS = 5_000;
 
 export interface AgentContext {
+  /** The Durable Object ID of the agent (hex string). */
+  agentId: string;
   sessionId: string;
   stepNumber: number;
   /** Emit a cost event. Persisted to session and broadcast to clients. */
@@ -1030,6 +1032,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       resolveCapabilities(
         this.getCapabilities(),
         {
+          agentId: this.ctx.id.toString(),
           sessionId,
           stepNumber: 0,
           emitCost: () => {},
@@ -1157,6 +1160,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const { piAgent, getModel } = await loadPiSdk();
     const config = this.getConfig();
     const context: AgentContext = {
+      agentId: this.ctx.id.toString(),
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
@@ -1200,6 +1204,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     );
     const consumerNamespaces = this.getConfigNamespaces();
     const configContext = {
+      agentId: this.ctx.id.toString(),
       sessionId,
       sessionStore: this.sessionStore,
       configStore: this.configStore,
@@ -1257,6 +1262,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - beforeToolCall context type unavailable
       agent.setBeforeToolCall(async (btcContext: any) => {
         const hookContext: CapabilityHookContext = {
+          agentId: this.ctx.id.toString(),
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
@@ -1285,6 +1291,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - afterToolCall context type unavailable
       agent.setAfterToolCall(async (atcContext: any) => {
         const hookContext: CapabilityHookContext = {
+          agentId: this.ctx.id.toString(),
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
@@ -1315,6 +1322,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     let result = messages;
 
     const hookContext: CapabilityHookContext = {
+      agentId: this.ctx.id.toString(),
       sessionId,
       sessionStore: this.sessionStore,
       storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
@@ -1335,6 +1343,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       resolveCapabilities(
         this.getCapabilities(),
         {
+          agentId: this.ctx.id.toString(),
           sessionId,
           stepNumber: 0,
           emitCost: () => {},
@@ -1362,6 +1371,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     for (const hook of resolved.onConnectHooks) {
       try {
         const hookContext: CapabilityHookContext = {
+          agentId: this.ctx.id.toString(),
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
@@ -1624,6 +1634,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       resolveCapabilities(
         this.getCapabilities(),
         {
+          agentId: this.ctx.id.toString(),
           sessionId: "",
           stepNumber: 0,
           emitCost: () => {},
@@ -1738,6 +1749,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     const capabilities = this.getCapabilities();
     const baseContext: AgentContext = {
+      agentId: this.ctx.id.toString(),
       sessionId: "",
       stepNumber: 0,
       emitCost: () => {},

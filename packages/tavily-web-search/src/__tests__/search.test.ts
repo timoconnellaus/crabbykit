@@ -21,6 +21,7 @@ function jsonResponse(data: unknown, status = 200) {
 
 function mockContext(): AgentContext {
   return {
+    agentId: "test-agent",
     sessionId: "test-session",
     stepNumber: 0,
     emitCost: vi.fn(),

@@ -64,7 +64,9 @@ export function ChatView({
               onClearLogs={onClearLogs}
               onClose={onClosePreview}
               logFilter={logFilter}
-              onLogFilterChange={onLogFilterChange}
+              onLogFilterChange={(f) =>
+                onLogFilterChange(f as "all" | "error" | "warn" | "info" | "log")
+              }
             />
           </div>
         )}

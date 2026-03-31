@@ -789,7 +789,9 @@ async function executeWithCheckpoints(
   if (threshold <= 0) {
     return executePreparedToolCall(prepared, signal, emit);
   }
-  console.log(`[steerable] executing "${prepared.toolCall.name}" with checkpoint threshold ${threshold}ms`);
+  console.log(
+    `[steerable] executing "${prepared.toolCall.name}" with checkpoint threshold ${threshold}ms`,
+  );
 
   // Track partial output from onUpdate via an intercepting wrapper.
   // Use a mutable state object so TS control flow doesn't narrow the closure variable to `never`.
@@ -859,7 +861,9 @@ async function executeWithCheckpoints(
       ? extractTextFromToolResult(partialState.result)
       : null;
 
-    console.log(`[steerable] checkpoint #${checkpointCount} for "${prepared.toolCall.name}" after ${elapsed}s, hasOutput=${!!partialOutput}`);
+    console.log(
+      `[steerable] checkpoint #${checkpointCount} for "${prepared.toolCall.name}" after ${elapsed}s, hasOutput=${!!partialOutput}`,
+    );
 
     // Emit checkpoint event
     await emit({
@@ -933,7 +937,9 @@ async function executeWithCheckpoints(
 
     // Inference completed — parse the model's response
     const modelResponse = inferenceRaceResult.message;
-    console.log(`[steerable] model responded: stopReason=${modelResponse.stopReason}, content=${JSON.stringify(modelResponse.content.slice(0, 2))}`);
+    console.log(
+      `[steerable] model responded: stopReason=${modelResponse.stopReason}, content=${JSON.stringify(modelResponse.content.slice(0, 2))}`,
+    );
     const responseText = modelResponse.content
       .filter((c): c is { type: "text"; text: string } => c.type === "text")
       .map((c) => c.text)
@@ -970,7 +976,9 @@ async function executeWithCheckpoints(
 
   // Max checkpoints exceeded — abort the tool. If it hasn't finished after
   // MAX_CHECKPOINTS checks, it's almost certainly stuck (e.g., waiting for input).
-  console.log(`[steerable] max checkpoints (${MAX_CHECKPOINTS}) exceeded for "${prepared.toolCall.name}" — aborting`);
+  console.log(
+    `[steerable] max checkpoints (${MAX_CHECKPOINTS}) exceeded for "${prepared.toolCall.name}" — aborting`,
+  );
   toolAbort.abort();
   const finalResult = await toolPromise;
 
@@ -979,7 +987,12 @@ async function executeWithCheckpoints(
     result: {
       content: capturedPartial
         ? capturedPartial.content
-        : [{ type: "text" as const, text: "[Tool aborted — exceeded maximum checkpoint attempts with no completion]" }],
+        : [
+            {
+              type: "text" as const,
+              text: "[Tool aborted — exceeded maximum checkpoint attempts with no completion]",
+            },
+          ],
       details: capturedPartial?.details ?? {},
     },
     isError: true,

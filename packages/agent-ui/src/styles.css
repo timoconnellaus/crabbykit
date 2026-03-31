@@ -284,12 +284,20 @@
   font-weight: 600;
 }
 
-[data-agent-ui="message-content"] h1 { font-size: 1.4em; }
-[data-agent-ui="message-content"] h2 { font-size: 1.25em; }
-[data-agent-ui="message-content"] h3 { font-size: 1.1em; }
+[data-agent-ui="message-content"] h1 {
+  font-size: 1.4em;
+}
+[data-agent-ui="message-content"] h2 {
+  font-size: 1.25em;
+}
+[data-agent-ui="message-content"] h3 {
+  font-size: 1.1em;
+}
 [data-agent-ui="message-content"] h4,
 [data-agent-ui="message-content"] h5,
-[data-agent-ui="message-content"] h6 { font-size: 1em; }
+[data-agent-ui="message-content"] h6 {
+  font-size: 1em;
+}
 
 [data-agent-ui="message-content"] > :first-child {
   margin-top: 0;

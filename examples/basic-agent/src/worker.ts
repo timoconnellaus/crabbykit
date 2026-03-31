@@ -21,6 +21,7 @@ import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
   SandboxContainer,
+  handlePreviewRequest,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
@@ -94,7 +95,7 @@ export class BasicAgent extends AgentDO<Env> {
         provider: new CloudflareSandboxProvider({
           storage,
           getStub: () => {
-            const id = this.env.SANDBOX_CONTAINER.idFromName("default");
+            const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
             return this.env.SANDBOX_CONTAINER.get(id);
           },
           containerMode: "dev",
@@ -105,12 +106,11 @@ export class BasicAgent extends AgentDO<Env> {
         provider: new CloudflareSandboxProvider({
           storage,
           getStub: () => {
-            const id = this.env.SANDBOX_CONTAINER.idFromName("default");
+            const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
             return this.env.SANDBOX_CONTAINER.get(id);
           },
           containerMode: "dev",
         }),
-        previewBasePath: `/preview/${this.ctx.id.toString()}/`,
       }),
     ];
   }
@@ -222,17 +222,19 @@ export class BasicAgent extends AgentDO<Env> {
       body.sessionId ?? this.sessionStore.list()[0]?.id ?? this.sessionStore.create().id;
 
     // Build a minimal AgentContext for tool resolution
-    const noopAsync = () => Promise.resolve();
+    // biome-ignore lint/suspicious/noExplicitAny: Debug mock doesn't need real schedule returns
+    const noopAsync = () => Promise.resolve(null as any);
     const noopSchedules: ScheduleManager = {
       create: noopAsync,
       update: noopAsync,
-      delete: noopAsync,
+      delete: () => Promise.resolve(),
       list: () => [],
       get: () => null,
       setTimer: noopAsync,
       cancelTimer: noopAsync,
     };
     const context: AgentContext = {
+      agentId: this.ctx.id.toString(),
       sessionId,
       stepNumber: 0,
       emitCost: () => {},
@@ -375,22 +377,12 @@ export default {
     }
 
     // /preview/:id[/...] — proxy to sandbox container for dev server preview
-    // The ID in the URL may be a registry UUID (from the frontend iframe) or an
-    // agent DO hex ID (from Vite-emitted absolute paths using the base config).
-    // We normalize to the agent DO hex ID so the path matches Vite's `base`.
-    const previewMatch = url.pathname.match(/^\/preview\/([^/]+)(\/.*)?$/);
-    if (previewMatch) {
-      const rawId = previewMatch[1];
-      // If it looks like a UUID (has dashes), resolve to DO hex ID; otherwise pass through
-      const agentDoId = rawId.includes("-")
-        ? env.AGENT.idFromName(rawId).toString()
-        : rawId;
-      const containerId = env.SANDBOX_CONTAINER.idFromName("default");
-      const stub = env.SANDBOX_CONTAINER.get(containerId);
-      const subPath = previewMatch[2] || "/";
-      const containerUrl = `http://container/preview/${agentDoId}${subPath}${url.search}`;
-      return stub.fetch(new Request(containerUrl, request));
-    }
+    const previewRes = handlePreviewRequest({
+      request,
+      agentNamespace: env.AGENT,
+      containerNamespace: env.SANDBOX_CONTAINER,
+    });
+    if (previewRes) return previewRes;
 
     // /agent/:agentId[/...] — route to agent DO by ID
     const agentMatch = url.pathname.match(/^\/agent\/([^/]+)(\/.*)?$/);

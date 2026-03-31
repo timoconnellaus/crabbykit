@@ -2,6 +2,10 @@
 export type { AppPreviewProps, ConsoleLogEntry } from "./components/app-preview";
 export { AppPreview } from "./components/app-preview";
 
+// Hooks
+export type { UsePreviewReturn } from "./hooks/use-preview";
+export { usePreview } from "./hooks/use-preview";
+
 // Context
 
 export type { ChatInputProps } from "./components/chat-input";

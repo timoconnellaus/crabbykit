@@ -30,6 +30,7 @@ function mockProvider(): SandboxProvider {
 
 function mockContext(elevated = false): AgentContext {
   return {
+    agentId: "test-agent",
     sessionId: "s1",
     stepNumber: 0,
     emitCost: () => {},

@@ -530,6 +530,7 @@ export class TestAgentDO extends AgentDO {
   protected async ensureAgent(sessionId: string): Promise<void> {
     const sessionAgentsField = "sessionAgents" as any;
     const context: AgentContext = {
+      agentId: this.ctx.id.toString(),
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),

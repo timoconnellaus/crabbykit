@@ -93,6 +93,7 @@ describe("compactionSummary", () => {
     const messages = [userMsg("hello"), assistantMsg("hi")];
     const store = createMockSessionStore(messages);
     const ctx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: store as any,
       storage: createNoopStorage(),
@@ -123,6 +124,7 @@ describe("compactionSummary", () => {
     );
     const store = createMockSessionStore(messages);
     const ctx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: store as any,
       storage: createNoopStorage(),

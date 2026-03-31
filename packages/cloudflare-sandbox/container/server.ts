@@ -25,7 +25,9 @@ const SYNC_SOCKET = "/var/run/sync.sock";
 const LOG_DIR = "/tmp/sandbox-logs";
 const MAX_OUTPUT_CHARS = 204_800; // 200KB in-memory cap
 const SESSION_GC_DELAY = 5 * 60_000; // 5 minutes after exit
-const POLL_BACKOFF_SCHEDULE = [5000, 5000, 5000, 10_000, 10_000, 10_000, 30_000, 30_000, 30_000, 60_000];
+const POLL_BACKOFF_SCHEDULE = [
+  5000, 5000, 5000, 10_000, 10_000, 10_000, 30_000, 30_000, 30_000, 60_000,
+];
 
 const SENSITIVE_KEYS = [
   "AWS_ACCESS_KEY_ID",

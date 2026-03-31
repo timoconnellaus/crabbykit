@@ -12,6 +12,8 @@ import type { ConfigNamespace } from "./config-namespace.js";
  * Provides access to all stores and metadata needed by config_get/set/schema.
  */
 export interface ConfigContext {
+  /** The Durable Object ID of the agent (hex string). */
+  agentId: string;
   /** Current session ID. */
   sessionId: string;
   /** Session store for rename operations. */

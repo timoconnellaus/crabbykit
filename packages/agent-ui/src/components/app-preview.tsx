@@ -53,7 +53,12 @@ export function AppPreview({
       <div data-agent-ui="app-preview-iframe-container">
         {!loaded && <div data-agent-ui="app-preview-loading">Loading preview...</div>}
         {onClose && (
-          <button type="button" data-agent-ui="app-preview-close-btn" onClick={onClose} title="Close preview">
+          <button
+            type="button"
+            data-agent-ui="app-preview-close-btn"
+            onClick={onClose}
+            title="Close preview"
+          >
             ✕
           </button>
         )}

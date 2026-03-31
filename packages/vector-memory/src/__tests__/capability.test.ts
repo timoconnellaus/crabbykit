@@ -40,6 +40,7 @@ describe("vectorMemory", () => {
     });
 
     const context = {
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
@@ -62,6 +63,7 @@ describe("vectorMemory", () => {
     });
 
     const context = {
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},

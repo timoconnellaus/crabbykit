@@ -18,6 +18,7 @@ const mockSchedules = {
 };
 
 const ctx: AgentContext = {
+  agentId: "test-agent",
   sessionId: "s1",
   stepNumber: 0,
   emitCost: () => {},
@@ -104,6 +105,7 @@ describe("resolveCapabilities", () => {
     // Hook is wrapped — verify it delegates correctly
     const msgs = [{ role: "user", content: "hello" }] as any[];
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
@@ -150,6 +152,7 @@ describe("resolveCapabilities", () => {
 
     // Execute both hooks and verify order
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
@@ -275,6 +278,7 @@ describe("resolveCapabilities", () => {
     const result = resolveCapabilities([cap1, cap2], ctx, factory);
 
     const baseHookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(), // This should be overridden per hook
@@ -301,6 +305,7 @@ describe("resolveCapabilities", () => {
     const result = resolveCapabilities([cap], ctx); // No factory
 
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
@@ -390,6 +395,7 @@ describe("resolveCapabilities", () => {
       isError: false,
     };
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
@@ -422,6 +428,7 @@ describe("resolveCapabilities", () => {
 
     const event: ToolExecutionEvent = { toolName: "test", args: {}, isError: false };
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
@@ -448,6 +455,7 @@ describe("resolveCapabilities", () => {
 
     const event: ToolExecutionEvent = { toolName: "test", args: {}, isError: false };
     const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),

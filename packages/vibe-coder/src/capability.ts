@@ -20,9 +20,10 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
     description: "Live app preview with console log capture for iterative web development.",
 
     tools: (context: AgentContext) => {
+      const basePath = options.previewBasePath ?? `/preview/${context.agentId}/`;
       // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
       const tools: any[] = [
-        createShowPreviewTool(options.provider, context, options.previewBasePath),
+        createShowPreviewTool(options.provider, context, basePath),
         createHidePreviewTool(options.provider, context),
         createGetConsoleLogsTool(context),
       ];
@@ -68,7 +69,7 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         '   import { clawForCloudflare } from "@claw-for-cloudflare/vite-plugin";\n' +
         "   export default defineConfig({ plugins: [react(), clawForCloudflare()] });\n" +
         "   This configures the preview proxy, HMR, and console capture automatically.\n" +
-        "3. Add scripts to package.json: \"dev\": \"vite\"\n" +
+        '3. Add scripts to package.json: "dev": "vite"\n' +
         "4. Start the dev server (via exec with background=true): npm run dev\n" +
         "5. Call show_preview with port 3000 (the plugin default)\n" +
         "6. The user will see the app in a live iframe\n\n" +
@@ -114,7 +115,8 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
           }
 
           if (options.provider.setDevPort) {
-            await options.provider.setDevPort(preview.port, options.previewBasePath);
+            const basePath = options.previewBasePath ?? `/preview/${ctx.agentId}/`;
+            await options.provider.setDevPort(preview.port, basePath);
           }
 
           ctx.broadcast?.("preview_open", { port: preview.port });

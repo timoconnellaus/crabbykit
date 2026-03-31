@@ -24,6 +24,7 @@ describe("r2Storage", () => {
     const cap = r2Storage({ storage: mockStorage() });
 
     const context = {
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
@@ -51,6 +52,7 @@ describe("r2Storage", () => {
     const cap = r2Storage({ storage: mockStorage() });
 
     const sections = cap.promptSections!({
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},

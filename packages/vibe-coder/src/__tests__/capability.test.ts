@@ -16,6 +16,7 @@ function mockProvider(): SandboxProvider {
 
 function mockContext(sessionId = "test-session"): AgentContext {
   return {
+    agentId: "test-agent",
     sessionId,
     stepNumber: 0,
     emitCost: () => {},
@@ -117,12 +118,15 @@ describe("vibeCoder", () => {
       const tools = cap.tools!(ctx);
       const showPreview = tools.find((t) => t.name === "show_preview")!;
       const result = await showPreview.execute({ port: 5173 }, { toolCallId: "tc1" });
-      expect(provider.setDevPort).toHaveBeenCalledWith(5173, undefined);
+      expect(provider.setDevPort).toHaveBeenCalledWith(5173, "/preview/test-agent/");
       expect(ctx.storage!.put).toHaveBeenCalledWith("preview", {
         port: 5173,
         sessionId: "session-abc",
       });
-      expect(ctx.broadcast).toHaveBeenCalledWith("preview_open", { port: 5173 });
+      expect(ctx.broadcast).toHaveBeenCalledWith("preview_open", {
+        port: 5173,
+        previewBasePath: "/preview/test-agent/",
+      });
       const text = (result.content[0] as { text: string }).text;
       expect(text).toContain("Preview opened");
     });
@@ -228,6 +232,7 @@ describe("vibeCoder", () => {
     it("broadcasts preview_close when no preview stored", async () => {
       const cap = vibeCoder({ provider: mockProvider() });
       const hookCtx = {
+        agentId: "test-agent",
         sessionId: "test",
         sessionStore: {} as any,
         storage: {
@@ -246,6 +251,7 @@ describe("vibeCoder", () => {
       const provider = mockProvider();
       const cap = vibeCoder({ provider });
       const hookCtx = {
+        agentId: "test-agent",
         sessionId: "session-abc",
         sessionStore: {} as any,
         storage: {
@@ -257,7 +263,7 @@ describe("vibeCoder", () => {
         broadcast: vi.fn(),
       };
       await cap.hooks!.onConnect!(hookCtx);
-      expect(provider.setDevPort).toHaveBeenCalledWith(5173, undefined);
+      expect(provider.setDevPort).toHaveBeenCalledWith(5173, "/preview/test-agent/");
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_open", { port: 5173 });
     });
 
@@ -265,6 +271,7 @@ describe("vibeCoder", () => {
       const provider = mockProvider();
       const cap = vibeCoder({ provider });
       const hookCtx = {
+        agentId: "test-agent",
         sessionId: "session-xyz",
         sessionStore: {} as any,
         storage: {
@@ -290,6 +297,7 @@ describe("vibeCoder", () => {
       );
       const cap = vibeCoder({ provider });
       const hookCtx = {
+        agentId: "test-agent",
         sessionId: "session-abc",
         sessionStore: {} as any,
         storage: {

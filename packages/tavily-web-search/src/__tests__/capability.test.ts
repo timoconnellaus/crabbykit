@@ -20,6 +20,7 @@ describe("tavilyWebSearch", () => {
     });
 
     const context = {
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
@@ -41,6 +42,7 @@ describe("tavilyWebSearch", () => {
     });
 
     const context = {
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
@@ -61,6 +63,7 @@ describe("tavilyWebSearch", () => {
     });
 
     const tools = cap.tools!({
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},
@@ -82,6 +85,7 @@ describe("tavilyWebSearch", () => {
 
     expect(cap.id).toBe("tavily-web-search");
     const tools = cap.tools!({
+      agentId: "test-agent",
       sessionId: "s1",
       stepNumber: 0,
       emitCost: () => {},

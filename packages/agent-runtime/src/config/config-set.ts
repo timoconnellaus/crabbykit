@@ -80,6 +80,7 @@ export function createConfigSet(ctx: ConfigContext) {
             cap.configDefault ??
             {};
           const hookContext: CapabilityHookContext = {
+            agentId: ctx.agentId,
             sessionId: ctx.sessionId,
             sessionStore: ctx.sessionStore,
             storage: {
