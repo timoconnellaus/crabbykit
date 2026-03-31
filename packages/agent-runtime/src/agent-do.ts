@@ -176,6 +176,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
+  /** Maps timer IDs to their owning capability ID (set during syncCapabilitySchedules). */
+  private timerOwners = new Map<string, string>();
   /** Cached resolved capabilities — populated in ensureAgent, cleared on agent_end. */
   private resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
   /** A2A task store — always initialized alongside SessionStore. */
@@ -327,7 +329,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       update: (id, updates) => this.updateSchedule(id, updates),
       delete: (id) => this.deleteSchedule(id),
       list: () => this.listSchedules(),
-      get: (id) => this.scheduleStore.get(id),
+      get: (id) => {
+        const s = this.scheduleStore.get(id);
+        return s && s.ownerId !== null ? null : s;
+      },
       setTimer: (id, delaySeconds, callback) => this.setTimer(id, delaySeconds, callback),
       cancelTimer: (id) => this.cancelTimer(id),
     };
@@ -358,6 +363,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       cron: AgentDO.TIMER_DUMMY_CRON,
       handlerType: "timer",
       nextFireAt: firesAt.toISOString(),
+      ownerId: this.timerOwners.get(id),
     });
     this.scheduleCallbacks.set(id, resolved);
     await this.refreshAlarm();
@@ -411,6 +417,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       retention: number;
     }>,
   ): Promise<Schedule | null> {
+    // Reject updates to internal (capability-owned) schedules
+    const guard = this.scheduleStore.get(id);
+    if (guard?.ownerId !== undefined && guard.ownerId !== null) return null;
+
     let nextFireAt: string | undefined;
     if (updates.cron || updates.timezone !== undefined) {
       const existing = this.scheduleStore.get(id);
@@ -428,14 +438,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   /** Delete a schedule. Refreshes the alarm. */
   protected async deleteSchedule(id: string): Promise<void> {
+    // Reject deletion of internal (capability-owned) schedules
+    const guard = this.scheduleStore.get(id);
+    if (guard?.ownerId !== undefined && guard.ownerId !== null) return;
+
     this.scheduleStore.delete(id);
     this.scheduleCallbacks.delete(id);
     await this.refreshAlarm();
   }
 
-  /** List all schedules. */
+  /** List user-facing schedules (excludes internal capability-owned schedules). */
   protected listSchedules(): Schedule[] {
-    return this.scheduleStore.list();
+    return this.scheduleStore.list().filter((s) => s.ownerId === null);
   }
 
   // --- WebSocket transport ---
@@ -511,7 +525,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const scheduleId = scheduleMatch[1];
       if (request.method === "GET") {
         const schedule = this.scheduleStore.get(scheduleId);
-        if (!schedule) {
+        if (!schedule || schedule.ownerId !== null) {
           return new Response(JSON.stringify({ error: "Schedule not found" }), {
             status: 404,
             headers: { "content-type": "application/json" },
@@ -1672,6 +1686,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       // Timer configs: only re-register the callback if the timer still exists in DB.
       // Timers are created at runtime (via setTimer), not declared statically.
       if ("delaySeconds" in config) {
+        // Track ownership so setTimer() can tag the record as internal
+        this.timerOwners.set(config.id, ownerId);
         // Re-register callback for hibernation resilience
         if (existing && existing.handlerType === "timer") {
           this.scheduleCallbacks.set(config.id, config.callback);
@@ -2294,7 +2310,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   private broadcastScheduleList(): void {
-    const schedules = this.scheduleStore.list();
+    const schedules = this.scheduleStore.list().filter((s) => s.ownerId === null);
     const msg: ServerMessage = {
       type: "schedule_list",
       schedules: schedules.map((s) => ({

@@ -145,7 +145,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {showSep && <div data-agent-ui="turn-separator" />}
+                  {showSep && currRole !== "user" && <div data-agent-ui="turn-separator" />}
                   <Message message={displayMessages[idx]} toolResultMap={toolResultMap} />
                 </div>
               );
@@ -159,7 +159,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
             return (
               // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
               <Fragment key={i}>
-                {showSep && <div data-agent-ui="turn-separator" />}
+                {showSep && currRole !== "user" && <div data-agent-ui="turn-separator" />}
                 <Message message={msg} toolResultMap={toolResultMap} />
               </Fragment>
             );

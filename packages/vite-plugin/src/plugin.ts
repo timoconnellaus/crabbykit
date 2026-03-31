@@ -65,6 +65,13 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
           host: true,
           port,
           strictPort: true,
+          hmr: {
+            // The HMR WebSocket traverses a multi-layer proxy chain
+            // (outer Vite → wrangler worker → container DO → inner Vite).
+            // Connection can be slow to establish during container startup,
+            // so suppress the error overlay in the preview iframe.
+            overlay: false,
+          },
           watch: {
             // FUSE mounts (tigrisfs on /mnt/r2) don't support inotify.
             // Polling lets chokidar detect file changes for HMR.
