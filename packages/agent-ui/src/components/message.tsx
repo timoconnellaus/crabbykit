@@ -3,6 +3,7 @@ import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client
 import type { ComponentPropsWithoutRef } from "react";
 import { MarkdownContent } from "./markdown-content";
 import type { ToolResultInfo } from "./message-list";
+import { ToolCallEntry } from "./tool-call-entry";
 
 /** Format a timestamp as a relative time string (e.g., "2m ago", "1h ago"). */
 function formatRelativeTime(timestamp: number): string {
@@ -18,9 +19,10 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 /** AgentMessage with an optional streaming flag added during live updates. */
-// biome-ignore lint/style/useNamingConvention: _streaming/_thinking are conventions for internal transient state
 type StreamableMessage = AgentMessage & {
+  // biome-ignore lint/style/useNamingConvention: _streaming is a convention for internal transient state
   _streaming?: boolean;
+  // biome-ignore lint/style/useNamingConvention: _thinking is a convention for internal transient state
   _thinking?: string;
 } & Partial<CommandResultTag>;
 
@@ -28,6 +30,83 @@ export interface MessageProps extends ComponentPropsWithoutRef<"div"> {
   message: StreamableMessage;
   /** Map from toolCallId to result info. When provided, results render inline beneath tool calls. */
   toolResultMap?: Map<string, ToolResultInfo>;
+}
+
+// --- Content part types for ordered rendering ---
+
+type ContentPart =
+  | { kind: "text"; text: string }
+  | {
+      kind: "toolCall";
+      toolCallId: string;
+      toolName: string;
+      args?: unknown;
+    }
+  | {
+      kind: "image";
+      src: string;
+    };
+
+/** Extract content parts from a message in their original order, merging adjacent text parts. */
+function getContentParts(message: StreamableMessage): ContentPart[] {
+  const { content } = message as { content: unknown };
+  if (typeof content === "string") {
+    return content ? [{ kind: "text", text: content }] : [];
+  }
+  if (!Array.isArray(content)) return [];
+
+  const parts: ContentPart[] = [];
+  let pendingText = "";
+
+  for (const block of content) {
+    if (block == null || typeof block !== "object" || !("type" in block)) continue;
+
+    if (block.type === "text" && typeof block.text === "string") {
+      pendingText += block.text;
+    } else {
+      // Flush accumulated text before non-text parts
+      if (pendingText) {
+        parts.push({ kind: "text", text: pendingText });
+        pendingText = "";
+      }
+
+      if (block.type === "toolCall") {
+        const tc = block as {
+          toolCallId?: string;
+          id?: string;
+          toolName?: string;
+          name?: string;
+          args?: unknown;
+          arguments?: Record<string, unknown>;
+        };
+        parts.push({
+          kind: "toolCall",
+          toolCallId: (tc.toolCallId ?? tc.id) || "",
+          toolName: (tc.toolName ?? tc.name) || "",
+          args: tc.args ?? tc.arguments,
+        });
+      } else if (block.type === "image") {
+        const img = block as {
+          source?: { type: string; media_type?: string; data?: string };
+          url?: string;
+        };
+        const src =
+          img.source?.type === "base64" && img.source?.data
+            ? `data:${img.source.media_type ?? "image/png"};base64,${img.source.data}`
+            : (img.url ?? undefined);
+        if (src) {
+          parts.push({ kind: "image", src });
+        }
+      }
+    }
+  }
+
+  // Flush remaining text
+  if (pendingText) {
+    parts.push({ kind: "text", text: pendingText });
+  }
+
+  return parts;
 }
 
 /** Extract text content from an AgentMessage or content array. */
@@ -94,52 +173,6 @@ function cleanToolResultText(raw: string): string {
   return raw;
 }
 
-/** Extract image content blocks from a message. */
-function getImageBlocks(message: StreamableMessage): Array<{
-  type: "image";
-  source?: { type: string; media_type?: string; data?: string };
-  url?: string;
-}> {
-  const { content } = message as { content: unknown };
-  if (!Array.isArray(content)) return [];
-  return content.filter(
-    (
-      b,
-    ): b is {
-      type: "image";
-      source?: { type: string; media_type?: string; data?: string };
-      url?: string;
-    } => b != null && typeof b === "object" && "type" in b && b.type === "image",
-  );
-}
-
-/** Extract tool calls from an assistant message. */
-function getToolCalls(message: StreamableMessage): Array<{
-  type: "toolCall";
-  toolCallId?: string;
-  id?: string;
-  toolName?: string;
-  name?: string;
-  args?: unknown;
-  arguments?: Record<string, unknown>;
-}> {
-  const { content } = message as { content: unknown };
-  if (!Array.isArray(content)) return [];
-  return content.filter(
-    (
-      b,
-    ): b is {
-      type: "toolCall";
-      toolCallId?: string;
-      id?: string;
-      toolName?: string;
-      name?: string;
-      args?: unknown;
-      arguments?: Record<string, unknown>;
-    } => b != null && typeof b === "object" && "type" in b && b.type === "toolCall",
-  );
-}
-
 /** Check if a message is an A2A system note (task result injected by callback handler). */
 function isA2ASystemNote(role: string, text: string): boolean {
   return role === "user" && text.startsWith("[A2A Task");
@@ -152,7 +185,6 @@ function parseA2ANote(text: string): { status: "complete" | "failed" | "other"; 
     : text.startsWith("[A2A Task Failed]")
       ? ("failed" as const)
       : ("other" as const);
-  // Strip the prefix tag to get the body
   const body = text.replace(/^\[A2A Task[^\]]*\]\s*/, "");
   return { status, body };
 }
@@ -160,17 +192,12 @@ function parseA2ANote(text: string): { status: "complete" | "failed" | "other"; 
 export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const role = ("role" in message ? message.role : "unknown") ?? "unknown";
   const text = getTextContent(message);
-  const toolCalls = role === "assistant" ? getToolCalls(message) : [];
-  const imageBlocks = getImageBlocks(message);
   const isStreaming = !!message._streaming;
   const isCommandResult = !!message._commandResult;
   const thinkingText = (message as StreamableMessage)._thinking;
   const timestamp = "timestamp" in message ? (message.timestamp as number) : undefined;
 
-  const toolResultName = "toolName" in message ? (message.toolName as string) : "";
-  const useMarkdown = role === "assistant" && text && !isCommandResult;
-
-  // A2A task results render as system notes, not user bubbles
+  // A2A task results render as system notes
   if (isA2ASystemNote(role, text)) {
     const { status, body } = parseA2ANote(text);
     return (
@@ -201,6 +228,66 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
     );
   }
 
+  // Assistant messages: render content parts in source order
+  if (role === "assistant") {
+    const contentParts = getContentParts(message);
+    return (
+      <div
+        data-agent-ui="message"
+        data-role="assistant"
+        data-streaming={isStreaming || undefined}
+        {...props}
+      >
+        {thinkingText && (
+          <details data-agent-ui="thinking-fold">
+            <summary>Thinking</summary>
+            <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
+          </details>
+        )}
+
+        {contentParts.map((part, i) => {
+          if (part.kind === "text") {
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Content parts don't have stable IDs
+              <div key={i}>
+                <MarkdownContent content={part.text} />
+              </div>
+            );
+          }
+          if (part.kind === "toolCall") {
+            const result = part.toolCallId ? toolResultMap?.get(part.toolCallId) : undefined;
+            return (
+              <ToolCallEntry
+                key={part.toolCallId || i}
+                toolName={part.toolName}
+                toolCallId={part.toolCallId}
+                args={part.args}
+                result={result}
+              />
+            );
+          }
+          if (part.kind === "image") {
+            return (
+              <img
+                // biome-ignore lint/suspicious/noArrayIndexKey: Image blocks don't have stable IDs
+                key={i}
+                data-agent-ui="message-image"
+                src={part.src}
+                alt=""
+              />
+            );
+          }
+          return null;
+        })}
+
+        {timestamp != null && (
+          <div data-agent-ui="message-timestamp">{formatRelativeTime(timestamp)}</div>
+        )}
+      </div>
+    );
+  }
+
+  // User messages: simple text with subtle background
   return (
     <div
       data-agent-ui="message"
@@ -208,87 +295,7 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
       data-streaming={isStreaming || undefined}
       {...props}
     >
-      {role !== "toolResult" && <div data-agent-ui="message-role">{role}</div>}
-
-      {thinkingText && (
-        <details data-agent-ui="thinking-fold">
-          <summary>Thinking</summary>
-          <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
-        </details>
-      )}
-
-      {text &&
-        role !== "toolResult" &&
-        (useMarkdown ? (
-          <MarkdownContent content={text} />
-        ) : (
-          <div data-agent-ui="message-content">{text}</div>
-        ))}
-
-      {imageBlocks.map((img, i) => {
-        const src =
-          img.source?.type === "base64" && img.source.data
-            ? `data:${img.source.media_type ?? "image/png"};base64,${img.source.data}`
-            : (img.url ?? undefined);
-        if (!src) return null;
-        return (
-          <img
-            // biome-ignore lint/suspicious/noArrayIndexKey: Image blocks don't have stable IDs
-            key={i}
-            data-agent-ui="message-image"
-            src={src}
-            alt="Image content"
-          />
-        );
-      })}
-
-      {toolCalls.map((tc, i) => {
-        const callId = tc.toolCallId ?? tc.id;
-        const toolResult = callId ? toolResultMap?.get(callId) : undefined;
-
-        return (
-          <div key={callId ?? i} data-agent-ui="tool-call" data-tool={tc.toolName ?? tc.name}>
-            <span data-agent-ui="tool-call-name">{tc.toolName ?? tc.name}</span>
-            {(tc.args ?? tc.arguments) && (
-              <pre data-agent-ui="tool-call-args">
-                {JSON.stringify(tc.args ?? tc.arguments, null, 2)}
-              </pre>
-            )}
-
-            {toolResult?.status === "executing" && (
-              <div data-agent-ui="tool-result-inline" data-status="executing">
-                <span data-agent-ui="tool-result-spinner" />
-                Running...
-              </div>
-            )}
-            {toolResult?.status === "streaming" && (
-              <div data-agent-ui="tool-result-inline" data-status="streaming">
-                <pre data-agent-ui="tool-result-content">{toolResult.content}</pre>
-                <span data-agent-ui="tool-result-spinner" />
-              </div>
-            )}
-            {toolResult?.status === "complete" && (
-              <div
-                data-agent-ui="tool-result-inline"
-                data-status="complete"
-                data-error={toolResult.isError || undefined}
-              >
-                <pre data-agent-ui="tool-result-content">{toolResult.content}</pre>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {role === "toolResult" && (
-        <div
-          data-agent-ui="tool-result"
-          data-error={("isError" in message && message.isError) || undefined}
-        >
-          {toolResultName && <span data-agent-ui="tool-result-name">{toolResultName}</span>}
-          <pre data-agent-ui="tool-result-content">{extractResultText(message)}</pre>
-        </div>
-      )}
+      {text && <div data-agent-ui="message-content">{text}</div>}
 
       {timestamp != null && (
         <div data-agent-ui="message-timestamp">{formatRelativeTime(timestamp)}</div>

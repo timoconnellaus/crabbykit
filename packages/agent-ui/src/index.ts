@@ -15,6 +15,14 @@ export type { ChatPanelProps } from "./components/chat-panel";
 export { ChatPanel } from "./components/chat-panel";
 export type { ChatProviderProps } from "./components/chat-provider";
 export { ChatProvider, useChat } from "./components/chat-provider";
+// Chat utilities
+export type { ResultSummary, ToolCategory } from "./components/chat-utils";
+export {
+  formatDuration,
+  summarizeResult,
+  summarizeToolInput,
+  toolColorCategory,
+} from "./components/chat-utils";
 export type { CommandPickerProps } from "./components/command-picker";
 export { CommandPicker } from "./components/command-picker";
 export type { MessageProps } from "./components/message";
@@ -29,3 +37,6 @@ export { SessionList } from "./components/session-list";
 export type { StatusBarProps } from "./components/status-bar";
 export { StatusBar } from "./components/status-bar";
 export { ThinkingIndicator } from "./components/thinking-indicator";
+// Tool call entry
+export type { ToolCallEntryProps } from "./components/tool-call-entry";
+export { ToolCallEntry } from "./components/tool-call-entry";

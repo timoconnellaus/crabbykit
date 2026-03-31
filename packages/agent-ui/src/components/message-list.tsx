@@ -4,6 +4,7 @@ import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type ComponentPropsWithoutRef,
+  Fragment,
   forwardRef,
   type ReactNode,
   useEffect,
@@ -65,6 +66,11 @@ function buildToolResultMap(
   return map;
 }
 
+/** Extract role from a message, defaulting to "unknown". */
+function getRole(msg: AgentMessage): string {
+  return ("role" in msg ? (msg.role as string) : "unknown") ?? "unknown";
+}
+
 export interface MessageListProps extends Omit<ComponentPropsWithoutRef<"div">, "children"> {
   /** Custom message renderer. Falls back to built-in <Message> component. */
   renderMessage?: (message: AgentMessage, index: number) => ReactNode;
@@ -121,31 +127,43 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           messages.map((msg, i) => renderMessage(msg, i))
         ) : useVirtual ? (
           <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => (
-              <div
-                key={virtualRow.index}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <Message
-                  message={displayMessages[virtualRow.index]}
-                  toolResultMap={toolResultMap}
-                />
-              </div>
-            ))}
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const idx = virtualRow.index;
+              const prevRole = idx > 0 ? getRole(displayMessages[idx - 1]) : null;
+              const currRole = getRole(displayMessages[idx]);
+              const showSep = idx > 0 && prevRole !== currRole;
+              return (
+                <div
+                  key={idx}
+                  data-index={idx}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {showSep && <div data-agent-ui="turn-separator" />}
+                  <Message message={displayMessages[idx]} toolResultMap={toolResultMap} />
+                </div>
+              );
+            })}
           </div>
         ) : (
-          displayMessages.map((msg, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
-            <Message key={i} message={msg} toolResultMap={toolResultMap} />
-          ))
+          displayMessages.map((msg, i) => {
+            const prevRole = i > 0 ? getRole(displayMessages[i - 1]) : null;
+            const currRole = getRole(msg);
+            const showSep = i > 0 && prevRole !== currRole;
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
+              <Fragment key={i}>
+                {showSep && <div data-agent-ui="turn-separator" />}
+                <Message message={msg} toolResultMap={toolResultMap} />
+              </Fragment>
+            );
+          })
         )}
 
         {error && <div data-agent-ui="error-banner">{error}</div>}
