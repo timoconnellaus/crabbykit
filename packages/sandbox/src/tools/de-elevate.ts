@@ -1,5 +1,10 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import {
+  clearSessionElevation,
+  isAnySessionElevated,
+  isSessionElevated,
+} from "../session-state.js";
 import { setTeardownPromise } from "../teardown.js";
 import { cancelDeElevationTimer } from "../timer.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
@@ -17,7 +22,8 @@ export function createDeElevateTool(
       const storage = context.storage;
       if (!storage) throw new Error("Sandbox capability requires storage");
 
-      const elevated = await storage.get<boolean>("elevated");
+      // Check if THIS session is elevated
+      const elevated = await isSessionElevated(storage, context.sessionId);
       if (!elevated) {
         return {
           content: [{ type: "text" as const, text: "Not currently elevated." }],
@@ -25,20 +31,19 @@ export function createDeElevateTool(
         };
       }
 
-      // Clear state immediately (before async teardown)
-      await storage.put("elevated", false);
-      await storage.delete("elevationReason");
-      await storage.delete("elevatedAt");
+      // Clear THIS session's elevation state
+      await clearSessionElevation(storage, context.sessionId);
 
-      // Cancel auto-de-elevation timer
-      await cancelDeElevationTimer(context);
-
-      // Broadcast to UI
+      // Broadcast to THIS session's UI
       context.broadcast("sandbox_elevation", { elevated: false });
 
-      // Stop provider in background — store promise so elevate can await it
-      const teardown = provider.stop().catch(() => {});
-      setTeardownPromise(teardown);
+      // Only stop the container if no other sessions are still elevated
+      const othersElevated = await isAnySessionElevated(storage);
+      if (!othersElevated) {
+        await cancelDeElevationTimer(context);
+        const teardown = provider.stop().catch(() => {});
+        setTeardownPromise(teardown);
+      }
 
       return {
         content: [{ type: "text" as const, text: "Sandbox deactivated. Shell access removed." }],

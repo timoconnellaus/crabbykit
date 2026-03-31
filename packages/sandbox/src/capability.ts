@@ -1,4 +1,11 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import {
+  clearAllElevation,
+  clearAllProcessOwners,
+  getElevatedSessionIds,
+  getSessionReason,
+  isSessionElevated,
+} from "./session-state.js";
 import { TIMER_ID } from "./timer.js";
 import {
   createDeleteFileCredentialTool,
@@ -44,16 +51,6 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
     defaultExecTimeout: options.config?.defaultExecTimeout ?? DEFAULT_EXEC_TIMEOUT,
   };
 
-  /** Clear all elevation state from storage. */
-  async function clearElevationState(storage: {
-    put: (k: string, v: unknown) => Promise<void>;
-    delete: (k: string) => Promise<boolean>;
-  }): Promise<void> {
-    await storage.put("elevated", false);
-    await storage.delete("elevationReason");
-    await storage.delete("elevatedAt");
-  }
-
   return {
     id: "sandbox",
     name: "Sandbox",
@@ -82,10 +79,10 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
 
     hooks: {
       beforeInference: async (messages, ctx) => {
-        const elevated = await ctx.storage.get<boolean>("elevated");
+        const elevated = await isSessionElevated(ctx.storage, ctx.sessionId);
 
         if (elevated) {
-          const reason = await ctx.storage.get<string>("elevationReason");
+          const reason = await getSessionReason(ctx.storage, ctx.sessionId);
           const guidance = [
             `[Sandbox Status: ACTIVE${reason ? ` — ${reason}` : ""}]`,
             "You have an active Linux sandbox. Use the exec tool for shell commands.",
@@ -101,7 +98,7 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
       },
 
       onConnect: async (ctx) => {
-        const elevated = await ctx.storage.get<boolean>("elevated");
+        const elevated = await isSessionElevated(ctx.storage, ctx.sessionId);
 
         if (!elevated) {
           // Broadcast not-elevated so reconnecting clients clear stale UI state
@@ -116,16 +113,16 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
             throw new Error("Container not ready");
           }
         } catch {
-          // Container is dead — clear stale elevation state
+          // Container is dead — clear ALL stale elevation state
           console.warn("[sandbox] Stale elevation detected on connect — clearing");
-          await clearElevationState(ctx.storage);
+          await clearAllElevation(ctx.storage);
+          await clearAllProcessOwners(ctx.storage);
           ctx.broadcast?.("sandbox_elevation", { elevated: false });
-          // Timer will self-clean when it fires and finds elevated=false
           return;
         }
 
         // Container is alive — broadcast current state to reconnecting client
-        const reason = await ctx.storage.get<string>("elevationReason");
+        const reason = await getSessionReason(ctx.storage, ctx.sessionId);
         ctx.broadcast?.("sandbox_elevation", {
           elevated: true,
           reason: reason ?? "",
@@ -143,8 +140,9 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
             const storage = context.storage;
             if (!storage) return;
 
-            const elevated = await storage.get<boolean>("elevated");
-            if (!elevated) return;
+            // Get the set of elevated sessions before clearing
+            const elevatedIds = await getElevatedSessionIds(storage);
+            if (elevatedIds.length === 0) return;
 
             // Abort all running agent sessions so in-flight tool calls
             // (e.g., bash awaiting a response from the container) don't hang
@@ -172,25 +170,28 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
               // Best-effort
             }
 
-            // Clear elevation state
-            await clearElevationState(storage);
+            // Clear all elevation and process ownership state
+            await clearAllElevation(storage);
+            await clearAllProcessOwners(storage);
 
             // Broadcast to ALL sessions (not just one)
             context.broadcastToAll("sandbox_elevation", { elevated: false });
 
-            // Inject de-elevation notice into sessions so the LLM
-            // knows it lost shell access on the next turn
+            // Inject de-elevation notice ONLY into sessions that were elevated
+            const elevatedSet = new Set(elevatedIds);
             try {
               const sessions = scheduleCtx.sessionStore.list();
               for (const session of sessions) {
-                scheduleCtx.sessionStore.appendEntry(session.id, {
-                  type: "message",
-                  data: {
-                    role: "assistant",
-                    content: [{ type: "text", text: DE_ELEVATION_NOTICE }],
-                    timestamp: Date.now(),
-                  },
-                });
+                if (elevatedSet.has(session.id)) {
+                  scheduleCtx.sessionStore.appendEntry(session.id, {
+                    type: "message",
+                    data: {
+                      role: "assistant",
+                      content: [{ type: "text", text: DE_ELEVATION_NOTICE }],
+                      timestamp: Date.now(),
+                    },
+                  });
+                }
               }
             } catch {
               // Best-effort notice injection

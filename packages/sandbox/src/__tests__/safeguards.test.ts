@@ -1,8 +1,34 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { sandboxCapability } from "../capability.js";
+import { setSessionElevated } from "../session-state.js";
 import { clearTeardownPromise, getTeardownPromise, setTeardownPromise } from "../teardown.js";
 import type { SandboxProvider } from "../types.js";
+
+/** Map-backed storage for realistic read/write behavior. */
+function createMapStorage(): CapabilityStorage {
+  const store = new Map<string, unknown>();
+  return {
+    async get<T>(key: string): Promise<T | undefined> {
+      return store.get(key) as T | undefined;
+    },
+    async put(key: string, value: unknown): Promise<void> {
+      store.set(key, value);
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async list<T>(prefix?: string): Promise<Map<string, T>> {
+      const result = new Map<string, T>();
+      for (const [k, v] of store) {
+        if (!prefix || k.startsWith(prefix)) {
+          result.set(k, v as T);
+        }
+      }
+      return result;
+    },
+  };
+}
 
 function mockProvider(overrides?: Partial<SandboxProvider>): SandboxProvider {
   return {
@@ -17,7 +43,7 @@ function mockProvider(overrides?: Partial<SandboxProvider>): SandboxProvider {
   };
 }
 
-function mockContext(elevated = false): AgentContext {
+function mockContext(storage?: CapabilityStorage): AgentContext {
   return {
     agentId: "test-agent",
     sessionId: "s1",
@@ -35,16 +61,14 @@ function mockContext(elevated = false): AgentContext {
       setTimer: vi.fn().mockResolvedValue(undefined),
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
-    storage: {
-      get: vi.fn().mockImplementation((key: string) => {
-        if (key === "elevated") return Promise.resolve(elevated);
-        return Promise.resolve(undefined);
-      }),
-      put: vi.fn().mockResolvedValue(undefined),
-      delete: vi.fn().mockResolvedValue(false),
-      list: vi.fn().mockResolvedValue(new Map()),
-    },
+    storage: storage ?? createMapStorage(),
   };
+}
+
+async function mockElevatedContext(): Promise<AgentContext> {
+  const storage = createMapStorage();
+  await setSessionElevated(storage, "s1", "reason");
+  return mockContext(storage);
 }
 
 describe("Teardown serialization", () => {
@@ -76,7 +100,7 @@ describe("Teardown serialization", () => {
 
   it("elevate waits for pending teardown", async () => {
     const provider = mockProvider();
-    const ctx = mockContext(false);
+    const ctx = mockContext();
 
     let resolveTeardown: () => void;
     const teardown = new Promise<void>((r) => {
@@ -111,7 +135,7 @@ describe("Health check in elevate", () => {
     const provider = mockProvider({
       health: vi.fn().mockResolvedValue({ ready: false }),
     });
-    const ctx = mockContext(false);
+    const ctx = mockContext();
 
     const cap = sandboxCapability({ provider });
     const elevate = cap.tools!(ctx).find((t) => t.name === "elevate")!;
@@ -119,15 +143,13 @@ describe("Health check in elevate", () => {
     const result = await elevate.execute({ reason: "test" }, { toolCallId: "tc1" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("failed to start");
-    // Should not mark as elevated
-    expect(ctx.storage!.put).not.toHaveBeenCalledWith("elevated", true);
   });
 
   it("returns error when health check throws", async () => {
     const provider = mockProvider({
       health: vi.fn().mockRejectedValue(new Error("connection refused")),
     });
-    const ctx = mockContext(false);
+    const ctx = mockContext();
 
     const cap = sandboxCapability({ provider });
     const elevate = cap.tools!(ctx).find((t) => t.name === "elevate")!;
@@ -143,7 +165,7 @@ describe("Install detection", () => {
     const provider = mockProvider({
       triggerSync: vi.fn().mockResolvedValue(undefined),
     });
-    const ctx = mockContext(true);
+    const ctx = await mockElevatedContext();
 
     const cap = sandboxCapability({ provider });
     const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
@@ -156,7 +178,7 @@ describe("Install detection", () => {
     const provider = mockProvider({
       triggerSync: vi.fn().mockResolvedValue(undefined),
     });
-    const ctx = mockContext(true);
+    const ctx = await mockElevatedContext();
 
     const cap = sandboxCapability({ provider });
     const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
@@ -169,7 +191,7 @@ describe("Install detection", () => {
     const provider = mockProvider({
       triggerSync: vi.fn().mockResolvedValue(undefined),
     });
-    const ctx = mockContext(true);
+    const ctx = await mockElevatedContext();
 
     const cap = sandboxCapability({ provider });
     const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
@@ -183,7 +205,7 @@ describe("Install detection", () => {
       exec: vi.fn().mockResolvedValue({ stdout: "", stderr: "error", exitCode: 1 }),
       triggerSync: vi.fn().mockResolvedValue(undefined),
     });
-    const ctx = mockContext(true);
+    const ctx = await mockElevatedContext();
 
     const cap = sandboxCapability({ provider });
     const exec = cap.tools!(ctx).find((t) => t.name === "exec")!;
@@ -200,13 +222,14 @@ describe("Auto-de-elevate", () => {
         .fn()
         .mockResolvedValue([{ name: "dev", command: "npm start", running: true, pid: 42 }]),
     });
-    const ctx = mockContext(true);
+    const storage = createMapStorage();
+    await setSessionElevated(storage, "s1", "reason");
+    const ctx = mockContext(storage);
 
     const cap = sandboxCapability({ provider });
     const schedules = cap.schedules!(ctx);
     const timerConfig = schedules[0];
 
-    // Call the timer callback directly
     await (timerConfig as any).callback({
       sessionStore: { list: () => [], appendEntry: vi.fn() },
       abortAllSessions: vi.fn(),
@@ -218,7 +241,9 @@ describe("Auto-de-elevate", () => {
 
   it("broadcasts to all sessions", async () => {
     const provider = mockProvider();
-    const ctx = mockContext(true);
+    const storage = createMapStorage();
+    await setSessionElevated(storage, "s1", "reason");
+    const ctx = mockContext(storage);
 
     const cap = sandboxCapability({ provider });
     const schedules = cap.schedules!(ctx);
@@ -232,9 +257,12 @@ describe("Auto-de-elevate", () => {
     expect(ctx.broadcastToAll).toHaveBeenCalledWith("sandbox_elevation", { elevated: false });
   });
 
-  it("injects de-elevation notice with array content format", async () => {
+  it("injects de-elevation notice only into elevated sessions", async () => {
     const provider = mockProvider();
-    const ctx = mockContext(true);
+    const storage = createMapStorage();
+    await setSessionElevated(storage, "session-1", "reason");
+    // session-2 is NOT elevated
+    const ctx = mockContext(storage);
     const appendEntry = vi.fn();
 
     const cap = sandboxCapability({ provider });
@@ -243,12 +271,14 @@ describe("Auto-de-elevate", () => {
 
     await (timerConfig as any).callback({
       sessionStore: {
-        list: () => [{ id: "session-1" }],
+        list: () => [{ id: "session-1" }, { id: "session-2" }],
         appendEntry,
       },
       abortAllSessions: vi.fn(),
     });
 
+    // Notice should be injected into session-1 (was elevated) but NOT session-2
+    expect(appendEntry).toHaveBeenCalledTimes(1);
     expect(appendEntry).toHaveBeenCalledWith("session-1", {
       type: "message",
       data: expect.objectContaining({
