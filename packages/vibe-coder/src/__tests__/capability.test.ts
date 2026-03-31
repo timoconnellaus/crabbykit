@@ -77,6 +77,11 @@ describe("vibeCoder", () => {
     it("clears dev port, deletes storage, broadcasts, and appends session entry", async () => {
       const provider = mockProvider();
       const ctx = mockContext("session-abc");
+      // Mock storage.get to return preview owned by this session
+      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        port: 5173,
+        sessionId: "session-abc",
+      });
       const cap = vibeCoder({ provider });
       const commands = cap.commands!(ctx);
       const closeCmd = commands[0];
@@ -102,6 +107,31 @@ describe("vibeCoder", () => {
         }),
       });
       expect(result.text).toContain("Preview closed");
+    });
+
+    it("rejects when session does not own the preview", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext("session-xyz");
+      // Preview is owned by a different session
+      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        port: 5173,
+        sessionId: "session-abc",
+      });
+      const cap = vibeCoder({ provider });
+      const commands = cap.commands!(ctx);
+      const closeCmd = commands[0];
+
+      const cmdCtx = {
+        sessionId: "session-xyz",
+        sessionStore: { appendEntry: vi.fn() } as any,
+        schedules: {} as any,
+      };
+
+      const result = await closeCmd.execute(undefined as any, cmdCtx);
+
+      expect(result.text).toContain("No active preview");
+      expect(provider.clearDevPort).not.toHaveBeenCalled();
+      expect(ctx.storage!.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -146,9 +176,14 @@ describe("vibeCoder", () => {
   });
 
   describe("hide_preview tool", () => {
-    it("calls provider.clearDevPort and broadcasts", async () => {
+    it("calls provider.clearDevPort and broadcasts when session owns preview", async () => {
       const provider = mockProvider();
-      const ctx = mockContext();
+      const ctx = mockContext("session-abc");
+      // Mock storage.get to return preview owned by this session
+      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        port: 5173,
+        sessionId: "session-abc",
+      });
       const cap = vibeCoder({ provider });
       const tools = cap.tools!(ctx);
       const hidePreview = tools.find((t) => t.name === "hide_preview")!;
@@ -158,6 +193,24 @@ describe("vibeCoder", () => {
       expect(ctx.broadcast).toHaveBeenCalledWith("preview_close", {});
       const text = (result.content[0] as { text: string }).text;
       expect(text).toContain("closed");
+    });
+
+    it("rejects when session does not own the preview", async () => {
+      const provider = mockProvider();
+      const ctx = mockContext("session-xyz");
+      // Preview is owned by a different session
+      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        port: 5173,
+        sessionId: "session-abc",
+      });
+      const cap = vibeCoder({ provider });
+      const tools = cap.tools!(ctx);
+      const hidePreview = tools.find((t) => t.name === "hide_preview")!;
+      const result = await hidePreview.execute({}, { toolCallId: "tc1" });
+      expect(provider.clearDevPort).not.toHaveBeenCalled();
+      expect(ctx.storage!.delete).not.toHaveBeenCalled();
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("No active preview");
     });
   });
 
@@ -228,6 +281,76 @@ describe("vibeCoder", () => {
     });
   });
 
+  describe("afterToolExecution hook", () => {
+    it("closes preview when owning session de-elevates", async () => {
+      const provider = mockProvider();
+      const cap = vibeCoder({ provider });
+      const hookCtx = {
+        agentId: "test-agent",
+        sessionId: "session-abc",
+        sessionStore: {} as any,
+        storage: {
+          get: vi.fn().mockResolvedValue({ port: 5173, sessionId: "session-abc" }),
+          put: vi.fn(),
+          delete: vi.fn().mockResolvedValue(true),
+          list: vi.fn(),
+        },
+        broadcast: vi.fn(),
+      };
+      await cap.hooks!.afterToolExecution!(
+        { toolName: "de_elevate", args: {}, isError: false },
+        hookCtx,
+      );
+      expect(provider.clearDevPort).toHaveBeenCalled();
+      expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
+      expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
+    });
+
+    it("does NOT close preview when a different session de-elevates", async () => {
+      const provider = mockProvider();
+      const cap = vibeCoder({ provider });
+      const hookCtx = {
+        agentId: "test-agent",
+        sessionId: "session-xyz", // different session
+        sessionStore: {} as any,
+        storage: {
+          get: vi.fn().mockResolvedValue({ port: 5173, sessionId: "session-abc" }),
+          put: vi.fn(),
+          delete: vi.fn(),
+          list: vi.fn(),
+        },
+        broadcast: vi.fn(),
+      };
+      await cap.hooks!.afterToolExecution!(
+        { toolName: "de_elevate", args: {}, isError: false },
+        hookCtx,
+      );
+      // Should NOT touch the preview
+      expect(provider.clearDevPort).not.toHaveBeenCalled();
+      expect(hookCtx.storage.delete).not.toHaveBeenCalled();
+      expect(hookCtx.broadcast).not.toHaveBeenCalled();
+    });
+
+    it("no-ops for non-de_elevate tools", async () => {
+      const provider = mockProvider();
+      const cap = vibeCoder({ provider });
+      const hookCtx = {
+        agentId: "test-agent",
+        sessionId: "session-abc",
+        sessionStore: {} as any,
+        storage: {
+          get: vi.fn(),
+          put: vi.fn(),
+          delete: vi.fn(),
+          list: vi.fn(),
+        },
+        broadcast: vi.fn(),
+      };
+      await cap.hooks!.afterToolExecution!({ toolName: "exec", args: {}, isError: false }, hookCtx);
+      expect(hookCtx.storage.get).not.toHaveBeenCalled();
+    });
+  });
+
   describe("onConnect hook", () => {
     it("broadcasts preview_close when no preview stored", async () => {
       const cap = vibeCoder({ provider: mockProvider() });
@@ -267,7 +390,7 @@ describe("vibeCoder", () => {
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_open", { port: 5173 });
     });
 
-    it("clears preview and dev port when session does not own it", async () => {
+    it("does not destroy another session's preview state", async () => {
       const provider = mockProvider();
       const cap = vibeCoder({ provider });
       const hookCtx = {
@@ -283,10 +406,11 @@ describe("vibeCoder", () => {
         broadcast: vi.fn(),
       };
       await cap.hooks!.onConnect!(hookCtx);
-      expect(provider.clearDevPort).toHaveBeenCalled();
-      expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
+      // Should tell this client to close preview UI
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
-      // Should NOT re-establish
+      // Should NOT touch storage or provider — another session owns the preview
+      expect(provider.clearDevPort).not.toHaveBeenCalled();
+      expect(hookCtx.storage.delete).not.toHaveBeenCalled();
       expect(provider.setDevPort).not.toHaveBeenCalled();
     });
 
@@ -311,6 +435,133 @@ describe("vibeCoder", () => {
       await cap.hooks!.onConnect!(hookCtx);
       expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
+    });
+  });
+
+  describe("cross-session preview scenarios", () => {
+    /** Map-backed storage so state persists across tool calls. */
+    function createMapStorage() {
+      const store = new Map<string, unknown>();
+      return {
+        get: vi.fn(
+          async <T>(key: string): Promise<T | undefined> => store.get(key) as T | undefined,
+        ),
+        put: vi.fn(async (key: string, value: unknown): Promise<void> => {
+          store.set(key, value);
+        }),
+        delete: vi.fn(async (key: string): Promise<boolean> => store.delete(key)),
+        list: vi.fn(async <T>(prefix?: string): Promise<Map<string, T>> => {
+          const result = new Map<string, T>();
+          for (const [k, v] of store) {
+            if (!prefix || k.startsWith(prefix)) result.set(k, v as T);
+          }
+          return result;
+        }),
+      };
+    }
+
+    it("session B show_preview overwrites session A's preview", async () => {
+      const provider = mockProvider();
+      const storage = createMapStorage();
+
+      const ctxA: AgentContext = { ...mockContext("session-a"), storage };
+      const ctxB: AgentContext = { ...mockContext("session-b"), storage };
+
+      const cap = vibeCoder({ provider });
+      const toolsA = cap.tools!(ctxA);
+      const toolsB = cap.tools!(ctxB);
+      const showA = toolsA.find((t) => t.name === "show_preview")!;
+      const showB = toolsB.find((t) => t.name === "show_preview")!;
+
+      // Session A opens preview
+      await showA.execute({ port: 5173 }, { toolCallId: "tc1" });
+      expect(await storage.get("preview")).toEqual({ port: 5173, sessionId: "session-a" });
+
+      // Session B opens preview — takes over
+      await showB.execute({ port: 3000 }, { toolCallId: "tc2" });
+      expect(await storage.get("preview")).toEqual({ port: 3000, sessionId: "session-b" });
+
+      // Session A's hide_preview should now be rejected (B owns it)
+      const hideA = toolsA.find((t) => t.name === "hide_preview")!;
+      const result = await hideA.execute({}, { toolCallId: "tc3" });
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("No active preview");
+      expect(provider.clearDevPort).not.toHaveBeenCalled();
+    });
+
+    it("session A de-elevates closes preview, session B can open new one", async () => {
+      const provider = mockProvider();
+      const storage = createMapStorage();
+
+      const ctxA: AgentContext = { ...mockContext("session-a"), storage };
+      const ctxB: AgentContext = { ...mockContext("session-b"), storage };
+
+      const cap = vibeCoder({ provider });
+      const toolsA = cap.tools!(ctxA);
+      const toolsB = cap.tools!(ctxB);
+
+      // Session A opens preview
+      const showA = toolsA.find((t) => t.name === "show_preview")!;
+      await showA.execute({ port: 5173 }, { toolCallId: "tc1" });
+
+      // Session A de-elevates — afterToolExecution should close preview
+      await cap.hooks!.afterToolExecution!(
+        { toolName: "de_elevate", args: {}, isError: false },
+        {
+          agentId: "test-agent",
+          sessionId: "session-a",
+          sessionStore: {} as any,
+          storage,
+          broadcast: vi.fn(),
+        },
+      );
+      expect(await storage.get("preview")).toBeUndefined();
+      expect(provider.clearDevPort).toHaveBeenCalled();
+      (provider.clearDevPort as ReturnType<typeof vi.fn>).mockClear();
+
+      // Session B can now open a fresh preview
+      const showB = toolsB.find((t) => t.name === "show_preview")!;
+      await showB.execute({ port: 3000 }, { toolCallId: "tc2" });
+      expect(await storage.get("preview")).toEqual({ port: 3000, sessionId: "session-b" });
+      expect(provider.setDevPort).toHaveBeenCalledWith(3000, "/preview/test-agent/");
+    });
+
+    it("onConnect cleans up stale preview after idle timeout (container dead)", async () => {
+      const provider = mockProvider();
+      const storage = createMapStorage();
+
+      // Simulate: session A had a preview, then idle timeout killed the container
+      await storage.put("preview", { port: 5173, sessionId: "session-a" });
+      (provider.health as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("Container stopped"),
+      );
+
+      const cap = vibeCoder({ provider });
+
+      // Session A reconnects — container is dead, preview should be cleaned up
+      const broadcastA = vi.fn();
+      await cap.hooks!.onConnect!({
+        agentId: "test-agent",
+        sessionId: "session-a",
+        sessionStore: {} as any,
+        storage,
+        broadcast: broadcastA,
+      });
+
+      expect(await storage.get("preview")).toBeUndefined();
+      expect(broadcastA).toHaveBeenCalledWith("preview_close", {});
+
+      // Session B reconnects — no preview state, gets preview_close (no-op for UI)
+      const broadcastB = vi.fn();
+      (provider.health as ReturnType<typeof vi.fn>).mockResolvedValue({ ready: true });
+      await cap.hooks!.onConnect!({
+        agentId: "test-agent",
+        sessionId: "session-b",
+        sessionStore: {} as any,
+        storage,
+        broadcast: broadcastB,
+      });
+      expect(broadcastB).toHaveBeenCalledWith("preview_close", {});
     });
   });
 });

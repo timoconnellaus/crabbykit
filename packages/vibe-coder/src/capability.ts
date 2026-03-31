@@ -35,6 +35,16 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         name: "close_preview",
         description: "Close the live preview (triggered by the user via the UI close button).",
         execute: async (_args, ctx) => {
+          // Verify this session owns the preview
+          if (context.storage) {
+            const preview = await context.storage.get<{ port: number; sessionId: string }>(
+              "preview",
+            );
+            if (!preview || preview.sessionId !== ctx.sessionId) {
+              return { text: "No active preview for this session." };
+            }
+          }
+
           // Clean up server-side state (same as hide_preview tool)
           if (options.provider.clearDevPort) {
             await options.provider.clearDevPort();
@@ -43,7 +53,7 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
             await context.storage.delete("preview");
           }
 
-          // Broadcast to all clients so any other tabs close the preview
+          // Broadcast to this session's clients
           context.broadcast("preview_close", {});
 
           // Append a session entry so the agent knows the user closed the preview
@@ -79,10 +89,10 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
 
     hooks: {
       afterToolExecution: async (event, ctx) => {
-        // When the sandbox de-elevates, the container is stopping — close the preview
+        // When the sandbox de-elevates, close the preview if this session owns it
         if (event.toolName === "de_elevate") {
-          const preview = await ctx.storage.get<{ port: number }>("preview");
-          if (preview) {
+          const preview = await ctx.storage.get<{ port: number; sessionId: string }>("preview");
+          if (preview && preview.sessionId === ctx.sessionId) {
             if (options.provider.clearDevPort) {
               await options.provider.clearDevPort();
             }
@@ -96,13 +106,8 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         const preview = await ctx.storage.get<{ port: number; sessionId: string }>("preview");
 
         if (!preview || preview.sessionId !== ctx.sessionId) {
-          // No preview for this session — clean up any orphaned state and close
-          if (preview) {
-            if (options.provider.clearDevPort) {
-              await options.provider.clearDevPort();
-            }
-            await ctx.storage.delete("preview");
-          }
+          // This session doesn't own the preview — tell this client to close
+          // but don't touch storage or provider (another session may own it)
           ctx.broadcast?.("preview_close", {});
           return;
         }

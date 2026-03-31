@@ -12,6 +12,17 @@ export function createHidePreviewTool(
     description: "Close the live preview iframe and stop proxying to the dev server.",
     parameters: Type.Object({}),
     execute: async () => {
+      // Verify this session owns the preview
+      if (context.storage) {
+        const preview = await context.storage.get<{ port: number; sessionId: string }>("preview");
+        if (!preview || preview.sessionId !== context.sessionId) {
+          return {
+            content: [{ type: "text" as const, text: "No active preview for this session." }],
+            details: null,
+          };
+        }
+      }
+
       if (provider.clearDevPort) {
         await provider.clearDevPort();
       }

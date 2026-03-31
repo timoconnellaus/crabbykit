@@ -363,6 +363,7 @@ describe("beforeInference per-session scoping", () => {
 
     // Session A should get guidance
     const resultA = await cap.hooks!.beforeInference!(messages, {
+      agentId: "test-agent",
       sessionId: "session-a",
       sessionStore: {} as never,
       storage,
@@ -373,6 +374,7 @@ describe("beforeInference per-session scoping", () => {
 
     // Session B should NOT get guidance
     const resultB = await cap.hooks!.beforeInference!(messages, {
+      agentId: "test-agent",
       sessionId: "session-b",
       sessionStore: {} as never,
       storage,
