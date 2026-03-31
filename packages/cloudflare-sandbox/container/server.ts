@@ -637,50 +637,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  // --- Dev server proxy fallback ---
-  // Simple pass-through: the @claw-for-cloudflare/vite-plugin handles
-  // base path configuration, HMR, and console capture at the source.
-  if (devServerPort) {
-    try {
-      const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
-      const proxyRes = await fetch(proxyUrl, {
-        method,
-        headers: Object.fromEntries(
-          Object.entries(req.headers)
-            .filter(([, v]) => v !== undefined)
-            .map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v!]),
-        ),
-        body: method !== "GET" && method !== "HEAD" ? await readBody(req) : undefined,
-      });
-
-      const headers: Record<string, string> = {};
-      proxyRes.headers.forEach((v, k) => {
-        headers[k] = v;
-      });
-      res.writeHead(proxyRes.status, headers);
-      const arrayBuf = await proxyRes.arrayBuffer();
-      res.end(Buffer.from(arrayBuf));
-      return;
-    } catch {
-      // Dev server not ready — return a loading page that auto-retries
-      const retryHtml = `<!DOCTYPE html>
-<html><head><title>Starting...</title><style>
-body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;
-font-family:system-ui,sans-serif;background:#1a1a2e;color:#94a3b8}
-.spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#818cf8;
-border-radius:50%;animation:spin 0.8s linear infinite;margin-right:12px}
-@keyframes spin{to{transform:rotate(360deg)}}
-</style></head><body>
-<div class="spinner"></div>
-<span>Dev server starting on port ${devServerPort}...</span>
-<script>setTimeout(()=>location.reload(),1500)</script>
-</body></html>`;
-      res.writeHead(503, { "content-type": "text/html" });
-      res.end(retryHtml);
-      return;
-    }
-  }
-
   // --- Session Exec (SSE with session tracking) ---
   if (url.pathname === "/session-exec" && method === "POST") {
     const body = JSON.parse(await readBody(req));
@@ -1009,6 +965,51 @@ border-radius:50%;animation:spin 0.8s linear infinite;margin-right:12px}
     });
 
     return;
+  }
+
+  // --- Dev server proxy fallback ---
+  // Must be after all container endpoints so sandbox operations aren't swallowed.
+  // The @claw-for-cloudflare/vite-plugin handles base path configuration, HMR,
+  // and console capture at the source.
+  if (devServerPort) {
+    try {
+      const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
+      const proxyRes = await fetch(proxyUrl, {
+        method,
+        headers: Object.fromEntries(
+          Object.entries(req.headers)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v!]),
+        ),
+        body: method !== "GET" && method !== "HEAD" ? await readBody(req) : undefined,
+      });
+
+      const headers: Record<string, string> = {};
+      proxyRes.headers.forEach((v, k) => {
+        headers[k] = v;
+      });
+      res.writeHead(proxyRes.status, headers);
+      const arrayBuf = await proxyRes.arrayBuffer();
+      res.end(Buffer.from(arrayBuf));
+      return;
+    } catch {
+      // Dev server not ready — return a loading page that auto-retries
+      const retryHtml = `<!DOCTYPE html>
+<html><head><title>Starting...</title><style>
+body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;
+font-family:system-ui,sans-serif;background:#1a1a2e;color:#94a3b8}
+.spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#818cf8;
+border-radius:50%;animation:spin 0.8s linear infinite;margin-right:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<div class="spinner"></div>
+<span>Dev server starting on port ${devServerPort}...</span>
+<script>setTimeout(()=>location.reload(),1500)</script>
+</body></html>`;
+      res.writeHead(503, { "content-type": "text/html" });
+      res.end(retryHtml);
+      return;
+    }
   }
 
   // --- Not found ---

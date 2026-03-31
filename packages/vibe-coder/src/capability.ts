@@ -64,13 +64,13 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
     promptSections: () => [
       "You have live preview capabilities for web development.\n\n" +
         "Workflow:\n" +
-        "1. Scaffold a Vite project: mkdir, npm init -y, npm install vite react react-dom @vitejs/plugin-react /opt/sandbox/claw-vite-plugin\n" +
+        "1. Scaffold a Vite project: mkdir, create package.json, bun install vite react react-dom @vitejs/plugin-react\n" +
         "2. IMPORTANT: Always include clawForCloudflare() in vite.config.ts plugins:\n" +
         '   import { clawForCloudflare } from "@claw-for-cloudflare/vite-plugin";\n' +
         "   export default defineConfig({ plugins: [react(), clawForCloudflare()] });\n" +
         "   This configures the preview proxy, HMR, and console capture automatically.\n" +
         '3. Add scripts to package.json: "dev": "vite"\n' +
-        "4. Start the dev server (via exec with background=true): npm run dev\n" +
+        "4. Start the dev server (via exec with background=true): bun run dev\n" +
         "5. Call show_preview with port 3000 (the plugin default)\n" +
         "6. The user will see the app in a live iframe\n\n" +
         "Use get_console_logs to check for errors when debugging. " +

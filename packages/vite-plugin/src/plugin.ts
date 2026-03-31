@@ -65,6 +65,12 @@ export function clawForCloudflare(options?: ClawPluginOptions): Plugin {
           host: true,
           port,
           strictPort: true,
+          watch: {
+            // FUSE mounts (tigrisfs on /mnt/r2) don't support inotify.
+            // Polling lets chokidar detect file changes for HMR.
+            usePolling: true,
+            interval: 500,
+          },
         },
       };
     },

@@ -4,7 +4,13 @@
 FROM node:22-alpine
 
 # Install FUSE support, privilege-drop, restic, and build tools for nm-intercept + node-pty
-RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic gcc musl-dev linux-headers python3 make g++
+RUN apk add --no-cache fuse curl coreutils gosu shadow socat jq bash restic gcc musl-dev linux-headers python3 make g++ unzip
+
+# Install bun (primary package manager — much faster than npm for installs)
+RUN curl -fsSL https://bun.sh/install | bash && \
+    mv /root/.bun/bin/bun /usr/local/bin/bun && \
+    ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
+    rm -rf /root/.bun
 
 # Create unprivileged user
 RUN useradd -m -s /bin/sh sandbox
@@ -46,8 +52,11 @@ RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
     rm /tmp/nm-mount-helper.c /tmp/nm-intercept.c
 
 # Install node-pty (native module — must be compiled inside the container)
-RUN cd /app && npm install node-pty && \
-    apk del gcc musl-dev linux-headers python3 make g++
+# Override BUN_INSTALL for this build step so bun doesn't write root-owned
+# files into the sandbox persist path. Clean up after.
+RUN cd /app && BUN_INSTALL=/tmp/bun-build bun install node-pty && \
+    rm -rf /tmp/bun-build /tmp/.bun* /tmp/bun* && \
+    apk del gcc musl-dev linux-headers python3 make g++ unzip
 
 # Install @claw-for-cloudflare/vite-plugin so vibe-coded apps can import it.
 # Placed at /node_modules/ (root) so ESM resolution finds it from any project path.

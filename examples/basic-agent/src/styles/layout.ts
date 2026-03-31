@@ -29,4 +29,8 @@ export const layoutStyles = `
   color: var(--agent-ui-primary);
   border-bottom-color: var(--agent-ui-primary);
 }
+
+[data-agent-ui="message-timestamp"] {
+  display: none;
+}
 `;
