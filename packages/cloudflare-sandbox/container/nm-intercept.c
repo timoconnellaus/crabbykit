@@ -17,7 +17,7 @@
  *
  * Environment:
  *   NM_INTERCEPT_MOUNT  — FUSE mount prefix to watch (default: /mnt/r2)
- *   NM_INTERCEPT_BASE   — Local backing directory (default: /opt/gia/nm)
+ *   NM_INTERCEPT_BASE   — Local backing directory (default: /opt/sandbox/nm)
  */
 
 #define _GNU_SOURCE
@@ -59,7 +59,7 @@ static void ensure_init(void) {
     mount_prefix_len = strlen(mount_prefix);
 
     nm_base = getenv("NM_INTERCEPT_BASE");
-    if (!nm_base) nm_base = "/opt/gia/nm";
+    if (!nm_base) nm_base = "/opt/sandbox/nm";
 }
 
 /**
@@ -117,13 +117,13 @@ static void do_bind_mount(const char *nm_path) {
 
     /* Create local backing directory */
     real_mkdir(local_dir, 0755);
-    /* Fix ownership (gia user — uid/gid typically 1000) */
+    /* Fix ownership (sandbox user — uid/gid typically 1000) */
     chown(local_dir, 1000, 1000);
 
     /* Bind-mount local disk over the FUSE path */
     if (mount(local_dir, nm_path, NULL, MS_BIND, NULL) == 0) {
         fprintf(stderr, "[nm-intercept] Mounted %s -> %s\n", nm_path, local_dir);
-        /* Ensure the mounted dir is writable by gia */
+        /* Ensure the mounted dir is writable by sandbox */
         chown(nm_path, 1000, 1000);
     } else {
         fprintf(stderr, "[nm-intercept] mount failed for %s: %s\n",

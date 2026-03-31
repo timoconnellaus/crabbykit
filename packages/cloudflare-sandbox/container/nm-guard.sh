@@ -12,7 +12,7 @@
 set -e
 
 MOUNT_POINT="${MOUNT_POINT:-/mnt/r2}"
-NM_BASE="/opt/gia/nm"
+NM_BASE="/opt/sandbox/nm"
 POLL_INTERVAL="0.5"
 SANDBOX_PORT="${SANDBOX_PORT:-8080}"
 
@@ -49,7 +49,7 @@ guard_loop() {
       mount --bind "$local_dir" "$nm_path"
 
       # Fix ownership so unprivileged user can write
-      chown -R gia:gia "$local_dir" 2>/dev/null || true
+      chown -R sandbox:sandbox "$local_dir" 2>/dev/null || true
 
       # Notify sandbox server for R2 cleanup
       curl -s "http://localhost:$SANDBOX_PORT/internal/cleanup-r2" \

@@ -34,7 +34,7 @@
   "containers": [
     {
       "class_name": "SandboxContainer",
-      "image": "./container/Dockerfile",
+      "image": "../../packages/cloudflare-sandbox/container/Dockerfile",
       "instance_type": "basic"
     }
   ],

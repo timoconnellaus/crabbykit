@@ -7,8 +7,15 @@ import type {
   AgentTool,
   Capability,
   PromptOptions,
+  ScheduleManager,
 } from "@claw-for-cloudflare/agent-runtime";
-import { AgentDO, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import {
+  AgentDO,
+  createCapabilityStorage,
+  defineTool,
+  resolveCapabilities,
+  Type,
+} from "@claw-for-cloudflare/agent-runtime";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
@@ -23,6 +30,7 @@ import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { vibeCoder } from "@claw-for-cloudflare/vibe-coder";
+import { debugInspector } from "./debug-capability";
 
 interface Env {
   AGENT: DurableObjectNamespace;
@@ -91,6 +99,7 @@ export class BasicAgent extends AgentDO<Env> {
           containerMode: "dev",
         }),
       }),
+      debugInspector(),
       vibeCoder({
         provider: new CloudflareSandboxProvider({
           storage,
@@ -190,6 +199,133 @@ export class BasicAgent extends AgentDO<Env> {
       agentDescription: "A helpful agent that can search, compute, and manage files.",
       timezone: "UTC",
     };
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/debug/execute-tool") {
+      return this.handleDebugToolExecution(request);
+    }
+    return super.fetch(request);
+  }
+
+  private async handleDebugToolExecution(request: Request): Promise<Response> {
+    const body = (await request.json()) as {
+      sessionId?: string;
+      toolName: string;
+      args?: Record<string, unknown>;
+    };
+
+    const { toolName, args = {} } = body;
+    const sessionId =
+      body.sessionId ?? this.sessionStore.list()[0]?.id ?? this.sessionStore.create().id;
+
+    // Build a minimal AgentContext for tool resolution
+    const notAvailable = () => Promise.reject(new Error("Not available in debug mode"));
+    const noopSchedules: ScheduleManager = {
+      create: notAvailable,
+      update: notAvailable,
+      delete: notAvailable,
+      list: () => [],
+      get: () => null,
+      setTimer: notAvailable,
+      cancelTimer: notAvailable,
+    };
+    const context: AgentContext = {
+      sessionId,
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: (name, data) =>
+        this.transport.broadcastToSession(sessionId, {
+          type: "custom_event",
+          sessionId,
+          event: { name, data },
+        }),
+      broadcastToAll: (name, data) => {
+        for (const conn of this.transport.getConnections()) {
+          conn.send({
+            type: "custom_event",
+            sessionId: conn.getSessionId(),
+            event: { name, data },
+          });
+        }
+      },
+      requestFromClient: () => Promise.reject(new Error("Not available in debug mode")),
+      schedules: noopSchedules,
+    };
+
+    // Resolve all tools (base + capabilities)
+    const baseTools = this.getTools(context);
+    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
+      createCapabilityStorage(this.kvStore, capId),
+    );
+    const allTools = [...baseTools, ...resolved.tools];
+
+    const tool = allTools.find((t) => t.name === toolName);
+    if (!tool) {
+      const available = allTools.map((t) => t.name);
+      return Response.json({ error: `Tool "${toolName}" not found`, available }, { status: 404 });
+    }
+
+    const toolCallId = crypto.randomUUID();
+
+    // Persist assistant message with tool_use block
+    this.sessionStore.appendEntry(sessionId, {
+      type: "message",
+      data: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: toolCallId, name: toolName, arguments: args }],
+        timestamp: Date.now(),
+      },
+    });
+
+    // Broadcast tool_execution_start
+    this.transport.broadcastToSession(sessionId, {
+      type: "tool_event",
+      sessionId,
+      event: { type: "tool_execution_start", toolCallId, toolName, args },
+    });
+
+    // Execute the tool
+    let result: { content: unknown[]; details: unknown };
+    let isError = false;
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: tool.execute args type varies per tool
+      result = await (tool as AgentTool<any>).execute(args, {
+        toolCallId,
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (e: unknown) {
+      isError = true;
+      const message = e instanceof Error ? e.message : String(e);
+      result = {
+        content: [{ type: "text", text: `Error: ${message}` }],
+        details: { error: message },
+      };
+    }
+
+    // Persist tool result
+    this.sessionStore.appendEntry(sessionId, {
+      type: "message",
+      data: {
+        role: "toolResult",
+        content: result.content,
+        details: result.details ?? null,
+        toolCallId,
+        toolName,
+        isError,
+        timestamp: Date.now(),
+      },
+    });
+
+    // Broadcast tool_execution_end
+    this.transport.broadcastToSession(sessionId, {
+      type: "tool_event",
+      sessionId,
+      event: { type: "tool_execution_end", toolCallId, toolName, result, isError },
+    });
+
+    return Response.json({ sessionId, toolCallId, toolName, result, isError });
   }
 }
 

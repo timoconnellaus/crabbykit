@@ -634,23 +634,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       });
     }
 
-    // Rate limiting: sliding window per connection
-    const now = Date.now();
-    let rateLimit = this.connectionRateLimits.get(connection.id);
-    if (!rateLimit || now - rateLimit.windowStart > AgentDO.RATE_LIMIT_WINDOW_MS) {
-      rateLimit = { count: 0, windowStart: now };
-      this.connectionRateLimits.set(connection.id, rateLimit);
-    }
-    rateLimit.count++;
-    if (rateLimit.count > AgentDO.RATE_LIMIT_MAX) {
-      connection.send({
-        type: "error",
-        code: ErrorCodes.RATE_LIMITED,
-        message: "Too many messages — slow down",
-      });
-      return;
-    }
-
     let msg: ClientMessage;
     try {
       msg = JSON.parse(data);
@@ -674,6 +657,27 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       return;
     }
 
+    // Rate limiting: sliding window per connection.
+    // Exempt protocol messages (ping, request_sync) — they're automatic,
+    // not user-initiated, and can't be used for abuse.
+    if (msg.type !== "ping" && msg.type !== "request_sync") {
+      const now = Date.now();
+      let rateLimit = this.connectionRateLimits.get(connection.id);
+      if (!rateLimit || now - rateLimit.windowStart > AgentDO.RATE_LIMIT_WINDOW_MS) {
+        rateLimit = { count: 0, windowStart: now };
+        this.connectionRateLimits.set(connection.id, rateLimit);
+      }
+      rateLimit.count++;
+      if (rateLimit.count > AgentDO.RATE_LIMIT_MAX) {
+        connection.send({
+          type: "error",
+          code: ErrorCodes.RATE_LIMITED,
+          message: "Too many messages — slow down",
+        });
+        return;
+      }
+    }
+
     // After hibernation, in-memory state (sessionAgents) is lost.
     // Send a session_sync so the client gets fresh state and knows
     // the agent is no longer streaming (agentStatus resets to idle).
@@ -681,6 +685,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // trigger agent events, so a sync here would race with the optimistic
     // client-side message and overwrite it with stale server state.
     if (connection.wasRestoredFromHibernation && msg.type !== "prompt" && msg.type !== "steer") {
+      // Clear the flag so subsequent messages don't re-trigger recovery
+      connection.wasRestoredFromHibernation = false;
+
       const sessionId = connection.getSessionId();
       const session = this.sessionStore.get(sessionId);
       if (session) {

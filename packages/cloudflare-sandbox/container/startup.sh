@@ -40,7 +40,7 @@ else
   echo "[startup] Mounting R2 at $MOUNT_POINT (agent: ${AGENT_ID})"
   /usr/local/bin/tigrisfs \
     --endpoint "$R2_ENDPOINT" \
-    --uid "$(id -u gia)" --gid "$(id -g gia)" \
+    --uid "$(id -u sandbox)" --gid "$(id -g sandbox)" \
     -o allow_other \
     -f "${R2_BUCKET_NAME}:${AGENT_ID}" "$MOUNT_POINT" &
 
@@ -84,7 +84,7 @@ if [ "$CONTAINER_MODE" = "dev" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
   # Restore packages from last snapshot (if any)
   if [ -S /var/run/sync.sock ]; then
     # Only restore if persist dir is empty (avoid overwriting same-host data)
-    if [ -z "$(ls -A /opt/gia/persist 2>/dev/null)" ]; then
+    if [ -z "$(ls -A /opt/sandbox/persist 2>/dev/null)" ]; then
       echo "[startup] Restoring packages from last snapshot..."
       curl -s --unix-socket /var/run/sync.sock http://localhost/restore -X POST || true
     else
@@ -96,8 +96,18 @@ if [ "$CONTAINER_MODE" = "dev" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
   unset SYNCD_AWS_ACCESS_KEY_ID SYNCD_AWS_SECRET_ACCESS_KEY SYNCD_R2_ACCOUNT_ID SYNCD_R2_BUCKET_NAME SYNCD_AGENT_ID SYNCD_ENCRYPTION_KEY
 fi
 
-# --- 3. Start nm-guard daemon (as root, before privilege drop) ---
+# --- 3. node_modules interception ---
+# LD_PRELOAD intercepts mkdir/mkdirat and bind-mounts local disk over
+# node_modules directories the instant they're created under the FUSE mount.
+# This eliminates the race condition where npm writes to FUSE before a
+# polling daemon can detect and mount the directory.
 
+export LD_PRELOAD="/usr/local/lib/nm-intercept.so"
+export NM_INTERCEPT_MOUNT="$MOUNT_POINT"
+export NM_INTERCEPT_BASE="/opt/sandbox/nm"
+
+# Keep nm-guard as fallback for edge cases (e.g. node_modules created by
+# processes that don't inherit LD_PRELOAD, or pre-existing directories)
 /app/nm-guard.sh &
 
 # --- 4. Scrub credentials ---
@@ -106,5 +116,5 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_ACCOUNT_ID R2_BUCKET_NAME ENCRY
 
 # --- 5. Drop to unprivileged user and start server ---
 
-echo "[startup] Dropping to user 'gia' and starting sandbox server"
-exec gosu gia node --experimental-strip-types /app/server.ts
+echo "[startup] Dropping to user 'sandbox' and starting sandbox server"
+exec gosu sandbox node --experimental-strip-types /app/server.ts

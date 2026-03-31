@@ -7,7 +7,7 @@
 set -uo pipefail
 
 SOCKET_PATH="/var/run/sync.sock"
-PERSIST_PATH="/opt/gia/persist"
+PERSIST_PATH="/opt/sandbox/persist"
 STATE_FILE="/var/run/syncd-state"
 HANDLER_SCRIPT="/var/run/restic-handler.sh"
 
@@ -50,7 +50,7 @@ fi
 cat > "$HANDLER_SCRIPT" <<'HANDLER'
 #!/bin/bash
 STATE_FILE="/var/run/syncd-state"
-PERSIST_PATH="/opt/gia/persist"
+PERSIST_PATH="/opt/sandbox/persist"
 
 load_state() { source "$STATE_FILE"; }
 save_state() {
@@ -137,7 +137,7 @@ case "$method $path" in
       save_state
       if restic restore latest --target / --quiet 2>/dev/null; then
         # Fix ownership and permissions — restic restores as root
-        chown -R gia:gia "$PERSIST_PATH" 2>/dev/null || true
+        chown -R sandbox:sandbox "$PERSIST_PATH" 2>/dev/null || true
         # Restore execute bits on bin directories and CLI entry points
         find "$PERSIST_PATH" -name "bin" -type d -exec chmod -R +x {} \; 2>/dev/null || true
         find "$PERSIST_PATH" -name "*.js" -path "*/bin/*" -exec chmod +x {} \; 2>/dev/null || true
@@ -207,4 +207,4 @@ echo "[restic-syncd] Starting on $SOCKET_PATH"
 mkdir -p "$(dirname "$SOCKET_PATH")"
 
 # Listen for connections — fork handles each, flock serializes restic operations
-socat UNIX-LISTEN:"$SOCKET_PATH",mode=0660,user=root,group=gia,fork SYSTEM:"flock /var/run/syncd.lock bash $HANDLER_SCRIPT" 2>/dev/null
+socat UNIX-LISTEN:"$SOCKET_PATH",mode=0660,user=root,group=sandbox,fork SYSTEM:"flock /var/run/syncd.lock bash $HANDLER_SCRIPT" 2>/dev/null

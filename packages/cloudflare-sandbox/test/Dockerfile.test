@@ -3,16 +3,20 @@
 
 FROM node:22-alpine
 
-RUN apk add --no-cache coreutils gosu shadow curl
+RUN apk add --no-cache coreutils gosu shadow curl gcc musl-dev linux-headers python3 make g++
 
 # Create unprivileged user
-RUN useradd -m -s /bin/sh gia
+RUN useradd -m -s /bin/sh sandbox
 
 # Create workspace and persist directories (no FUSE — just regular dirs)
-RUN mkdir -p /mnt/r2 /opt/gia/persist /opt/gia/nm && \
-    chown -R gia:gia /mnt/r2 /opt/gia
+RUN mkdir -p /mnt/r2 /opt/sandbox/persist /opt/sandbox/nm && \
+    chown -R sandbox:sandbox /mnt/r2 /opt/sandbox
 
 WORKDIR /app
+
+# Install node-pty (native module — must be compiled inside the container)
+RUN cd /app && npm install node-pty && \
+    apk del gcc musl-dev linux-headers python3 make g++
 
 # Copy nm-guard and server
 COPY container/nm-guard.sh container/server.ts /app/
@@ -20,5 +24,5 @@ RUN chmod +x /app/nm-guard.sh
 
 EXPOSE 8080
 
-# Test entrypoint: start nm-guard as root, then drop to gia for server
-CMD sh -c '/app/nm-guard.sh & exec gosu gia node --experimental-strip-types /app/server.ts'
+# Test entrypoint: start nm-guard as root, then drop to sandbox for server
+CMD sh -c '/app/nm-guard.sh & exec gosu sandbox node --experimental-strip-types /app/server.ts'

@@ -5,9 +5,9 @@ import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 /** Allowed credential file paths (home dotfiles, .config, .local). */
 const ALLOWED_PATH_PATTERNS = [
-  /^\/home\/gia\/\.[^/]+$/, // dotfiles in home: ~/.npmrc, ~/.gitconfig
-  /^\/home\/gia\/\.config\//, // ~/.config/**
-  /^\/home\/gia\/\.local\//, // ~/.local/**
+  /^\/home\/sandbox\/\.[^/]+$/, // dotfiles in home: ~/.npmrc, ~/.gitconfig
+  /^\/home\/sandbox\/\.config\//, // ~/.config/**
+  /^\/home\/sandbox\/\.local\//, // ~/.local/**
 ];
 
 const MAX_CREDENTIAL_SIZE = 100 * 1024; // 100KB
@@ -21,7 +21,7 @@ interface StoredCredential {
 }
 
 function normalizePath(p: string): string {
-  return p.replace(/^~\//, "/home/gia/").replace(/\/+/g, "/");
+  return p.replace(/^~\//, "/home/sandbox/").replace(/\/+/g, "/");
 }
 
 function isAllowedPath(p: string): boolean {

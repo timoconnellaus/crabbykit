@@ -76,6 +76,59 @@ cd packages/agent-runtime && bun test:coverage  # With coverage thresholds
 cd examples/basic-agent && bun dev              # Dev server
 ```
 
+## Debugging the Example App
+
+The basic-agent example (`examples/basic-agent`) includes a debug/inspection API for observing agent behavior and simulating tool calls without LLM inference. Start the dev server with `cd examples/basic-agent && bun dev`.
+
+### Debug Endpoints
+
+All endpoints are under `/agent/:agentId/debug/...`. Get the agent ID from `GET /agents`.
+
+**Inspection:**
+```bash
+# List all sessions
+curl http://localhost:5173/agent/$AGENT_ID/debug/sessions
+
+# Get paginated messages for a session
+curl "http://localhost:5173/agent/$AGENT_ID/debug/messages?sessionId=$SID&limit=10"
+
+# Send a prompt (runs LLM inference, waits for completion)
+curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/prompt \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "hello", "sessionName": "my-test"}'
+```
+
+**Tool simulation** — executes a tool and persists it to the session as if the AI called it:
+```bash
+# Execute any tool by name (returns available tools on 404)
+curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/execute-tool \
+  -H 'Content-Type: application/json' \
+  -d '{"sessionId": "...", "toolName": "elevate", "args": {"reason": "testing"}}'
+
+# Discover available tools
+curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/execute-tool \
+  -H 'Content-Type: application/json' \
+  -d '{"toolName": "nonexistent", "args": {}}'
+```
+
+**Broadcast custom events to all connected WebSocket clients:**
+```bash
+curl -X POST http://localhost:5173/agent/$AGENT_ID/debug/broadcast \
+  -H 'Content-Type: application/json' \
+  -d '{"event": "test", "data": {"hello": "world"}}'
+```
+
+### Implementation
+
+The debug API is implemented in two parts, both in the example app (not the runtime):
+- `examples/basic-agent/src/debug-capability.ts` — Capability with HTTP handlers for inspection endpoints (sessions, messages, prompt, broadcast)
+- `examples/basic-agent/src/worker.ts` — `BasicAgent.fetch()` override for `/debug/execute-tool`, which needs access to protected AgentDO members for tool resolution and session entry persistence
+
+### Limitations
+
+- Tool simulation persists entries and broadcasts `tool_event` messages, but the UI won't stream them live unless a WebSocket client is connected to that session. Switching to the session in the UI triggers a `session_sync` which loads all entries.
+- The `calculate` tool uses `Function()` which is blocked in Workers — use other tools for testing.
+
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers + Durable Objects + SQLite

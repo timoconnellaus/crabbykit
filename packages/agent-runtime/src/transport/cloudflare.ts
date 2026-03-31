@@ -13,7 +13,7 @@ interface CfAttachment {
  */
 class CfTransportConnection implements TransportConnection {
   readonly id: string;
-  readonly wasRestoredFromHibernation: boolean;
+  wasRestoredFromHibernation: boolean;
   private sessionId: string;
   private readonly ws: WebSocket;
 

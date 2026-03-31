@@ -7,8 +7,8 @@ import type { ServerMessage } from "./types.js";
 export interface TransportConnection {
   /** Stable identifier that survives hibernation/restart. */
   readonly id: string;
-  /** Whether this connection was reconstructed from persisted state after a runtime restart. */
-  readonly wasRestoredFromHibernation: boolean;
+  /** Whether this connection was reconstructed from persisted state after a runtime restart. Cleared after first message handles recovery. */
+  wasRestoredFromHibernation: boolean;
   /** Send a server message to this connection. */
   send(msg: ServerMessage): void;
   /** Get the session ID currently associated with this connection. */
