@@ -30,7 +30,7 @@ COPY container/claw-vite-plugin/ /opt/sandbox/claw-vite-plugin/
 RUN npm install -g /opt/sandbox/claw-vite-plugin
 
 # Copy nm-guard and server
-COPY container/nm-guard.sh container/server.ts /app/
+COPY container/nm-guard.sh container/server.ts container/constants.ts container/types.ts container/state.ts container/helpers.ts container/sessions.ts container/routes.ts /app/
 RUN chmod +x /app/nm-guard.sh
 
 # Set up LD_PRELOAD for nm-intercept

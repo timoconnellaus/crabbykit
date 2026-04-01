@@ -65,7 +65,7 @@ RUN mkdir -p /node_modules/@claw-for-cloudflare && \
     ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
 
 # Copy container scripts and sandbox server
-COPY startup.sh nm-guard.sh restic-syncd.sh server.ts /app/
+COPY startup.sh nm-guard.sh restic-syncd.sh server.ts constants.ts types.ts state.ts helpers.ts sessions.ts routes.ts /app/
 RUN chmod +x /app/startup.sh /app/nm-guard.sh /app/restic-syncd.sh
 
 EXPOSE 8080
