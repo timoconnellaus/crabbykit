@@ -644,8 +644,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   private handleTransportMessage(connection: TransportConnection, data: string): void {
-    // Fire onConnect hooks on hibernation recovery to reconcile state
-    if (connection.wasRestoredFromHibernation) {
+    // Capture and clear hibernation flag up front so hooks fire exactly once.
+    // The flag is consumed here; session_sync logic below uses the local variable.
+    const wasRecovery = connection.wasRestoredFromHibernation;
+    if (wasRecovery) {
+      connection.wasRestoredFromHibernation = false;
       this.fireOnConnectHooks(connection.getSessionId()).catch((err) => {
         console.error("[AgentDO] onConnect hooks error (reconnect):", err);
       });
@@ -701,10 +704,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Skip for prompt/steer — those persist the user message first and then
     // trigger agent events, so a sync here would race with the optimistic
     // client-side message and overwrite it with stale server state.
-    if (connection.wasRestoredFromHibernation && msg.type !== "prompt" && msg.type !== "steer") {
-      // Clear the flag so subsequent messages don't re-trigger recovery
-      connection.wasRestoredFromHibernation = false;
-
+    if (wasRecovery && msg.type !== "prompt" && msg.type !== "steer") {
       const sessionId = connection.getSessionId();
       const session = this.sessionStore.get(sessionId);
       if (session) {
@@ -857,28 +857,37 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         // Abort any running inference on this session
         this.sessionAgents.get(msg.sessionId)?.abort();
 
+        // Collect ALL connections on the doomed session BEFORE deleting it,
+        // so getConnectionsForSession still matches on the old sessionId.
+        const affectedConnections = [
+          ...this.transport.getConnectionsForSession(msg.sessionId),
+        ];
+
         this.sessionStore.delete(msg.sessionId);
 
-        // If the client was on the deleted session, switch them to another
-        const connSessionId = connection.getSessionId();
-        if (connSessionId === msg.sessionId) {
+        // Redirect every connection that was on the deleted session
+        if (affectedConnections.length > 0) {
           const remaining = this.sessionStore.list();
           if (remaining.length > 0) {
             const target = remaining[0];
-            connection.setSessionId(target.id);
             const { entries: delEntries, hasMore: delHasMore } =
               this.sessionStore.getEntriesPaginated(target.id);
             const delLastSeq =
               delEntries.length > 0 ? delEntries[delEntries.length - 1].seq : undefined;
-            connection.send({
-              type: "session_sync",
-              sessionId: target.id,
-              session: target,
-              messages: this.sessionStore.buildContext(target.id),
-              streamMessage: null,
-              cursor: delLastSeq,
-              hasMore: delHasMore,
-            });
+            const delMessages = this.sessionStore.buildContext(target.id);
+
+            for (const conn of affectedConnections) {
+              conn.setSessionId(target.id);
+              conn.send({
+                type: "session_sync",
+                sessionId: target.id,
+                session: target,
+                messages: delMessages,
+                streamMessage: null,
+                cursor: delLastSeq,
+                hasMore: delHasMore,
+              });
+            }
           }
         }
 
