@@ -20,6 +20,16 @@ export interface TestSocket {
   close: () => void;
 }
 
+type SessionSyncMsg = Extract<ServerMessage, { type: "session_sync" }>;
+
+/** Open a socket, wait for initial sync, and return the client + session ID. */
+export async function connectAndGetSession(stub: DurableObjectStub) {
+  const client = await openSocket(stub);
+  const sync = await client.waitForMessage((m) => m.type === "session_sync");
+  const sessionId = (sync as SessionSyncMsg).sessionId;
+  return { client, sessionId };
+}
+
 /** Get a DurableObjectStub by name. */
 export function getStub(name = "test-agent") {
   const id = env.AGENT.idFromName(name);
@@ -158,10 +168,23 @@ export async function waitIdle(stub: DurableObjectStub) {
 /**
  * Simulate DO hibernation by clearing all in-memory state.
  * WebSocket connections survive (backed by serializeAttachment) but the
- * transport's connection map, sessionAgents, and rate limits are wiped —
+ * transport's connection map, sessionAgents, rate limits, capability hooks,
+ * schedule callbacks, and resolved capabilities cache are wiped —
  * exactly what happens when a real DO is evicted and wakes on a message.
  */
 export async function simulateHibernation(stub: DurableObjectStub) {
   const res = await stub.fetch("http://fake/simulate-hibernation", { method: "POST" });
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
+/** List all schedules (including capability-owned). */
+export async function getSchedules(stub: DurableObjectStub) {
+  const res = await stub.fetch("http://fake/schedules");
+  return res.json() as Promise<{ schedules: Array<Record<string, unknown>> }>;
+}
+
+/** Trigger the DO alarm handler (simulates a cron alarm firing). */
+export async function triggerAlarm(stub: DurableObjectStub) {
+  const res = await stub.fetch("http://fake/trigger-alarm", { method: "POST" });
   return res.json() as Promise<{ ok: boolean }>;
 }

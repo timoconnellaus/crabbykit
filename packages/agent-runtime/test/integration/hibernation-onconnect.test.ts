@@ -19,6 +19,7 @@ import {
 } from "../../src/test-helpers/test-agent-do.js";
 import type { ServerMessage } from "../../src/transport/types.js";
 import {
+  connectAndGetSession,
   getStub,
   openSocket,
   prompt,
@@ -28,14 +29,6 @@ import {
 type SessionSyncMsg = Extract<ServerMessage, { type: "session_sync" }>;
 type AgentEventMsg = Extract<ServerMessage, { type: "agent_event" }>;
 type CustomEventMsg = Extract<ServerMessage, { type: "custom_event" }>;
-
-/** Open a socket, wait for initial sync, and return the client + session ID. */
-async function connectAndGetSession(stub: DurableObjectStub) {
-  const client = await openSocket(stub);
-  const sync = await client.waitForMessage((m) => m.type === "session_sync");
-  const sessionId = (sync as SessionSyncMsg).sessionId;
-  return { client, sessionId };
-}
 
 /**
  * Create a capability that broadcasts a custom event from its onConnect hook,

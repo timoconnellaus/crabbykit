@@ -531,16 +531,39 @@ export class TestAgentDO extends AgentDO {
       });
     }
 
+    // List all schedules (including capability-owned)
+    if (request.method === "GET" && url.pathname === "/schedules") {
+      const schedules = this.scheduleStore.list();
+      return new Response(JSON.stringify({ schedules }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // Trigger the alarm handler (simulates a cron alarm firing)
+    if (request.method === "POST" && url.pathname === "/trigger-alarm") {
+      await this.alarm();
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     // Simulate DO hibernation by clearing all in-memory state.
     // WebSocket connections survive (backed by serializeAttachment), but
-    // the transport's Map, sessionAgents, and rate limits are lost.
+    // ALL in-memory fields are lost — exactly what happens on real DO eviction.
     if (request.method === "POST" && url.pathname === "/simulate-hibernation") {
-      // biome-ignore lint/suspicious/noExplicitAny: test helper — clearing private transport state
-      const transport = this.transport as any;
-      transport.connections.clear();
+      // biome-ignore lint/suspicious/noExplicitAny: test helper — clearing private state
+      const self = this as any;
+      self.transport.connections.clear();
       this.sessionAgents.clear();
-      // biome-ignore lint/suspicious/noExplicitAny: test helper — clearing private rate limit state
-      (this as any).connectionRateLimits.clear();
+      self.connectionRateLimits.clear();
+      // Capability-derived state (re-populated by ensureAgent on next interaction)
+      this.beforeInferenceHooks = [];
+      self.beforeToolExecutionHooks = [];
+      self.afterToolExecutionHooks = [];
+      self.resolvedCapabilitiesCache = null;
+      // Schedule-related in-memory state (re-populated by syncCapabilitySchedules)
+      self.scheduleCallbacks.clear();
+      self.timerOwners.clear();
       return new Response(JSON.stringify({ ok: true }), {
         headers: { "content-type": "application/json" },
       });
