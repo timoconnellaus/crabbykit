@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client/index.ts"
+    "./client": "./src/client/index.ts",
+    "./test-utils": "./src/test-utils.ts"
   },
   "dependencies": {
     "@claw-for-cloudflare/a2a": "workspace:*",

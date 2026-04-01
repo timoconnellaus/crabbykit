@@ -1,4 +1,4 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
 import { describe, expect, it, vi } from "vitest";
 
@@ -448,24 +448,22 @@ describe("vibeCoder", () => {
 
   describe("cross-session preview scenarios", () => {
     /** Map-backed storage so state persists across tool calls. */
-    function createMapStorage() {
+    function createMapStorage(): CapabilityStorage {
       const store = new Map<string, unknown>();
       return {
-        get: vi.fn(
-          async <T>(key: string): Promise<T | undefined> => store.get(key) as T | undefined,
-        ),
-        put: vi.fn(async (key: string, value: unknown): Promise<void> => {
+        get: vi.fn(async (key: string) => store.get(key)),
+        put: vi.fn(async (key: string, value: unknown) => {
           store.set(key, value);
         }),
-        delete: vi.fn(async (key: string): Promise<boolean> => store.delete(key)),
-        list: vi.fn(async <T>(prefix?: string): Promise<Map<string, T>> => {
-          const result = new Map<string, T>();
+        delete: vi.fn(async (key: string) => store.delete(key)),
+        list: vi.fn(async (prefix?: string) => {
+          const result = new Map<string, unknown>();
           for (const [k, v] of store) {
-            if (!prefix || k.startsWith(prefix)) result.set(k, v as T);
+            if (!prefix || k.startsWith(prefix)) result.set(k, v);
           }
           return result;
         }),
-      };
+      } as CapabilityStorage;
     }
 
     it("session B show_preview overwrites session A's preview", async () => {

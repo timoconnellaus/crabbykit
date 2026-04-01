@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { signToken } from "@claw-for-cloudflare/agent-auth";
 import { setAuthHeaders } from "@claw-for-cloudflare/agent-auth";
 import type { CapabilityStorage, CapabilityHttpContext } from "@claw-for-cloudflare/agent-runtime";
+import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { PeeringOptions, PeerRecord } from "../types.js";
 import { checkRateLimit } from "../rate-limit.js";
 import {
@@ -22,35 +23,6 @@ import {
 } from "../handlers.js";
 import { agentPeering } from "../capability.js";
 import { createPeeringService } from "../service.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** In-memory CapabilityStorage for unit testing. */
-function createMockStorage(): CapabilityStorage {
-  const data = new Map<string, unknown>();
-  return {
-    async get<T = unknown>(key: string): Promise<T | undefined> {
-      return data.get(key) as T | undefined;
-    },
-    async put(key: string, value: unknown): Promise<void> {
-      data.set(key, value);
-    },
-    async delete(key: string): Promise<boolean> {
-      return data.delete(key);
-    },
-    async list<T = unknown>(prefix?: string): Promise<Map<string, T>> {
-      const result = new Map<string, T>();
-      for (const [k, v] of data) {
-        if (!prefix || k.startsWith(prefix)) {
-          result.set(k, v as T);
-        }
-      }
-      return result;
-    },
-  };
-}
 
 const SECRET = "test-secret-key-for-hmac";
 const AGENT_A = "agent-a-hex-id";

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import type { CapabilityStorage, AgentContext, ToolExecuteContext } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage, AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { createMockStorage, textOf, TOOL_CTX as toolCtx } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { encrypt, decrypt, generateKey } from "../crypto.js";
 import { getEncryptionKey, getSecrets, MAX_SECRET_SIZE } from "../storage.js";
 import { createSaveSecretTool, createListSecretsTool, createDeleteSecretTool } from "../tools.js";
@@ -9,39 +10,8 @@ import { credentialStore } from "../capability.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockStorage(): CapabilityStorage {
-	const data = new Map<string, unknown>();
-	return {
-		async get<T = unknown>(key: string): Promise<T | undefined> {
-			return data.get(key) as T | undefined;
-		},
-		async put(key: string, value: unknown): Promise<void> {
-			data.set(key, value);
-		},
-		async delete(key: string): Promise<boolean> {
-			return data.delete(key);
-		},
-		async list<T = unknown>(prefix?: string): Promise<Map<string, T>> {
-			const result = new Map<string, T>();
-			for (const [k, v] of data) {
-				if (!prefix || k.startsWith(prefix)) {
-					result.set(k, v as T);
-				}
-			}
-			return result;
-		},
-	};
-}
-
 function makeContext(storage?: CapabilityStorage): AgentContext {
 	return { storage: storage ?? createMockStorage() } as AgentContext;
-}
-
-const toolCtx: ToolExecuteContext = { toolCallId: "test" };
-
-/** Extract text from a tool result's first content block. */
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
-	return (result.content[0] as { text: string }).text;
 }
 
 // ---------------------------------------------------------------------------

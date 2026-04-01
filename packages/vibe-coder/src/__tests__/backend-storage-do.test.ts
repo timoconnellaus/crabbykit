@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BackendStorage } from "../backend-storage-do.js";
 
 /** Create a BackendStorage instance with a mock sql storage. */
@@ -114,7 +114,7 @@ describe("BackendStorage", () => {
       );
 
       expect(response.status).toBe(400);
-      const body = await response.json();
+      const body: any = await response.json();
       expect(body.error).toContain("no such table");
     });
   });
@@ -144,7 +144,7 @@ describe("BackendStorage", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = await response.json();
+      const body: any = await response.json();
       expect(body.results).toHaveLength(2);
       expect(body.results[0]).toEqual({ columns: [], rows: [] });
       expect(body.results[1]).toEqual({ columns: ["count"], rows: [[5]] });
@@ -169,7 +169,7 @@ describe("BackendStorage", () => {
       );
 
       expect(response.status).toBe(400);
-      const body = await response.json();
+      const body: any = await response.json();
       expect(body.error).toContain("constraint failed");
     });
 

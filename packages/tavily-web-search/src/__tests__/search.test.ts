@@ -1,16 +1,11 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSearchTool } from "../search.js";
 
 // Mock global fetch
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
-
-/** Extract text from the first content block of a tool result */
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content[0] as { type: "text"; text: string };
-  return block.text;
-}
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {

@@ -5,13 +5,13 @@ import { handleBackendApi, handlePreviewBackendProxy } from "../backend-api-prox
 function createMockStorage(data: Record<string, unknown> = {}): CapabilityStorage {
   const store = new Map(Object.entries(data));
   return {
-    get: vi.fn(async <T>(key: string) => store.get(key) as T | undefined),
+    get: vi.fn(async (key: string) => store.get(key)),
     put: vi.fn(async (key: string, value: unknown) => {
       store.set(key, value);
     }),
     delete: vi.fn(async (key: string) => store.delete(key)),
     list: vi.fn(async () => new Map()),
-  };
+  } as CapabilityStorage;
 }
 
 function createMockLoader() {

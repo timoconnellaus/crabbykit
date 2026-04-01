@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { createFileDeleteTool } from "../file-delete.js";
 import { createFileEditTool } from "../file-edit.js";
 import { createFileFindTool } from "../file-find.js";
@@ -9,11 +10,6 @@ import { createFileWriteTool } from "../file-write.js";
 import { createMockR2Bucket, seedBucket } from "./mock-r2.js";
 
 const PREFIX = "test-agent";
-
-/** Extract text from the first content block of a tool result */
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
-  return (result.content[0] as { type: "text"; text: string }).text;
-}
 
 describe("file_read", () => {
   let bucket: R2Bucket;

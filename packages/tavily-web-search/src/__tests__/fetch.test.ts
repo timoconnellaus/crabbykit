@@ -1,4 +1,5 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFetchTool, stripHtml } from "../fetch.js";
 
@@ -17,12 +18,6 @@ function mockContext(): AgentContext {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     schedules: {} as any,
   };
-}
-
-/** Extract text from the first content block of a tool result */
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content[0] as { type: "text"; text: string };
-  return block.text;
 }
 
 function htmlResponse(html: string, status = 200) {

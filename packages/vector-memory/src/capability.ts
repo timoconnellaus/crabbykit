@@ -181,6 +181,5 @@ export function vectorMemory(options: VectorMemoryOptions): Capability {
     // Cost emission from hooks doesn't have access to AgentContext.emitCost.
     // Indexing costs are tracked at the embedding level (Workers AI billing).
     // Future: extend CapabilityHookContext to support cost emission.
-    console.log(`[vector-memory] Indexed ${chunksEmbedded} chunks for ${path}`);
   }
 }

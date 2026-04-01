@@ -83,10 +83,6 @@ export class ClawExecutor implements AgentExecutor {
     eventBus: A2AEventBus,
     taskStore: TaskStore,
   ): Promise<ExecuteResult> {
-    console.log(
-      `[a2a] execute: taskId=${taskId}, blocking=${params.configuration?.blocking !== false}`,
-    );
-
     const text = this.extractText(params.message);
     if (!text) {
       const failedStatus: TaskStatus = {
@@ -126,15 +122,11 @@ export class ClawExecutor implements AgentExecutor {
     if (!sessionId) {
       // Create a new session
       const sessionName = `A2A: ${text.slice(0, 50)}`;
-      console.log(`[a2a] creating session: name="${sessionName}"`);
       const session = ctx.sessionStore.create({
         name: sessionName,
         source: "a2a",
       });
       sessionId = session.id;
-      console.log(`[a2a] session created: id=${sessionId}`);
-    } else {
-      console.log(`[a2a] reusing session: id=${sessionId}`);
     }
 
     // At this point sessionId is guaranteed to be set
@@ -208,13 +200,11 @@ export class ClawExecutor implements AgentExecutor {
     taskStore: TaskStore,
   ): Promise<ExecuteResult> {
     try {
-      console.log(`[a2a] sendPrompt: sessionId=${sessionId}, text="${text.slice(0, 80)}"`);
       const { response } = await this.requireContext().sendPrompt({
         text,
         sessionId,
         source: "a2a",
       });
-      console.log(`[a2a] sendPrompt complete: response="${response.slice(0, 80)}"`);
 
       const completedStatus: TaskStatus = {
         state: "completed",
@@ -267,13 +257,9 @@ export class ClawExecutor implements AgentExecutor {
     // Fire and forget — run inference in the background
     const ctx = this.requireContext();
     const pushFetchFn = ctx.fetchFn;
-    console.log(`[a2a] executeNonBlocking: taskId=${taskId}, hasFetchFn=${!!pushFetchFn}`);
     ctx
       .sendPrompt({ text, sessionId, source: "a2a" })
       .then(({ response }: { response: string }) => {
-        console.log(
-          `[a2a] non-blocking sendPrompt complete: taskId=${taskId}, response="${response.slice(0, 80)}"`,
-        );
         const completedStatus: TaskStatus = {
           state: "completed",
           timestamp: new Date().toISOString(),
@@ -287,19 +273,12 @@ export class ClawExecutor implements AgentExecutor {
         eventBus.emitStatusUpdate(taskId, contextId, completedStatus, true);
 
         // Fire push notification if configured
-        const pushConfig = taskStore.getPushConfig(taskId);
-        console.log(
-          `[a2a] push config for ${taskId}:`,
-          pushConfig ? `url=${pushConfig.url}` : "NONE",
-        );
         firePushNotificationsForTask(
           taskStore,
           taskId,
           { taskId, contextId, status: completedStatus, final: true },
           pushFetchFn,
-        ).then((result) => {
-          console.log(`[a2a] push notification sent for ${taskId}`);
-        });
+        );
       })
       .catch((err: unknown) => {
         console.error(

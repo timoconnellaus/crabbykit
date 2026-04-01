@@ -615,20 +615,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       const { entries, hasMore } = this.sessionStore.getEntriesPaginated(sessionId);
       const lastSeq = entries.length > 0 ? entries[entries.length - 1].seq : undefined;
       const contextMessages = this.sessionStore.buildContext(sessionId);
-      const a2aNotes = contextMessages.filter(
-        (m) =>
-          m.role === "user" && typeof m.content === "string" && m.content.includes("[A2A Task"),
-      );
-      if (a2aNotes.length > 0) {
-        console.log(`[a2a:debug] session_sync includes ${a2aNotes.length} A2A note(s)`);
-      } else {
-        console.log(
-          `[a2a:debug] session_sync has ${contextMessages.length} messages, NO A2A notes. User messages:`,
-          contextMessages
-            .filter((m) => m.role === "user")
-            .map((m) => (typeof m.content === "string" ? m.content.slice(0, 60) : "[array]")),
-        );
-      }
       connection.send({
         type: "session_sync",
         sessionId,
@@ -1021,10 +1007,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       type: "message",
       data: { role: "user", content: text, timestamp },
     });
-    console.log(
-      `[a2a:steer] persisted entry id=${steerEntry.id}, seq=${steerEntry.seq}, session=${sessionId}`,
-    );
-
     // Broadcast to clients so the message appears immediately.
     // Only enabled for server-originated steers (e.g. A2A callbacks) — for
     // human steers the client already optimistically added the message.
@@ -2157,7 +2139,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   private async handleA2ACallback(request: Request): Promise<Response> {
-    console.log("[a2a:callback] received callback request");
     const jsonHeaders = { "Content-Type": "application/json" };
 
     let body: unknown;
@@ -2185,11 +2166,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Look up pending task from client storage
     const storage = createCapabilityStorage(this.kvStore, "a2a-client");
     const pendingStore = new PendingTaskStore(storage);
-    const allPending = await pendingStore.list();
-    console.log(
-      `[a2a:callback] looking up taskId=${update.taskId}, pending tasks in store: ${allPending.length}`,
-      allPending.map((t) => t.taskId),
-    );
     const pending = await pendingStore.get(update.taskId);
     if (!pending) {
       return new Response(JSON.stringify({ error: "Unknown task" }), {
@@ -2228,28 +2204,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           ? `[A2A Task Failed] Agent "${pending.targetAgentName}" failed.\nOriginal request: ${pending.originalRequest}\nError: ${resultTexts.join("\n") || "Unknown error"}`
           : `[A2A Task ${state}] Agent "${pending.targetAgentName}"\nOriginal request: ${pending.originalRequest}`;
 
-    console.log(
-      `[a2a:callback] taskId=${update.taskId}, state=${state}, originSession=${pending.originSessionId}`,
-    );
-
     if (isTerminalState(state as "completed")) {
       // Check if agent is currently running
       const agent = this.sessionAgents.get(pending.originSessionId);
       const isStreaming = agent?.state.isStreaming ?? false;
-      console.log(
-        `[a2a:callback] agent state: ${agent ? (isStreaming ? "STREAMING" : "IDLE") : "NO AGENT"}`,
-      );
 
       if (isStreaming) {
         // Agent is busy — steer the result in so it can respond about it.
         // handleSteer persists, broadcasts inject_message to clients, and steers.
-        console.log(`[a2a:callback] steering result into running agent`);
         this.handleSteer(pending.originSessionId, resultText, true);
       } else {
         // Agent is idle — handleAgentPrompt will persist the message AND trigger inference.
         // Broadcast the note to clients before handleAgentPrompt persists + runs inference.
         // handleAgentPrompt will persist it, but the client needs to see it now.
-        console.log(`[a2a:callback] triggering inference on idle agent`);
         this.broadcastToSession(pending.originSessionId, {
           type: "inject_message",
           sessionId: pending.originSessionId,
