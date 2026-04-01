@@ -291,6 +291,17 @@ export function clearCompactionOverrides() {
   compactionOverrides = {};
 }
 
+/** Allow tests to inject extra capabilities (e.g., failing ones for error propagation tests) */
+let extraCapabilities: Capability[] = [];
+
+export function setExtraCapabilities(caps: Capability[]) {
+  extraCapabilities = [...caps];
+}
+
+export function clearExtraCapabilities() {
+  extraCapabilities = [];
+}
+
 /**
  * Build a mock compaction capability for testing.
  * Uses a dummy summarizer (no LLM call) matching the old inline behavior.
@@ -368,7 +379,7 @@ export class TestAgentDO extends AgentDO {
       contextWindowTokens: override?.contextWindowTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
       keepRecentTokens: override?.keepRecentTokens ?? DEFAULT_KEEP_RECENT_TOKENS,
     };
-    return [buildMockCompactionCapability(compactionConfig)];
+    return [buildMockCompactionCapability(compactionConfig), ...extraCapabilities];
   }
 
   /** Additional tools injected for testing (e.g., mock MCP tools) */
@@ -544,6 +555,10 @@ export class TestAgentDO extends AgentDO {
       createCapabilityStorage(this.kvStore, capId),
     );
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
+    // biome-ignore lint/suspicious/noExplicitAny: Test helper — accessing private fields for hook wiring
+    (this as any).beforeToolExecutionHooks = resolved.beforeToolExecutionHooks;
+    // biome-ignore lint/suspicious/noExplicitAny: Test helper — accessing private fields for hook wiring
+    (this as any).afterToolExecutionHooks = resolved.afterToolExecutionHooks;
 
     // Sync capability-declared schedules (same as base class)
     if (resolved.schedules.length > 0) {
