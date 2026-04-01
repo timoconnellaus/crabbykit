@@ -11,7 +11,7 @@ import * as pty from "node-pty";
 
 // --- Constants ---
 
-const PORT = 8080;
+const PORT = Number(process.env.PORT) || 8080;
 const DEFAULT_EXEC_TIMEOUT = 60_000;
 const MAX_BUFFER = 10_000;
 const PROCESS_GC_DELAY = 60_000;
@@ -132,6 +132,18 @@ function isAllowedPath(targetPath: string): boolean {
   return isUnderWorkspace(targetPath) || isUnderPersist(targetPath);
 }
 
+/**
+ * Resolve the effective cwd for command execution.
+ * Returns the resolved path or an error message.
+ * Rejects disallowed paths explicitly rather than silently falling back.
+ */
+function resolveExecCwd(cwd?: string): { ok: true; path: string } | { ok: false; error: string } {
+  if (cwd && isAllowedPath(cwd)) return { ok: true, path: cwd };
+  if (cwd) return { ok: false, error: `cwd "${cwd}" is outside the allowed paths (workspace or /opt/sandbox/persist)` };
+  if (workspacePath) return { ok: true, path: workspacePath };
+  return { ok: false, error: "No workspace configured — call /init with a workspace first" };
+}
+
 /** Strip ANSI escape codes from PTY output. */
 function stripAnsi(str: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escape sequences requires matching control chars
@@ -203,10 +215,9 @@ function createSession(command: string, cwd: string): Session {
   ensureLogDir();
   const id = generateSessionId();
   const logFile = path.join(LOG_DIR, `${id}.log`);
-  const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
 
   const proc = pty.spawn("/bin/sh", ["-c", command], {
-    cwd: effectiveCwd,
+    cwd,
     env: buildSanitizedEnv(),
     cols: 120,
     rows: 40,
@@ -215,7 +226,7 @@ function createSession(command: string, cwd: string): Session {
   const session: Session = {
     id,
     command,
-    cwd: effectiveCwd,
+    cwd,
     startedAt: Date.now(),
     pid: proc.pid,
     running: true,
@@ -254,13 +265,11 @@ function sessionTail(session: Session, chars = 2000): string {
 function execCommand(
   command: string,
   timeout: number,
-  cwd?: string,
+  cwd: string,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
-
     const proc = pty.spawn("/bin/sh", ["-c", command], {
-      cwd: effectiveCwd,
+      cwd,
       env: buildSanitizedEnv(),
       cols: 120,
       rows: 40,
@@ -355,8 +364,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const timeout = (body.timeout as number) ?? DEFAULT_EXEC_TIMEOUT;
     const cwd = body.cwd as string | undefined;
+    const resolved = resolveExecCwd(cwd);
+    if (!resolved.ok) {
+      error(res, resolved.error);
+      return;
+    }
 
-    const result = await execCommand(command, timeout, cwd);
+    const result = await execCommand(command, timeout, resolved.path);
     json(res, result);
     return;
   }
@@ -397,9 +411,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
 
-    const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
+    const resolved = resolveExecCwd(cwd);
+    if (!resolved.ok) {
+      error(res, resolved.error);
+      return;
+    }
     const proc = spawn("/bin/sh", ["-c", command], {
-      cwd: effectiveCwd,
+      cwd: resolved.path,
       env: buildSanitizedEnv(),
     });
 
@@ -650,8 +668,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const timeout = (body.timeout as number) ?? DEFAULT_EXEC_TIMEOUT;
     const cwd = body.cwd as string | undefined;
+    const resolved = resolveExecCwd(cwd);
+    if (!resolved.ok) {
+      error(res, resolved.error);
+      return;
+    }
 
-    const session = createSession(command, cwd ?? workspacePath);
+    const session = createSession(command, resolved.path);
 
     res.writeHead(200, {
       "content-type": "text/event-stream",
@@ -720,8 +743,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const timeout = body.timeout as number | undefined;
     const cwd = body.cwd as string | undefined;
+    const resolved = resolveExecCwd(cwd);
+    if (!resolved.ok) {
+      error(res, resolved.error);
+      return;
+    }
 
-    const session = createSession(command, cwd ?? workspacePath);
+    const session = createSession(command, resolved.path);
 
     // Optional timeout for background processes
     if (timeout) {
@@ -907,7 +935,11 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const timeout = (body.timeout as number) ?? DEFAULT_EXEC_TIMEOUT;
     const cwd = body.cwd as string | undefined;
-    const effectiveCwd = cwd && isAllowedPath(cwd) ? cwd : workspacePath || "/tmp";
+    const resolved = resolveExecCwd(cwd);
+    if (!resolved.ok) {
+      error(res, resolved.error);
+      return;
+    }
 
     res.writeHead(200, {
       "content-type": "text/event-stream",
@@ -916,7 +948,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     });
 
     const proc = pty.spawn("/bin/sh", ["-c", command], {
-      cwd: effectiveCwd,
+      cwd: resolved.path,
       env: buildSanitizedEnv(),
       cols: 120,
       rows: 40,

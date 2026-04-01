@@ -336,6 +336,806 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     });
   });
 
+  // --- Session lifecycle tests ---
+
+  describe("Session lifecycle", () => {
+    let sessionId: string;
+
+    it("starts a background session", async () => {
+      const result = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "sleep 10" }),
+      })) as { sessionId: string; pid: number; logFile: string };
+
+      expect(result.sessionId).toBeTruthy();
+      expect(result.pid).toBeGreaterThan(0);
+      expect(result.logFile).toContain("/tmp/sandbox-logs/");
+      sessionId = result.sessionId;
+    });
+
+    it("rejects session-start with missing command", async () => {
+      const res = await fetch_("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toBe("Missing command");
+    });
+
+    it("lists sessions", async () => {
+      const list = (await fetchJson("/session-list")) as Array<{
+        sessionId: string;
+        running: boolean;
+      }>;
+      const found = list.find((s) => s.sessionId === sessionId);
+      expect(found).toBeDefined();
+      expect(found!.running).toBe(true);
+    });
+
+    it("polls session for output", async () => {
+      const result = (await fetchJson("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })) as {
+        sessionId: string;
+        running: boolean;
+        retryAfterMs: number;
+        outputBytes: number;
+        truncated: boolean;
+      };
+
+      expect(result.sessionId).toBe(sessionId);
+      expect(result.running).toBe(true);
+      expect(result.retryAfterMs).toBeGreaterThan(0);
+      expect(typeof result.outputBytes).toBe("number");
+      expect(result.truncated).toBe(false);
+    });
+
+    it("returns 404 for poll of unknown session", async () => {
+      const res = await fetch_("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "nonexistent" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("writes input to session", async () => {
+      // Start an interactive session
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "cat" }),
+      })) as { sessionId: string };
+
+      const result = (await fetchJson("/session-write", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: startResult.sessionId,
+          input: "hello\n",
+        }),
+      })) as { ok: boolean; bytes: number };
+
+      expect(result.ok).toBe(true);
+      expect(result.bytes).toBe(6);
+
+      // Kill the cat session
+      await fetchJson("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: startResult.sessionId }),
+      });
+    });
+
+    it("returns 404 for write to unknown session", async () => {
+      const res = await fetch_("/session-write", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "nonexistent", input: "hello" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns error for write to exited session", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "echo done" }),
+      })) as { sessionId: string };
+      await new Promise((r) => setTimeout(r, 1000));
+
+      const res = await fetch_("/session-write", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: startResult.sessionId,
+          input: "nope",
+        }),
+      });
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toContain("exited");
+    });
+
+    it("kills a running session", async () => {
+      const result = (await fetchJson("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })) as { ok: boolean };
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("returns alreadyExited for dead session", async () => {
+      await new Promise((r) => setTimeout(r, 500));
+      const result = (await fetchJson("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })) as { alreadyExited: boolean };
+
+      expect(result.alreadyExited).toBe(true);
+    });
+
+    it("returns 404 for kill of unknown session", async () => {
+      const res = await fetch_("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "nonexistent" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("removes a dead session", async () => {
+      const result = (await fetchJson("/session-remove", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })) as { ok: boolean };
+
+      expect(result.ok).toBe(true);
+
+      // Verify it's gone
+      const res = await fetch_("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("cannot remove a running session", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "sleep 30" }),
+      })) as { sessionId: string };
+
+      const res = await fetch_("/session-remove", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: startResult.sessionId }),
+      });
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toContain("kill it first");
+
+      await fetchJson("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: startResult.sessionId }),
+      });
+    });
+
+    it("returns 404 for remove of unknown session", async () => {
+      const res = await fetch_("/session-remove", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: "nonexistent" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects disallowed cwd with 400", async () => {
+      const res = await fetch_("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/tmp" }),
+      });
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toContain("outside the allowed paths");
+    });
+
+    it("respects cwd parameter", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/opt/sandbox/persist" }),
+      })) as { sessionId: string };
+
+      await new Promise((r) => setTimeout(r, 500));
+
+      const pollResult = (await fetchJson("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: startResult.sessionId }),
+      })) as { tail: string };
+
+      expect(pollResult.tail).toContain("/opt/sandbox/persist");
+    });
+
+    it("auto-kills session after timeout", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "sleep 60", timeout: 500 }),
+      })) as { sessionId: string };
+
+      await new Promise((r) => setTimeout(r, 1500));
+
+      const pollResult = (await fetchJson("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: startResult.sessionId }),
+      })) as { running: boolean };
+
+      expect(pollResult.running).toBe(false);
+    });
+  });
+
+  // --- Session poll backoff ---
+
+  describe("Session poll backoff", () => {
+    it("increases retryAfterMs on consecutive empty polls", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "sleep 10" }),
+      })) as { sessionId: string };
+      const sid = startResult.sessionId;
+
+      const poll1 = (await fetchJson("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      })) as { retryAfterMs: number };
+
+      const poll2 = (await fetchJson("/session-poll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      })) as { retryAfterMs: number };
+
+      expect(poll2.retryAfterMs).toBeGreaterThanOrEqual(poll1.retryAfterMs);
+
+      await fetchJson("/session-kill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      });
+    });
+  });
+
+  // --- Session log ---
+
+  describe("Session log", () => {
+    it("reads log file for a session", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: 'echo "log-test-output"' }),
+      })) as { sessionId: string };
+      await new Promise((r) => setTimeout(r, 500));
+
+      const res = await fetch_(`/session-log/${startResult.sessionId}`);
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain("log-test-output");
+    });
+
+    it("supports tail parameter", async () => {
+      const startResult = (await fetchJson("/session-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          command: 'for i in 1 2 3 4 5; do echo "line-$i"; done',
+        }),
+      })) as { sessionId: string };
+      await new Promise((r) => setTimeout(r, 500));
+
+      const res = await fetch_(
+        `/session-log/${startResult.sessionId}?tail=2`,
+      );
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      const lines = text.trim().split("\n").filter(Boolean);
+      expect(lines.length).toBeLessThanOrEqual(3);
+    });
+
+    it("returns 404 for unknown session", async () => {
+      const res = await fetch_("/session-log/nonexistent");
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // --- Session exec (SSE) ---
+
+  describe("Session exec SSE", () => {
+    it("streams session output and exit via SSE", async () => {
+      const res = await fetch_("/session-exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: 'echo "sse-session-test"' }),
+      });
+
+      const text = await res.text();
+      const events = text
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => {
+          try {
+            return JSON.parse(l.slice(6));
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      const sessionEvent = events.find((e: any) => e.type === "session");
+      expect(sessionEvent).toBeTruthy();
+      expect(sessionEvent.sessionId).toBeTruthy();
+
+      const exitEvent = events.find((e: any) => e.type === "exit");
+      expect(exitEvent).toBeTruthy();
+      expect(exitEvent.code).toBe(0);
+    });
+
+    it("returns error for missing command", async () => {
+      const res = await fetch_("/session-exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("respects cwd parameter", async () => {
+      const res = await fetch_("/session-exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/opt/sandbox/persist" }),
+      });
+
+      const text = await res.text();
+      const events = text
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => {
+          try {
+            return JSON.parse(l.slice(6));
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      const stdoutEvents = events.filter((e: any) => e.type === "stdout");
+      const output = stdoutEvents.map((e: any) => e.data).join("");
+      expect(output).toContain("/opt/sandbox/persist");
+    });
+  });
+
+  // --- Exec stream (SSE) ---
+
+  describe("Exec stream SSE", () => {
+    it("streams command output via SSE", async () => {
+      const res = await fetch_("/exec-stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: 'echo "stream-test"' }),
+      });
+
+      const text = await res.text();
+      const events = text
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => {
+          try {
+            return JSON.parse(l.slice(6));
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      const hasOutput = events.some(
+        (e: any) => e.type === "stdout" && e.data.includes("stream-test"),
+      );
+      expect(hasOutput).toBe(true);
+
+      const exitEvent = events.find((e: any) => e.type === "exit");
+      expect(exitEvent).toBeTruthy();
+      expect(exitEvent.code).toBe(0);
+    });
+
+    it("returns error for missing command", async () => {
+      const res = await fetch_("/exec-stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("respects cwd parameter", async () => {
+      const res = await fetch_("/exec-stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/opt/sandbox/persist" }),
+      });
+
+      const text = await res.text();
+      const events = text
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => {
+          try {
+            return JSON.parse(l.slice(6));
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      const output = events
+        .filter((e: any) => e.type === "stdout")
+        .map((e: any) => e.data)
+        .join("");
+      expect(output).toContain("/opt/sandbox/persist");
+    });
+  });
+
+  // --- Env sanitization ---
+
+  describe("Env sanitization", () => {
+    it("filters out sensitive env vars from exec", async () => {
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          envVars: {
+            AWS_SECRET_ACCESS_KEY: "supersecret",
+            SAFE_VAR: "visible",
+          },
+        }),
+      });
+
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          command: "echo AWS=$AWS_SECRET_ACCESS_KEY SAFE=$SAFE_VAR",
+        }),
+      })) as { stdout: string };
+
+      expect(result.stdout).not.toContain("supersecret");
+      expect(result.stdout).toContain("visible");
+    });
+
+    it("filters all SENSITIVE_KEYS", async () => {
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          envVars: {
+            AWS_ACCESS_KEY_ID: "akid",
+            AWS_SECRET_ACCESS_KEY: "asak",
+            R2_ACCOUNT_ID: "r2id",
+            R2_BUCKET_NAME: "r2bucket",
+            ENCRYPTION_KEY: "enckey",
+          },
+        }),
+      });
+
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          command:
+            'echo "AKID=$AWS_ACCESS_KEY_ID ASAK=$AWS_SECRET_ACCESS_KEY R2ID=$R2_ACCOUNT_ID R2B=$R2_BUCKET_NAME ENC=$ENCRYPTION_KEY"',
+        }),
+      })) as { stdout: string };
+
+      expect(result.stdout).not.toContain("akid");
+      expect(result.stdout).not.toContain("asak");
+      expect(result.stdout).not.toContain("r2id");
+      expect(result.stdout).not.toContain("r2bucket");
+      expect(result.stdout).not.toContain("enckey");
+    });
+  });
+
+  // --- Init edge cases ---
+
+  describe("Init edge cases", () => {
+    it("merges env vars across multiple init calls", async () => {
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envVars: { VAR_A: "aaa" } }),
+      });
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envVars: { VAR_B: "bbb" } }),
+      });
+
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "echo A=$VAR_A B=$VAR_B" }),
+      })) as { stdout: string };
+
+      expect(result.stdout).toContain("aaa");
+      expect(result.stdout).toContain("bbb");
+    });
+
+    it("overwrites env vars on re-init", async () => {
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envVars: { OVER: "old" } }),
+      });
+      await fetchJson("/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envVars: { OVER: "new" } }),
+      });
+
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "echo OVER=$OVER" }),
+      })) as { stdout: string };
+
+      expect(result.stdout).toContain("new");
+    });
+  });
+
+  // --- Mode switch ---
+
+  describe("Mode switch", () => {
+    it("switches to dev mode", async () => {
+      const result = (await fetchJson("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "dev" }),
+      })) as { ok: boolean; mode: string };
+
+      expect(result.ok).toBe(true);
+      expect(result.mode).toBe("dev");
+    });
+
+    it("switches back to normal mode", async () => {
+      const result = (await fetchJson("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "normal" }),
+      })) as { ok: boolean; mode: string };
+
+      expect(result.mode).toBe("normal");
+    });
+
+    it("rejects invalid mode", async () => {
+      const res = await fetch_("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "turbo" }),
+      });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // --- Trigger sync ---
+
+  describe("Trigger sync", () => {
+    it("rejects in normal mode", async () => {
+      await fetchJson("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "normal" }),
+      });
+
+      const res = await fetch_("/trigger-sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("triggers sync in dev mode", async () => {
+      await fetchJson("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "dev" }),
+      });
+
+      const result = (await fetchJson("/trigger-sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      })) as { ok: boolean };
+
+      expect(result.ok).toBe(true);
+
+      // Reset
+      await fetchJson("/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "normal" }),
+      });
+    });
+  });
+
+  // --- Cleanup R2 ---
+
+  describe("Cleanup R2 notification", () => {
+    it("accepts cleanup prefix and drains on health read", async () => {
+      await fetchJson("/internal/cleanup-r2", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prefix: "test-drain-prefix/" }),
+      });
+
+      const health1 = (await fetchJson("/health")) as Record<string, unknown>;
+      expect(health1.cleanupPrefixes).toContain("test-drain-prefix/");
+
+      // Second read should have no prefixes (drained)
+      const health2 = (await fetchJson("/health")) as Record<string, unknown>;
+      expect(health2.cleanupPrefixes).toBeUndefined();
+    });
+  });
+
+  // --- Process name reuse ---
+
+  describe("Process name reuse", () => {
+    it("allows restarting a process with the same name after exit", async () => {
+      await fetchJson("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "reuse-me", command: "echo done" }),
+      });
+      await new Promise((r) => setTimeout(r, 500));
+
+      const result = (await fetchJson("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "reuse-me",
+          command: "echo restarted",
+        }),
+      })) as { name: string; pid: number };
+
+      expect(result.name).toBe("reuse-me");
+      expect(result.pid).toBeGreaterThan(0);
+    });
+  });
+
+  // --- Process validation ---
+
+  describe("Process validation", () => {
+    it("rejects invalid process name", async () => {
+      const res = await fetch_("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "bad name!", command: "echo hi" }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects missing command", async () => {
+      const res = await fetch_("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "no-cmd" }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 409 for duplicate running process", async () => {
+      await fetchJson("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "dup-docker", command: "sleep 30" }),
+      });
+
+      const res = await fetch_("/process-start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "dup-docker", command: "sleep 30" }),
+      });
+      expect(res.status).toBe(409);
+
+      await fetchJson("/process-stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "dup-docker" }),
+      });
+    });
+
+    it("returns 404 for stopping non-existent process", async () => {
+      const res = await fetch_("/process-stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "ghost-proc" }),
+      });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // --- Exec edge cases ---
+
+  describe("Exec edge cases", () => {
+    it("returns non-zero exit code for failing command", async () => {
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "exit 42" }),
+      })) as { exitCode: number };
+
+      expect(result.exitCode).toBe(42);
+    });
+
+    it("respects cwd parameter", async () => {
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/opt/sandbox/persist" }),
+      })) as { stdout: string };
+
+      expect(result.stdout.trim()).toBe("/opt/sandbox/persist");
+    });
+
+    it("rejects disallowed cwd with 400", async () => {
+      const res = await fetch_("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "pwd", cwd: "/tmp" }),
+      });
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toContain("outside the allowed paths");
+    });
+
+    it("kills on timeout", async () => {
+      const result = (await fetchJson("/exec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "sleep 60", timeout: 500 }),
+      })) as { stderr: string };
+
+      expect(result.stderr).toContain("timeout");
+    });
+  });
+
+  // --- 404 fallback ---
+
+  describe("404 fallback", () => {
+    it("returns 404 for unknown routes (no dev port)", async () => {
+      await fetchJson("/clear-dev-port", { method: "POST" });
+
+      const res = await fetch_("/nonexistent-endpoint");
+      expect(res.status).toBe(404);
+    });
+  });
+
   // --- nm-guard tests ---
 
   describe("nm-guard", () => {
