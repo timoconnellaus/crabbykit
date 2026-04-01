@@ -14,6 +14,9 @@ import type { Capability } from "../../capabilities/types.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Extract isError from a tool result (the field exists at runtime but isn't in AgentToolResult<T>). */
+const isError = (result: any): boolean | undefined => result.isError;
+
 /** In-memory KvStore for testing ConfigStore. */
 function createMockKvStore(): KvStore {
   const data = new Map<string, unknown>();
@@ -177,7 +180,7 @@ describe("config_schema", () => {
   it("single namespace unknown capability returns error", async () => {
     const tool = createConfigSchema(makeCtx());
     const result = await tool.execute({ namespace: "capability:nope" }, TOOL_CTX);
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown namespace");
   });
 
@@ -198,7 +201,7 @@ describe("config_schema", () => {
   it("single namespace unknown returns error", async () => {
     const tool = createConfigSchema(makeCtx());
     const result = await tool.execute({ namespace: "nope" }, TOOL_CTX);
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown namespace");
   });
 });
@@ -243,7 +246,7 @@ describe("config_get", () => {
   it("unknown capability returns error", async () => {
     const tool = createConfigGet(makeCtx());
     const result = await tool.execute({ namespace: "capability:nope" }, TOOL_CTX);
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown capability");
   });
 
@@ -322,7 +325,7 @@ describe("config_get", () => {
   it("unknown namespace returns error", async () => {
     const tool = createConfigGet(makeCtx());
     const result = await tool.execute({ namespace: "nope" }, TOOL_CTX);
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown namespace");
   });
 });
@@ -340,7 +343,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: { model: "gpt-4" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(textOf(result)).toContain("Configuration updated");
     expect(await ctx.configStore.getCapabilityConfig("my-cap")).toEqual({ model: "gpt-4" });
   });
@@ -352,7 +355,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: { model: "gpt-4" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("does not accept configuration");
   });
 
@@ -362,7 +365,7 @@ describe("config_set", () => {
       { namespace: "capability:nope", value: {} },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown capability");
   });
 
@@ -373,7 +376,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: { model: 42 } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Validation error");
   });
 
@@ -427,7 +430,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: { model: "gpt-4" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("hook boom");
   });
 
@@ -438,7 +441,7 @@ describe("config_set", () => {
       { namespace: "session", value: { name: "New Name" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(textOf(result)).toContain("Session renamed to: New Name");
     expect(ctx.sessionStore.rename).toHaveBeenCalledWith("session-1", "New Name");
   });
@@ -449,7 +452,7 @@ describe("config_set", () => {
       { namespace: "session", value: { name: "" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("1-200 characters");
   });
 
@@ -459,7 +462,7 @@ describe("config_set", () => {
       { namespace: "session", value: { name: "x".repeat(201) } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("1-200 characters");
   });
 
@@ -469,7 +472,7 @@ describe("config_set", () => {
       { namespace: "session", value: "just a string that wont parse to obj" },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain('Expected { name: "..." }');
   });
 
@@ -479,7 +482,7 @@ describe("config_set", () => {
       { namespace: "session", value: null },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain('Expected { name: "..." }');
   });
 
@@ -489,7 +492,7 @@ describe("config_set", () => {
       { namespace: "session", value: { foo: "bar" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain('Expected { name: "..." }');
   });
 
@@ -507,7 +510,7 @@ describe("config_set", () => {
       { namespace: "theme", value: { dark: true } },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(textOf(result)).toContain("Configuration updated: theme");
     expect(setFn).toHaveBeenCalledWith("theme", { dark: true });
   });
@@ -525,7 +528,7 @@ describe("config_set", () => {
       { namespace: "theme", value: { dark: "not-a-bool" } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Validation error");
   });
 
@@ -545,7 +548,7 @@ describe("config_set", () => {
       { namespace: "schedule:abc", value: { anything: 42 } },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(setFn).toHaveBeenCalledWith("schedule:abc", { anything: 42 });
   });
 
@@ -562,7 +565,7 @@ describe("config_set", () => {
       { namespace: "theme", value: { dark: true } },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("set failed");
   });
 
@@ -588,7 +591,7 @@ describe("config_set", () => {
       { namespace: "nope", value: {} },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown namespace");
   });
 
@@ -600,7 +603,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: '{"model":"gpt-4"}' },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(await ctx.configStore.getCapabilityConfig("my-cap")).toEqual({ model: "gpt-4" });
   });
 
@@ -611,7 +614,7 @@ describe("config_set", () => {
       { namespace: "capability:my-cap", value: "not json at all" },
       TOOL_CTX,
     );
-    expect(result.isError).toBe(true);
+    expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Validation error");
   });
 
@@ -630,7 +633,7 @@ describe("config_set", () => {
       { namespace: "theme", value: null },
       TOOL_CTX,
     );
-    expect(result.isError).toBeUndefined();
+    expect(isError(result)).toBeUndefined();
     expect(setFn).toHaveBeenCalledWith("theme", null);
   });
 });
