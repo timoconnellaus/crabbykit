@@ -295,6 +295,18 @@ context.emitCost({
 - No mocking of `SessionStore` — test against real SQLite via Workers pool
 - Every public function must have at least one test
 
+### Shared test helpers
+
+`packages/agent-runtime/src/test-utils.ts` exports helpers for capability/tool tests. Import via the package exports path — **not** via the barrel:
+
+```ts
+import { createMockStorage, textOf, TOOL_CTX } from "@claw-for-cloudflare/agent-runtime/test-utils";
+```
+
+- `createMockStorage()` — in-memory `CapabilityStorage` (get/put/delete/list)
+- `textOf(result)` — extract `.text` from the first content block of a tool result
+- `TOOL_CTX` — minimal `ToolExecuteContext` for `tool.execute()` calls
+
 ### DO integration test isolation
 
 `isolatedStorage` is **disabled** in `vitest.config.ts` for `agent-runtime`. The pool-workers runner's storage frame checker doesn't handle SQLite WAL auxiliary files (`.sqlite-shm`) created by DO KV storage operations, causing spurious `AssertionError` crashes during suite teardown (see cloudflare/workers-sdk#5629).
