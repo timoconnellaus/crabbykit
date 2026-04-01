@@ -188,3 +188,25 @@ export async function triggerAlarm(stub: DurableObjectStub) {
   const res = await stub.fetch("http://fake/trigger-alarm", { method: "POST" });
   return res.json() as Promise<{ ok: boolean }>;
 }
+
+/** Set a schedule's nextFireAt (for backdating to make schedules due). */
+export async function setScheduleNextFire(
+  stub: DurableObjectStub,
+  scheduleId: string,
+  nextFireAt: string,
+) {
+  const res = await stub.fetch("http://fake/set-schedule-next-fire", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ scheduleId, nextFireAt }),
+  });
+  return res.json() as Promise<{ ok: boolean; schedule: Record<string, unknown> | null }>;
+}
+
+/** List all sessions. */
+export async function getSessions(stub: DurableObjectStub) {
+  const res = await stub.fetch("http://fake/sessions");
+  return res.json() as Promise<{
+    sessions: Array<{ id: string; name: string; source?: string }>;
+  }>;
+}

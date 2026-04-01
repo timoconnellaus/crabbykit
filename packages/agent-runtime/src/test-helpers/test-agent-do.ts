@@ -12,6 +12,7 @@ import { createCapabilityStorage } from "../capabilities/storage.js";
 import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
 import { compactSession, estimateMessagesTokens } from "../compaction/compaction.js";
 import type { CompactionConfig, SummarizeFn } from "../compaction/types.js";
+import type { Schedule } from "../scheduling/types.js";
 import { defineTool } from "../tools/define-tool.js";
 
 const DEFAULT_COMPACTION_THRESHOLD = 0.75;
@@ -302,6 +303,21 @@ export function clearExtraCapabilities() {
   extraCapabilities = [];
 }
 
+/** Allow tests to override onScheduleFire lifecycle hook */
+let schedulFireHook:
+  | ((schedule: Schedule) => Promise<{ skip?: boolean; prompt?: string } | undefined>)
+  | null = null;
+
+export function setOnScheduleFireHook(
+  hook: (schedule: Schedule) => Promise<{ skip?: boolean; prompt?: string } | undefined>,
+) {
+  schedulFireHook = hook;
+}
+
+export function clearOnScheduleFireHook() {
+  schedulFireHook = null;
+}
+
 /**
  * Build a mock compaction capability for testing.
  * Uses a dummy summarizer (no LLM call) matching the old inline behavior.
@@ -399,6 +415,15 @@ export class TestAgentDO extends AgentDO {
 
   buildSystemPrompt(_context: AgentContext): string {
     return "You are a test agent. Respond concisely.";
+  }
+
+  protected override async onScheduleFire(
+    schedule: Schedule,
+  ): Promise<{ skip?: boolean; prompt?: string } | undefined> {
+    if (schedulFireHook) {
+      return schedulFireHook(schedule);
+    }
+    return undefined;
   }
 
   protected getA2AClientOptions() {
@@ -527,6 +552,26 @@ export class TestAgentDO extends AgentDO {
       // biome-ignore lint/suspicious/noExplicitAny: test helper
       await store.save(task as any);
       return new Response(JSON.stringify({ registered: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // List all sessions
+    if (request.method === "GET" && url.pathname === "/sessions") {
+      const sessions = this.sessionStore.list();
+      return new Response(JSON.stringify({ sessions }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // Set a schedule's nextFireAt (for testing alarm-fired execution with past-dated times)
+    if (request.method === "POST" && url.pathname === "/set-schedule-next-fire") {
+      const { scheduleId, nextFireAt } = (await request.json()) as {
+        scheduleId: string;
+        nextFireAt: string;
+      };
+      const updated = this.scheduleStore.update(scheduleId, { nextFireAt });
+      return new Response(JSON.stringify({ ok: !!updated, schedule: updated }), {
         headers: { "content-type": "application/json" },
       });
     }
