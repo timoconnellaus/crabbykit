@@ -31,27 +31,29 @@ Update `.test-loop/progress.md` with a new entry at the top:
 - **Next:** [recommended next target based on what we learned]
 ```
 
-## Step 5: Update CLAUDE.md
+## Step 5: Retrospective (write, don't ask)
+
+Reflect on this loop iteration and write process improvement suggestions directly into `.test-loop/progress.md` under a `### Process suggestions` heading inside the current loop entry. Consider:
+
+- Did quality-check.sh miss things it should catch?
+- Were there friction points or missing test helpers?
+- Should the test-loop or test-loop-end commands be updated?
+- Are there patterns worth extracting into shared utilities?
+
+Write them as concrete one-line proposals. These will be reviewed at the start of the next `/test-loop`.
+
+## Step 6: Update CLAUDE.md
 
 If any of these changed during the loop, update CLAUDE.md:
 - New test patterns or conventions
 - New packages or files added
 - Architecture rules discovered or clarified
-- Testing rules updated
 
-## Step 6: Retrospective
+## Step 7: Warm Start
 
-Reflect on this loop iteration and suggest improvements to the process itself. Consider:
+End by printing exactly this, filled in with the recommended next action from the progress entry:
 
-- **Did the test-loop command give good enough guidance?** If you had to deviate from it, suggest how to improve the instructions.
-- **Did quality-check.sh catch the right things?** If you found issues it missed, suggest new checks to add (e.g., missing exports, unused code, type coverage).
-- **Was the progress.md format useful?** If you needed information that wasn't tracked, suggest additions.
-- **Were there friction points?** Things that slowed you down — missing test helpers, awkward test setup, unclear conventions.
-- **Were there patterns worth extracting?** If you wrote test utilities or helpers that would be useful across packages, note them.
-
-Present suggestions as concrete proposals:
-- "Add check to quality-check.sh: [what and why]"
-- "Update test-loop command: [specific change]"
-- "Create shared test helper for: [pattern]"
-
-The user will decide which suggestions to adopt. Don't make changes to the loop infrastructure without asking.
+```
+Next loop ready. Run /test-loop to start.
+Recommended target: [next target from progress.md]
+```
