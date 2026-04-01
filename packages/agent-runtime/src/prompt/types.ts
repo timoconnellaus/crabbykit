@@ -15,8 +15,8 @@ export interface PromptOptions {
   safety?: string | false;
   /** IANA timezone (e.g. "Australia/Sydney"). Enables local time in the runtime section. */
   timezone?: string;
-  /** Set to `false` to omit the runtime section. */
-  runtime?: false;
+  /** Custom runtime section text. Set to `false` to omit entirely. */
+  runtime?: string | false;
   /** Extra sections appended after the default sections but before capability sections. */
   additionalSections?: string[];
 }

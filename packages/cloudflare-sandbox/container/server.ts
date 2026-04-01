@@ -46,6 +46,7 @@ let containerMode = process.env.CONTAINER_MODE ?? "normal";
 let lastSyncAt = 0;
 const cleanupPrefixes: string[] = [];
 let devServerPort: number | null = null;
+let devServerBasePath: string | null = null;
 
 interface BufferEntry {
   seq: number;
@@ -626,13 +627,15 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     devServerPort = port;
-    json(res, { ok: true, port: devServerPort });
+    devServerBasePath = body.basePath ?? null;
+    json(res, { ok: true, port: devServerPort, basePath: devServerBasePath });
     return;
   }
 
   // --- Clear dev port ---
   if (url.pathname === "/clear-dev-port" && method === "POST") {
     devServerPort = null;
+    devServerBasePath = null;
     json(res, { ok: true });
     return;
   }
@@ -969,11 +972,15 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
   // --- Dev server proxy fallback ---
   // Must be after all container endpoints so sandbox operations aren't swallowed.
-  // The @claw-for-cloudflare/vite-plugin handles base path configuration, HMR,
-  // and console capture at the source.
+  // Strip the preview base path (e.g. /preview/{agentId}/) before forwarding
+  // so the dev server sees clean paths (/ , /api/items, etc.).
   if (devServerPort) {
     try {
-      const proxyUrl = `http://127.0.0.1:${devServerPort}${url.pathname}${url.search}`;
+      let proxyPath = url.pathname;
+      if (devServerBasePath && proxyPath.startsWith(devServerBasePath)) {
+        proxyPath = proxyPath.slice(devServerBasePath.length - 1) || "/";
+      }
+      const proxyUrl = `http://127.0.0.1:${devServerPort}${proxyPath}${url.search}`;
       const proxyRes = await fetch(proxyUrl, {
         method,
         headers: Object.fromEntries(

@@ -22,7 +22,7 @@ export function buildDefaultSystemPrompt(options?: PromptOptions): string {
 
   // Runtime
   if (options?.runtime !== false) {
-    sections.push(runtimeSection({ timezone: options?.timezone }));
+    sections.push(options?.runtime ?? runtimeSection({ timezone: options?.timezone }));
   }
 
   // Additional custom sections

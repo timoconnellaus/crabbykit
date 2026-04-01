@@ -1,6 +1,14 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@cloudflare/worker-bundler", () => ({
+  createWorker: vi.fn().mockResolvedValue({
+    mainModule: "index.js",
+    modules: { "index.js": "" },
+  }),
+}));
+
 import { vibeCoder } from "../capability.js";
 
 function mockProvider(): SandboxProvider {

@@ -437,7 +437,7 @@ export class TestAgentDO extends AgentDO {
         sessionId: string;
         text: string;
       };
-      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agents = this.sessionAgents as Map<string, MockPiAgent>;
       const agent = body.sessionId ? agents.get(body.sessionId) : agents.values().next().value;
       if (agent) {
         agent.steer({
@@ -454,7 +454,7 @@ export class TestAgentDO extends AgentDO {
     // Abort endpoint
     if (request.method === "POST" && url.pathname === "/abort") {
       const body = (await request.json()) as { sessionId?: string };
-      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agents = this.sessionAgents as Map<string, MockPiAgent>;
       const agent = body.sessionId ? agents.get(body.sessionId) : agents.values().next().value;
       if (agent) {
         agent.abort();
@@ -467,7 +467,7 @@ export class TestAgentDO extends AgentDO {
     // Get steer history
     if (request.method === "GET" && url.pathname === "/steer-history") {
       const sessionId = url.searchParams.get("sessionId");
-      const agents = (this as any).sessionAgents as Map<string, MockPiAgent>;
+      const agents = this.sessionAgents as Map<string, MockPiAgent>;
       const agent = sessionId ? agents.get(sessionId) : agents.values().next().value;
       return new Response(
         JSON.stringify({
@@ -510,7 +510,7 @@ export class TestAgentDO extends AgentDO {
     if (request.method === "POST" && url.pathname === "/register-pending-task") {
       const { PendingTaskStore } = await import("@claw-for-cloudflare/a2a");
       const { createCapabilityStorage } = await import("../capabilities/storage.js");
-      const storage = createCapabilityStorage(this.ctx.storage, "a2a-client");
+      const storage = createCapabilityStorage(this.kvStore, "a2a-client");
       const store = new PendingTaskStore(storage);
       const task = (await request.json()) as Record<string, unknown>;
       // biome-ignore lint/suspicious/noExplicitAny: test helper
@@ -528,27 +528,26 @@ export class TestAgentDO extends AgentDO {
    * This avoids importing pi-ai (which has partial-json CJS issues in Workers).
    */
   protected async ensureAgent(sessionId: string): Promise<void> {
-    const sessionAgentsField = "sessionAgents" as any;
     const context: AgentContext = {
       agentId: this.ctx.id.toString(),
       sessionId,
       stepNumber: 0,
-      emitCost: (cost) => (this as any).handleCostEvent(cost, sessionId),
+      emitCost: (cost) => this.handleCostEvent(cost, sessionId),
       broadcast: () => {},
       broadcastToAll: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
-      schedules: (this as any).buildScheduleManager(),
+      schedules: this.buildScheduleManager(),
     };
 
     // Resolve capabilities with scoped storage (same as base class)
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.ctx.storage, capId),
+      createCapabilityStorage(this.kvStore, capId),
     );
-    (this as any).beforeInferenceHooks = resolved.beforeInferenceHooks;
+    this.beforeInferenceHooks = resolved.beforeInferenceHooks;
 
     // Sync capability-declared schedules (same as base class)
     if (resolved.schedules.length > 0) {
-      await (this as any).syncCapabilitySchedules(resolved.schedules);
+      await this.syncCapabilitySchedules(resolved.schedules);
     }
 
     // Merge tools
@@ -570,19 +569,19 @@ export class TestAgentDO extends AgentDO {
         tools: allTools,
         messages,
       },
-      transformContext: (msgs: AgentMessage[]) => (this as any).transformContext(msgs, sessionId),
+      transformContext: (msgs: AgentMessage[]) => this.transformContext(msgs, sessionId),
     });
 
     agent.subscribe((event: AgentEvent) => {
-      (this as any).handleAgentEvent(event, sessionId);
+      this.handleAgentEvent(event, sessionId);
 
       // Clean up agent instance when inference completes
       if (event.type === "agent_end") {
-        ((this as any)[sessionAgentsField] as Map<string, MockPiAgent>).delete(sessionId);
+        this.sessionAgents.delete(sessionId);
       }
     });
 
-    ((this as any)[sessionAgentsField] as Map<string, MockPiAgent>).set(sessionId, agent);
+    this.sessionAgents.set(sessionId, agent);
   }
 }
 

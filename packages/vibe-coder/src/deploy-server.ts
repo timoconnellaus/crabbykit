@@ -10,6 +10,8 @@
  * reconstructs the worker from R2 on first access or after eviction.
  */
 
+import type { BackendBundle } from "./backend-api-proxy.js";
+
 const COMPATIBILITY_DATE = "2025-03-01";
 
 /**
@@ -29,6 +31,8 @@ export interface DeployRequestOptions {
   storageBucket: R2Bucket;
   /** The worker loader binding. */
   loader: WorkerLoader;
+  /** DbService service binding (required for deploys with backends). */
+  dbService?: Service;
 }
 
 /**
@@ -50,10 +54,15 @@ export function handleDeployRequest(opts: DeployRequestOptions): Promise<Respons
   const agentDoId = rawId.includes("-") ? opts.agentNamespace.idFromName(rawId).toString() : rawId;
   const cacheKey = `v${WORKER_SCRIPT_VERSION}/${agentDoId}/${deployId}`;
 
-  return serveDeployRequest(opts, agentDoId, deployId, cacheKey, subPath, url.search);
+  // Route /api/* to the backend worker if one exists
+  if (subPath.startsWith("/api/") || subPath === "/api") {
+    return serveDeployBackend(opts, agentDoId, deployId, subPath, url.search);
+  }
+
+  return serveDeployFrontend(opts, agentDoId, deployId, cacheKey, subPath, url.search);
 }
 
-async function serveDeployRequest(
+async function serveDeployFrontend(
   opts: DeployRequestOptions,
   agentDoId: string,
   deployId: string,
@@ -76,6 +85,49 @@ async function serveDeployRequest(
   });
 
   // Forward the request with the prefix stripped
+  const strippedUrl = new URL(opts.request.url);
+  strippedUrl.pathname = subPath;
+  strippedUrl.search = search;
+
+  return worker.getEntrypoint().fetch(new Request(strippedUrl.toString(), opts.request));
+}
+
+/** R2 prefix where backend bundles are stored. */
+const BACKEND_BUNDLE_KEY = ".backend/bundle.json";
+
+async function serveDeployBackend(
+  opts: DeployRequestOptions,
+  agentDoId: string,
+  deployId: string,
+  subPath: string,
+  search: string,
+): Promise<Response> {
+  if (!opts.dbService) {
+    return new Response("Backend not configured", { status: 503 });
+  }
+
+  const backendCacheKey = `backend/v${WORKER_SCRIPT_VERSION}/${agentDoId}/${deployId}`;
+  const dbService = opts.dbService;
+
+  const worker = opts.loader.get(backendCacheKey, async () => {
+    // Load the bundled backend from R2
+    const bundleKey = `${agentDoId}/deploys/${deployId}/${BACKEND_BUNDLE_KEY}`;
+    const obj = await opts.storageBucket.get(bundleKey);
+    if (!obj) {
+      throw new Error(`No backend bundle found for deploy ${deployId}`);
+    }
+    const bundle = (await obj.json()) as BackendBundle;
+
+    return {
+      compatibilityDate: COMPATIBILITY_DATE,
+      mainModule: bundle.mainModule,
+      modules: bundle.modules,
+      env: {
+        __DB_SERVICE: dbService,
+      },
+    };
+  });
+
   const strippedUrl = new URL(opts.request.url);
   strippedUrl.pathname = subPath;
   strippedUrl.search = search;

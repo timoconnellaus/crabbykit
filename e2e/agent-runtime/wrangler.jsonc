@@ -1,0 +1,26 @@
+{
+  "name": "e2e-agent-runtime",
+  "main": "src/test-agent.ts",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT",
+        "class_name": "E2EAgent"
+      }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "STORAGE_BUCKET",
+      "bucket_name": "e2e-storage"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["E2EAgent"]
+    }
+  ]
+}

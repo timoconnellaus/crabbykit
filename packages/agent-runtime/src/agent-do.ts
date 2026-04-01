@@ -169,17 +169,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   protected mcpManager: McpManager;
   /** Per-session agent instances. Present only while inference is active, cleaned up on agent_end. */
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
-  private sessionAgents = new Map<string, any>();
+  protected sessionAgents = new Map<string, any>();
   protected transport: Transport;
   private connectionRateLimits = new Map<string, { count: number; windowStart: number }>();
-  private beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
+  protected beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   private beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
   /** Maps timer IDs to their owning capability ID (set during syncCapabilitySchedules). */
   private timerOwners = new Map<string, string>();
   /** Cached resolved capabilities — populated in ensureAgent, cleared on agent_end. */
-  private resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
+  protected resolvedCapabilitiesCache: ResolvedCapabilities | null = null;
+  /** Cached result of getCapabilities() — cleared alongside resolvedCapabilitiesCache. */
+  protected capabilitiesCache: Capability[] | null = null;
   /** A2A task store — always initialized alongside SessionStore. */
   protected taskStore: TaskStore;
   /** Cached A2A handler — lazily created on first A2A request. */
@@ -247,6 +249,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
    */
   protected getCapabilities(): Capability[] {
     return [];
+  }
+
+  /** Returns cached getCapabilities() result. Cache is cleared on agent_end. */
+  protected getCachedCapabilities(): Capability[] {
+    if (!this.capabilitiesCache) {
+      this.capabilitiesCache = this.getCapabilities();
+    }
+    return this.capabilitiesCache;
   }
 
   /**
@@ -323,7 +333,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private static readonly TIMER_DUMMY_CRON = "0 0 1 1 *";
 
   /** Build a ScheduleManager that delegates to the protected methods. */
-  private buildScheduleManager(): ScheduleManager {
+  protected buildScheduleManager(): ScheduleManager {
     return {
       create: (config) => this.createSchedule(config),
       update: (id, updates) => this.updateSchedule(id, updates),
@@ -1049,7 +1059,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const resolved =
       this.resolvedCapabilitiesCache ??
       resolveCapabilities(
-        this.getCapabilities(),
+        this.getCachedCapabilities(),
         {
           agentId: this.ctx.id.toString(),
           sessionId,
@@ -1202,7 +1212,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     // Resolve capabilities with scoped storage per capability (and cache the result)
-    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
+    const capabilities = this.getCachedCapabilities();
+    const resolved = resolveCapabilities(capabilities, context, (capId) =>
       createCapabilityStorage(this.kvStore, capId),
     );
     this.resolvedCapabilitiesCache = resolved;
@@ -1216,7 +1227,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     // Build config tools (always available)
-    const capabilities = this.getCapabilities();
     // Collect config namespaces from capabilities + consumer overrides
     const capabilityNamespaces = capabilities.flatMap(
       (cap) => cap.configNamespaces?.(context) ?? [],
@@ -1272,6 +1282,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       if (event.type === "agent_end") {
         this.sessionAgents.delete(sessionId);
         this.resolvedCapabilitiesCache = null;
+        this.capabilitiesCache = null;
       }
     });
 
@@ -1333,7 +1344,44 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.sessionAgents.set(sessionId, agent);
   }
 
-  private async transformContext(
+  /**
+   * Resolve all tools for a session (base + capability) with a proper AgentContext.
+   * Useful for subclasses that need to execute tools outside the normal inference loop
+   * (e.g., debug tool execution, test harnesses).
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires explicit any
+  protected resolveToolsForSession(sessionId: string): {
+    tools: AgentTool<any>[];
+    context: AgentContext;
+    resolved: ResolvedCapabilities;
+  } {
+    const context: AgentContext = {
+      agentId: this.ctx.id.toString(),
+      sessionId,
+      stepNumber: 0,
+      emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+      broadcast: (name, data) =>
+        this.broadcastToSession(sessionId, {
+          type: "custom_event",
+          sessionId,
+          event: { name, data },
+        }),
+      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      requestFromClient: () => Promise.reject(new Error("Not available")),
+      schedules: this.buildScheduleManager(),
+    };
+
+    const resolved = resolveCapabilities(this.getCachedCapabilities(), context, (capId) =>
+      createCapabilityStorage(this.kvStore, capId),
+    );
+
+    const baseTools = this.getTools(context);
+    const allTools = [...baseTools, ...resolved.tools];
+
+    return { tools: allTools, context, resolved };
+  }
+
+  protected async transformContext(
     messages: AgentMessage[],
     sessionId: string,
   ): Promise<AgentMessage[]> {
@@ -1347,7 +1395,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     };
 
     for (const hook of this.beforeInferenceHooks) {
-      result = await hook(result, hookContext);
+      try {
+        result = await hook(result, hookContext);
+      } catch (err) {
+        console.error("[AgentDO] beforeInference hook error:", err);
+      }
     }
 
     return result;
@@ -1359,7 +1411,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const resolved =
       this.resolvedCapabilitiesCache ??
       resolveCapabilities(
-        this.getCapabilities(),
+        this.getCachedCapabilities(),
         {
           agentId: this.ctx.id.toString(),
           sessionId,
@@ -1432,7 +1484,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     });
   }
 
-  private handleAgentEvent(event: AgentEvent, sessionId: string): void {
+  protected handleAgentEvent(event: AgentEvent, sessionId: string): void {
     // Broadcast to connected clients on this session
     const serverMsg: ServerMessage =
       event.type === "tool_execution_start" ||
@@ -1508,7 +1560,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
   }
 
-  private handleCostEvent(cost: CostEvent, sessionId: string): void {
+  protected handleCostEvent(cost: CostEvent, sessionId: string): void {
     // Persist as custom session entry
     this.sessionStore.appendEntry(sessionId, {
       type: "custom",
@@ -1649,7 +1701,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const resolved =
       this.resolvedCapabilitiesCache ??
       resolveCapabilities(
-        this.getCapabilities(),
+        this.getCachedCapabilities(),
         {
           agentId: this.ctx.id.toString(),
           sessionId: "",
@@ -1671,7 +1723,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   /** Sync capability-declared schedules: create if missing, update cron if changed. */
-  private async syncCapabilitySchedules(
+  protected async syncCapabilitySchedules(
     declarations: Array<{ config: ScheduleConfig; ownerId: string }>,
   ): Promise<void> {
     for (const { config, ownerId } of declarations) {
@@ -1766,7 +1818,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   private resolveHttpHandlers(): ResolvedCapabilities["httpHandlers"] {
     if (this.resolvedHttpHandlers) return this.resolvedHttpHandlers;
 
-    const capabilities = this.getCapabilities();
+    const capabilities = this.getCachedCapabilities();
     const baseContext: AgentContext = {
       agentId: this.ctx.id.toString(),
       sessionId: "",
@@ -2293,11 +2345,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   // --- Broadcasting ---
 
-  private broadcastToSession(sessionId: string, msg: ServerMessage): void {
+  protected broadcastToSession(sessionId: string, msg: ServerMessage): void {
     this.transport.broadcastToSession(sessionId, msg);
   }
 
-  private broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
+  protected broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
     for (const connection of this.transport.getConnections()) {
       connection.send({
         type: "custom_event",

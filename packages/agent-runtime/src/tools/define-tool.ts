@@ -37,7 +37,7 @@ export const toolResult = {
     return { content: [{ type: "text" as const, text }], details: details ?? {} };
   },
   error(text: string, details?: unknown) {
-    return { content: [{ type: "text" as const, text }], details: details ?? { error: true } };
+    return { content: [{ type: "text" as const, text }], details: details ?? { error: true }, isError: true as const };
   },
 };
 

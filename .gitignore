@@ -5,3 +5,4 @@ coverage
 *.tsbuildinfo
 .dev.vars
 .claude/worktrees
+.test-loop

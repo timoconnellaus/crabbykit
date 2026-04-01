@@ -38,6 +38,9 @@ export class ScheduleStore {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_schedules_fire ON schedules(enabled, next_fire_at)
+    `);
   }
 
   create(config: {

@@ -55,14 +55,17 @@ export class CloudflareSandboxProvider implements SandboxProvider {
 
   private async fetch(path: string, init?: RequestInit): Promise<Response> {
     const stub = this.options.getStub();
-    // Streaming endpoints manage their own lifetimes — don't impose a timeout.
+    // Streaming endpoints and container startup manage their own lifetimes.
+    // /health is used for container startup (Container.super.fetch wakes the container)
+    // — aborting it mid-startup corrupts the Container DO's internal state.
     const isStreaming = path === "/exec-stream" || path === "/session-exec";
+    const isStartup = path === "/health";
     const callerSignal = init?.signal;
 
     let signal = callerSignal;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    if (!isStreaming && !callerSignal) {
+    if (!isStreaming && !isStartup && !callerSignal) {
       const controller = new AbortController();
       timer = setTimeout(
         () => controller.abort(),

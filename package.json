@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "e2e/*"
   ],
   "scripts": {
     "test": "bun run --filter '*' test",

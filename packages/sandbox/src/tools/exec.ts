@@ -46,7 +46,7 @@ export function createExecTool(
       ),
     }),
     execute: async (args, execCtx) => {
-      const notElevated = await checkElevation(context.storage, context.sessionId);
+      const notElevated = await checkElevation(context.storage, context.sessionId, provider);
       if (notElevated) return notElevated;
 
       if (args.background) {

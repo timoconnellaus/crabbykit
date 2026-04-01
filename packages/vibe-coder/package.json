@@ -11,6 +11,7 @@
     "@claw-for-cloudflare/agent-core": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
     "@claw-for-cloudflare/sandbox": "workspace:*",
+    "@cloudflare/worker-bundler": "^0.0.4",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {

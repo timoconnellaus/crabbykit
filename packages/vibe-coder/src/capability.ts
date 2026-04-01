@@ -75,28 +75,110 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
       }),
     ],
 
-    promptSections: () => [
-      "You have live preview capabilities for web development.\n\n" +
-        "Workflow:\n" +
-        "1. Scaffold a Vite project: mkdir, create package.json, bun install vite react react-dom @vitejs/plugin-react\n" +
-        "2. IMPORTANT: Always include clawForCloudflare() in vite.config.ts plugins:\n" +
-        '   import { clawForCloudflare } from "@claw-for-cloudflare/vite-plugin";\n' +
-        "   export default defineConfig({ plugins: [react(), clawForCloudflare()] });\n" +
-        "   This configures the preview proxy, HMR, and console capture automatically.\n" +
-        '3. Add scripts to package.json: "dev": "vite"\n' +
-        "4. Start the dev server (via exec with background=true): bun run dev\n" +
-        "5. Call show_preview with port 3000 (the plugin default)\n" +
-        "6. The user will see the app in a live iframe\n\n" +
-        "Use get_console_logs to check for errors when debugging. " +
-        "Call hide_preview when done.\n\n" +
-        (options.deploy
-          ? "Deploying:\n" +
+    promptSections: () => {
+      const sections: string[] = [];
+
+      if (options.backend) {
+        // Fullstack app with Bun — one process, HMR, API + UI together
+        sections.push(
+          "You have live preview capabilities for fullstack web development using Bun.\n\n" +
+            "Fullstack App Workflow:\n" +
+            "1. Create a project directory and set up the files:\n" +
+            "   - index.html — the HTML entry point with a <script> tag for your React app\n" +
+            "   - app.tsx — your React frontend\n" +
+            "   - server.ts — the Bun.serve() entry point\n" +
+            "   - package.json with dependencies (react, react-dom)\n" +
+            "2. bun install\n" +
+            "3. Start the server (via exec with background=true): bun run server.ts\n" +
+            "4. Call show_preview with the server port (default 3000)\n\n" +
+            "Example server.ts:\n" +
+            "```\n" +
+            'import { Database } from "bun:sqlite";\n' +
+            'import homepage from "./index.html";\n\n' +
+            'const db = new Database("/mnt/r2/app.db");\n' +
+            'db.run("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");\n\n' +
+            "Bun.serve({\n" +
+            '  hostname: "0.0.0.0",\n' +
+            "  port: 3000,\n" +
+            "  routes: {\n" +
+            '    "/": homepage,\n' +
+            '    "/api/items": {\n' +
+            "      async GET() {\n" +
+            '        const items = db.query("SELECT * FROM items").all();\n' +
+            "        return Response.json(items);\n" +
+            "      },\n" +
+            "      async POST(req) {\n" +
+            "        const { name } = await req.json();\n" +
+            '        db.run("INSERT INTO items (name) VALUES (?)", [name]);\n' +
+            "        return Response.json({ ok: true });\n" +
+            "      },\n" +
+            "    },\n" +
+            "  },\n" +
+            "  development: true,\n" +
+            "});\n" +
+            "```\n\n" +
+            "Example index.html:\n" +
+            "```\n" +
+            "<!DOCTYPE html>\n" +
+            '<html><head><title>My App</title></head>\n' +
+            "<body>\n" +
+            '  <div id="root"></div>\n' +
+            '  <script type="module" src="./app.tsx"></script>\n' +
+            "</body></html>\n" +
+            "```\n\n" +
+            "Key points:\n" +
+            "- Bun handles bundling TypeScript/JSX, HMR, and serving — no build tools needed\n" +
+            "- Import HTML files directly in server.ts — Bun bundles the referenced scripts/styles\n" +
+            "- Use bun:sqlite for the database — it's built into Bun, zero dependencies\n" +
+            "- Store the database file on /mnt/r2/ so it persists\n" +
+            '- Set development: true for HMR and console output\n' +
+            '- The server MUST bind to 0.0.0.0 or use the "host" option — use port 3000\n' +
+            "- Frontend fetch calls use relative paths: fetch('/api/items')\n\n" +
+            "Use get_console_logs to check for errors. Call hide_preview when done.",
+        );
+      } else {
+        // Frontend-only app with Bun
+        sections.push(
+          "You have live preview capabilities for web development using Bun.\n\n" +
+            "Frontend App Workflow:\n" +
+            "1. Create a project directory with:\n" +
+            "   - index.html — HTML entry point with <script> for your app\n" +
+            "   - app.tsx — your React frontend\n" +
+            "   - server.ts — simple Bun.serve() to host it\n" +
+            "   - package.json with dependencies (react, react-dom)\n" +
+            "2. bun install\n" +
+            "3. Start the server (via exec with background=true): bun run server.ts\n" +
+            "4. Call show_preview with the server port (default 3000)\n\n" +
+            "Example server.ts:\n" +
+            "```\n" +
+            'import homepage from "./index.html";\n' +
+            "Bun.serve({\n" +
+            '  hostname: "0.0.0.0",\n' +
+            "  port: 3000,\n" +
+            '  routes: { "/": homepage },\n' +
+            "  development: true,\n" +
+            "});\n" +
+            "```\n\n" +
+            "Key points:\n" +
+            "- Bun handles TypeScript/JSX bundling and HMR automatically\n" +
+            "- Import HTML files directly — Bun bundles referenced scripts/styles\n" +
+            '- Set development: true for HMR\n' +
+            "- No Vite or build tools needed\n\n" +
+            "Use get_console_logs to check for errors. Call hide_preview when done.",
+        );
+      }
+
+      if (options.deploy) {
+        sections.push(
+          "Deploying:\n" +
             "After the app is working in preview, you can deploy it:\n" +
-            "1. Build the app: exec `bun run build`\n" +
-            "2. Call deploy_app with the path to the build output directory (e.g. /mnt/r2/my-app/dist)\n" +
-            "3. Share the deploy URL with the user"
-          : ""),
-    ],
+            "1. Call deploy_app with the project directory path\n" +
+            "2. Share the deploy URL with the user",
+        );
+      }
+
+      return sections;
+    },
 
     hooks: {
       afterToolExecution: async (event, ctx) => {

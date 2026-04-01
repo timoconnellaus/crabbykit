@@ -30,11 +30,22 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/compaction-summary`** — LLM-based conversation compaction. Configurable provider/model.
 - **`packages/tavily-web-search`** — Web search + fetch tools via Tavily API. Emits costs.
 - **`packages/prompt-scheduler`** — Exposes schedule management as agent tools (create/update/delete/list schedules).
-- **`packages/r2-storage`** — R2-backed file storage capability. Provides 7 tools: file_read, file_write, file_edit, file_delete, file_list, file_tree, file_find. Path validation, namespace isolation via configurable prefix.
+- **`packages/r2-storage`** — R2-backed file storage capability. Provides 9 tools: file_read, file_write, file_edit, file_delete, file_copy, file_move, file_list, file_tree, file_find. Path validation, namespace isolation via configurable prefix.
 - **`packages/vector-memory`** — Semantic memory search using Cloudflare Vectorize + R2. Auto-indexes markdown files, uses Workers AI embeddings, falls back to keyword search.
-- **`packages/sandbox`** — Controlled shell execution with elevation model. Tools: elevate, de-elevate, bash, start_process, stop_process, get_process_status. Auto-deactivates after idle timeout.
+- **`packages/sandbox`** — Controlled shell execution with elevation model. Tools: elevate, de_elevate, exec, process (poll/log/write/kill/list/remove), save_file_credential, list_file_credentials, delete_file_credential. Auto-deactivates after idle timeout.
 - **`packages/cloudflare-sandbox`** — Sandbox provider implementation for Cloudflare Containers. Proxies sandbox operations to a Container DO via HTTP.
 - **`packages/vibe-coder`** — Live app preview capability. Provides 3 tools: show_preview, hide_preview, get_console_logs. Proxies dev server traffic through the container, injects console capture script, retrieves logs from the browser via client round-trip.
+
+### Agent Operations Packages
+- **`packages/a2a`** — Agent-to-Agent protocol (A2A v1.0). Task store, handler, executor, and tools (call_agent, start_task, check_task, cancel_task).
+- **`packages/agent-fleet`** — Fleet management capability. Create/list/delete child agents via D1 registry.
+- **`packages/agent-peering`** — Peer-to-peer agent communication via HMAC-signed tokens.
+- **`packages/agent-registry`** — D1-backed agent registry for discovery and metadata.
+- **`packages/agent-auth`** — Authentication utilities for agent HTTP endpoints.
+- **`packages/agent-storage`** — Shared storage identity (R2 bucket + namespace prefix) passed to r2-storage, vector-memory, and cloudflare-sandbox.
+- **`packages/credential-store`** — Secure credential storage capability for managing API keys and secrets.
+- **`packages/heartbeat`** — Periodic heartbeat capability with configurable interval.
+- **`packages/vite-plugin`** — Vite plugin for CLAW development (bundled into container images).
 
 ### Internal Packages (not published)
 - **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
@@ -55,7 +66,17 @@ packages/vector-memory     — Semantic memory search (Vectorize + R2)
 packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
-examples/basic-agent       — Full-stack example (Vite + Cloudflare Worker)
+packages/a2a                — Agent-to-Agent protocol (A2A v1.0)
+packages/agent-fleet        — Fleet management (create/list child agents)
+packages/agent-peering      — Peer-to-peer agent communication
+packages/agent-registry     — D1-backed agent registry
+packages/agent-auth         — Authentication utilities
+packages/agent-storage      — Shared R2 storage identity
+packages/credential-store   — Secure credential storage capability
+packages/heartbeat          — Periodic heartbeat capability
+packages/vite-plugin        — Vite plugin for CLAW dev (bundled into containers)
+examples/basic-agent        — Full-stack example (Vite + Cloudflare Worker)
+e2e/agent-runtime           — E2E tests (pool-workers + wrangler dev w/ containers)
 ```
 
 ## Commands
@@ -74,6 +95,12 @@ Package-level:
 cd packages/agent-runtime && bun test           # Runtime tests (Workers pool)
 cd packages/agent-runtime && bun test:coverage  # With coverage thresholds
 cd examples/basic-agent && bun dev              # Dev server
+```
+
+E2E tests:
+```bash
+cd e2e/agent-runtime && bun test                # Pool-workers tests (fast, sub-second)
+cd e2e/agent-runtime && bun run test:dev        # Wrangler dev tests (real containers, ~40s)
 ```
 
 ## Debugging the Example App
@@ -137,7 +164,7 @@ The CLI wraps these HTTP endpoints, which can also be called directly. All endpo
 The debug system has three parts, all in the example app (not the runtime):
 - `examples/basic-agent/cli/index.ts` — Interactive REPL CLI wrapping the debug HTTP API
 - `examples/basic-agent/src/debug-capability.ts` — Capability with HTTP handlers for inspection endpoints (sessions, messages, prompt, broadcast)
-- `examples/basic-agent/src/worker.ts` — `BasicAgent.fetch()` override for `/debug/execute-tool`, which needs access to protected AgentDO members for tool resolution and session entry persistence
+- `examples/basic-agent/src/worker.ts` — `BasicAgent.fetch()` override for `/debug/execute-tool`, using `this.resolveToolsForSession(sessionId)` for tool resolution
 
 ### Limitations
 
@@ -173,6 +200,18 @@ All messages (both `ServerMessage` and `ClientMessage`) discriminate on the `typ
 ### AgentDO is the base class consumers extend
 
 Consumers implement `getConfig()`, `getTools()`, `buildSystemPrompt()`, and optionally `getCapabilities()`. Lifecycle hooks use `on{Event}` naming: `onTurnEnd`, `onAgentEnd`, `onSessionCreated`.
+
+#### Protected API for subclassing and testing
+
+These members are `protected` for test agents and advanced subclasses:
+- `sessionAgents` — Map of active per-session agent instances
+- `sessionStore`, `kvStore`, `transport`, `scheduler` — core infrastructure
+- `resolveToolsForSession(sessionId)` — resolves all tools (base + capability) with a proper AgentContext. Use this for debug/test tool execution endpoints instead of manually constructing contexts.
+- `getCachedCapabilities()` — returns cached `getCapabilities()` result (cleared on `agent_end`)
+- `buildScheduleManager()` — creates a ScheduleManager that delegates to protected schedule methods
+- `ensureAgent(sessionId)` — override to inject mock LLM agents for testing
+- `handleAgentEvent()`, `handleCostEvent()`, `transformContext()`, `syncCapabilitySchedules()` — agent lifecycle infrastructure
+- `broadcastToSession()`, `broadcastCustomToAll()` — message broadcasting
 
 ## TypeScript Rules
 

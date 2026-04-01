@@ -1,0 +1,41 @@
+{
+  "name": "e2e-agent-runtime-dev",
+  "main": "src/test-agent-dev.ts",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT",
+        "class_name": "E2EAgentDev"
+      },
+      {
+        "name": "SANDBOX_CONTAINER",
+        "class_name": "SandboxContainer"
+      }
+    ]
+  },
+  "containers": [
+    {
+      "class_name": "SandboxContainer",
+      "image": "../../packages/cloudflare-sandbox/container/Dockerfile",
+      "instance_type": "basic"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE_BUCKET",
+      "bucket_name": "e2e-storage"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["E2EAgentDev"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["SandboxContainer"]
+    }
+  ]
+}

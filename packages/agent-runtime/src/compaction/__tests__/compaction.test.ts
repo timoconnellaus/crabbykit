@@ -41,24 +41,30 @@ const mockSummarize: SummarizeFn = async (msgs, prevSummary) => {
 };
 
 describe("Token Estimation", () => {
+  // Implementation uses content-aware heuristics:
+  // - Prose: chars/3.5, Code: chars/3.0, JSON: chars/2.5
+  // - 5-token overhead per message, 1.15 safety margin
+  // - Tool calls: text tokens + args tokens + 5 framing tokens
+
   describe("estimateTokens", () => {
-    it("estimates text message tokens (chars/4 * 1.2)", () => {
+    it("estimates text message tokens with prose heuristic", () => {
       const msg = userMsg("a".repeat(400));
       const estimate = estimateTokens(msg);
-      // 400/4 * 1.2 = 120
-      expect(estimate).toBe(120);
+      // "aaa..." is prose: ceil(400/3.5) = 115 text + 5 overhead = 120, * 1.15 = ceil(138)
+      expect(estimate).toBe(138);
     });
 
-    it("estimates tool result tokens (chars/2 * 1.2)", () => {
+    it("estimates tool result tokens with prose heuristic", () => {
       const msg = toolResultMsg("a".repeat(1000));
       const estimate = estimateTokens(msg);
-      // 1000/2 * 1.2 = 600
-      expect(estimate).toBe(600);
+      // toolResult has content as string: ceil(1000/3.5) = 286 + 5 overhead = 291, * 1.15 = ceil(334.65) = 335
+      expect(estimate).toBe(335);
     });
 
     it("handles empty content", () => {
       const msg = userMsg("");
-      expect(estimateTokens(msg)).toBe(0);
+      // 0 text + 5 overhead = 5, * 1.15 = ceil(5.75) = 6
+      expect(estimateTokens(msg)).toBe(6);
     });
 
     it("handles array content blocks", () => {
@@ -70,8 +76,8 @@ describe("Token Estimation", () => {
         ],
         timestamp: Date.now(),
       } as unknown as AgentMessage;
-      // 400 chars total / 4 * 1.2 = 120
-      expect(estimateTokens(msg)).toBe(120);
+      // ceil(200/3.5)=58 + ceil(200/3.5)=58 = 116 + 5 overhead = 121, * 1.15 = ceil(139.15) = 140
+      expect(estimateTokens(msg)).toBe(140);
     });
 
     it("handles string items in content array", () => {
@@ -80,8 +86,8 @@ describe("Token Estimation", () => {
         content: ["hello world"],
         timestamp: Date.now(),
       } as unknown as AgentMessage;
-      // 11 chars / 4 * 1.2 = ceil(3.3) = 4
-      expect(estimateTokens(msg)).toBe(4);
+      // ceil(11/3.5)=4 + 5 overhead = 9, * 1.15 = ceil(10.35) = 11
+      expect(estimateTokens(msg)).toBe(11);
     });
 
     it("treats toolCall content blocks as tool content", () => {
@@ -90,15 +96,17 @@ describe("Token Estimation", () => {
         content: [{ type: "toolCall", name: "search", text: "a".repeat(100) }],
         timestamp: Date.now(),
       } as unknown as AgentMessage;
-      // 100 chars / 2 (tool) * 1.2 = 60
-      expect(estimateTokens(msg)).toBe(60);
+      // text: ceil(100/3.5)=29, toolCall args: JSON.stringify({})="{}" -> ceil(2/2.5)=1 + 5 framing = 6
+      // total: 29 + 6 + 5 overhead = 40, * 1.15 = ceil(46) = 46
+      expect(estimateTokens(msg)).toBe(46);
     });
   });
 
   describe("estimateMessagesTokens", () => {
     it("sums individual estimates", () => {
       const msgs = [userMsg("a".repeat(400)), assistantMsg("b".repeat(400))];
-      expect(estimateMessagesTokens(msgs)).toBe(240); // 120 + 120
+      // Each: ceil(400/3.5)=115 + 5 = 120, * 1.15 = 138. Total: 276
+      expect(estimateMessagesTokens(msgs)).toBe(276);
     });
 
     it("returns 0 for empty array", () => {

@@ -7,21 +7,13 @@ import type {
   AgentTool,
   Capability,
   PromptOptions,
-  ScheduleManager,
 } from "@claw-for-cloudflare/agent-runtime";
-import {
-  AgentDO,
-  createCapabilityStorage,
-  defineTool,
-  resolveCapabilities,
-  Type,
-  Value,
-} from "@claw-for-cloudflare/agent-runtime";
+import { AgentDO, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
-  SandboxContainer,
   handlePreviewRequest,
+  SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
@@ -31,12 +23,19 @@ import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
-import { handleDeployRequest, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
+import {
+  BackendStorage,
+  DbService,
+  handleDeployRequest,
+  vibeCoder,
+} from "@claw-for-cloudflare/vibe-coder";
 import { debugInspector } from "./debug-capability";
 
 interface Env {
   AGENT: DurableObjectNamespace;
   SANDBOX_CONTAINER: DurableObjectNamespace;
+  BACKEND_STORAGE: DurableObjectNamespace;
+  DB_SERVICE: Service<DbService>;
   STORAGE_BUCKET: R2Bucket;
   MEMORY_INDEX: VectorizeIndex;
   AI: Ai;
@@ -113,6 +112,10 @@ export class BasicAgent extends AgentDO<Env> {
           containerMode: "dev",
         }),
         deploy: { storage },
+        backend: {
+          loader: this.env.LOADER,
+          dbService: this.env.DB_SERVICE,
+        },
       }),
     ];
   }
@@ -206,6 +209,7 @@ export class BasicAgent extends AgentDO<Env> {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+
     if (request.method === "POST" && url.pathname === "/debug/execute-tool") {
       return this.handleDebugToolExecution(request);
     }
@@ -223,48 +227,8 @@ export class BasicAgent extends AgentDO<Env> {
     const sessionId =
       body.sessionId ?? this.sessionStore.list()[0]?.id ?? this.sessionStore.create().id;
 
-    // Build a minimal AgentContext for tool resolution
-    // biome-ignore lint/suspicious/noExplicitAny: Debug mock doesn't need real schedule returns
-    const noopAsync = () => Promise.resolve(null as any);
-    const noopSchedules: ScheduleManager = {
-      create: noopAsync,
-      update: noopAsync,
-      delete: () => Promise.resolve(),
-      list: () => [],
-      get: () => null,
-      setTimer: noopAsync,
-      cancelTimer: noopAsync,
-    };
-    const context: AgentContext = {
-      agentId: this.ctx.id.toString(),
-      sessionId,
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: (name, data) =>
-        this.transport.broadcastToSession(sessionId, {
-          type: "custom_event",
-          sessionId,
-          event: { name, data },
-        }),
-      broadcastToAll: (name, data) => {
-        for (const conn of this.transport.getConnections()) {
-          conn.send({
-            type: "custom_event",
-            sessionId: conn.getSessionId(),
-            event: { name, data },
-          });
-        }
-      },
-      requestFromClient: () => Promise.reject(new Error("Not available in debug mode")),
-      schedules: noopSchedules,
-    };
-
-    // Resolve all tools (base + capabilities)
-    const baseTools = this.getTools(context);
-    const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.kvStore, capId),
-    );
-    const allTools = [...baseTools, ...resolved.tools];
+    // Resolve all tools (base + capabilities) using proper context
+    const { tools: allTools } = this.resolveToolsForSession(sessionId);
 
     const tool = allTools.find((t) => t.name === toolName);
     if (!tool) {
@@ -350,8 +314,8 @@ export class BasicAgent extends AgentDO<Env> {
   }
 }
 
-// Re-export SandboxContainer for wrangler to bind as a DO
-export { SandboxContainer };
+// Re-export DOs and entrypoints for wrangler to bind
+export { BackendStorage, DbService, SandboxContainer };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -384,10 +348,12 @@ export default {
       agentNamespace: env.AGENT,
       storageBucket: env.STORAGE_BUCKET,
       loader: env.LOADER,
+      dbService: env.DB_SERVICE,
     });
     if (deployRes) return deployRes;
 
     // /preview/:id[/...] — proxy to sandbox container for dev server preview
+    // With Bun fullstack, the container handles both HTML and API routes
     const previewRes = handlePreviewRequest({
       request,
       agentNamespace: env.AGENT,

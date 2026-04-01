@@ -1,0 +1,27 @@
+{
+  "name": "e2e-agent-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:dev": "vitest run --config vitest.dev.config.ts"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.1.0",
+    "@claw-for-cloudflare/agent-runtime": "workspace:*",
+    "@claw-for-cloudflare/agent-storage": "workspace:*",
+    "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
+    "@claw-for-cloudflare/compaction-summary": "workspace:*",
+    "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
+    "@claw-for-cloudflare/r2-storage": "workspace:*",
+    "@claw-for-cloudflare/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
+    "@cloudflare/workers-types": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

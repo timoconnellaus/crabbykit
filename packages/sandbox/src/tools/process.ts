@@ -38,7 +38,7 @@ export function createProcessTool(
       ),
     }),
     execute: async (args) => {
-      const notElevated = await checkElevation(context.storage, context.sessionId);
+      const notElevated = await checkElevation(context.storage, context.sessionId, provider);
       if (notElevated) return notElevated;
 
       // checkElevation above throws if storage is undefined

@@ -6,10 +6,63 @@ import {
   setCompactionOverride,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
+import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
 
 function getStub(name = "test-agent") {
   const id = env.AGENT.idFromName(name);
   return env.AGENT.get(id);
+}
+
+/** Open a WebSocket to the DO and collect messages. */
+async function openSocket(stub: DurableObjectStub) {
+  const resp = await stub.fetch("http://fake/ws", {
+    headers: { upgrade: "websocket" },
+  });
+  const ws = resp.webSocket!;
+  ws.accept();
+
+  const messages: ServerMessage[] = [];
+  const waiters: Array<{
+    predicate: (msg: ServerMessage) => boolean;
+    resolve: (msg: ServerMessage) => void;
+  }> = [];
+
+  ws.addEventListener("message", (event) => {
+    const msg: ServerMessage = JSON.parse(event.data as string);
+    messages.push(msg);
+    for (let i = waiters.length - 1; i >= 0; i--) {
+      if (waiters[i].predicate(msg)) {
+        waiters[i].resolve(msg);
+        waiters.splice(i, 1);
+      }
+    }
+  });
+
+  const waitForMessage = (
+    predicate: (msg: ServerMessage) => boolean,
+    timeoutMs = 5000,
+  ): Promise<ServerMessage> => {
+    const existing = messages.find(predicate);
+    if (existing) return Promise.resolve(existing);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Timed out waiting for message (${timeoutMs}ms)`)),
+        timeoutMs,
+      );
+      waiters.push({
+        predicate,
+        resolve: (msg) => {
+          clearTimeout(timer);
+          resolve(msg);
+        },
+      });
+    });
+  };
+
+  const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
+  const close = () => ws.close();
+
+  return { ws, messages, waitForMessage, send, close };
 }
 
 async function prompt(stub: DurableObjectStub, text: string, sessionId?: string) {
@@ -198,23 +251,37 @@ describe("AgentDO Integration", () => {
     it("steer message is injected while agent is running", async () => {
       const stub = getStub("steer-test");
 
-      // Set up a delayed response so we can steer mid-run
-      setMockResponses([{ text: "Working on it...", delay: 50 }, { text: "Adjusted response" }]);
+      // Use WebSocket — DO input gates serialize HTTP fetch requests, so
+      // steering via HTTP can never arrive mid-inference. WebSocket messages
+      // are processed at await yield points within the same DO.
+      setMockResponses([{ text: "Working on it...", delay: 200 }]);
 
-      // Start a prompt (don't await — it will be processing)
-      const promptPromise = prompt(stub, "Do a long task");
+      const client = await openSocket(stub);
+      const sync = await client.waitForMessage((m) => m.type === "session_sync");
+      const sessionId = (sync as { sessionId: string }).sessionId;
 
-      // Give the agent a moment to start, then steer
-      await new Promise((r) => setTimeout(r, 10));
-      await steer(stub, "", "Actually, change direction");
+      // Start inference via WebSocket (fire-and-forget)
+      client.send({ type: "prompt", sessionId, text: "Do a long task" });
 
-      // Wait for the prompt to finish
-      await promptPromise;
+      // Wait for agent to enter the streaming delay, then steer
+      await new Promise((r) => setTimeout(r, 50));
+      client.send({ type: "steer", sessionId, text: "Actually, change direction" });
 
-      // Verify the steer was received
-      const history = await getSteerHistory(stub);
-      expect(history.steeredMessages.length).toBeGreaterThanOrEqual(1);
-      expect(history.steeredMessages[0].content).toBe("Actually, change direction");
+      // Wait for agent_end
+      await client.waitForMessage((m) => m.type === "agent_event" && (m as any).event?.type === "agent_end");
+
+      // Verify the steer was persisted to the session store.
+      // We can't check MockPiAgent.steeredMessages because the agent is
+      // cleaned up from sessionAgents on agent_end.
+      const { entries } = await getEntries(stub, sessionId);
+      const userEntries = entries.filter(
+        (e: any) => e.type === "message" && e.data?.role === "user",
+      );
+      // Should have 2 user messages: the original prompt + the steer
+      expect(userEntries.length).toBe(2);
+      expect(userEntries[1].data.content).toBe("Actually, change direction");
+
+      client.close();
     });
   });
 
@@ -222,23 +289,29 @@ describe("AgentDO Integration", () => {
     it("abort stops agent and partial message is persisted", async () => {
       const stub = getStub("abort-test");
 
-      // Set up a delayed response so we can abort mid-run
-      setMockResponses([{ text: "This is a long response that should be cut short", delay: 50 }]);
+      // Use WebSocket for the same reason as the steer test — HTTP requests
+      // are serialized by the DO input gate.
+      setMockResponses([{ text: "This is a long response that should be cut short", delay: 200 }]);
 
-      // Start prompt and abort quickly
-      const promptPromise = prompt(stub, "Generate a long response");
+      const client = await openSocket(stub);
+      const sync = await client.waitForMessage((m) => m.type === "session_sync");
+      const sessionId = (sync as { sessionId: string }).sessionId;
 
-      await new Promise((r) => setTimeout(r, 10));
-      await abort(stub);
+      // Start inference via WebSocket
+      client.send({ type: "prompt", sessionId, text: "Generate a long response" });
 
-      const result = await promptPromise;
+      // Wait for streaming to start, then abort
+      await new Promise((r) => setTimeout(r, 50));
+      client.send({ type: "abort", sessionId });
 
-      // Should have messages (at least user message + partial/complete assistant)
-      expect(result.messages.length).toBeGreaterThanOrEqual(1);
+      // Wait for agent_end
+      await client.waitForMessage((m) => m.type === "agent_event" && (m as any).event?.type === "agent_end");
 
-      // Check that entries were persisted
+      // Check that entries were persisted (at least user message)
       const { entries } = await getEntries(stub);
       expect(entries.length).toBeGreaterThanOrEqual(1);
+
+      client.close();
     });
   });
 

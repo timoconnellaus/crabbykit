@@ -28,6 +28,10 @@
       {
         "name": "SANDBOX_CONTAINER",
         "class_name": "SandboxContainer"
+      },
+      {
+        "name": "BACKEND_STORAGE",
+        "class_name": "BackendStorage"
       }
     ]
   },
@@ -36,6 +40,13 @@
       "class_name": "SandboxContainer",
       "image": "../../packages/cloudflare-sandbox/container/Dockerfile",
       "instance_type": "basic"
+    }
+  ],
+  "services": [
+    {
+      "binding": "DB_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "DbService"
     }
   ],
   "ai": {
@@ -75,6 +86,10 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["SandboxContainer"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["BackendStorage"]
     }
   ]
 }
