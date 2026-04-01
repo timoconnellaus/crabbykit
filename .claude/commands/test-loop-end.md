@@ -51,9 +51,11 @@ If any of these changed during the loop, update CLAUDE.md:
 
 ## Step 7: Warm Start
 
-End by printing exactly this, filled in with the recommended next action from the progress entry:
+End by printing the next loop command ready to copy-paste. If there's a clear next target from the progress entry, include it. If not, just print `/test-loop` — the next loop will explore to find issues.
 
 ```
-Next loop ready. Run /test-loop to start.
-Recommended target: [next target from progress.md]
+/test-loop [next target, if known]
 ```
+
+For example: `/test-loop Add tests for prompt-scheduler`
+Or just: `/test-loop`

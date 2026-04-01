@@ -20,7 +20,7 @@ Present a 3-line summary: warnings count, what was done last, recommended next t
 
 ## Step 2: Pick Target
 
-Recommend the target from the previous loop's "Next" field. If none, use this priority order:
+If the user provided a target in the command invocation (e.g. `/test-loop Add tests for prompt-scheduler`), use that. Otherwise, recommend the target from the previous loop's "Next" field. If none, use this priority order:
 1. Capability packages with 0 tests (prompt-scheduler, heartbeat, agent-peering, agent-registry, credential-store, agent-fleet, agent-auth)
 2. Edge cases in core runtime (compaction during inference, tool timeouts, WebSocket reconnection)
 3. Integration gaps in e2e tests
