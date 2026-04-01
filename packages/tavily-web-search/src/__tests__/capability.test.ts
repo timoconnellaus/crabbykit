@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyWebSearch } from "../capability.js";
 
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 describe("tavilyWebSearch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("returns a valid Capability with correct shape", () => {
     const cap = tavilyWebSearch({
       tavilyApiKey: "test-key",
@@ -100,5 +107,62 @@ describe("tavilyWebSearch", () => {
   it("has no lifecycle hooks", () => {
     const cap = tavilyWebSearch({ tavilyApiKey: "key" });
     expect(cap.hooks).toBeUndefined();
+  });
+
+  it("string API key is resolved when tool executes", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const cap = tavilyWebSearch({ tavilyApiKey: "my-string-key" });
+    const context = {
+      agentId: "test-agent",
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: vi.fn(),
+      broadcast: () => {},
+      broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
+      schedules: {} as any,
+    };
+    const tools = cap.tools!(context);
+    const searchTool = tools[0];
+
+    await searchTool.execute({ query: "test" }, { toolCallId: "test" });
+
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.api_key).toBe("my-string-key");
+  });
+
+  it("passes searchDefaults to the search tool", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ results: [{ title: "R", url: "https://r.com", content: "C" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const cap = tavilyWebSearch({
+      tavilyApiKey: "key",
+      searchDefaults: { searchDepth: "advanced" },
+    });
+    const context = {
+      agentId: "test-agent",
+      sessionId: "s1",
+      stepNumber: 0,
+      emitCost: vi.fn(),
+      broadcast: () => {},
+      broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available")),
+      schedules: {} as any,
+    };
+    const tools = cap.tools!(context);
+    await tools[0].execute({ query: "test" }, { toolCallId: "test" });
+
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.search_depth).toBe("advanced");
   });
 });

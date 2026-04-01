@@ -66,6 +66,7 @@ describe("createSearchTool", () => {
           api_key: "test-key",
           query: "cloudflare workers",
           max_results: 3,
+          search_depth: "basic",
         }),
       }),
     );
@@ -132,5 +133,91 @@ describe("createSearchTool", () => {
 
     expect(textOf(result)).toContain("DNS resolution failed");
     expect(ctx.emitCost).not.toHaveBeenCalled();
+  });
+
+  it("handles non-Error thrown objects in catch", async () => {
+    mockFetch.mockRejectedValue("raw string error");
+
+    const ctx = mockContext();
+    const tool = createSearchTool(() => "key", 5, ctx);
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
+
+    expect(textOf(result)).toContain("raw string error");
+    expect(ctx.emitCost).not.toHaveBeenCalled();
+  });
+
+  it("uses search defaults when per-call params are omitted", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        results: [{ title: "R", url: "https://r.com", content: "C" }],
+      }),
+    );
+
+    const ctx = mockContext();
+    const tool = createSearchTool(() => "key", 5, ctx, {
+      searchDepth: "advanced",
+      includeDomains: ["example.com"],
+      excludeDomains: ["spam.com"],
+    });
+    await tool.execute({ query: "test" }, { toolCallId: "test" });
+
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.search_depth).toBe("advanced");
+    expect(body.include_domains).toEqual(["example.com"]);
+    expect(body.exclude_domains).toEqual(["spam.com"]);
+  });
+
+  it("per-call params override search defaults", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        results: [{ title: "R", url: "https://r.com", content: "C" }],
+      }),
+    );
+
+    const ctx = mockContext();
+    const tool = createSearchTool(() => "key", 5, ctx, {
+      searchDepth: "basic",
+      includeDomains: ["default.com"],
+      excludeDomains: ["default-exclude.com"],
+    });
+    await tool.execute(
+      {
+        query: "test",
+        search_depth: "advanced",
+        include_domains: ["override.com"],
+        exclude_domains: ["override-exclude.com"],
+      },
+      { toolCallId: "test" },
+    );
+
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.search_depth).toBe("advanced");
+    expect(body.include_domains).toEqual(["override.com"]);
+    expect(body.exclude_domains).toEqual(["override-exclude.com"]);
+  });
+
+  it("handles null results in response", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ results: null }));
+
+    const ctx = mockContext();
+    const tool = createSearchTool(() => "key", 5, ctx);
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
+
+    expect(textOf(result)).toBe("No results found.");
+    expect(ctx.emitCost).not.toHaveBeenCalled();
+  });
+
+  it("handles error.text() failure on non-ok response", async () => {
+    const badResponse = new Response(null, { status: 500 });
+    // Override text() to throw
+    badResponse.text = () => Promise.reject(new Error("body consumed"));
+    mockFetch.mockResolvedValue(badResponse);
+
+    const ctx = mockContext();
+    const tool = createSearchTool(() => "key", 5, ctx);
+    const result = await tool.execute({ query: "test" }, { toolCallId: "test" });
+
+    expect(textOf(result)).toContain("500");
+    expect(textOf(result)).toContain("Unknown error");
   });
 });

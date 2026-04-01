@@ -296,9 +296,6 @@ export class SessionStore {
       fromEntryId,
       sessionId,
     );
-
-    // Clean up entries orphaned by the branch (no longer reachable from new leaf)
-    this.gc(sessionId);
   }
 
   /**

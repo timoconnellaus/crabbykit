@@ -153,4 +153,27 @@ describe("createFetchTool", () => {
 
     expect(textOf(result)).toContain("Connection refused");
   });
+
+  it("handles non-Error thrown objects in catch", async () => {
+    mockFetch.mockRejectedValue("raw string error");
+
+    const tool = createFetchTool(undefined, undefined, mockContext());
+    const result = await tool.execute({ url: "https://example.com" }, { toolCallId: "test" });
+
+    expect(textOf(result)).toContain("raw string error");
+  });
+
+  it("returns plain text when content-type is missing", async () => {
+    mockFetch.mockResolvedValue(
+      new Response("plain content", {
+        status: 200,
+        // No content-type header
+      }),
+    );
+
+    const tool = createFetchTool(undefined, undefined, mockContext());
+    const result = await tool.execute({ url: "https://example.com/file" }, { toolCallId: "test" });
+
+    expect(textOf(result)).toBe("plain content");
+  });
 });

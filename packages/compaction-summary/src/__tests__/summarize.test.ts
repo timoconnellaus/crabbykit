@@ -60,6 +60,27 @@ describe("messagesToText", () => {
     const text = messagesToText([msg]);
     expect(text).toContain('"custom":"data"');
   });
+
+  it("falls back to UNKNOWN when role is missing", () => {
+    const msg = {
+      content: "no role here",
+      timestamp: Date.now(),
+    } as unknown as AgentMessage;
+
+    const text = messagesToText([msg]);
+    expect(text).toBe("UNKNOWN: no role here");
+  });
+
+  it("handles plain string items in array content", () => {
+    const msg = {
+      role: "user",
+      content: ["plain string", { type: "text", text: "block text" }],
+      timestamp: Date.now(),
+    } as unknown as AgentMessage;
+
+    const text = messagesToText([msg]);
+    expect(text).toBe("USER: plain string block text");
+  });
 });
 
 describe("collectStreamText", () => {
@@ -86,10 +107,40 @@ describe("collectStreamText", () => {
     expect(result).toBe("No summary generated.");
   });
 
-  it("throws on error event", async () => {
+  it("throws on error event with message fallback", async () => {
     const stream = makeStream([{ type: "error", message: "Rate limited" }]);
 
-    await expect(collectStreamText(stream)).rejects.toThrow("Summarization error");
+    await expect(collectStreamText(stream)).rejects.toThrow("Summarization error: Rate limited");
+  });
+
+  it("throws on error event with error.message", async () => {
+    const stream = makeStream([{ type: "error", error: { message: "Token limit exceeded" } }]);
+
+    await expect(collectStreamText(stream)).rejects.toThrow(
+      "Summarization error: Token limit exceeded",
+    );
+  });
+
+  it("throws on error event with default message when no details", async () => {
+    const stream = makeStream([{ type: "error" }]);
+
+    await expect(collectStreamText(stream)).rejects.toThrow(
+      "Summarization error: Summarization failed",
+    );
+  });
+
+  it("returns fallback when done message has no content", async () => {
+    const stream = makeStream([{ type: "done", message: {} }]);
+
+    const result = await collectStreamText(stream);
+    expect(result).toBe("No summary generated.");
+  });
+
+  it("returns fallback when done has no message", async () => {
+    const stream = makeStream([{ type: "done" }]);
+
+    const result = await collectStreamText(stream);
+    expect(result).toBe("No summary generated.");
   });
 
   it("concatenates multiple text blocks", async () => {

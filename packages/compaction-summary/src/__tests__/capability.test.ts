@@ -164,4 +164,45 @@ describe("compactionSummary", () => {
     // Verify the capability was created (config is internal)
     expect(cap.id).toBe("compaction-summary");
   });
+
+  it("returns original messages when compaction throws", async () => {
+    // Override the mock to throw
+    const { createLlmSummarizer } = await import("../summarize.js");
+    vi.mocked(createLlmSummarizer).mockReturnValueOnce(
+      async () => {
+        throw new Error("LLM API down");
+      },
+    );
+
+    const cap = compactionSummary({
+      provider: "openrouter",
+      modelId: "test-model",
+      getApiKey: () => "key",
+      compaction: {
+        threshold: 0.5,
+        contextWindowTokens: 500,
+        keepRecentTokens: 100,
+      },
+    });
+
+    // Create enough messages to exceed threshold
+    const messages = Array.from({ length: 10 }, (_, i) =>
+      userMsg(`Message ${i}: ${"x".repeat(400)}`),
+    );
+    const store = createMockSessionStore(messages);
+    const ctx: CapabilityHookContext = {
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: store as any,
+      storage: createNoopStorage(),
+    };
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await cap.hooks!.beforeInference!(messages, ctx);
+    consoleSpy.mockRestore();
+
+    // Should return the original messages, not throw
+    expect(result).toBe(messages);
+    expect(store.appendEntry).not.toHaveBeenCalled();
+  });
 });
