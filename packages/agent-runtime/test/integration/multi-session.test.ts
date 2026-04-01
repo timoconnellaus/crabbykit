@@ -8,119 +8,19 @@
  * inference in parallel within a single Durable Object.
  */
 
-import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearCompactionOverrides,
   clearMockResponses,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
-
-// --- Helpers ---
-
-function getStub(name = "test-agent") {
-  const id = env.AGENT.idFromName(name);
-  return env.AGENT.get(id);
-}
-
-/** Open a WebSocket to the DO and collect messages. */
-async function openSocket(stub: DurableObjectStub): Promise<{
-  ws: WebSocket;
-  messages: ServerMessage[];
-  waitForMessage: (
-    predicate: (msg: ServerMessage) => boolean,
-    timeoutMs?: number,
-  ) => Promise<ServerMessage>;
-  send: (msg: ClientMessage) => void;
-  close: () => void;
-}> {
-  const resp = await stub.fetch("http://fake/ws", {
-    headers: { upgrade: "websocket" },
-  });
-
-  const ws = resp.webSocket!;
-  ws.accept();
-
-  const messages: ServerMessage[] = [];
-  const waiters: Array<{
-    predicate: (msg: ServerMessage) => boolean;
-    resolve: (msg: ServerMessage) => void;
-    reject: (err: Error) => void;
-  }> = [];
-
-  ws.addEventListener("message", (event) => {
-    const msg: ServerMessage = JSON.parse(event.data as string);
-    messages.push(msg);
-
-    // Check waiters
-    for (let i = waiters.length - 1; i >= 0; i--) {
-      if (waiters[i].predicate(msg)) {
-        waiters[i].resolve(msg);
-        waiters.splice(i, 1);
-      }
-    }
-  });
-
-  const waitForMessage = (
-    predicate: (msg: ServerMessage) => boolean,
-    timeoutMs = 5000,
-  ): Promise<ServerMessage> => {
-    // Check already-received messages
-    const existing = messages.find(predicate);
-    if (existing) return Promise.resolve(existing);
-
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(
-          new Error(
-            `Timed out waiting for message (${timeoutMs}ms). Received: ${messages.map((m) => m.type).join(", ")}`,
-          ),
-        );
-      }, timeoutMs);
-
-      waiters.push({
-        predicate,
-        resolve: (msg) => {
-          clearTimeout(timer);
-          resolve(msg);
-        },
-        reject,
-      });
-    });
-  };
-
-  const send = (msg: ClientMessage) => {
-    ws.send(JSON.stringify(msg));
-  };
-
-  const close = () => ws.close();
-
-  return { ws, messages, waitForMessage, send, close };
-}
-
-/** Wait for message matching predicate from existing messages array */
-function findMessages(messages: ServerMessage[], type: string): ServerMessage[] {
-  return messages.filter((m) => m.type === type);
-}
-
-/** Prompt via HTTP (for when we need to ensure completion) */
-async function httpPrompt(stub: DurableObjectStub, text: string, sessionId?: string) {
-  const body: Record<string, string> = { text };
-  if (sessionId) body.sessionId = sessionId;
-  const res = await stub.fetch("http://fake/prompt", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.json() as Promise<{ messages: unknown[] }>;
-}
-
-/** Get session entries via HTTP */
-async function getEntries(stub: DurableObjectStub, sessionId: string) {
-  const res = await stub.fetch(`http://fake/entries?sessionId=${sessionId}`);
-  return res.json() as Promise<{ entries: Array<{ type: string; data: Record<string, unknown> }> }>;
-}
+import {
+  findMessages,
+  getEntries,
+  getStub,
+  openSocket,
+  prompt as httpPrompt,
+} from "../helpers/ws-client.js";
 
 // --- Tests ---
 

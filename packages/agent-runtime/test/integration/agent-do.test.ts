@@ -1,4 +1,3 @@
-import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearCompactionOverrides,
@@ -6,117 +5,16 @@ import {
   setCompactionOverride,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
-
-function getStub(name = "test-agent") {
-  const id = env.AGENT.idFromName(name);
-  return env.AGENT.get(id);
-}
-
-/** Open a WebSocket to the DO and collect messages. */
-async function openSocket(stub: DurableObjectStub) {
-  const resp = await stub.fetch("http://fake/ws", {
-    headers: { upgrade: "websocket" },
-  });
-  const ws = resp.webSocket!;
-  ws.accept();
-
-  const messages: ServerMessage[] = [];
-  const waiters: Array<{
-    predicate: (msg: ServerMessage) => boolean;
-    resolve: (msg: ServerMessage) => void;
-  }> = [];
-
-  ws.addEventListener("message", (event) => {
-    const msg: ServerMessage = JSON.parse(event.data as string);
-    messages.push(msg);
-    for (let i = waiters.length - 1; i >= 0; i--) {
-      if (waiters[i].predicate(msg)) {
-        waiters[i].resolve(msg);
-        waiters.splice(i, 1);
-      }
-    }
-  });
-
-  const waitForMessage = (
-    predicate: (msg: ServerMessage) => boolean,
-    timeoutMs = 5000,
-  ): Promise<ServerMessage> => {
-    const existing = messages.find(predicate);
-    if (existing) return Promise.resolve(existing);
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`Timed out waiting for message (${timeoutMs}ms)`)),
-        timeoutMs,
-      );
-      waiters.push({
-        predicate,
-        resolve: (msg) => {
-          clearTimeout(timer);
-          resolve(msg);
-        },
-      });
-    });
-  };
-
-  const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
-  const close = () => ws.close();
-
-  return { ws, messages, waitForMessage, send, close };
-}
-
-async function prompt(stub: DurableObjectStub, text: string, sessionId?: string) {
-  const body: Record<string, string> = { text };
-  if (sessionId) body.sessionId = sessionId;
-
-  const res = await stub.fetch("http://fake/prompt", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.json() as Promise<{ messages: any[] }>;
-}
-
-async function getEntries(stub: DurableObjectStub, sessionId?: string) {
-  const url = sessionId ? `http://fake/entries?sessionId=${sessionId}` : "http://fake/entries";
-  const res = await stub.fetch(url);
-  return res.json() as Promise<{ entries: any[] }>;
-}
-
-async function steer(stub: DurableObjectStub, sessionId: string, text: string) {
-  const res = await stub.fetch("http://fake/steer", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ sessionId, text }),
-  });
-  return res.json() as Promise<{ steered: boolean }>;
-}
-
-async function abort(stub: DurableObjectStub) {
-  const res = await stub.fetch("http://fake/abort", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  return res.json() as Promise<{ aborted: boolean }>;
-}
-
-async function registerMockMcp(
-  stub: DurableObjectStub,
-  tools: Array<{ name: string; description: string }>,
-) {
-  const res = await stub.fetch("http://fake/register-mock-mcp", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ tools }),
-  });
-  return res.json() as Promise<{ registered: number }>;
-}
-
-async function getSteerHistory(stub: DurableObjectStub) {
-  const res = await stub.fetch("http://fake/steer-history");
-  return res.json() as Promise<{ steeredMessages: any[] }>;
-}
+import {
+  abort,
+  getEntries,
+  getSteerHistory,
+  getStub,
+  openSocket,
+  prompt,
+  registerMockMcp,
+  steer,
+} from "../helpers/ws-client.js";
 
 describe("AgentDO Integration", () => {
   beforeEach(() => {

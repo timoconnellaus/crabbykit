@@ -5,7 +5,6 @@
  * and error propagation from capabilities.
  */
 
-import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearCompactionOverrides,
@@ -15,76 +14,7 @@ import {
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
 import type { Capability } from "../../src/capabilities/types.js";
-import type { ClientMessage, ServerMessage } from "../../src/transport/types.js";
-
-// --- Helpers ---
-
-function getStub(name = "test-agent") {
-  const id = env.AGENT.idFromName(name);
-  return env.AGENT.get(id);
-}
-
-async function openSocket(stub: DurableObjectStub) {
-  const resp = await stub.fetch("http://fake/ws", {
-    headers: { upgrade: "websocket" },
-  });
-  const ws = resp.webSocket!;
-  ws.accept();
-
-  const messages: ServerMessage[] = [];
-  const waiters: Array<{
-    predicate: (msg: ServerMessage) => boolean;
-    resolve: (msg: ServerMessage) => void;
-  }> = [];
-
-  ws.addEventListener("message", (event) => {
-    const msg: ServerMessage = JSON.parse(event.data as string);
-    messages.push(msg);
-    for (let i = waiters.length - 1; i >= 0; i--) {
-      if (waiters[i].predicate(msg)) {
-        waiters[i].resolve(msg);
-        waiters.splice(i, 1);
-      }
-    }
-  });
-
-  const waitForMessage = (
-    predicate: (msg: ServerMessage) => boolean,
-    timeoutMs = 5000,
-  ): Promise<ServerMessage> => {
-    const existing = messages.find(predicate);
-    if (existing) return Promise.resolve(existing);
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Timed out waiting for message (${timeoutMs}ms). Received: ${messages.map((m) => m.type).join(", ")}`,
-            ),
-          ),
-        timeoutMs,
-      );
-      waiters.push({
-        predicate,
-        resolve: (msg) => {
-          clearTimeout(timer);
-          resolve(msg);
-        },
-      });
-    });
-  };
-
-  const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
-  const close = () => ws.close();
-
-  return { ws, messages, waitForMessage, send, close };
-}
-
-async function getEntries(stub: DurableObjectStub, sessionId?: string) {
-  const url = sessionId ? `http://fake/entries?sessionId=${sessionId}` : "http://fake/entries";
-  const res = await stub.fetch(url);
-  return res.json() as Promise<{ entries: any[] }>;
-}
+import { getEntries, getStub, openSocket } from "../helpers/ws-client.js";
 
 // --- Tests ---
 

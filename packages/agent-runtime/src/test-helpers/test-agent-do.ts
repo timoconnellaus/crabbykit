@@ -531,6 +531,21 @@ export class TestAgentDO extends AgentDO {
       });
     }
 
+    // Simulate DO hibernation by clearing all in-memory state.
+    // WebSocket connections survive (backed by serializeAttachment), but
+    // the transport's Map, sessionAgents, and rate limits are lost.
+    if (request.method === "POST" && url.pathname === "/simulate-hibernation") {
+      // biome-ignore lint/suspicious/noExplicitAny: test helper — clearing private transport state
+      const transport = this.transport as any;
+      transport.connections.clear();
+      this.sessionAgents.clear();
+      // biome-ignore lint/suspicious/noExplicitAny: test helper — clearing private rate limit state
+      (this as any).connectionRateLimits.clear();
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     return super.fetch(request);
   }
 
