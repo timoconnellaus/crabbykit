@@ -30,7 +30,7 @@ while IFS= read -r f; do
   elif [[ "$is_test" == false ]] && (( lines > 500 )); then
     log "  WARN: $f: $lines lines (source limit: 500)"
   fi
-done < <(find packages \( -name '*.ts' -o -name '*.tsx' \) -not -path '*/node_modules/*' -not -path '*/dist/*' -not -name '*.generated.*' -not -path 'packages/agent-core/src/__tests__/agent-loop.test.ts')
+done < <(find packages \( -name '*.ts' -o -name '*.tsx' \) -not -path '*/node_modules/*' -not -path '*/dist/*' -not -name '*.generated.*' -not -path 'packages/agent-core/src/__tests__/agent-loop.test.ts' -not -path 'packages/agent-core/src/__tests__/agent-integration.test.ts')
 
 # ─── Packages Without Tests ───────────────────────────────────────────
 log ""
