@@ -58,8 +58,7 @@ describe("clawForCloudflare", () => {
     const result = (plugin as any).config({}, { command: "serve", mode: "development" });
 
     expect(result).toBeDefined();
-    // Should NOT set base (Vite serves from /, proxy strips prefix)
-    expect(result.base).toBeUndefined();
+    expect(result.base).toBe("/preview/abc123/");
     expect(result.server.host).toBe(true);
     expect(result.server.port).toBe(3000);
     expect(result.server.strictPort).toBe(true);
@@ -84,7 +83,7 @@ describe("clawForCloudflare", () => {
     expect(result.server.port).toBe(5000);
   });
 
-  it("injects base tag and console capture script when active", () => {
+  it("injects console capture script when active", () => {
     setEnv("AGENT_ID", "abc123");
     const plugin = clawForCloudflare();
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
@@ -92,24 +91,18 @@ describe("clawForCloudflare", () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     const tags = (plugin as any).transformIndexHtml("");
-    expect(tags).toHaveLength(2);
-    // First tag: <base href>
-    expect(tags[0].tag).toBe("base");
-    expect(tags[0].attrs.href).toBe("/preview/abc123/");
-    expect(tags[0].injectTo).toBe("head-prepend");
-    // Second tag: console capture script
-    expect(tags[1].tag).toBe("script");
-    expect(tags[1].children).toContain("claw:console");
+    // Base path is set via Vite config (not an HTML tag), so only the script is injected
+    expect(tags).toHaveLength(1);
+    expect(tags[0].tag).toBe("script");
+    expect(tags[0].children).toContain("claw:console");
   });
 
-  it("uses custom base in base tag", () => {
+  it("uses custom base in Vite config", () => {
     const plugin = clawForCloudflare({ base: "/custom/path" });
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
-    (plugin as any).config({}, { command: "serve", mode: "development" });
+    const result = (plugin as any).config({}, { command: "serve", mode: "development" });
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
-    const tags = (plugin as any).transformIndexHtml("");
-    expect(tags[0].attrs.href).toBe("/custom/path/");
+    expect(result.base).toBe("/custom/path/");
   });
 
   it("does not inject tags when inactive", () => {
@@ -122,7 +115,7 @@ describe("clawForCloudflare", () => {
     expect(tags).toHaveLength(0);
   });
 
-  it("respects consoleCapture: false — still injects base tag", () => {
+  it("respects consoleCapture: false — no tags injected", () => {
     setEnv("AGENT_ID", "abc123");
     const plugin = clawForCloudflare({ consoleCapture: false });
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
@@ -130,8 +123,7 @@ describe("clawForCloudflare", () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: testing internal hook
     const tags = (plugin as any).transformIndexHtml("");
-    // Only the base tag, no console script
-    expect(tags).toHaveLength(1);
-    expect(tags[0].tag).toBe("base");
+    // Base path is in Vite config, console capture disabled — nothing to inject
+    expect(tags).toHaveLength(0);
   });
 });
