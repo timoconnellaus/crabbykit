@@ -9,15 +9,23 @@ export function createMockR2Bucket(): R2Bucket {
     get: async (key: string) => {
       const value = store.get(key);
       if (value === undefined) return null;
+      const encoded = new TextEncoder().encode(value);
       return {
         text: async () => value,
+        arrayBuffer: async () => encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength),
         key,
-        size: new TextEncoder().encode(value).byteLength,
+        size: encoded.byteLength,
       } as unknown as R2ObjectBody;
     },
 
     put: async (key: string, value: string | ReadableStream | ArrayBuffer | null) => {
-      store.set(key, typeof value === "string" ? value : "");
+      if (typeof value === "string") {
+        store.set(key, value);
+      } else if (value instanceof ArrayBuffer) {
+        store.set(key, new TextDecoder().decode(value));
+      } else {
+        store.set(key, "");
+      }
       return {} as R2Object;
     },
 
@@ -83,6 +91,25 @@ export function createMockR2Bucket(): R2Bucket {
     resumeMultipartUpload: () => {
       throw new Error("Not implemented in mock");
     },
+  } as unknown as R2Bucket;
+}
+
+/**
+ * Create a mock R2Bucket where every operation throws.
+ * Useful for testing error catch paths in tool implementations.
+ */
+export function createFailingR2Bucket(message = "R2 service unavailable"): R2Bucket {
+  const fail = () => {
+    throw new Error(message);
+  };
+  return {
+    get: fail,
+    put: fail,
+    delete: fail,
+    head: fail,
+    list: fail,
+    createMultipartUpload: fail,
+    resumeMultipartUpload: fail,
   } as unknown as R2Bucket;
 }
 

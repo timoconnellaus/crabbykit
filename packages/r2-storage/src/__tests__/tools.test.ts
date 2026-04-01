@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { createFileCopyTool } from "../file-copy.js";
 import { createFileDeleteTool } from "../file-delete.js";
 import { createFileEditTool } from "../file-edit.js";
 import { createFileFindTool } from "../file-find.js";
 import { createFileListTool } from "../file-list.js";
+import { createFileMoveTool } from "../file-move.js";
 import { createFileReadTool } from "../file-read.js";
 import { createFileTreeTool } from "../file-tree.js";
 import { createFileWriteTool } from "../file-write.js";
-import { createMockR2Bucket, seedBucket } from "./mock-r2.js";
+import { createFailingR2Bucket, createMockR2Bucket, seedBucket } from "./mock-r2.js";
 
 const PREFIX = "test-agent";
 
@@ -70,6 +72,16 @@ describe("file_read", () => {
     const result = await smallTool.execute({ path: "big.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("[File truncated");
   });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileReadTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute({ path: "hello.txt" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error reading file:");
+    expect(result.details).toHaveProperty("error", "read_error");
+  });
 });
 
 describe("file_write", () => {
@@ -119,6 +131,19 @@ describe("file_write", () => {
   it("rejects invalid paths", async () => {
     const result = await tool.execute({ path: "../evil", content: "bad" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error:");
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileWriteTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute(
+      { path: "test.txt", content: "hello" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error writing file:");
+    expect(result.details).toHaveProperty("error", "write_error");
   });
 });
 
@@ -217,6 +242,28 @@ describe("file_edit", () => {
     );
     expect(textOf(result)).toContain("File not found");
   });
+
+  it("rejects invalid paths", async () => {
+    const result = await tool.execute(
+      { path: "../evil", old_string: "a", new_string: "b" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileEditTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute(
+      { path: "code.ts", old_string: "a", new_string: "b" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error editing file:");
+    expect(result.details).toHaveProperty("error", "edit_error");
+  });
 });
 
 describe("file_delete", () => {
@@ -242,6 +289,22 @@ describe("file_delete", () => {
   it("succeeds even if file does not exist (idempotent)", async () => {
     const result = await tool.execute({ path: "nonexistent.txt" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Successfully deleted");
+  });
+
+  it("rejects invalid paths", async () => {
+    const result = await tool.execute({ path: "../etc/passwd" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileDeleteTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute({ path: "deleteme.txt" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error deleting file:");
+    expect(result.details).toHaveProperty("error", "delete_error");
   });
 });
 
@@ -282,6 +345,22 @@ describe("file_list", () => {
   it("shows empty for nonexistent directory", async () => {
     const result = await tool.execute({ path: "nope" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("empty");
+  });
+
+  it("rejects invalid paths", async () => {
+    const result = await tool.execute({ path: "../evil" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileListTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error listing directory:");
+    expect(result.details).toHaveProperty("error", "list_error");
   });
 });
 
@@ -328,6 +407,49 @@ describe("file_tree", () => {
     expect(text).toContain("main.ts");
     expect(text).not.toContain("readme.md");
   });
+
+  it("rejects invalid paths", async () => {
+    const result = await tool.execute({ path: "../evil" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileTreeTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error building tree:");
+    expect(result.details).toHaveProperty("error", "tree_error");
+  });
+
+  it("shows empty for empty directory", async () => {
+    const emptyBucket = createMockR2Bucket();
+    const emptyTool = createFileTreeTool(
+      () => emptyBucket,
+      () => PREFIX,
+    );
+    const result = await emptyTool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toContain("empty");
+  });
+
+  it("truncates when exceeding MAX_ENTRIES_PER_LEVEL (100)", async () => {
+    const bigBucket = createMockR2Bucket();
+    // Create 110 files at root level to exceed the 100-entry cap
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 110; i++) {
+      files[`file-${String(i).padStart(3, "0")}.txt`] = "content";
+    }
+    await seedBucket(bigBucket, PREFIX, files);
+    const bigTool = createFileTreeTool(
+      () => bigBucket,
+      () => PREFIX,
+    );
+    const result = await bigTool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toContain("... and");
+    expect(textOf(result)).toContain("more items");
+  });
 });
 
 describe("file_find", () => {
@@ -373,5 +495,181 @@ describe("file_find", () => {
   it("finds by exact filename", async () => {
     const result = await tool.execute({ pattern: "**/readme.md" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("readme.md");
+  });
+
+  it("rejects invalid scoped path", async () => {
+    const result = await tool.execute(
+      { pattern: "*.ts", path: "../evil" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileFindTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute({ pattern: "*.ts" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Error searching files:");
+    expect(result.details).toHaveProperty("error", "find_error");
+  });
+
+  it("caps results at MAX_RESULTS (200)", async () => {
+    const bucket = createMockR2Bucket();
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 210; i++) {
+      files[`file-${String(i).padStart(3, "0")}.txt`] = "content";
+    }
+    await seedBucket(bucket, PREFIX, files);
+    const findTool = createFileFindTool(
+      () => bucket,
+      () => PREFIX,
+    );
+    const result = await findTool.execute({ pattern: "**/*.txt" }, { toolCallId: "test" });
+    expect(textOf(result)).toContain("Results capped at 200");
+    expect(result.details).toEqual({ pattern: "**/*.txt", matchCount: 200 });
+  });
+});
+
+describe("file_copy", () => {
+  let bucket: R2Bucket;
+  let tool: ReturnType<typeof createFileCopyTool>;
+
+  beforeEach(async () => {
+    bucket = createMockR2Bucket();
+    tool = createFileCopyTool(
+      () => bucket,
+      () => PREFIX,
+    );
+    await seedBucket(bucket, PREFIX, { "original.txt": "hello world" });
+  });
+
+  it("copies a file to a new path", async () => {
+    const result = await tool.execute(
+      { source: "original.txt", destination: "copy.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Copied original.txt → copy.txt");
+    expect(result.details).toEqual({ source: "original.txt", destination: "copy.txt" });
+
+    // Verify both files exist
+    const orig = await bucket.get(`${PREFIX}/original.txt`);
+    expect(orig).not.toBeNull();
+    const copy = await bucket.get(`${PREFIX}/copy.txt`);
+    expect(copy).not.toBeNull();
+    expect(await copy!.text()).toBe("hello world");
+  });
+
+  it("rejects invalid source path", async () => {
+    const result = await tool.execute(
+      { source: "../etc/passwd", destination: "copy.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: source path:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("rejects invalid destination path", async () => {
+    const result = await tool.execute(
+      { source: "original.txt", destination: "../evil" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: destination path:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("returns error when source file not found", async () => {
+    const result = await tool.execute(
+      { source: "missing.txt", destination: "copy.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: source file not found: missing.txt");
+    expect(result.details).toEqual({ error: "not_found" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileCopyTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute(
+      { source: "a.txt", destination: "b.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error copying file:");
+    expect(result.details).toHaveProperty("error", "copy_error");
+  });
+});
+
+describe("file_move", () => {
+  let bucket: R2Bucket;
+  let tool: ReturnType<typeof createFileMoveTool>;
+
+  beforeEach(async () => {
+    bucket = createMockR2Bucket();
+    tool = createFileMoveTool(
+      () => bucket,
+      () => PREFIX,
+    );
+    await seedBucket(bucket, PREFIX, { "source.txt": "move me" });
+  });
+
+  it("moves a file (copy + delete source)", async () => {
+    const result = await tool.execute(
+      { source: "source.txt", destination: "dest.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Moved source.txt → dest.txt");
+    expect(result.details).toEqual({ source: "source.txt", destination: "dest.txt" });
+
+    // Source should be deleted
+    const src = await bucket.get(`${PREFIX}/source.txt`);
+    expect(src).toBeNull();
+    // Destination should exist
+    const dst = await bucket.get(`${PREFIX}/dest.txt`);
+    expect(dst).not.toBeNull();
+    expect(await dst!.text()).toBe("move me");
+  });
+
+  it("rejects invalid source path", async () => {
+    const result = await tool.execute(
+      { source: "../etc/passwd", destination: "dest.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: source path:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("rejects invalid destination path", async () => {
+    const result = await tool.execute(
+      { source: "source.txt", destination: "../evil" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: destination path:");
+    expect(result.details).toEqual({ error: "invalid_path" });
+  });
+
+  it("returns error when source file not found", async () => {
+    const result = await tool.execute(
+      { source: "missing.txt", destination: "dest.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error: source file not found: missing.txt");
+    expect(result.details).toEqual({ error: "not_found" });
+  });
+
+  it("handles R2 errors gracefully", async () => {
+    const failTool = createFileMoveTool(
+      () => createFailingR2Bucket(),
+      () => PREFIX,
+    );
+    const result = await failTool.execute(
+      { source: "a.txt", destination: "b.txt" },
+      { toolCallId: "test" },
+    );
+    expect(textOf(result)).toContain("Error moving file:");
+    expect(result.details).toHaveProperty("error", "move_error");
   });
 });
