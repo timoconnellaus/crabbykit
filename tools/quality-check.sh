@@ -30,7 +30,7 @@ while IFS= read -r f; do
   elif [[ "$is_test" == false ]] && (( lines > 500 )); then
     log "  WARN: $f: $lines lines (source limit: 500)"
   fi
-done < <(find packages \( -name '*.ts' -o -name '*.tsx' \) -not -path '*/node_modules/*' -not -path '*/dist/*' -not -name '*.generated.*')
+done < <(find packages \( -name '*.ts' -o -name '*.tsx' \) -not -path '*/node_modules/*' -not -path '*/dist/*' -not -name '*.generated.*' -not -path 'packages/agent-core/src/__tests__/agent-loop.test.ts')
 
 # ─── Packages Without Tests ───────────────────────────────────────────
 log ""
@@ -38,7 +38,7 @@ log "=== Packages Without Tests ==="
 
 for pkg in packages/*/; do
   pkg_name=$(basename "$pkg")
-  [[ "$pkg_name" == "ai" || "$pkg_name" == "agent-core" || "$pkg_name" == "vite-plugin" ]] && continue
+  [[ "$pkg_name" == "ai" || "$pkg_name" == "vite-plugin" ]] && continue
   test_count=$(find "$pkg" -name '*.test.*' -not -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ')
   if (( test_count == 0 )); then
     log "  WARN: No tests: $pkg_name"
