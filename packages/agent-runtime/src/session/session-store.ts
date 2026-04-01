@@ -259,6 +259,7 @@ export class SessionStore {
             toolName: entry.data.toolName,
             isError: entry.data.isError,
             timestamp: entry.data.timestamp ?? Date.now(),
+            ...(entry.data.metadata && { metadata: entry.data.metadata }),
           } as AgentMessage);
         } else {
           messages.push({
@@ -266,6 +267,7 @@ export class SessionStore {
             // biome-ignore lint/suspicious/noExplicitAny: SQL deserialization boundary — content shape is not statically known
             content: entry.data.content as any,
             timestamp: entry.data.timestamp ?? Date.now(),
+            ...(entry.data.metadata && { metadata: entry.data.metadata }),
           } as AgentMessage);
         }
       }

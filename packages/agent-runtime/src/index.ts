@@ -110,6 +110,7 @@ export type {
   CustomEntryData,
   MessageEntry,
   MessageEntryData,
+  MessageMetadata,
   ModelChangeEntry,
   ModelChangeEntryData,
   Session,

@@ -41,6 +41,12 @@ export interface CustomEntry extends SessionEntryBase {
   data: CustomEntryData;
 }
 
+/** Metadata attached to a message entry. Extensible for future use. */
+export interface MessageMetadata {
+  /** When true, this message is hidden from the chat UI but still sent to the LLM. */
+  hidden?: boolean;
+}
+
 export interface MessageEntryData {
   role: "user" | "assistant" | "toolResult";
   content: unknown;
@@ -50,6 +56,8 @@ export interface MessageEntryData {
   toolName?: string;
   isError?: boolean;
   timestamp?: number;
+  /** Optional metadata controlling display and behavior. */
+  metadata?: MessageMetadata;
 }
 
 export interface CompactionEntryData {

@@ -87,8 +87,16 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
 
   const { displayMessages, toolResultMap } = useMemo(() => {
     const trMap = buildToolResultMap(messages, toolStates);
-    // Filter out toolResult messages — they render inline with their tool calls
-    const display = messages.filter((msg) => !("role" in msg && msg.role === "toolResult"));
+    const display = messages.filter((msg) => {
+      // Filter out toolResult messages — they render inline with their tool calls
+      if ("role" in msg && msg.role === "toolResult") return false;
+      // Filter out messages marked as hidden via metadata
+      if ("metadata" in msg) {
+        const meta = (msg as { metadata?: { hidden?: boolean } }).metadata;
+        if (meta?.hidden) return false;
+      }
+      return true;
+    });
     return { displayMessages: display, toolResultMap: trMap };
   }, [messages, toolStates]);
 

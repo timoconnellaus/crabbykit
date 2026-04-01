@@ -189,6 +189,7 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
                       role: "assistant",
                       content: [{ type: "text", text: DE_ELEVATION_NOTICE }],
                       timestamp: Date.now(),
+                      metadata: { hidden: true },
                     },
                   });
                 }
