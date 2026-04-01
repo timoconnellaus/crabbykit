@@ -18,6 +18,8 @@ export interface BackendApiHandlerOptions {
   loader: WorkerLoader;
   /** Service binding to DbService for SQL access. */
   dbService: Service<DbService>;
+  /** Optional service binding to AiService for LLM inference. */
+  aiService?: Service;
 }
 
 /**
@@ -43,13 +45,18 @@ export async function handleBackendApi(
     return null;
   }
 
+  const env: Record<string, unknown> = {
+    __DB_SERVICE: opts.dbService,
+  };
+  if (opts.aiService) {
+    env.__AI_SERVICE = opts.aiService;
+  }
+
   const worker = opts.loader.get(loaderKey, async () => ({
     compatibilityDate: COMPATIBILITY_DATE,
     mainModule: bundle.mainModule,
     modules: bundle.modules,
-    env: {
-      __DB_SERVICE: opts.dbService,
-    },
+    env,
   }));
 
   // Strip the /backend-api prefix so the backend sees clean /api/* paths

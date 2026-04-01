@@ -23,6 +23,17 @@ export interface BackendOptions {
    * ```
    */
   dbService: Service<DbService>;
+  /**
+   * Optional service binding to the AiService WorkerEntrypoint.
+   * When provided, dynamic workers get `env.AI` for LLM inference.
+   * Costs are tracked by the AiService — the API key never reaches the app.
+   *
+   * Register in wrangler.jsonc as:
+   * ```jsonc
+   * "services": [{ "binding": "AI_SERVICE", "service": "<worker-name>", "entrypoint": "AiService" }]
+   * ```
+   */
+  aiService?: Service;
 }
 
 /** Configuration options for the vibe-coder capability. */

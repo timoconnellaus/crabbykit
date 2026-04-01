@@ -23,6 +23,7 @@ import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
+import { aiProxy, AiService } from "@claw-for-cloudflare/ai-proxy";
 import {
   BackendStorage,
   DbService,
@@ -36,12 +37,15 @@ interface Env {
   SANDBOX_CONTAINER: DurableObjectNamespace;
   BACKEND_STORAGE: DurableObjectNamespace;
   DB_SERVICE: Service<DbService>;
+  AI_SERVICE: Service<AiService>;
   STORAGE_BUCKET: R2Bucket;
   MEMORY_INDEX: VectorizeIndex;
   AI: Ai;
   LOADER: WorkerLoader;
   OPENROUTER_API_KEY: string;
   TAVILY_API_KEY: string;
+  // Worker URL for AI proxy callback from container
+  WORKER_URL: string;
   // R2 credentials for container FUSE mount (set via wrangler secret put)
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
@@ -72,6 +76,17 @@ export class BasicAgent extends AgentDO<Env> {
       namespace: this.ctx.id.toString(),
     });
 
+    // Share a single sandbox provider across capabilities so env var
+    // injection (e.g. AI proxy token) reaches the same container.
+    const sandboxProvider = new CloudflareSandboxProvider({
+      storage,
+      getStub: () => {
+        const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
+        return this.env.SANDBOX_CONTAINER.get(id);
+      },
+      containerMode: "dev",
+    });
+
     return [
       compactionSummary({
         provider: "openrouter",
@@ -91,31 +106,21 @@ export class BasicAgent extends AgentDO<Env> {
       credentialStore(),
       heartbeat({ every: "30m", enabled: false }),
       ...this.buildAgentOpsCapabilities(),
-      sandboxCapability({
-        provider: new CloudflareSandboxProvider({
-          storage,
-          getStub: () => {
-            const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
-            return this.env.SANDBOX_CONTAINER.get(id);
-          },
-          containerMode: "dev",
-        }),
-      }),
+      sandboxCapability({ provider: sandboxProvider }),
       debugInspector(),
       vibeCoder({
-        provider: new CloudflareSandboxProvider({
-          storage,
-          getStub: () => {
-            const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
-            return this.env.SANDBOX_CONTAINER.get(id);
-          },
-          containerMode: "dev",
-        }),
+        provider: sandboxProvider,
         deploy: { storage },
         backend: {
           loader: this.env.LOADER,
           dbService: this.env.DB_SERVICE,
+          aiService: this.env.AI_SERVICE,
         },
+      }),
+      aiProxy({
+        apiKey: () => this.env.OPENROUTER_API_KEY,
+        workerUrl: this.env.WORKER_URL ?? "http://host.docker.internal:5173",
+        provider: sandboxProvider,
       }),
     ];
   }
@@ -315,7 +320,7 @@ export class BasicAgent extends AgentDO<Env> {
 }
 
 // Re-export DOs and entrypoints for wrangler to bind
-export { BackendStorage, DbService, SandboxContainer };
+export { AiService, BackendStorage, DbService, SandboxContainer };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -349,6 +354,7 @@ export default {
       storageBucket: env.STORAGE_BUCKET,
       loader: env.LOADER,
       dbService: env.DB_SERVICE,
+      aiService: env.AI_SERVICE,
     });
     if (deployRes) return deployRes;
 

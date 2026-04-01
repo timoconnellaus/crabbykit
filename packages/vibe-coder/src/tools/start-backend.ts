@@ -15,7 +15,11 @@ const BACKEND_VERSION_KEY = "backend:version";
  * `env.DB.exec(sql, params)` transparently passes the backend ID to DbService.
  * This way the app code doesn't need to know about the backend ID.
  */
-function generateWrapperModule(userMainModule: string, backendId: string): string {
+function generateWrapperModule(
+  userMainModule: string,
+  backendId: string,
+  hasAiService: boolean,
+): string {
   return `
 import userApp from "./${userMainModule}";
 
@@ -31,10 +35,22 @@ function wrapDb(rawDb) {
     },
   };
 }
-
+${
+  hasAiService
+    ? `
+function wrapAi(rawAi) {
+  return {
+    chat(model, messages, options) {
+      return rawAi.chat(model, messages, options);
+    },
+  };
+}
+`
+    : ""
+}
 export default {
   async fetch(request, env, ctx) {
-    const wrappedEnv = { ...env, DB: wrapDb(env.__DB_SERVICE) };
+    const wrappedEnv = { ...env, DB: wrapDb(env.__DB_SERVICE)${hasAiService ? ", AI: wrapAi(env.__AI_SERVICE)" : ""} };
     const target = userApp.default || userApp;
     return target.fetch(request, wrappedEnv, ctx);
   }
@@ -185,9 +201,10 @@ export function createStartBackendTool(
         };
       }
 
-      // Generate a wrapper module that injects the backend ID into DB calls.
-      // The wrapper is the actual mainModule; the user's app is imported from it.
-      const wrapperCode = generateWrapperModule(userMainModule, backendId);
+      // Generate a wrapper module that injects the backend ID into DB calls
+      // and optionally wraps the AI service binding.
+      const hasAiService = !!backend.aiService;
+      const wrapperCode = generateWrapperModule(userMainModule, backendId, hasAiService);
       modules["__claw_wrapper.js"] = wrapperCode;
 
       // Increment version for cache busting
@@ -197,14 +214,19 @@ export function createStartBackendTool(
       // Load the bundled worker via WorkerLoader.
       // env.__DB_SERVICE is the raw DbService; the wrapper creates env.DB
       // with the backend ID baked in so app code just calls env.DB.exec(sql).
+      // env.__AI_SERVICE (when available) is wrapped as env.AI for LLM calls.
       const loaderKey = `backend/${backendId}/v${newVersion}`;
+      const loaderEnv: Record<string, unknown> = {
+        __DB_SERVICE: backend.dbService,
+      };
+      if (backend.aiService) {
+        loaderEnv.__AI_SERVICE = backend.aiService;
+      }
       backend.loader.get(loaderKey, async () => ({
         compatibilityDate: "2025-03-01",
         mainModule: "__claw_wrapper.js",
         modules,
-        env: {
-          __DB_SERVICE: backend.dbService,
-        },
+        env: loaderEnv,
       }));
 
       // Persist state (bundle stored so the API proxy can reconstruct on cache miss)

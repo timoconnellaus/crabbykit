@@ -33,6 +33,8 @@ export interface DeployRequestOptions {
   loader: WorkerLoader;
   /** DbService service binding (required for deploys with backends). */
   dbService?: Service;
+  /** AiService service binding (optional, for deploys with AI access). */
+  aiService?: Service;
 }
 
 /**
@@ -118,13 +120,18 @@ async function serveDeployBackend(
     }
     const bundle = (await obj.json()) as BackendBundle;
 
+    const env: Record<string, unknown> = {
+      __DB_SERVICE: dbService,
+    };
+    if (opts.aiService) {
+      env.__AI_SERVICE = opts.aiService;
+    }
+
     return {
       compatibilityDate: COMPATIBILITY_DATE,
       mainModule: bundle.mainModule,
       modules: bundle.modules,
-      env: {
-        __DB_SERVICE: dbService,
-      },
+      env,
     };
   });
 
