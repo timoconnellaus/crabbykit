@@ -23,6 +23,7 @@ import {
   textStreamSequence,
   thinkingSequence,
   toolExecutionSequence,
+  toolExecutionUpdate,
 } from "./fixtures";
 import { createHarness, type Harness } from "./harness";
 import { MockWebSocket } from "./mock-websocket";
@@ -908,5 +909,347 @@ describe("toggleSchedule", () => {
     expect(msg).toBeDefined();
     expect((msg as { scheduleId: string }).scheduleId).toBe("sch_1");
     expect((msg as { enabled: boolean }).enabled).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 17. sendCommand
+// ---------------------------------------------------------------------------
+
+describe("sendCommand", () => {
+  beforeEach(async () => {
+    harness = createHarness();
+    await harness.establish();
+  });
+
+  it("sends command message with name and trimmed args", async () => {
+    await act(() => harness.current.sendCommand("search", "  foo bar  "));
+
+    const msg = harness.sent.find((m) => m.type === "command");
+    expect(msg).toBeDefined();
+    expect((msg as { name: string }).name).toBe("search");
+    expect((msg as { args: string }).args).toBe("foo bar");
+  });
+
+  it("adds optimistic user message formatted as /name args", async () => {
+    await act(() => harness.current.sendCommand("help", "topic"));
+
+    const last = harness.current.messages[harness.current.messages.length - 1];
+    expect(last.role).toBe("user");
+    expect(last.content).toBe("/help topic");
+  });
+
+  it("no-op when currentSessionId is null (before session_sync)", async () => {
+    harness.cleanup();
+    harness = createHarness();
+    await harness.open();
+    // No session_sync sent, so currentSessionId is null
+
+    await act(() => harness.current.sendCommand("help"));
+
+    const cmds = harness.sent.filter((m) => m.type === "command");
+    expect(cmds).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 18. tool_execution_update (streaming)
+// ---------------------------------------------------------------------------
+
+describe("tool_execution_update (streaming)", () => {
+  beforeEach(async () => {
+    harness = createHarness();
+    await harness.establish();
+  });
+
+  it("tool_execution_update sets streaming status with partialResult", async () => {
+    await harness.serverSend(messageStart());
+    const [startEvent] = toolExecutionSequence({
+      toolCallId: "call_1",
+      toolName: "read_file",
+    });
+    await harness.serverSend(startEvent);
+    await harness.serverSend(
+      toolExecutionUpdate({
+        toolCallId: "call_1",
+        toolName: "read_file",
+        partialResult: { partial: "data" },
+      }),
+    );
+
+    const state = harness.current.toolStates.get("call_1");
+    expect(state?.status).toBe("streaming");
+    expect((state as { partialResult: unknown }).partialResult).toEqual({ partial: "data" });
+  });
+
+  it("toolStates transition: executing -> streaming -> complete", async () => {
+    await harness.serverSend(messageStart());
+    const [startEvent, endEvent] = toolExecutionSequence({
+      toolCallId: "call_1",
+      toolName: "read_file",
+      result: { content: [{ type: "text", text: "done" }] },
+    });
+
+    await harness.serverSend(startEvent);
+    expect(harness.current.toolStates.get("call_1")?.status).toBe("executing");
+
+    await harness.serverSend(
+      toolExecutionUpdate({
+        toolCallId: "call_1",
+        toolName: "read_file",
+        partialResult: "partial",
+      }),
+    );
+    expect(harness.current.toolStates.get("call_1")?.status).toBe("streaming");
+
+    await harness.serverSend(endEvent);
+    expect(harness.current.toolStates.get("call_1")?.status).toBe("complete");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 19. Custom request/response
+// ---------------------------------------------------------------------------
+
+describe("custom request/response", () => {
+  it("sends response back when onCustomRequest handler resolves", async () => {
+    const handler = vi.fn().mockResolvedValue({ logs: ["line1"] });
+    harness = createHarness({ onCustomRequest: handler });
+    await harness.establish();
+
+    await harness.serverSend(
+      customEvent("get_console_logs", { _requestId: "req_1", some: "data" }),
+    );
+    // Flush the promise chain
+    await act(async () => {});
+
+    const responses = harness.ws.sentMessages.filter(
+      (m) => m.type === "custom_response",
+    );
+    expect(responses).toHaveLength(1);
+    expect((responses[0] as { requestId: string }).requestId).toBe("req_1");
+    expect((responses[0] as { data: unknown }).data).toEqual({ logs: ["line1"] });
+  });
+
+  it("strips _requestId from data passed to handler", async () => {
+    const handler = vi.fn().mockResolvedValue({});
+    harness = createHarness({ onCustomRequest: handler });
+    await harness.establish();
+
+    await harness.serverSend(
+      customEvent("get_logs", { _requestId: "req_2", key: "value" }),
+    );
+    await act(async () => {});
+
+    expect(handler).toHaveBeenCalledWith("get_logs", { key: "value" });
+  });
+
+  it("sends error response when handler throws", async () => {
+    const handler = vi.fn().mockRejectedValue(new Error("handler failed"));
+    harness = createHarness({ onCustomRequest: handler });
+    await harness.establish();
+
+    await harness.serverSend(
+      customEvent("get_logs", { _requestId: "req_3" }),
+    );
+    await act(async () => {});
+
+    const responses = harness.ws.sentMessages.filter(
+      (m) => m.type === "custom_response",
+    );
+    expect(responses).toHaveLength(1);
+    const data = (responses[0] as { data: Record<string, unknown> }).data;
+    expect(data._error).toBe(true);
+    expect(data.message).toBe("handler failed");
+  });
+
+  it("sends error response when no onCustomRequest handler is configured", async () => {
+    harness = createHarness();
+    await harness.establish();
+
+    await harness.serverSend(
+      customEvent("get_logs", { _requestId: "req_4" }),
+    );
+    await act(async () => {});
+
+    const responses = harness.ws.sentMessages.filter(
+      (m) => m.type === "custom_response",
+    );
+    expect(responses).toHaveLength(1);
+    const data = (responses[0] as { data: Record<string, unknown> }).data;
+    expect(data._error).toBe(true);
+    expect(data.message).toBe("No onCustomRequest handler configured");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 20. getToken auth
+// ---------------------------------------------------------------------------
+
+describe("getToken auth", () => {
+  it("appends token as query parameter to WebSocket URL", async () => {
+    harness = createHarness({ getToken: () => "my-token" });
+    // Flush the async getToken promise
+    await act(() => Promise.resolve());
+
+    expect(MockWebSocket.latest.url).toBe("ws://test/agent?token=my-token");
+  });
+
+  it("handles URL that already has query parameters (uses & separator)", async () => {
+    harness = createHarness({
+      url: "ws://test/agent?session=abc",
+      getToken: () => "my-token",
+    });
+    await act(() => Promise.resolve());
+
+    expect(MockWebSocket.latest.url).toBe("ws://test/agent?session=abc&token=my-token");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 21. Empty URL
+// ---------------------------------------------------------------------------
+
+describe("empty URL", () => {
+  it("sets connectionStatus to disconnected when url is empty string", () => {
+    harness = createHarness({ url: "" });
+
+    expect(harness.current.connectionStatus).toBe("disconnected");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 22. sendMessage no-op guards
+// ---------------------------------------------------------------------------
+
+describe("sendMessage no-op guards", () => {
+  it("sendMessage before session_sync does nothing (no sent messages)", async () => {
+    harness = createHarness();
+    await harness.open();
+    // No session_sync, so currentSessionId is null
+
+    await harness.sendMessage("hello");
+
+    const prompts = harness.sent.filter((m) => m.type === "prompt");
+    expect(prompts).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 23. command_result with data
+// ---------------------------------------------------------------------------
+
+describe("command_result with data", () => {
+  it("command_result with data (no text) renders JSON.stringified data", async () => {
+    harness = createHarness();
+    await harness.establish();
+
+    await harness.serverSend(commandResult("info", { data: { key: "value" } }));
+
+    const last = harness.current.messages[harness.current.messages.length - 1];
+    expect(last.role).toBe("assistant");
+    expect(last.content).toBe(JSON.stringify({ key: "value" }, null, 2));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 24. completedThinking lifecycle
+// ---------------------------------------------------------------------------
+
+describe("completedThinking lifecycle", () => {
+  it("completedThinking persists after agent_end (thinking is cleared but completedThinking stays)", async () => {
+    harness = createHarness();
+    await harness.establish();
+
+    await harness.serverSend(messageStart());
+    await harness.serverSendAll(thinkingSequence("My reasoning"));
+
+    expect(harness.current.completedThinking).toBe("My reasoning");
+
+    // Text content + message_end + agent_end
+    await harness.serverSend(
+      messageUpdate(createAssistantMessage("Answer"), {
+        assistantMessageEvent: { type: "text_delta", text: "Answer" },
+      }),
+    );
+    await harness.serverSend(messageEnd(createAssistantMessage("Answer")));
+    await harness.serverSend(agentEnd());
+
+    // thinking is cleared by AGENT_END, but completedThinking survives
+    expect(harness.current.thinking).toBeNull();
+    expect(harness.current.completedThinking).toBe("My reasoning");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 25. maxReconnectDelay
+// ---------------------------------------------------------------------------
+
+describe("maxReconnectDelay", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reconnect delay is capped at maxReconnectDelay", async () => {
+    harness = createHarness({ autoReconnect: true, maxReconnectDelay: 5000 });
+    await harness.open();
+    await harness.establish();
+
+    // Close the connection — attempt 0: delay = 1000ms
+    await act(() => harness.ws.simulateClose());
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    // New WS created (attempt 1). Close again without opening so attempt counter keeps incrementing.
+    // attempt 1: delay = 2000ms
+    await act(() => MockWebSocket.latest.simulateClose());
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    // attempt 2: delay = 4000ms
+    await act(() => MockWebSocket.latest.simulateClose());
+    await act(() => vi.advanceTimersByTimeAsync(4000));
+
+    const wsCountBefore = harness.allWs.length;
+
+    // attempt 3: delay would be 2^3 * 1000 = 8000ms but should be capped at 5000ms
+    await act(() => MockWebSocket.latest.simulateClose());
+
+    // At 4999ms, no new WS should be created
+    await act(() => vi.advanceTimersByTimeAsync(4999));
+    expect(harness.allWs.length).toBe(wsCountBefore);
+
+    // At 5000ms, the capped delay fires
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(harness.allWs.length).toBe(wsCountBefore + 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 26. Cross-session event filtering
+// ---------------------------------------------------------------------------
+
+describe("cross-session event filtering", () => {
+  beforeEach(async () => {
+    harness = createHarness();
+    await harness.establish("sess_1");
+  });
+
+  it("cost_event for different session is discarded", async () => {
+    await harness.serverSend(costEvent({ sessionId: "sess_other", amount: 0.05 }));
+
+    expect(harness.current.costs).toHaveLength(0);
+  });
+
+  it("tool_event for different session is discarded", async () => {
+    await harness.serverSend(messageStart());
+    const [startEvent] = toolExecutionSequence({
+      toolCallId: "call_x",
+      toolName: "read_file",
+      sessionId: "sess_other",
+    });
+    await harness.serverSend(startEvent);
+
+    expect(harness.current.toolStates.size).toBe(0);
   });
 });

@@ -18,9 +18,14 @@ import { MockWebSocket } from "./mock-websocket";
 export interface HarnessOptions {
   url?: string;
   sessionId?: string;
+  getToken?: () => Promise<string> | string;
   autoReconnect?: boolean;
   maxReconnectDelay?: number;
   onCustomEvent?: (name: string, data: Record<string, unknown>) => void;
+  onCustomRequest?: (
+    name: string,
+    data: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
 }
 
 export interface Harness {
@@ -64,9 +69,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const config: UseAgentChatConfig = {
     url: options.url ?? "ws://test/agent",
     sessionId: options.sessionId,
+    getToken: options.getToken,
     autoReconnect: options.autoReconnect,
     maxReconnectDelay: options.maxReconnectDelay,
     onCustomEvent: options.onCustomEvent,
+    onCustomRequest: options.onCustomRequest,
   };
 
   const hookResult = renderHook(() => useAgentChat(config));

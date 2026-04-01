@@ -235,6 +235,25 @@ export function toolExecutionSequence(opts: {
   ];
 }
 
+/** Tool execution update (streaming partial result). */
+export function toolExecutionUpdate(opts: {
+  toolCallId: string;
+  toolName: string;
+  partialResult: unknown;
+  sessionId?: string;
+}): ServerMessage {
+  return {
+    type: "tool_event",
+    sessionId: opts.sessionId ?? DEFAULT_SESSION_ID,
+    event: {
+      type: "tool_execution_update",
+      toolCallId: opts.toolCallId,
+      toolName: opts.toolName,
+      partialResult: opts.partialResult,
+    },
+  };
+}
+
 /** Thinking sequence: thinking_start → deltas → thinking_end (as message_update events). */
 export function thinkingSequence(
   thinkingText: string,
