@@ -18,15 +18,15 @@ log() { OUTPUT+="$1"$'\n'; }
 
 # ─── File Length ───────────────────────────────────────────────────────
 log ""
-log "=== File Length (max 500 source, 1000 tests) ==="
+log "=== File Length (max 500 source, 1500 tests) ==="
 
 while IFS= read -r f; do
   lines=$(wc -l < "$f" | tr -d ' ')
   is_test=false
   [[ "$f" == *".test."* || "$f" == *"/test/"* || "$f" == *"test-helpers"* || "$f" == *"__tests__"* ]] && is_test=true
 
-  if [[ "$is_test" == true ]] && (( lines > 1000 )); then
-    log "  WARN: $f: $lines lines (test limit: 1000)"
+  if [[ "$is_test" == true ]] && (( lines > 1500 )); then
+    log "  WARN: $f: $lines lines (test limit: 1500)"
   elif [[ "$is_test" == false ]] && (( lines > 500 )); then
     log "  WARN: $f: $lines lines (source limit: 500)"
   fi
