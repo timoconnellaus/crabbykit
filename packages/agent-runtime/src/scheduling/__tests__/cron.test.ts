@@ -94,6 +94,30 @@ describe("nextFireTime", () => {
     expect(() => nextFireTime("garbage")).toThrow();
   });
 
+  it("skips non-matching days of month", () => {
+    // "0 12 15 * *" = noon on the 15th of every month
+    const from = new Date("2026-03-10T00:00:00Z"); // March 10
+    const next = nextFireTime("0 12 15 * *", from);
+    // Should skip to March 15
+    expect(next.getUTCDate()).toBe(15);
+    expect(next.getUTCHours()).toBe(12);
+    expect(next.getUTCMinutes()).toBe(0);
+  });
+
+  it("skips non-matching days of week", () => {
+    // "0 9 * * 1" = 9 AM every Monday
+    const from = new Date("2026-03-25T00:00:00Z"); // Wednesday
+    const next = nextFireTime("0 9 * * 1", from);
+    // Should skip to Monday March 30
+    expect(next.getUTCDay()).toBe(1); // Monday
+    expect(next.getUTCHours()).toBe(9);
+  });
+
+  it("throws when no matching time within a year", () => {
+    // February 31st never exists — computeNext exhausts MAX_ITERATIONS
+    expect(() => nextFireTime("0 0 31 2 *")).toThrow("Could not find next fire time");
+  });
+
   it("evaluates cron fields in a specific timezone", () => {
     // 2026-03-27T10:00:00Z = 2026-03-27T06:00:00 EDT (America/New_York, UTC-4 in March)
     const from = new Date("2026-03-27T10:00:00Z");

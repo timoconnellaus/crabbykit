@@ -147,6 +147,67 @@ describe("ScheduleStore", () => {
       store.update("e1", { enabled: true });
       expect(store.get("e1")!.enabled).toBe(true);
     });
+
+    it("updates lastError field", () => {
+      const store = createStore();
+      store.create({
+        id: "err1",
+        name: "Error test",
+        cron: "* * * * *",
+        handlerType: "prompt",
+        prompt: "x",
+      });
+
+      store.update("err1", { lastError: "Connection timeout" });
+      expect(store.get("err1")!.lastError).toBe("Connection timeout");
+
+      // Clear error
+      store.update("err1", { lastError: null });
+      expect(store.get("err1")!.lastError).toBeNull();
+    });
+
+    it("updates retention field", () => {
+      const store = createStore();
+      store.create({
+        id: "ret1",
+        name: "Retention test",
+        cron: "0 * * * *",
+        handlerType: "prompt",
+        prompt: "x",
+      });
+
+      expect(store.get("ret1")!.retention).toBe(10); // default
+      store.update("ret1", { retention: 25 });
+      expect(store.get("ret1")!.retention).toBe(25);
+    });
+
+    it("updates timezone field", () => {
+      const store = createStore();
+      store.create({
+        id: "tz1",
+        name: "TZ test",
+        cron: "0 9 * * *",
+        handlerType: "prompt",
+        prompt: "x",
+      });
+
+      store.update("tz1", { timezone: "America/New_York" });
+      expect(store.get("tz1")!.timezone).toBe("America/New_York");
+    });
+
+    it("updates sessionPrefix field", () => {
+      const store = createStore();
+      store.create({
+        id: "sp1",
+        name: "Prefix test",
+        cron: "0 * * * *",
+        handlerType: "prompt",
+        prompt: "x",
+      });
+
+      store.update("sp1", { sessionPrefix: "custom-prefix" });
+      expect(store.get("sp1")!.sessionPrefix).toBe("custom-prefix");
+    });
   });
 
   describe("delete", () => {

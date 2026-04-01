@@ -376,4 +376,139 @@ describe("SessionStore", () => {
       expect((context[2] as any).content).toBe("branched msg");
     });
   });
+
+  describe("Garbage Collection", () => {
+    it("returns 0 for session with no leafId", () => {
+      const session = store.create();
+      // No entries appended → leafId is null
+      expect(store.gc(session.id)).toBe(0);
+    });
+
+    it("returns 0 for non-existent session", () => {
+      expect(store.gc("non-existent")).toBe(0);
+    });
+
+    it("returns 0 when all entries are reachable (linear chain)", () => {
+      const session = store.create();
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "msg1", timestamp: 1 },
+      });
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "assistant", content: "msg2", timestamp: 2 },
+      });
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "msg3", timestamp: 3 },
+      });
+
+      // All entries on the leaf-to-root path — nothing to gc
+      expect(store.gc(session.id)).toBe(0);
+      expect(store.getEntries(session.id)).toHaveLength(3);
+    });
+
+    it("removes orphaned entries after branching", () => {
+      const session = store.create();
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "msg1", timestamp: 1 },
+      });
+      const e2 = store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "assistant", content: "msg2", timestamp: 2 },
+      });
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "msg3-orphan", timestamp: 3 },
+      });
+
+      // Branch from e2 — msg3 becomes orphaned
+      store.branch(session.id, e2.id);
+
+      // Add a new entry on the branch
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "msg3-new", timestamp: 4 },
+      });
+
+      // Before GC: 4 entries (msg1, msg2, msg3-orphan, msg3-new)
+      expect(store.getEntries(session.id)).toHaveLength(4);
+
+      // GC removes the orphaned msg3
+      const removed = store.gc(session.id);
+      expect(removed).toBe(1);
+
+      // After GC: 3 entries remain
+      const remaining = store.getEntries(session.id);
+      expect(remaining).toHaveLength(3);
+      expect(remaining.map((e) => (e.data as any).content)).toEqual([
+        "msg1",
+        "msg2",
+        "msg3-new",
+      ]);
+    });
+
+    it("removes multiple orphaned branches", () => {
+      const session = store.create();
+      const e1 = store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "root", timestamp: 1 },
+      });
+
+      // First branch: e1 → e2 → e3
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "assistant", content: "branch1-a", timestamp: 2 },
+      });
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "branch1-b", timestamp: 3 },
+      });
+
+      // Go back to e1 and create second branch
+      store.branch(session.id, e1.id);
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "assistant", content: "branch2-a", timestamp: 4 },
+      });
+      store.appendEntry(session.id, {
+        type: "message",
+        data: { role: "user", content: "branch2-b", timestamp: 5 },
+      });
+
+      // 5 entries total, but only 3 reachable (root, branch2-a, branch2-b)
+      expect(store.getEntries(session.id)).toHaveLength(5);
+
+      const removed = store.gc(session.id);
+      expect(removed).toBe(2);
+      expect(store.getEntries(session.id)).toHaveLength(3);
+    });
+  });
+
+  describe("Rename", () => {
+    it("renames a session", () => {
+      const session = store.create({ name: "Original" });
+      store.rename(session.id, "Renamed");
+
+      const updated = store.get(session.id);
+      expect(updated!.name).toBe("Renamed");
+    });
+  });
+
+  describe("Paginated Entries", () => {
+    it("returns entries with default pagination", () => {
+      const session = store.create();
+      for (let i = 0; i < 3; i++) {
+        store.appendEntry(session.id, {
+          type: "message",
+          data: { role: "user", content: `msg${i}`, timestamp: i },
+        });
+      }
+
+      const result = store.getEntriesPaginated(session.id);
+      expect(result.entries).toHaveLength(3);
+      expect(result.hasMore).toBe(false);
+    });
+  });
 });

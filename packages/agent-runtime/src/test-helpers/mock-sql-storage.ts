@@ -142,11 +142,18 @@ export function createMockSqlStore(): SqlStore {
         const conditions = whereMatch[1].split(/\s+AND\s+/i);
         let bi = 0;
         for (const cond of conditions) {
-          const colMatch = cond.trim().match(/^(\w+)\s*=\s*\?$/);
-          if (colMatch) {
-            const col = colMatch[1];
+          const eqMatch = cond.trim().match(/^(\w+)\s*=\s*\?$/);
+          if (eqMatch) {
+            const col = eqMatch[1];
             const val = bindings[bi++];
             rows = rows.filter((r) => r[col] === val);
+            continue;
+          }
+          const gtMatch = cond.trim().match(/^(\w+)\s*>\s*\?$/);
+          if (gtMatch) {
+            const col = gtMatch[1];
+            const val = bindings[bi++] as number;
+            rows = rows.filter((r) => (r[col] as number) > val);
           }
         }
       }
@@ -165,6 +172,14 @@ export function createMockSqlStore(): SqlStore {
           const cmp = String(av ?? "").localeCompare(String(bv ?? ""));
           return desc ? -cmp : cmp;
         });
+      }
+
+      // LIMIT
+      const limitMatch = trimmed.match(/LIMIT\s+(\?|\d+)/i);
+      if (limitMatch) {
+        const limit =
+          limitMatch[1] === "?" ? (bindings[bindings.length - 1] as number) : Number(limitMatch[1]);
+        rows = rows.slice(0, limit);
       }
 
       return createResult(rows);
@@ -230,6 +245,30 @@ export function createMockSqlStore(): SqlStore {
       if (!table) return createResult([]);
 
       const whereClause = match[2].trim();
+
+      // Handle IN (...) clause: DELETE FROM t WHERE col IN (?, ?, ?)
+      const inMatch = whereClause.match(/^(\w+)\s+IN\s*\(([^)]+)\)$/i);
+      if (inMatch) {
+        const col = inMatch[1];
+        const inValues = new Set(bindings);
+        const deleted: Row[] = [];
+        table.rows = table.rows.filter((row) => {
+          if (inValues.has(row[col])) {
+            deleted.push(row);
+            return false;
+          }
+          return true;
+        });
+        if (tableName === "sessions") {
+          const entries = tables.get("session_entries");
+          if (entries) {
+            const deletedIds = new Set(deleted.map((r) => r.id));
+            entries.rows = entries.rows.filter((e) => !deletedIds.has(e.session_id));
+          }
+        }
+        return createResult([]);
+      }
+
       const conditions = whereClause.split(/\s+AND\s+/i);
       const bi = 0;
 

@@ -5,7 +5,12 @@ import { defineCommand } from "../../commands/define-command.js";
 import { resolveCapabilities } from "../resolve.js";
 import type { CapabilityStorage } from "../storage.js";
 import { createNoopStorage } from "../storage.js";
-import type { Capability, CapabilityHookContext, ToolExecutionEvent } from "../types.js";
+import type {
+  BeforeToolExecutionEvent,
+  Capability,
+  CapabilityHookContext,
+  ToolExecutionEvent,
+} from "../types.js";
 
 const mockSchedules = {
   create: async () => ({}) as any,
@@ -467,5 +472,100 @@ describe("resolveCapabilities", () => {
   it("returns empty afterToolExecutionHooks for empty capabilities", () => {
     const result = resolveCapabilities([], ctx);
     expect(result.afterToolExecutionHooks).toEqual([]);
+  });
+
+  it("resolves HTTP handlers from a capability", () => {
+    const handler = async () => new Response("ok");
+    const cap = makeCap({
+      id: "http-cap",
+      httpHandlers: () => [
+        { method: "GET" as const, path: "/status", handler },
+        { method: "POST" as const, path: "/webhook", handler },
+      ],
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.httpHandlers).toHaveLength(2);
+    expect(result.httpHandlers[0].method).toBe("GET");
+    expect(result.httpHandlers[0].path).toBe("/status");
+    expect(result.httpHandlers[0].capabilityId).toBe("http-cap");
+    expect(result.httpHandlers[1].method).toBe("POST");
+    expect(result.httpHandlers[1].path).toBe("/webhook");
+  });
+
+  it("throws on HTTP handler collision", () => {
+    const handler = async () => new Response("ok");
+    const cap1 = makeCap({
+      id: "cap-a",
+      httpHandlers: () => [{ method: "GET" as const, path: "/status", handler }],
+    });
+    const cap2 = makeCap({
+      id: "cap-b",
+      httpHandlers: () => [{ method: "GET" as const, path: "/status", handler }],
+    });
+
+    expect(() => resolveCapabilities([cap1, cap2], ctx)).toThrow(
+      /HTTP handler collision.*GET \/status.*cap-b/,
+    );
+  });
+
+  it("allows same path with different methods", () => {
+    const handler = async () => new Response("ok");
+    const cap1 = makeCap({
+      id: "cap-a",
+      httpHandlers: () => [{ method: "GET" as const, path: "/resource", handler }],
+    });
+    const cap2 = makeCap({
+      id: "cap-b",
+      httpHandlers: () => [{ method: "POST" as const, path: "/resource", handler }],
+    });
+
+    const result = resolveCapabilities([cap1, cap2], ctx);
+    expect(result.httpHandlers).toHaveLength(2);
+  });
+
+  it("collects onConnect hooks", async () => {
+    const hookFn = vi.fn(async () => {});
+    const cap = makeCap({
+      id: "connect-cap",
+      hooks: { onConnect: hookFn },
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.onConnectHooks).toHaveLength(1);
+    await result.onConnectHooks[0]({
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: {} as any,
+      storage: createNoopStorage(),
+    });
+    expect(hookFn).toHaveBeenCalled();
+  });
+
+  it("collects beforeToolExecution hooks", async () => {
+    const hookFn = vi.fn(async () => {});
+    const cap = makeCap({
+      id: "guard-cap",
+      hooks: { beforeToolExecution: hookFn },
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.beforeToolExecutionHooks).toHaveLength(1);
+    const event: BeforeToolExecutionEvent = {
+      toolName: "file_write",
+      toolCallId: "call_123",
+      args: { path: "test.md" },
+    };
+    const hookCtx: CapabilityHookContext = {
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: {} as any,
+      storage: createNoopStorage(),
+    };
+    await result.beforeToolExecutionHooks[0](event, hookCtx);
+    expect(hookFn).toHaveBeenCalledWith(event, expect.objectContaining({ sessionId: "s1" }));
   });
 });

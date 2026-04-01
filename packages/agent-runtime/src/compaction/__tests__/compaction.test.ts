@@ -54,6 +54,28 @@ describe("Token Estimation", () => {
       expect(estimate).toBe(138);
     });
 
+    it("uses code heuristic for text with code indicators", () => {
+      // Code indicators like {};= trigger 3.0 chars/token
+      const msg = userMsg("function foo() { return x; }");
+      const estimate = estimateTokens(msg);
+      // 28 chars, code: ceil(28/3.0)=10 + 5 overhead = 15, * 1.15 = ceil(17.25) = 18
+      expect(estimate).toBe(18);
+    });
+
+    it("uses JSON heuristic for JSON-like text", () => {
+      const msg = userMsg('{"key": "value", "count": 42}');
+      const estimate = estimateTokens(msg);
+      // 29 chars, JSON (starts with {): ceil(29/2.5)=12 + 5 overhead = 17, * 1.15 = ceil(19.55) = 20
+      expect(estimate).toBe(20);
+    });
+
+    it("uses JSON heuristic for array-like text", () => {
+      const msg = userMsg('[1, 2, 3, 4, 5]');
+      const estimate = estimateTokens(msg);
+      // 15 chars, JSON (starts with [): ceil(15/2.5)=6 + 5 overhead = 11, * 1.15 = ceil(12.65) = 13
+      expect(estimate).toBe(13);
+    });
+
     it("estimates tool result tokens with prose heuristic", () => {
       const msg = toolResultMsg("a".repeat(1000));
       const estimate = estimateTokens(msg);
@@ -99,6 +121,33 @@ describe("Token Estimation", () => {
       // text: ceil(100/3.5)=29, toolCall args: JSON.stringify({})="{}" -> ceil(2/2.5)=1 + 5 framing = 6
       // total: 29 + 6 + 5 overhead = 40, * 1.15 = ceil(46) = 46
       expect(estimateTokens(msg)).toBe(46);
+    });
+
+    it("handles toolCall with string arguments", () => {
+      const msg = {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            name: "search",
+            arguments: '{"query": "hello"}',
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as AgentMessage;
+      // args is string '{"query": "hello"}' (18 chars), JSON-like: ceil(18/2.5)=8 + 5 framing = 13
+      // + 5 overhead = 18, * 1.15 = ceil(20.7) = 21
+      expect(estimateTokens(msg)).toBe(21);
+    });
+
+    it("handles content block with no text field", () => {
+      const msg = {
+        role: "assistant",
+        content: [{ type: "image", url: "https://example.com/img.png" }],
+        timestamp: Date.now(),
+      } as unknown as AgentMessage;
+      // No text or toolCall → only overhead: 5 * 1.15 = ceil(5.75) = 6
+      expect(estimateTokens(msg)).toBe(6);
     });
   });
 
