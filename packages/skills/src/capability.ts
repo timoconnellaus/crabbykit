@@ -17,6 +17,7 @@ import {
 } from "./r2.js";
 import {
   clearPendingMerge,
+  deleteInstalledSkill,
   getInstalledSkill,
   getPendingMerges,
   listInstalledSkills,
@@ -41,10 +42,10 @@ function buildSkillList(skills: Map<string, InstalledSkill>) {
     enabled: boolean;
     autoUpdate: boolean;
     stale: boolean;
+    builtIn?: boolean;
   }> = [];
 
   for (const [key, skill] of skills) {
-    // Keys come back with the prefix stripped by CapabilityStorage.list
     const id = key.startsWith("installed:") ? key.slice("installed:".length) : key;
     list.push({
       id,
@@ -54,9 +55,15 @@ function buildSkillList(skills: Map<string, InstalledSkill>) {
       enabled: skill.enabled,
       autoUpdate: skill.autoUpdate,
       stale: skill.stale,
+      builtIn: skill.builtIn,
     });
   }
   return list;
+}
+
+/** Extract skill ID from storage key. */
+function storageKeyToId(key: string): string {
+  return key.startsWith("installed:") ? key.slice("installed:".length) : key;
 }
 
 function createSkillLoadTool(
@@ -287,6 +294,157 @@ export function skills(options: SkillsOptions): Capability {
         ctx.broadcast?.("skill_list_update", { skills: skillList });
       },
     },
+
+    httpHandlers: (context) => [
+      {
+        method: "GET" as const,
+        path: "/skills/registry",
+        handler: async (_request: Request, ctx) => {
+          try {
+            const allRegistry = await registry.list();
+            const installed = cachedSkills ?? await listInstalledSkills(ctx.storage);
+            const installedIds = new Set<string>();
+            for (const key of installed.keys()) {
+              installedIds.add(storageKeyToId(key));
+            }
+            const available = allRegistry
+              .filter((r) => !installedIds.has(r.id))
+              .map((r) => ({
+                id: r.id,
+                name: r.name,
+                description: r.description,
+                version: r.version,
+                requiresCapabilities: r.requiresCapabilities,
+              }));
+            return new Response(JSON.stringify(available), {
+              headers: { "content-type": "application/json" },
+            });
+          } catch (err) {
+            return new Response(
+              JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+              { status: 500, headers: { "content-type": "application/json" } },
+            );
+          }
+        },
+      },
+      {
+        method: "POST" as const,
+        path: "/skills/install",
+        handler: async (request: Request, ctx) => {
+          try {
+            const body = (await request.json()) as { id: string; enabled?: boolean; autoUpdate?: boolean };
+            if (!body.id) {
+              return new Response(JSON.stringify({ error: "Missing skill id" }), {
+                status: 400,
+                headers: { "content-type": "application/json" },
+              });
+            }
+
+            const existing = await getInstalledSkill(ctx.storage, body.id);
+            if (existing) {
+              return new Response(JSON.stringify({ error: "Skill already installed" }), {
+                status: 409,
+                headers: { "content-type": "application/json" },
+              });
+            }
+
+            const registryRecord = await registry.get(body.id);
+            if (!registryRecord) {
+              return new Response(JSON.stringify({ error: "Skill not found in registry" }), {
+                status: 404,
+                headers: { "content-type": "application/json" },
+              });
+            }
+
+            const enabled = body.enabled ?? true;
+            const autoUpdate = body.autoUpdate ?? true;
+            const bucket = agentStorage.bucket();
+            const namespace = agentStorage.namespace();
+
+            const installed: InstalledSkill = {
+              name: registryRecord.name,
+              description: registryRecord.description,
+              version: registryRecord.version,
+              enabled,
+              autoUpdate,
+              stale: false,
+              originalHash: registryRecord.contentHash,
+              requiresCapabilities: registryRecord.requiresCapabilities,
+              builtIn: false,
+            };
+
+            if (enabled) {
+              await writeSkillToR2(bucket, namespace, body.id, registryRecord.skillMd);
+              installed.r2Key = `skills/${body.id}/SKILL.md`;
+            }
+
+            await putInstalledSkill(ctx.storage, body.id, installed);
+            cachedSkills = await listInstalledSkills(ctx.storage);
+            const skillList = buildSkillList(cachedSkills);
+            ctx.broadcastToAll("skill_list_update", { skills: skillList });
+
+            return new Response(JSON.stringify({ ok: true, skill: { id: body.id, ...installed } }), {
+              headers: { "content-type": "application/json" },
+            });
+          } catch (err) {
+            return new Response(
+              JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+              { status: 500, headers: { "content-type": "application/json" } },
+            );
+          }
+        },
+      },
+      {
+        method: "POST" as const,
+        path: "/skills/uninstall",
+        handler: async (request: Request, ctx) => {
+          try {
+            const body = (await request.json()) as { id: string };
+            if (!body.id) {
+              return new Response(JSON.stringify({ error: "Missing skill id" }), {
+                status: 400,
+                headers: { "content-type": "application/json" },
+              });
+            }
+
+            const existing = await getInstalledSkill(ctx.storage, body.id);
+            if (!existing) {
+              return new Response(JSON.stringify({ error: "Skill not installed" }), {
+                status: 404,
+                headers: { "content-type": "application/json" },
+              });
+            }
+            if (existing.builtIn) {
+              return new Response(JSON.stringify({ error: "Cannot uninstall built-in skill" }), {
+                status: 403,
+                headers: { "content-type": "application/json" },
+              });
+            }
+
+            // Remove from R2 if enabled
+            if (existing.enabled && existing.r2Key) {
+              const bucket = agentStorage.bucket();
+              const namespace = agentStorage.namespace();
+              await deleteSkillFromR2(bucket, namespace, body.id);
+            }
+
+            await deleteInstalledSkill(ctx.storage, body.id);
+            cachedSkills = await listInstalledSkills(ctx.storage);
+            const skillList = buildSkillList(cachedSkills);
+            ctx.broadcastToAll("skill_list_update", { skills: skillList });
+
+            return new Response(JSON.stringify({ ok: true }), {
+              headers: { "content-type": "application/json" },
+            });
+          } catch (err) {
+            return new Response(
+              JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+              { status: 500, headers: { "content-type": "application/json" } },
+            );
+          }
+        },
+      },
+    ],
 
     configNamespaces: (context: AgentContext): ConfigNamespace[] => [
       {

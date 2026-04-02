@@ -120,6 +120,8 @@ export interface SkillListEntry {
   enabled: boolean;
   autoUpdate: boolean;
   stale: boolean;
+  /** True for skills declared at build time — cannot be uninstalled. */
+  builtIn?: boolean;
 }
 
 export interface SkillListMessage {
