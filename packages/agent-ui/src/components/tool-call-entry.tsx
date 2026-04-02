@@ -193,6 +193,74 @@ function renderToolBody(
     return renderDeployBody(args, outputText);
   }
 
+  // ── Preview tools ──
+  if (toolName === "show_preview" && !isError) {
+    return renderShowPreviewBody(args);
+  }
+  if (toolName === "hide_preview" && !isError) {
+    return renderSimpleConfirm("\u25A0", "Preview closed");
+  }
+
+  // ── Console logs ──
+  if (toolName === "get_console_logs" && outputText && !isError) {
+    return renderConsoleLogsBody(outputText);
+  }
+
+  // ── Start backend ──
+  if (toolName === "start_backend" && outputText && !isError) {
+    return renderSimpleConfirm("\u26A1", outputText.split("\n")[0]);
+  }
+
+  // ── File delete ──
+  if (toolName === "file_delete" && !isError) {
+    const path = extractPath(args);
+    return renderSimpleConfirm("\u2715", path ? `Deleted ${path}` : "File deleted", true);
+  }
+
+  // ── File find ──
+  if (toolName === "file_find" && outputText && !isError) {
+    return renderFileFindBody(args, outputText);
+  }
+
+  // ── Credentials ──
+  if (toolName === "save_file_credential" && !isError) {
+    return renderSimpleConfirm("\uD83D\uDD12", `Saved ${argStr(args, "path") ?? "credential"}`);
+  }
+  if (toolName === "delete_file_credential" && !isError) {
+    return renderSimpleConfirm("\uD83D\uDD12", `Deleted ${argStr(args, "path") ?? "credential"}`, true);
+  }
+  if (toolName === "list_file_credentials" && outputText && !isError) {
+    return renderOutputAsMonospace(outputText);
+  }
+
+  // ── App management ──
+  if (toolName === "list_apps" && outputText && !isError) {
+    return renderOutputAsMonospace(outputText);
+  }
+  if (toolName === "get_app_history" && outputText && !isError) {
+    return renderOutputAsMonospace(outputText);
+  }
+  if (toolName === "rollback_app" && outputText && !isError) {
+    return renderSimpleConfirm("\u21BA", outputText.split("\n")[0]);
+  }
+  if (toolName === "delete_app" && outputText && !isError) {
+    return renderSimpleConfirm("\u2715", outputText.split("\n")[0], true);
+  }
+
+  // ── Memory tools ──
+  if (toolName === "memory_write" && !isError) {
+    return renderMemoryWriteBody(args, outputText);
+  }
+  if (toolName === "memory_read" && outputText && !isError) {
+    return renderMemoryReadBody(args, outputText);
+  }
+  if (toolName === "memory_search" && outputText && !isError) {
+    return renderOutputAsMonospace(outputText);
+  }
+  if (toolName === "memory_get" && outputText && !isError) {
+    return renderMemoryReadBody(args, outputText);
+  }
+
   // ── Process tool ──
   if (toolName === "process" && outputText) {
     return renderProcessBody(args, outputText, isError);
@@ -501,6 +569,119 @@ function renderDeployBody(args: unknown, outputText: string) {
         </a>
       )}
     </div>
+  );
+}
+
+// ─── PREVIEW ────────────────────────────────────────────────────────────────
+
+function renderShowPreviewBody(args: unknown) {
+  const obj = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const port = typeof obj.port === "number" ? obj.port : null;
+
+  return (
+    <div data-agent-ui="action-confirm">
+      <span data-agent-ui="action-confirm-icon">{"\u25B6"}</span>
+      <span data-agent-ui="action-confirm-text">
+        Live preview opened{port ? <> on <strong>:{port}</strong></> : null}
+      </span>
+    </div>
+  );
+}
+
+// ─── CONSOLE LOGS ───────────────────────────────────────────────────────────
+
+function renderConsoleLogsBody(outputText: string) {
+  const lines = outputText.split("\n").filter((l) => l.length > 0);
+
+  return (
+    <pre data-agent-ui="console-logs">
+      {lines.map((line, i) => {
+        const levelMatch = line.match(/^\[(\w+)\]\s*(.*)/);
+        if (levelMatch) {
+          const level = levelMatch[1].toLowerCase();
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: Log lines have no stable ID
+            <div key={i} data-agent-ui="console-log-line">
+              <span data-agent-ui="console-log-level" data-log-level={level}>
+                {levelMatch[1]}
+              </span>
+              <span data-agent-ui="console-log-text">{levelMatch[2]}</span>
+            </div>
+          );
+        }
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: Log lines have no stable ID
+          <div key={i} data-agent-ui="console-log-line">
+            <span data-agent-ui="console-log-text">{line}</span>
+          </div>
+        );
+      })}
+    </pre>
+  );
+}
+
+// ─── FILE FIND ──────────────────────────────────────────────────────────────
+
+function renderFileFindBody(args: unknown, outputText: string) {
+  const pattern = argStr(args, "pattern");
+
+  return (
+    <>
+      {pattern && (
+        <div data-agent-ui="file-find-pattern">
+          <span data-agent-ui="file-find-badge">glob</span>
+          <span>{pattern}</span>
+        </div>
+      )}
+      <pre data-agent-ui="file-find-results">
+        {outputText.split("\n").filter((l) => l.length > 0).map((line, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: Match lines have no stable ID
+          <div key={i} data-agent-ui="file-find-match">{line}</div>
+        ))}
+      </pre>
+    </>
+  );
+}
+
+// ─── MEMORY ─────────────────────────────────────────────────────────────────
+
+function renderMemoryWriteBody(args: unknown, _outputText: string | null) {
+  const key = argStr(args, "key") ?? argStr(args, "id");
+  const content = argStr(args, "content") ?? argStr(args, "value");
+
+  return (
+    <div data-agent-ui="memory-card">
+      {key && <div data-agent-ui="memory-key">{key}</div>}
+      {content && <div data-agent-ui="memory-content">{content}</div>}
+    </div>
+  );
+}
+
+function renderMemoryReadBody(args: unknown, outputText: string) {
+  const key = argStr(args, "key") ?? argStr(args, "id");
+
+  return (
+    <div data-agent-ui="memory-card">
+      {key && <div data-agent-ui="memory-key">{key}</div>}
+      <div data-agent-ui="memory-content">{outputText}</div>
+    </div>
+  );
+}
+
+// ─── SIMPLE CONFIRMATIONS ───────────────────────────────────────────────────
+
+function renderSimpleConfirm(icon: string, text: string, danger?: boolean) {
+  return (
+    <div data-agent-ui="action-confirm">
+      <span data-agent-ui="action-confirm-icon" data-danger={danger || undefined}>{icon}</span>
+      <span data-agent-ui="action-confirm-text">{text}</span>
+    </div>
+  );
+}
+
+function renderOutputAsMonospace(outputText: string) {
+  return (
+    <pre data-agent-ui="exec-output">{outputText}</pre>
   );
 }
 
