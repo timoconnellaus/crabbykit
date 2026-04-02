@@ -1,3 +1,4 @@
+import { appRegistry, handleAppRequest } from "@claw-for-cloudflare/app-registry";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
@@ -8,7 +9,7 @@ import type {
   Capability,
   PromptOptions,
 } from "@claw-for-cloudflare/agent-runtime";
-import { AgentDO, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
+import { AgentDO, createCfSqlStore, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
@@ -110,11 +111,19 @@ export class BasicAgent extends AgentDO<Env> {
       debugInspector(),
       vibeCoder({
         provider: sandboxProvider,
-        deploy: { storage },
         backend: {
           loader: this.env.LOADER,
           dbService: this.env.DB_SERVICE,
           aiService: this.env.AI_SERVICE,
+        },
+      }),
+      appRegistry({
+        provider: sandboxProvider,
+        sql: createCfSqlStore(this.ctx.storage.sql),
+        storage,
+        backend: {
+          loader: this.env.LOADER,
+          dbService: this.env.DB_SERVICE,
         },
       }),
       aiProxy({
@@ -347,7 +356,7 @@ export default {
       return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
     }
 
-    // /deploy/:agentId/:deployId[/...] — serve deployed apps via worker loader
+    // /deploy/:agentId/:deployId[/...] — serve deployed apps via worker loader (legacy)
     const deployRes = handleDeployRequest({
       request,
       agentNamespace: env.AGENT,
@@ -357,6 +366,16 @@ export default {
       aiService: env.AI_SERVICE,
     });
     if (deployRes) return deployRes;
+
+    // /apps/:slug[/...] — serve named apps via app-registry
+    const appRes = handleAppRequest({
+      request,
+      agentNamespace: env.AGENT,
+      storageBucket: env.STORAGE_BUCKET,
+      loader: env.LOADER,
+      dbService: env.DB_SERVICE,
+    });
+    if (appRes) return appRes;
 
     // /preview/:id[/...] — proxy to sandbox container for dev server preview
     // With Bun fullstack, the container handles both HTML and API routes

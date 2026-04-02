@@ -41,7 +41,7 @@
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/agent-ui": "workspace:*",
-        "@claw-for-cloudflare/ai-proxy": "workspace:*",
+        "@claw-for-cloudflare/app-registry": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
         "@claw-for-cloudflare/credential-store": "workspace:*",
@@ -227,15 +227,22 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/ai-proxy": {
-      "name": "@claw-for-cloudflare/ai-proxy",
+    "packages/app-registry": {
+      "name": "@claw-for-cloudflare/app-registry",
       "version": "0.0.1",
       "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.0.4",
+        "@sinclair/typebox": "^0.34.0",
+        "nanoid": "^5.1.5",
       },
       "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
         "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
         "typescript": "^5.7.0",
         "vitest": "^3.2.0",
       },
@@ -492,7 +499,7 @@
 
     "@claw-for-cloudflare/ai": ["@claw-for-cloudflare/ai@workspace:packages/ai"],
 
-    "@claw-for-cloudflare/ai-proxy": ["@claw-for-cloudflare/ai-proxy@workspace:packages/ai-proxy"],
+    "@claw-for-cloudflare/app-registry": ["@claw-for-cloudflare/app-registry@workspace:packages/app-registry"],
 
     "@claw-for-cloudflare/cloudflare-sandbox": ["@claw-for-cloudflare/cloudflare-sandbox@workspace:packages/cloudflare-sandbox"],
 

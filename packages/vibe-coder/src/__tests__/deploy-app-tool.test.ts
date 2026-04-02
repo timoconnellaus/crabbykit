@@ -368,19 +368,8 @@ describe("deploy_app tool", () => {
   });
 });
 
-describe("vibeCoder with deploy option", () => {
-  it("includes deploy_app tool when deploy option is provided", () => {
-    const cap = vibeCoder({
-      provider: mockProvider(),
-      deploy: { storage: mockAgentStorage() },
-    });
-    const tools = cap.tools!(mockContext());
-    const names = tools.map((t: { name: string }) => t.name);
-    expect(names).toContain("deploy_app");
-    expect(tools).toHaveLength(4);
-  });
-
-  it("does not include deploy_app without deploy option", () => {
+describe("vibeCoder tools (deploy removed)", () => {
+  it("does not include deploy_app tool", () => {
     const cap = vibeCoder({ provider: mockProvider() });
     const tools = cap.tools!(mockContext());
     const names = tools.map((t: { name: string }) => t.name);
@@ -388,18 +377,7 @@ describe("vibeCoder with deploy option", () => {
     expect(tools).toHaveLength(3);
   });
 
-  it("includes deploy instructions in prompt sections", () => {
-    const cap = vibeCoder({
-      provider: mockProvider(),
-      deploy: { storage: mockAgentStorage() },
-    });
-    const sections = cap.promptSections!(mockContext());
-    expect(sections).toHaveLength(2);
-    expect(sections[1]).toContain("deploy_app");
-    expect(sections[1]).toContain("deploy URL");
-  });
-
-  it("does not include deploy instructions without deploy option", () => {
+  it("does not include deploy instructions in prompt sections", () => {
     const cap = vibeCoder({ provider: mockProvider() });
     const sections = cap.promptSections!(mockContext());
     expect(sections).toHaveLength(1);

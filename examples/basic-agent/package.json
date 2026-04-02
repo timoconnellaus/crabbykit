@@ -8,6 +8,7 @@
   "dependencies": {
     "@cloudflare/containers": "^0.1.0",
     "@claw-for-cloudflare/ai-proxy": "workspace:*",
+    "@claw-for-cloudflare/app-registry": "workspace:*",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
     "@claw-for-cloudflare/agent-ui": "workspace:*",

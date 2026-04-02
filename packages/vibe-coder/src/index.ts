@@ -14,4 +14,4 @@ export type { DbServiceEnv } from "./db-service.js";
 export { DbService } from "./db-service.js";
 export type { DeployRequestOptions } from "./deploy-server.js";
 export { handleDeployRequest } from "./deploy-server.js";
-export type { BackendOptions, DeployOptions, VibeCoderOptions } from "./types.js";
+export type { BackendOptions, VibeCoderOptions } from "./types.js";

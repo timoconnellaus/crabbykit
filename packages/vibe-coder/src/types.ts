@@ -1,12 +1,5 @@
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
 import type { DbService } from "./db-service.js";
-
-/** Configuration for the deploy feature. */
-export interface DeployOptions {
-  /** Shared agent storage (R2 bucket + namespace). Used to build deploy URLs. */
-  storage: AgentStorage;
-}
 
 /** Configuration for the backend feature. */
 export interface BackendOptions {
@@ -46,11 +39,6 @@ export interface VibeCoderOptions {
    * ensuring sub-resources (JS, CSS) route through the preview proxy.
    */
   previewBasePath?: string;
-  /**
-   * Enable the deploy_app tool. When provided, agents can deploy built
-   * Vite apps as static sites served via worker loaders.
-   */
-  deploy?: DeployOptions;
   /**
    * Enable backend support. When provided, agents can create full-stack apps
    * with a Hono backend and Durable Object SQLite database.
