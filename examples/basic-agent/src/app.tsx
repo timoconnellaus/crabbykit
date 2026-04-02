@@ -5,12 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentRecord } from "./components/agent-rail";
 import { AgentRail } from "./components/agent-rail";
 import { ChatView } from "./components/chat-view";
+import { AppsPanel } from "./components/apps-panel";
 import type { PendingA2ATask } from "./components/pending-tasks";
 import { SchedulePanel } from "./components/schedule-panel";
 import { TabBar } from "./components/tab-bar";
 
 const TABS = [
   { id: "chat", label: "Chat" },
+  { id: "apps", label: "Apps" },
   { id: "schedules", label: "Schedules" },
 ] as const;
 
@@ -20,6 +22,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("chat");
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
+  const [deployedApps, setDeployedApps] = useState<
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      currentVersion: number;
+      hasBackend: boolean;
+      lastDeployedAt: string;
+      commitHash: string;
+      commitMessage: string | null;
+    }>
+  >([]);
 
   const preview = usePreview();
 
@@ -63,6 +77,12 @@ export default function App() {
     (name: string, data: Record<string, unknown>) => {
       // Let the preview hook handle preview events first
       if (preview.handleCustomEvent(name, data)) return;
+
+      if (name === "app_list") {
+        const apps = data.apps as typeof deployedApps;
+        setDeployedApps(apps);
+        return;
+      }
 
       if (name === "sandbox_elevation") {
         setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
@@ -178,6 +198,7 @@ export default function App() {
               onLogFilterChange={preview.setLogFilter}
             />
           </div>
+          {activeTab === "apps" && <AppsPanel apps={deployedApps} />}
           {activeTab === "schedules" && (
             <SchedulePanel
               agentId={selectedAgentId}

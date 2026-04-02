@@ -15,7 +15,8 @@
     "@radix-ui/react-visually-hidden": "^1.1.0",
     "@tanstack/react-virtual": "^3.13.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "shiki": "^3.4.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",

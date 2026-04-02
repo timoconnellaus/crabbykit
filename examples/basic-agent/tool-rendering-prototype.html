@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAW Tool Rendering Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0c0e;
+  --bg-surface: #141418;
+  --bg-hover: #1a1a20;
+  --bg-raised: #1e1e26;
+  --border: #2a2a35;
+  --border-subtle: #1f1f28;
+  --text: #e2e2e8;
+  --text-dim: #8888a0;
+  --text-muted: #5c5c72;
+  --accent: #60a5fa;
+  --green: #4ade80;
+  --green-dim: rgba(74, 222, 128, 0.12);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.12);
+  --yellow: #fbbf24;
+  --yellow-dim: rgba(251, 191, 36, 0.1);
+  --purple: #a78bfa;
+  --orange: #fb923c;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+h1 {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 40px;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 48px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ─── Tool Entry (collapsed) ─── */
+.tool-entry {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.tool-entry:hover { border-color: var(--border); }
+.tool-entry[data-open] { border-color: var(--border); }
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tool-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tool-indicator[data-cat="bash"] { background: var(--green); }
+.tool-indicator[data-cat="file"] { background: var(--accent); }
+.tool-indicator[data-cat="web"] { background: var(--purple); }
+.tool-indicator[data-cat="deploy"] { background: var(--orange); }
+.tool-indicator[data-cat="sandbox"] { background: var(--yellow); }
+
+.tool-name {
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.tool-detail {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.tool-sep { color: var(--text-muted); flex-shrink: 0; }
+
+.tool-result {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.tool-result[data-v="success"] { color: var(--green); }
+.tool-result[data-v="error"] { color: var(--red); }
+.tool-result[data-v="muted"] { color: var(--text-muted); }
+
+.tool-duration {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tool-chevron {
+  color: var(--text-muted);
+  font-size: 10px;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+[data-open] .tool-chevron { transform: rotate(90deg); }
+
+/* ─── Tool Body (expanded) ─── */
+.tool-body {
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.tool-body-section {
+  padding: 0;
+}
+
+.tool-body-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 10px 14px 4px;
+}
+
+/* ─── Exec: natural command + streaming output ─── */
+.exec-input {
+  padding: 6px 14px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.exec-prompt-char {
+  color: var(--green);
+  font-weight: 600;
+  user-select: none;
+}
+.exec-command { color: var(--text); word-break: break-all; }
+
+.exec-output {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 8px 14px 12px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.exec-output .exit-code {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.exec-output .exit-code[data-ok] { background: var(--green-dim); color: var(--green); }
+.exec-output .exit-code[data-err] { background: var(--red-dim); color: var(--red); }
+
+/* ─── File Read: code viewer ─── */
+.file-content {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+  counter-reset: line;
+}
+.file-line {
+  display: flex;
+  padding: 0 14px;
+  min-height: 20px;
+}
+.file-line:hover { background: var(--bg-hover); }
+.file-line-num {
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 12px;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 10.5px;
+}
+.file-line-text {
+  white-space: pre;
+  color: var(--text-dim);
+  overflow-x: auto;
+}
+.file-truncated {
+  padding: 8px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ─── File Write: path + content preview ─── */
+.file-write-path {
+  padding: 6px 14px 2px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.file-write-icon { color: var(--green); font-size: 11px; }
+
+.file-write-content {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow-y: auto;
+  counter-reset: line;
+}
+
+/* ─── File Edit: unified diff ─── */
+.diff-view {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.diff-hunk {
+  padding: 2px 14px;
+  color: var(--purple);
+  font-size: 11px;
+  background: rgba(167, 139, 250, 0.06);
+}
+.diff-line {
+  display: flex;
+  padding: 0 14px;
+  min-height: 20px;
+}
+.diff-line[data-type="add"] { background: var(--green-dim); }
+.diff-line[data-type="add"] .diff-line-text { color: var(--green); }
+.diff-line[data-type="remove"] { background: var(--red-dim); }
+.diff-line[data-type="remove"] .diff-line-text { color: var(--red); }
+.diff-line[data-type="context"] .diff-line-text { color: var(--text-muted); }
+.diff-line-gutter {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  user-select: none;
+}
+.diff-line[data-type="add"] .diff-line-gutter { color: var(--green); }
+.diff-line[data-type="remove"] .diff-line-gutter { color: var(--red); }
+.diff-line[data-type="context"] .diff-line-gutter { color: var(--text-muted); }
+.diff-line-text {
+  white-space: pre;
+  overflow-x: auto;
+}
+.diff-meta {
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* ─── Web Search: result cards ─── */
+.search-results {
+  padding: 8px 14px 12px;
+}
+.search-result {
+  padding: 8px 0;
+}
+.search-result + .search-result { border-top: 1px solid var(--border-subtle); }
+.search-result-title {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+}
+.search-result-url {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin: 2px 0;
+}
+.search-result-snippet {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ─── Web Fetch: fetched content ─── */
+.fetch-url {
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fetch-url-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(167, 139, 250, 0.15);
+  color: var(--purple);
+  text-transform: uppercase;
+}
+
+/* ─── File ops: simple confirmations ─── */
+.file-op-confirm {
+  padding: 8px 14px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-op-arrow { color: var(--text-muted); }
+
+/* ─── File Tree / List ─── */
+.file-tree {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 8px 14px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  line-height: 1.65;
+}
+.file-tree-dir { color: var(--accent); }
+.file-tree-file { color: var(--text-dim); }
+.file-tree-indent { color: var(--border); user-select: none; }
+
+/* ─── Deploy: rich card ─── */
+.deploy-card {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deploy-app-name {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.deploy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.deploy-meta-item { color: var(--text-dim); }
+.deploy-meta-item strong { color: var(--text); font-weight: 500; }
+.deploy-url {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+}
+.deploy-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.deploy-badge[data-type="version"] { background: var(--green-dim); color: var(--green); }
+.deploy-badge[data-type="backend"] { background: rgba(96, 165, 250, 0.15); color: var(--accent); }
+
+/* ─── Spinner ─── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ─── Generic JSON (fallback) ─── */
+.json-view {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 8px 14px 12px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ─── Elevation card ─── */
+.elevation-card {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.elevation-icon {
+  font-size: 16px;
+}
+.elevation-text { color: var(--text-dim); }
+.elevation-text strong { color: var(--text); font-weight: 500; }
+.elevation-timeout {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Tool Rendering Prototype</h1>
+
+<!-- ═══════ EXEC ═══════ -->
+<div class="section-label">Shell Execution</div>
+
+<!-- exec: collapsed (running) -->
+<div class="tool-entry">
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">exec</span>
+    <span class="tool-detail">bun install</span>
+    <span class="spinner"></span>
+  </div>
+</div>
+
+<!-- exec: collapsed (done) -->
+<div class="tool-entry">
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">exec</span>
+    <span class="tool-detail">bun test</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">47 passed</span>
+    <span class="tool-duration">1.2s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+</div>
+
+<!-- exec: expanded -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">exec</span>
+    <span class="tool-detail">bun install</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">added 42 packages</span>
+    <span class="tool-duration">3.1s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="exec-input">
+      <span class="exec-prompt-char">$</span>
+      <span class="exec-command">bun install</span>
+    </div>
+    <div class="exec-output">bun install v1.3.6
+Resolving dependencies...
++ react@19.0.0
++ react-dom@19.0.0
++ @sinclair/typebox@0.34.0
+
+42 packages installed [3.14s]
+<span class="exit-code" data-ok>exit 0</span></div>
+  </div>
+</div>
+
+<!-- exec: expanded with error -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">exec</span>
+    <span class="tool-detail">git push origin main</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="error">exit code 1</span>
+    <span class="tool-duration">0.8s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="exec-input">
+      <span class="exec-prompt-char">$</span>
+      <span class="exec-command">git push origin main</span>
+    </div>
+    <div class="exec-output">To github.com:user/repo.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:user/repo.git'
+hint: Updates were rejected because the tip of your current branch is behind
+<span class="exit-code" data-err>exit 1</span></div>
+  </div>
+</div>
+
+<!-- ═══════ ELEVATE / DE_ELEVATE ═══════ -->
+<div class="section-label">Sandbox Elevation</div>
+
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="sandbox"></span>
+    <span class="tool-name">elevate</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">sandbox activated</span>
+    <span class="tool-duration">2.4s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="elevation-card">
+      <span class="elevation-icon">&#9889;</span>
+      <span class="elevation-text">Shell access granted &mdash; <strong>Build the todo app frontend</strong></span>
+      <span class="elevation-timeout">auto-off in 5m</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FILE READ ═══════ -->
+<div class="section-label">File Operations</div>
+
+<!-- file_read: expanded with line numbers -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_read</span>
+    <span class="tool-detail">src/app.tsx</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">24 lines</span>
+    <span class="tool-duration">45ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-content">
+      <div class="file-line"><span class="file-line-num">1</span><span class="file-line-text">import { useState } from "react";</span></div>
+      <div class="file-line"><span class="file-line-num">2</span><span class="file-line-text">import { TodoList } from "./components/todo-list";</span></div>
+      <div class="file-line"><span class="file-line-num">3</span><span class="file-line-text"></span></div>
+      <div class="file-line"><span class="file-line-num">4</span><span class="file-line-text">export default function App() {</span></div>
+      <div class="file-line"><span class="file-line-num">5</span><span class="file-line-text">  const [items, setItems] = useState&lt;string[]&gt;([]);</span></div>
+      <div class="file-line"><span class="file-line-num">6</span><span class="file-line-text">  const [input, setInput] = useState("");</span></div>
+      <div class="file-line"><span class="file-line-num">7</span><span class="file-line-text"></span></div>
+      <div class="file-line"><span class="file-line-num">8</span><span class="file-line-text">  const addItem = () =&gt; {</span></div>
+      <div class="file-line"><span class="file-line-num">9</span><span class="file-line-text">    if (!input.trim()) return;</span></div>
+      <div class="file-line"><span class="file-line-num">10</span><span class="file-line-text">    setItems([...items, input.trim()]);</span></div>
+      <div class="file-line"><span class="file-line-num">11</span><span class="file-line-text">    setInput("");</span></div>
+      <div class="file-line"><span class="file-line-num">12</span><span class="file-line-text">  };</span></div>
+      <div class="file-line"><span class="file-line-num">13</span><span class="file-line-text"></span></div>
+      <div class="file-line"><span class="file-line-num">14</span><span class="file-line-text">  return (</span></div>
+      <div class="file-line"><span class="file-line-num">15</span><span class="file-line-text">    &lt;div className="app"&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">16</span><span class="file-line-text">      &lt;h1&gt;Todo App&lt;/h1&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">17</span><span class="file-line-text">      &lt;TodoList items={items} /&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">18</span><span class="file-line-text">    &lt;/div&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">19</span><span class="file-line-text">  );</span></div>
+      <div class="file-line"><span class="file-line-num">20</span><span class="file-line-text">}</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- file_write: expanded with content preview -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_write</span>
+    <span class="tool-detail">src/components/todo-list.tsx</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">created &middot; 18 lines</span>
+    <span class="tool-duration">32ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-write-path">
+      <span class="file-write-icon">&#10010;</span>
+      <span style="color:var(--text)">src/components/todo-list.tsx</span>
+      <span style="color:var(--text-muted);font-size:11px;margin-left:auto">846 bytes</span>
+    </div>
+    <div class="file-write-content">
+      <div class="file-line"><span class="file-line-num">1</span><span class="file-line-text">interface TodoListProps {</span></div>
+      <div class="file-line"><span class="file-line-num">2</span><span class="file-line-text">  items: string[];</span></div>
+      <div class="file-line"><span class="file-line-num">3</span><span class="file-line-text">}</span></div>
+      <div class="file-line"><span class="file-line-num">4</span><span class="file-line-text"></span></div>
+      <div class="file-line"><span class="file-line-num">5</span><span class="file-line-text">export function TodoList({ items }: TodoListProps) {</span></div>
+      <div class="file-line"><span class="file-line-num">6</span><span class="file-line-text">  if (items.length === 0) {</span></div>
+      <div class="file-line"><span class="file-line-num">7</span><span class="file-line-text">    return &lt;p&gt;No items yet&lt;/p&gt;;</span></div>
+      <div class="file-line"><span class="file-line-num">8</span><span class="file-line-text">  }</span></div>
+      <div class="file-line"><span class="file-line-num">9</span><span class="file-line-text">  return (</span></div>
+      <div class="file-line"><span class="file-line-num">10</span><span class="file-line-text">    &lt;ul&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">11</span><span class="file-line-text">      {items.map((item, i) =&gt; (</span></div>
+      <div class="file-line"><span class="file-line-num">12</span><span class="file-line-text">        &lt;li key={i}&gt;{item}&lt;/li&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">13</span><span class="file-line-text">      ))}</span></div>
+      <div class="file-line"><span class="file-line-num">14</span><span class="file-line-text">    &lt;/ul&gt;</span></div>
+      <div class="file-line"><span class="file-line-num">15</span><span class="file-line-text">  );</span></div>
+      <div class="file-line"><span class="file-line-num">16</span><span class="file-line-text">}</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- file_edit: expanded with diff -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_edit</span>
+    <span class="tool-detail">src/app.tsx</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">+3 -1</span>
+    <span class="tool-duration">28ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="diff-meta">
+      <span style="color:var(--text)">src/app.tsx</span>
+      <span>&middot; 1 replacement</span>
+    </div>
+    <div class="diff-view">
+      <div class="diff-hunk">@@ line 4 @@</div>
+      <div class="diff-line" data-type="context"><span class="diff-line-gutter">&nbsp;</span><span class="diff-line-text">export default function App() {</span></div>
+      <div class="diff-line" data-type="remove"><span class="diff-line-gutter">-</span><span class="diff-line-text">  const [items, setItems] = useState&lt;string[]&gt;([]);</span></div>
+      <div class="diff-line" data-type="add"><span class="diff-line-gutter">+</span><span class="diff-line-text">  const [items, setItems] = useState&lt;string[]&gt;(() =&gt; {</span></div>
+      <div class="diff-line" data-type="add"><span class="diff-line-gutter">+</span><span class="diff-line-text">    const saved = localStorage.getItem("todos");</span></div>
+      <div class="diff-line" data-type="add"><span class="diff-line-gutter">+</span><span class="diff-line-text">    return saved ? JSON.parse(saved) : [];</span></div>
+      <div class="diff-line" data-type="add"><span class="diff-line-gutter">+</span><span class="diff-line-text">  });</span></div>
+      <div class="diff-line" data-type="context"><span class="diff-line-gutter">&nbsp;</span><span class="diff-line-text">  const [input, setInput] = useState("");</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FILE TREE / LIST ═══════ -->
+<div class="section-label">File Navigation</div>
+
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_tree</span>
+    <span class="tool-detail">src/</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">8 files &middot; 3 dirs</span>
+    <span class="tool-duration">62ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-tree"><span class="file-tree-dir">src/</span>
+  <span class="file-tree-indent">├── </span><span class="file-tree-file">app.tsx</span>
+  <span class="file-tree-indent">├── </span><span class="file-tree-file">main.tsx</span>
+  <span class="file-tree-indent">├── </span><span class="file-tree-dir">components/</span>
+  <span class="file-tree-indent">│   ├── </span><span class="file-tree-file">todo-list.tsx</span>
+  <span class="file-tree-indent">│   └── </span><span class="file-tree-file">todo-item.tsx</span>
+  <span class="file-tree-indent">├── </span><span class="file-tree-dir">hooks/</span>
+  <span class="file-tree-indent">│   └── </span><span class="file-tree-file">use-storage.ts</span>
+  <span class="file-tree-indent">├── </span><span class="file-tree-dir">styles/</span>
+  <span class="file-tree-indent">│   └── </span><span class="file-tree-file">app.css</span>
+  <span class="file-tree-indent">└── </span><span class="file-tree-file">types.ts</span></div>
+  </div>
+</div>
+
+<!-- file_copy / file_move -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_copy</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">copied</span>
+    <span class="tool-duration">18ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-op-confirm">
+      <span style="color:var(--text)">src/app.tsx</span>
+      <span class="file-op-arrow">&rarr;</span>
+      <span style="color:var(--text)">src/app.backup.tsx</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ WEB TOOLS ═══════ -->
+<div class="section-label">Web Tools</div>
+
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="web"></span>
+    <span class="tool-name">web_search</span>
+    <span class="tool-detail">react useState lazy initializer</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">5 results</span>
+    <span class="tool-duration">0.8s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="search-results">
+      <div class="search-result">
+        <div class="search-result-title">Lazy initial state &ndash; React</div>
+        <div class="search-result-url">react.dev/reference/react/useState#avoiding-recreating-the-initial-state</div>
+        <div class="search-result-snippet">If the initial state is the result of an expensive computation, you may provide a function instead, which will be executed only on the initial render...</div>
+      </div>
+      <div class="search-result">
+        <div class="search-result-title">Understanding useState&rsquo;s Lazy Initialization</div>
+        <div class="search-result-url">kentcdodds.com/blog/use-state-lazy-initialization</div>
+        <div class="search-result-snippet">The lazy initializer pattern lets you pass a function to useState that's only called on mount. Great for reading from localStorage or doing expensive parsing.</div>
+      </div>
+      <div class="search-result">
+        <div class="search-result-title">React Hooks: useState with lazy initialization</div>
+        <div class="search-result-url">stackoverflow.com/questions/58539813</div>
+        <div class="search-result-snippet">When you pass a function to useState, React calls it only during the first render. This is useful when computing the initial state is expensive...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="web"></span>
+    <span class="tool-name">web_fetch</span>
+    <span class="tool-detail">https://api.github.com/repos/user/repo</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">2.1kb</span>
+    <span class="tool-duration">0.4s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="fetch-url">
+      <span class="fetch-url-badge">GET</span>
+      <span>https://api.github.com/repos/user/repo</span>
+    </div>
+    <div class="json-view">{
+  "id": 123456,
+  "name": "repo",
+  "full_name": "user/repo",
+  "description": "A sample repository",
+  "stargazers_count": 42,
+  "language": "TypeScript",
+  "default_branch": "main"
+}</div>
+  </div>
+</div>
+
+<!-- ═══════ DEPLOY ═══════ -->
+<div class="section-label">App Deployment</div>
+
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">deploy_app</span>
+    <span class="tool-detail">Todo App</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">v3 deployed</span>
+    <span class="tool-duration">4.2s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="deploy-card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="deploy-app-name">Todo App</span>
+        <span class="deploy-badge" data-type="version">v3</span>
+        <span class="deploy-badge" data-type="backend">full-stack</span>
+      </div>
+      <div class="deploy-meta">
+        <span class="deploy-meta-item"><strong>abc1234</strong> &mdash; Add dark mode toggle</span>
+        <span class="deploy-meta-item">12 assets</span>
+      </div>
+      <div class="deploy-url">
+        <span>&#8599;</span> /apps/todo-app/
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- deploy error: dirty git -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">deploy_app</span>
+    <span class="tool-detail">Todo App</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="error">uncommitted changes</span>
+    <span class="tool-duration">0.3s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div style="padding:10px 14px;font-family:var(--mono);font-size:12px;">
+      <div style="color:var(--red);margin-bottom:8px">Uncommitted changes detected. Commit before deploying.</div>
+      <div class="exec-output" style="padding:0;margin:0;font-size:11px;max-height:120px"> M src/app.tsx
+ M src/styles/app.css
+?? src/components/new-feature.tsx</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// Toggle expanded state
+document.querySelectorAll('.tool-header').forEach(header => {
+  header.addEventListener('click', () => {
+    const entry = header.parentElement;
+    if (entry.hasAttribute('data-open')) {
+      entry.removeAttribute('data-open');
+    } else {
+      entry.setAttribute('data-open', '');
+    }
+  });
+});
+</script>
+</body>
+</html>

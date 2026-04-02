@@ -202,13 +202,13 @@ describe("ToolCallEntry — expand/collapse", () => {
 // Expanded body content
 // ---------------------------------------------------------------------------
 describe("ToolCallEntry — expanded body", () => {
-  it("shows input section with JSON-formatted args", () => {
+  it("shows input section with JSON-formatted args for generic tools", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="some_tool"
         toolCallId="tc1"
         args={{ cmd: "ls", flag: true }}
-        result={{ status: "complete", toolName: "bash", content: "out", isError: false }}
+        result={{ status: "complete", toolName: "some_tool", content: "out", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -217,37 +217,37 @@ describe("ToolCallEntry — expanded body", () => {
     expect(input?.textContent).toContain('"cmd": "ls"');
   });
 
-  it("shows string args as-is", () => {
+  it("shows string args as-is for generic tools", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="some_tool"
         toolCallId="tc1"
         args="raw string"
-        result={{ status: "complete", toolName: "bash", content: "out", isError: false }}
+        result={{ status: "complete", toolName: "some_tool", content: "out", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
     expect(q("tool-entry-input")?.textContent).toBe("raw string");
   });
 
-  it("hides input section when args is null", () => {
+  it("hides input section when args is null for generic tools", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="some_tool"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "bash", content: "out", isError: false }}
+        result={{ status: "complete", toolName: "some_tool", content: "out", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
     expect(q("tool-entry-input")).toBeNull();
   });
 
-  it("shows output section for complete result", () => {
+  it("shows output section for generic complete result", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="some_tool"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "bash", content: "the output", isError: false }}
+        result={{ status: "complete", toolName: "some_tool", content: "the output", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -255,61 +255,89 @@ describe("ToolCallEntry — expanded body", () => {
     expect(q("tool-entry-section-label")?.textContent).toBe("output");
   });
 
-  it("shows streaming content in expanded body", () => {
+  it("renders exec with $ prompt and output", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="exec"
         toolCallId="tc1"
-        result={{ status: "streaming", toolName: "bash", content: "partial..." }}
+        args={{ command: "bun install" }}
+        result={{ status: "complete", toolName: "exec", content: "42 packages installed", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    expect(q("tool-entry-output")?.textContent).toBe("partial...");
+    expect(q("exec-prompt")?.textContent).toBe("$");
+    expect(q("exec-command")?.textContent).toBe("bun install");
+    expect(q("exec-output")?.textContent).toContain("42 packages");
   });
 
-  it("renders diff format for file_write", () => {
-    const diff = "--- a/f\n+++ b/f\n+added line\n-removed line\n context";
+  it("renders exec streaming content", () => {
+    render(
+      <ToolCallEntry
+        toolName="exec"
+        toolCallId="tc1"
+        args={{ command: "bun test" }}
+        result={{ status: "streaming", toolName: "exec", content: "partial..." }}
+      />,
+    );
+    fireEvent.click(q("tool-entry")!);
+    expect(q("exec-output")?.textContent).toBe("partial...");
+  });
+
+  it("renders syntax-highlighted code for file_write", () => {
+    const content = "const x = 1;\nconsole.log(x);";
     render(
       <ToolCallEntry
         toolName="file_write"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "file_write", content: diff, isError: false }}
+        args={{ path: "src/app.ts" }}
+        result={{ status: "complete", toolName: "file_write", content, isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    // Section label should say "changes" for diffs
-    const labels = qAll("tool-entry-section-label");
-    const outputLabel = Array.from(labels).find((l) => l.textContent === "changes");
-    expect(outputLabel).not.toBeNull();
-
-    // Diff lines should have data-agent-ui attributes
-    expect(qAll("tool-entry-diff-add")).toHaveLength(1);
-    expect(qAll("tool-entry-diff-remove")).toHaveLength(1);
+    // Should render highlighted code with line numbers
+    expect(qAll("code-line").length).toBeGreaterThan(0);
+    // Should show file write header with path
+    expect(q("file-write-path")?.textContent).toBe("src/app.ts");
   });
 
-  it("renders diff format for file_edit", () => {
-    const diff = "@@\n+new\n-old";
+  it("renders diff view for file_edit", () => {
+    const diff = "@@\n+new line\n-old line";
     render(
       <ToolCallEntry
         toolName="file_edit"
         toolCallId="tc1"
+        args={{ path: "src/app.ts" }}
         result={{ status: "complete", toolName: "file_edit", content: diff, isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    expect(qAll("tool-entry-diff-context")).toHaveLength(1); // @@ line
+    // Should render diff lines with diff-type attributes
+    const diffLines = qAll("diff-line");
+    expect(diffLines.length).toBeGreaterThan(0);
   });
 
-  it("shows error content in error section when no outputText", () => {
+  it("renders exec error with data-error attribute", () => {
     render(
       <ToolCallEntry
-        toolName="bash"
+        toolName="exec"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "bash", content: "error details", isError: true }}
+        args={{ command: "false" }}
+        result={{ status: "complete", toolName: "exec", content: "error details", isError: true }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    // outputText is set (content exists), so it goes to the output section with data-error
+    expect(q("exec-output")?.getAttribute("data-error")).toBe("true");
+  });
+
+  it("shows error for generic tool in output section", () => {
+    render(
+      <ToolCallEntry
+        toolName="some_tool"
+        toolCallId="tc1"
+        result={{ status: "complete", toolName: "some_tool", content: "error details", isError: true }}
+      />,
+    );
+    fireEvent.click(q("tool-entry")!);
     expect(q("tool-entry-output")?.getAttribute("data-error")).toBe("true");
   });
 
