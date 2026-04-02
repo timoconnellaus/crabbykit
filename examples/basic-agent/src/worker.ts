@@ -28,6 +28,9 @@ import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { aiProxy, AiService } from "@claw-for-cloudflare/ai-proxy";
+import type { SkillSeed } from "@claw-for-cloudflare/skill-registry";
+import { D1SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import { skills } from "@claw-for-cloudflare/skills";
 import {
   BackendStorage,
   DbService,
@@ -58,7 +61,42 @@ interface Env {
   // Agent-ops (set via wrangler secret put)
   AGENT_SECRET: string;
   AGENT_DB: D1Database;
+  SKILL_DB: D1Database;
 }
+
+const EXAMPLE_SKILL_SEEDS: SkillSeed[] = [
+  {
+    id: "code-review",
+    name: "Code Review",
+    description: "Reviews code changes for bugs, security issues, and style violations",
+    version: "1.0.0",
+    requiresCapabilities: [],
+    skillMd: `---
+name: code-review
+description: Reviews code changes for bugs, security issues, and style violations
+---
+
+# Code Review
+
+When reviewing code, follow this checklist:
+
+## Security
+- Check for injection vulnerabilities (SQL, XSS, command injection)
+- Verify authentication and authorization checks
+- Look for hardcoded secrets or credentials
+
+## Correctness
+- Verify error handling covers edge cases
+- Check for off-by-one errors and boundary conditions
+- Ensure async operations are properly awaited
+
+## Style
+- Consistent naming conventions
+- No unnecessary complexity
+- Functions are focused and reasonably sized
+`,
+  },
+];
 
 /**
  * A minimal agent that can tell the time and do basic math.
@@ -139,6 +177,15 @@ export class BasicAgent extends AgentDO<Env> {
         apiKey: () => this.env.OPENROUTER_API_KEY,
         workerUrl: this.env.WORKER_URL ?? "http://host.docker.internal:5173",
         provider: sandboxProvider,
+      }),
+      skills({
+        storage,
+        registry: new D1SkillRegistry(this.env.SKILL_DB, {
+          seeds: EXAMPLE_SKILL_SEEDS,
+        }),
+        skills: [
+          { id: "code-review", enabled: true, autoUpdate: true },
+        ],
       }),
     ];
   }

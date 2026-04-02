@@ -62,6 +62,8 @@ export interface UseAgentChatReturn {
   }>;
   /** Available slash commands registered on the server. */
   availableCommands: import("./chat-reducer.js").CommandInfo[];
+  /** Installed skills. Updated when skill state changes. */
+  skills: import("../transport/types.js").SkillListEntry[];
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
   sendMessage: (text: string) => void;
@@ -364,6 +366,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     costs: state.costs,
     schedules: state.schedules,
     availableCommands: state.availableCommands,
+    skills: state.skills,
     error: state.error,
     sendMessage,
     sendCommand,

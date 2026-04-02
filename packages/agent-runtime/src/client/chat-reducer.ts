@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
+import type { SkillListEntry } from "../transport/types.js";
 import type { AgentStatus, ConnectionStatus } from "./types.js";
 
 /** AgentMessage with an optional streaming flag added during live updates. */
@@ -43,6 +44,7 @@ export interface ChatState {
     lastFiredAt: string | null;
   }>;
   availableCommands: CommandInfo[];
+  skills: SkillListEntry[];
   error: string | null;
 }
 
@@ -60,6 +62,7 @@ export type ChatAction =
   | { type: "ADD_COST"; cost: CostEvent }
   | { type: "SET_SCHEDULES"; schedules: ChatState["schedules"] }
   | { type: "SET_AVAILABLE_COMMANDS"; availableCommands: CommandInfo[] }
+  | { type: "SET_SKILLS"; skills: SkillListEntry[] }
   | { type: "SET_ERROR"; error: string | null }
   | {
       type: "SESSION_SYNC";
@@ -107,6 +110,7 @@ export function createInitialState(sessionId: string | undefined): ChatState {
     costs: [],
     schedules: [],
     availableCommands: [],
+    skills: [],
     error: null,
   };
 }
@@ -139,6 +143,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, schedules: action.schedules };
     case "SET_AVAILABLE_COMMANDS":
       return { ...state, availableCommands: action.availableCommands };
+    case "SET_SKILLS":
+      return { ...state, skills: action.skills };
     case "SET_ERROR":
       return { ...state, error: action.error };
     case "SESSION_SYNC":

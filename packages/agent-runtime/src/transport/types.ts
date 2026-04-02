@@ -112,6 +112,21 @@ export interface InjectMessageMessage {
   message: AgentMessage;
 }
 
+export interface SkillListEntry {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  enabled: boolean;
+  autoUpdate: boolean;
+  stale: boolean;
+}
+
+export interface SkillListMessage {
+  type: "skill_list";
+  skills: SkillListEntry[];
+}
+
 export interface PongMessage {
   type: "pong";
 }
@@ -129,6 +144,7 @@ export type ServerMessage =
   | CommandListMessage
   | CustomEventMessage
   | InjectMessageMessage
+  | SkillListMessage
   | PongMessage;
 
 // --- Client → Server messages ---

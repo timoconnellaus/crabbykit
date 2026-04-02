@@ -85,6 +85,11 @@
       "binding": "AGENT_DB",
       "database_name": "agent-registry",
       "database_id": "local"
+    },
+    {
+      "binding": "SKILL_DB",
+      "database_name": "skill-registry",
+      "database_id": "local"
     }
   ],
   "migrations": [

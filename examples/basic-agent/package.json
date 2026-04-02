@@ -20,6 +20,8 @@
     "@claw-for-cloudflare/agent-fleet": "workspace:*",
     "@claw-for-cloudflare/agent-peering": "workspace:*",
     "@claw-for-cloudflare/agent-registry": "workspace:*",
+    "@claw-for-cloudflare/skill-registry": "workspace:*",
+    "@claw-for-cloudflare/skills": "workspace:*",
     "@claw-for-cloudflare/compaction-summary": "workspace:*",
     "@claw-for-cloudflare/credential-store": "workspace:*",
     "@claw-for-cloudflare/heartbeat": "workspace:*",
