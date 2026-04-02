@@ -5,11 +5,13 @@ import type {
   CompactionConfig,
 } from "@claw-for-cloudflare/agent-runtime";
 import { compactSession, estimateMessagesTokens } from "@claw-for-cloudflare/agent-runtime";
+import { pruneToolOutputs } from "./prune.js";
 import { createLlmSummarizer } from "./summarize.js";
 
 const DEFAULT_COMPACTION_THRESHOLD = 0.75;
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
 const DEFAULT_KEEP_RECENT_TOKENS = 20_000;
+const DEFAULT_PRUNE_BUDGET = 40_000;
 
 export interface CompactionSummaryOptions {
   /** Provider name (e.g., 'openrouter'). */
@@ -20,6 +22,8 @@ export interface CompactionSummaryOptions {
   getApiKey: () => string;
   /** Compaction configuration overrides. */
   compaction?: Partial<CompactionConfig>;
+  /** Token budget for preserved tool outputs during pruning (default 40,000). */
+  pruneBudget?: number;
 }
 
 /**
@@ -42,6 +46,7 @@ export interface CompactionSummaryOptions {
  * ```
  */
 export function compactionSummary(options: CompactionSummaryOptions): Capability {
+  const pruneBudget = options.pruneBudget ?? DEFAULT_PRUNE_BUDGET;
   const config: CompactionConfig = {
     threshold: options.compaction?.threshold ?? DEFAULT_COMPACTION_THRESHOLD,
     contextWindowTokens: options.compaction?.contextWindowTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
@@ -66,6 +71,18 @@ export function compactionSummary(options: CompactionSummaryOptions): Capability
           return messages;
         }
 
+        // Prune old tool outputs before expensive LLM summarization
+        const pruned = pruneToolOutputs(messages, pruneBudget);
+        const prunedTokens = estimateMessagesTokens(pruned);
+
+        // If pruning alone brought us under threshold, skip summarization
+        if (prunedTokens <= config.threshold * config.contextWindowTokens) {
+          return pruned;
+        }
+
+        // Use pruned messages for summarization (smaller context = cheaper)
+        const messagesToCompact = pruned;
+
         try {
           const summarize = createLlmSummarizer(
             options.provider,
@@ -76,7 +93,7 @@ export function compactionSummary(options: CompactionSummaryOptions): Capability
           const entries = ctx.sessionStore.getEntries(ctx.sessionId);
           const entryIds = entries.filter((e) => e.type === "message").map((e) => e.id);
 
-          const result = await compactSession(messages, entryIds, config, summarize);
+          const result = await compactSession(messagesToCompact, entryIds, config, summarize);
 
           if (result) {
             ctx.sessionStore.appendEntry(ctx.sessionId, {

@@ -118,6 +118,13 @@ export interface Capability {
    */
   httpHandlers?: (context: AgentContext) => HttpHandler[];
 
+  /**
+   * Cleanup function called when the capability's resources should be released.
+   * Called during agent_end cleanup and when the last WebSocket connection closes.
+   * Errors are caught per-capability and logged — they do not propagate.
+   */
+  dispose?: () => Promise<void>;
+
   /** Lifecycle hooks. */
   hooks?: {
     /**

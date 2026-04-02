@@ -223,6 +223,22 @@
         "vitest": "^3.2.0",
       },
     },
+    "packages/batch-tool": {
+      "name": "@claw-for-cloudflare/batch-tool",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/cloudflare-sandbox": {
       "name": "@claw-for-cloudflare/cloudflare-sandbox",
       "version": "0.0.1",
@@ -262,6 +278,22 @@
       },
       "devDependencies": {
         "@cloudflare/vitest-pool-workers": "^0.8.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/doom-loop-detection": {
+      "name": "@claw-for-cloudflare/doom-loop-detection",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
         "@cloudflare/workers-types": "^4.0.0",
         "@vitest/coverage-istanbul": "^3.2.0",
         "typescript": "^5.7.0",
@@ -335,6 +367,21 @@
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/tool-output-truncation": {
+      "name": "@claw-for-cloudflare/tool-output-truncation",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
       },
       "devDependencies": {
         "@cloudflare/vitest-pool-workers": "^0.9.0",
@@ -475,11 +522,15 @@
 
     "@claw-for-cloudflare/ai": ["@claw-for-cloudflare/ai@workspace:packages/ai"],
 
+    "@claw-for-cloudflare/batch-tool": ["@claw-for-cloudflare/batch-tool@workspace:packages/batch-tool"],
+
     "@claw-for-cloudflare/cloudflare-sandbox": ["@claw-for-cloudflare/cloudflare-sandbox@workspace:packages/cloudflare-sandbox"],
 
     "@claw-for-cloudflare/compaction-summary": ["@claw-for-cloudflare/compaction-summary@workspace:packages/compaction-summary"],
 
     "@claw-for-cloudflare/credential-store": ["@claw-for-cloudflare/credential-store@workspace:packages/credential-store"],
+
+    "@claw-for-cloudflare/doom-loop-detection": ["@claw-for-cloudflare/doom-loop-detection@workspace:packages/doom-loop-detection"],
 
     "@claw-for-cloudflare/heartbeat": ["@claw-for-cloudflare/heartbeat@workspace:packages/heartbeat"],
 
@@ -490,6 +541,8 @@
     "@claw-for-cloudflare/sandbox": ["@claw-for-cloudflare/sandbox@workspace:packages/sandbox"],
 
     "@claw-for-cloudflare/tavily-web-search": ["@claw-for-cloudflare/tavily-web-search@workspace:packages/tavily-web-search"],
+
+    "@claw-for-cloudflare/tool-output-truncation": ["@claw-for-cloudflare/tool-output-truncation@workspace:packages/tool-output-truncation"],
 
     "@claw-for-cloudflare/vector-memory": ["@claw-for-cloudflare/vector-memory@workspace:packages/vector-memory"],
 

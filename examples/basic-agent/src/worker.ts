@@ -15,7 +15,10 @@ import {
   handlePreviewRequest,
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
+import { batchTool } from "@claw-for-cloudflare/batch-tool";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
+import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
+import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
@@ -77,6 +80,7 @@ export class BasicAgent extends AgentDO<Env> {
         provider: "openrouter",
         modelId: "google/gemini-2.0-flash-001",
         getApiKey: () => this.env.OPENROUTER_API_KEY,
+        pruneBudget: 40_000,
       }),
       tavilyWebSearch({
         tavilyApiKey: () => this.env.TAVILY_API_KEY,
@@ -100,6 +104,11 @@ export class BasicAgent extends AgentDO<Env> {
           },
           containerMode: "dev",
         }),
+      }),
+      doomLoopDetection(),
+      toolOutputTruncation(),
+      batchTool({
+        getTools: () => this.resolveToolsForSession(this.sessionStore.list()[0]?.id ?? "").tools,
       }),
       debugInspector(),
       vibeCoder({

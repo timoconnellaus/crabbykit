@@ -40,6 +40,7 @@ export interface ResolvedCapabilities {
     capabilityId: string;
     storage: CapabilityStorage;
   }>;
+  disposers: Array<{ capabilityId: string; dispose: () => Promise<void> }>;
 }
 
 /**
@@ -70,6 +71,7 @@ export function resolveCapabilities(
   const schedules: ResolvedScheduleDeclaration[] = [];
   const httpHandlers: ResolvedCapabilities["httpHandlers"] = [];
   const httpHandlerKeys = new Set<string>();
+  const disposers: ResolvedCapabilities["disposers"] = [];
   const getStorage = createStorage ?? (() => createNoopStorage());
 
   for (const cap of capabilities) {
@@ -142,6 +144,10 @@ export function resolveCapabilities(
       onConnectHooks.push(async (ctx) => rawHook({ ...ctx, storage: capStorage }));
     }
 
+    if (cap.dispose) {
+      disposers.push({ capabilityId: cap.id, dispose: cap.dispose });
+    }
+
     if (cap.httpHandlers) {
       for (const h of cap.httpHandlers(capContext)) {
         const key = `${h.method}:${h.path}`;
@@ -173,5 +179,6 @@ export function resolveCapabilities(
     onConnectHooks,
     schedules,
     httpHandlers,
+    disposers,
   };
 }

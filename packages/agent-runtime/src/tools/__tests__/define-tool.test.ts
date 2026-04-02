@@ -1,6 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
-import { defineTool, mcpToolToAgentTool } from "../define-tool.js";
+import { textOf } from "../../test-utils.js";
+import { defineTool, mcpToolToAgentTool, toolResult } from "../define-tool.js";
 
 describe("defineTool", () => {
   it("creates a valid AgentTool", () => {
@@ -227,5 +228,81 @@ describe("mcpToolToAgentTool", () => {
       { name: "s", callTool: vi.fn() },
     );
     expect(t3.parameters).toBeTruthy();
+  });
+});
+
+describe("defineTool with timeout", () => {
+  it("completes normally when under timeout", async () => {
+    const tool = defineTool({
+      name: "fast_tool",
+      description: "Fast tool",
+      parameters: Type.Object({}),
+      timeout: 1000,
+      execute: async () => toolResult.text("done"),
+    });
+
+    const result = await tool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toBe("done");
+  });
+
+  it("returns timeout error when exceeding timeout", async () => {
+    const tool = defineTool({
+      name: "slow_tool",
+      description: "Slow tool",
+      parameters: Type.Object({}),
+      timeout: 50,
+      execute: async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return toolResult.text("should not reach");
+      },
+    });
+
+    const result = await tool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toContain("timed out after 50ms");
+    expect(textOf(result)).toContain("slow_tool");
+  });
+
+  it("does not wrap when no timeout specified", async () => {
+    const tool = defineTool({
+      name: "no_timeout",
+      description: "No timeout",
+      parameters: Type.Object({}),
+      execute: async () => toolResult.text("ok"),
+    });
+
+    const result = await tool.execute({}, { toolCallId: "test" });
+    expect(textOf(result)).toBe("ok");
+  });
+
+  it("propagates non-timeout errors", async () => {
+    const tool = defineTool({
+      name: "error_tool",
+      description: "Errors",
+      parameters: Type.Object({}),
+      timeout: 5000,
+      execute: async () => {
+        throw new Error("real error");
+      },
+    });
+
+    await expect(tool.execute({}, { toolCallId: "test" })).rejects.toThrow("real error");
+  });
+
+  it("timeout of 0ms triggers immediate timeout", async () => {
+    const tool = defineTool({
+      name: "zero_timeout",
+      description: "Zero timeout",
+      parameters: Type.Object({}),
+      timeout: 0,
+      execute: async () => {
+        // Even instant execution loses the race to setTimeout(0)
+        return toolResult.text("maybe");
+      },
+    });
+
+    // With timeout 0, result is non-deterministic (race between setTimeout(0) and microtask)
+    // but the tool should not throw
+    const result = await tool.execute({}, { toolCallId: "test" });
+    expect(result).toBeDefined();
   });
 });

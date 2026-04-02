@@ -46,6 +46,8 @@ import { SessionStore } from "./session/session-store.js";
 import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import type { KvStore, SqlStore } from "./storage/types.js";
 import { CfWebSocketTransport } from "./transport/cloudflare.js";
+import { isRuntimeError } from "./errors/runtime-error.js";
+import { applyDefaultTimeout } from "./tools/define-tool.js";
 import { ErrorCodes } from "./transport/error-codes.js";
 import type { Transport, TransportConnection } from "./transport/transport.js";
 import type { ClientMessage, ServerMessage } from "./transport/types.js";
@@ -86,6 +88,8 @@ export interface AgentConfig {
   apiKey: string;
   /** Maximum agent loop steps (default 50) */
   maxSteps?: number;
+  /** Default timeout in milliseconds for tool execution. Individual tools can override via defineTool({ timeout }). */
+  defaultToolTimeout?: number;
   /** A2A protocol configuration. Controls discoverability and message acceptance. */
   a2a?: A2AConfig;
   /**
@@ -175,6 +179,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   protected beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   private beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
   private afterToolExecutionHooks: ResolvedCapabilities["afterToolExecutionHooks"] = [];
+  private capabilityDisposers: ResolvedCapabilities["disposers"] = [];
   private scheduleCallbacks = new Map<string, (ctx: ScheduleCallbackContext) => Promise<void>>();
   /** Maps timer IDs to their owning capability ID (set during syncCapabilitySchedules). */
   private timerOwners = new Map<string, string>();
@@ -738,6 +743,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   private handleTransportClose(connection: TransportConnection): void {
     this.connectionRateLimits.delete(connection.id);
+
+    // Dispose capability resources when the last connection closes
+    const remaining = [...this.transport.getConnections()];
+    if (remaining.length === 0) {
+      this.disposeCapabilities();
+    }
   }
 
   private static readonly VALID_CLIENT_MESSAGE_TYPES = new Set([
@@ -999,10 +1010,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       await agent.prompt(text);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      const code = isRuntimeError(err) ? err.errorCode : ErrorCodes.INTERNAL_ERROR;
       console.error("[AgentDO] prompt failed:", message);
       this.broadcastToSession(sessionId, {
         type: "error",
-        code: ErrorCodes.INTERNAL_ERROR,
+        code,
         message: `Agent error: ${message}`,
       });
     }
@@ -1211,6 +1223,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
     this.beforeToolExecutionHooks = resolved.beforeToolExecutionHooks;
     this.afterToolExecutionHooks = resolved.afterToolExecutionHooks;
+    this.capabilityDisposers = resolved.disposers;
 
     // Sync capability-declared schedules
     if (resolved.schedules.length > 0) {
@@ -1242,7 +1255,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     // Merge tools: getTools() first, then config tools, then A2A tools, then capability tools
     const baseTools = this.getTools(context);
-    const allTools = [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
+    let allTools = [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
+
+    // Apply global default timeout if configured
+    if (config.defaultToolTimeout) {
+      allTools = applyDefaultTimeout(allTools, config.defaultToolTimeout);
+    }
 
     // Build system prompt with capability sections appended
     let systemPrompt = this.buildSystemPrompt(context);
@@ -1274,6 +1292,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.sessionAgents.delete(sessionId);
         this.resolvedCapabilitiesCache = null;
         this.capabilitiesCache = null;
+        this.disposeCapabilities();
       }
     });
 
@@ -1394,6 +1413,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     return result;
+  }
+
+  /**
+   * Call dispose() on all capabilities that registered a disposer.
+   * Errors are caught per-capability and logged — they do not propagate.
+   */
+  private disposeCapabilities(): void {
+    for (const { capabilityId, dispose } of this.capabilityDisposers) {
+      dispose().catch((err) => {
+        console.error(`[capabilities] dispose error from "${capabilityId}":`, err);
+      });
+    }
+    this.capabilityDisposers = [];
   }
 
   /** Fire onConnect hooks for all registered capabilities. */

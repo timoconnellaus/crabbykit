@@ -22,6 +22,7 @@ import type {
   AgentToolUpdateCallback,
   StreamFn,
 } from "./types.js";
+import { buildToolNotFoundError, repairToolName } from "./tool-call-repair.js";
 
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 
@@ -581,13 +582,18 @@ async function prepareToolCall(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
 ): Promise<PreparedToolCall | ImmediateToolCallOutcome> {
-  const tool = currentContext.tools?.find((t) => t.name === toolCall.name);
+  const tools = currentContext.tools ?? [];
+  let tool = tools.find((t) => t.name === toolCall.name);
   if (!tool) {
-    return {
-      kind: "immediate",
-      result: createErrorToolResult(`Tool ${toolCall.name} not found`),
-      isError: true,
-    };
+    // Try case-insensitive repair
+    tool = repairToolName(toolCall.name, tools) ?? undefined;
+    if (!tool) {
+      return {
+        kind: "immediate",
+        result: createErrorToolResult(buildToolNotFoundError(toolCall.name, tools)),
+        isError: true,
+      };
+    }
   }
 
   try {
