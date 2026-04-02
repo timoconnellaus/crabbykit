@@ -15,6 +15,24 @@ export interface MessageHandlerRefs {
       ) => Promise<Record<string, unknown>> | Record<string, unknown>)
     | undefined
   >;
+  onTaskEventRef: RefObject<
+    | ((event: {
+        changeType: string;
+        task: Record<string, unknown>;
+        dep?: Record<string, unknown>;
+      }) => void)
+    | undefined
+  >;
+  onSubagentEventRef: RefObject<
+    | ((event: {
+        subagentId: string;
+        profileId: string;
+        childSessionId: string;
+        taskId?: string;
+        event: unknown;
+      }) => void)
+    | undefined
+  >;
   lastPongAtRef: MutableRefObject<number>;
   pongTimeoutRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
 }
@@ -294,6 +312,15 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
           clearTimeout(refs.pongTimeoutRef.current);
           refs.pongTimeoutRef.current = null;
         }
+        break;
+
+      case "task_event":
+        refs.onTaskEventRef.current?.(msg.event);
+        break;
+
+      case "subagent_event":
+        if (msg.sessionId !== refs.currentSessionIdRef.current) break;
+        refs.onSubagentEventRef.current?.(msg);
         break;
 
       case "mcp_status":

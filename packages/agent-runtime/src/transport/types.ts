@@ -116,6 +116,25 @@ export interface PongMessage {
   type: "pong";
 }
 
+export interface TaskEventMessage {
+  type: "task_event";
+  event: {
+    changeType: "created" | "updated" | "closed" | "dep_added" | "dep_removed";
+    task: Record<string, unknown>;
+    dep?: Record<string, unknown>;
+  };
+}
+
+export interface SubagentEventMessage {
+  type: "subagent_event";
+  sessionId: string;
+  subagentId: string;
+  profileId: string;
+  childSessionId: string;
+  taskId?: string;
+  event: AgentEvent;
+}
+
 export type ServerMessage =
   | AgentEventMessage
   | ToolEventMessage
@@ -129,6 +148,8 @@ export type ServerMessage =
   | CommandListMessage
   | CustomEventMessage
   | InjectMessageMessage
+  | TaskEventMessage
+  | SubagentEventMessage
   | PongMessage;
 
 // --- Client → Server messages ---

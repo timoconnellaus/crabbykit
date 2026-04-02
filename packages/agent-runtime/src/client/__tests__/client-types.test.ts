@@ -37,9 +37,11 @@ describe("Client Types", () => {
         command_list: true,
         custom_event: true,
         inject_message: true,
+        task_event: true,
+        subagent_event: true,
         pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(13);
+      expect(Object.keys(handlers)).toHaveLength(15);
     });
 
     it("discriminates client messages by type", () => {

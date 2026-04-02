@@ -1,5 +1,5 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
-import type { SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
+import type { SandboxBadgeProps, SubagentInfo, TaskNode } from "@claw-for-cloudflare/agent-ui";
 import { usePreview } from "@claw-for-cloudflare/agent-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentRecord } from "./components/agent-rail";
@@ -34,6 +34,10 @@ export default function App() {
       commitMessage: string | null;
     }>
   >([]);
+
+  const [taskTree, setTaskTree] = useState<TaskNode | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | undefined>();
+  const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
 
   const preview = usePreview();
 
@@ -140,11 +144,82 @@ export default function App() {
     [preview],
   );
 
+  const onTaskEvent = useCallback(
+    (event: { changeType: string; task: Record<string, unknown> }) => {
+      // For simplicity, store the latest task tree root when we see task events.
+      // A full implementation would maintain a task map and rebuild the tree.
+      const task = event.task;
+      if (event.changeType === "created" && !task.parentId) {
+        // New root task — set as tree root
+        setTaskTree({
+          id: task.id as string,
+          title: task.title as string,
+          status: task.status as TaskNode["status"],
+          type: task.type as TaskNode["type"],
+          priority: task.priority as number,
+          depth: 0,
+          children: [],
+        });
+      }
+    },
+    [],
+  );
+
+  const onSubagentEvent = useCallback(
+    (event: {
+      subagentId: string;
+      profileId: string;
+      childSessionId: string;
+      taskId?: string;
+      event: unknown;
+    }) => {
+      setSubagents((prev) => {
+        const existing = prev.find((s) => s.subagentId === event.subagentId);
+        const agentEvent = event.event as { type: string; message?: { content?: string } };
+
+        if (!existing) {
+          return [
+            ...prev,
+            {
+              subagentId: event.subagentId,
+              profileId: event.profileId,
+              childSessionId: event.childSessionId,
+              state: "running",
+              prompt: "",
+              taskId: event.taskId,
+            },
+          ];
+        }
+
+        if (agentEvent.type === "agent_end") {
+          return prev.map((s) =>
+            s.subagentId === event.subagentId ? { ...s, state: "completed" as const } : s,
+          );
+        }
+
+        if (agentEvent.type === "message_update" && agentEvent.message?.content) {
+          const text =
+            typeof agentEvent.message.content === "string"
+              ? agentEvent.message.content
+              : "";
+          return prev.map((s) =>
+            s.subagentId === event.subagentId ? { ...s, latestText: text } : s,
+          );
+        }
+
+        return prev;
+      });
+    },
+    [],
+  );
+
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const chat = useAgentChat({
     url: selectedAgentId ? `${wsProtocol}//${window.location.host}/agent/${selectedAgentId}` : "",
     onCustomEvent,
     onCustomRequest,
+    onTaskEvent,
+    onSubagentEvent,
   });
 
   const handleClosePreview = useCallback(() => {
@@ -196,6 +271,10 @@ export default function App() {
               onClosePreview={handleClosePreview}
               logFilter={preview.logFilter}
               onLogFilterChange={preview.setLogFilter}
+              taskTree={taskTree}
+              activeTaskId={activeTaskId}
+              onTaskClick={setActiveTaskId}
+              subagents={subagents}
             />
           </div>
           {activeTab === "apps" && <AppsPanel apps={deployedApps} />}

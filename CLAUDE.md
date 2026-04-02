@@ -36,6 +36,11 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/cloudflare-sandbox`** — Sandbox provider implementation for Cloudflare Containers. Proxies sandbox operations to a Container DO via HTTP.
 - **`packages/vibe-coder`** — Live app preview capability. Provides 3 tools: show_preview, hide_preview, get_console_logs. Proxies dev server traffic through the container, injects console capture script, retrieves logs from the browser via client round-trip.
 
+### Task & Subagent Packages
+- **`packages/task-tracker`** — DAG-based task management capability. SQLite-backed task store with dependency graph, ready-work computation, session ownership, and 6 tools (task_create, task_update, task_close, task_ready, task_tree, task_dep_add).
+- **`packages/subagent`** — Same-DO child agent spawning capability. Blocking and non-blocking execution modes with steer-or-prompt dual-path result delivery. SubagentHost interface, PendingSubagentStore, event forwarding, and 4 tools (call_subagent, start_subagent, check_subagent, cancel_subagent).
+- **`packages/subagent-explorer`** — Pre-built explorer subagent profile. Read-only codebase search with configurable model override and tool filtering.
+
 ### Agent Operations Packages
 - **`packages/a2a`** — Agent-to-Agent protocol (A2A v1.0). Task store, handler, executor, and tools (call_agent, start_task, check_task, cancel_task).
 - **`packages/agent-fleet`** — Fleet management capability. Create/list/delete child agents via D1 registry.
@@ -66,6 +71,9 @@ packages/vector-memory     — Semantic memory search (Vectorize + R2)
 packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
+packages/task-tracker       — DAG-based task management (deps, ready-work)
+packages/subagent           — Same-DO child agent spawning
+packages/subagent-explorer  — Pre-built explorer subagent profile
 packages/a2a                — Agent-to-Agent protocol (A2A v1.0)
 packages/agent-fleet        — Fleet management (create/list child agents)
 packages/agent-peering      — Peer-to-peer agent communication

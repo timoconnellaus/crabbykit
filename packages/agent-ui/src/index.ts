@@ -37,6 +37,14 @@ export { SessionList } from "./components/session-list";
 export type { StatusBarProps } from "./components/status-bar";
 export { StatusBar } from "./components/status-bar";
 export { ThinkingIndicator } from "./components/thinking-indicator";
+// Subagent
+export type { SubagentCardProps, SubagentInfo, SubagentListProps } from "./components/subagent-card";
+export { SubagentCard, SubagentList } from "./components/subagent-card";
+// Task tree
+export type { TaskBreadcrumbProps } from "./components/task-breadcrumb";
+export { TaskBreadcrumb } from "./components/task-breadcrumb";
+export type { TaskNode, TaskTreePanelProps } from "./components/task-tree-panel";
+export { TaskTreePanel } from "./components/task-tree-panel";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";
 export { ToolCallEntry } from "./components/tool-call-entry";
