@@ -283,35 +283,34 @@ describe("ToolCallEntry — expanded body", () => {
     expect(q("exec-output")?.textContent).toBe("partial...");
   });
 
-  it("renders syntax-highlighted code for file_write", () => {
-    const content = "const x = 1;\nconsole.log(x);";
+  it("renders syntax-highlighted code for file_write from args.content", () => {
+    const fileContent = "const x = 1;\nconsole.log(x);";
     render(
       <ToolCallEntry
         toolName="file_write"
         toolCallId="tc1"
-        args={{ path: "src/app.ts" }}
-        result={{ status: "complete", toolName: "file_write", content, isError: false }}
+        args={{ path: "src/app.ts", content: fileContent }}
+        result={{ status: "complete", toolName: "file_write", content: "Successfully wrote 30 bytes to src/app.ts", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    // Should render highlighted code with line numbers
+    // Should render highlighted code with line numbers from args.content
     expect(qAll("code-line").length).toBeGreaterThan(0);
     // Should show file write header with path
     expect(q("file-write-path")?.textContent).toBe("src/app.ts");
   });
 
-  it("renders diff view for file_edit", () => {
-    const diff = "@@\n+new line\n-old line";
+  it("renders diff view for file_edit from args old/new strings", () => {
     render(
       <ToolCallEntry
         toolName="file_edit"
         toolCallId="tc1"
-        args={{ path: "src/app.ts" }}
-        result={{ status: "complete", toolName: "file_edit", content: diff, isError: false }}
+        args={{ path: "src/app.ts", old_string: "const x = 1;", new_string: "const x = 2;\nconst y = 3;" }}
+        result={{ status: "complete", toolName: "file_edit", content: "Successfully replaced 1 occurrence in src/app.ts", isError: false }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
-    // Should render diff lines with diff-type attributes
+    // Should render diff lines from old_string → new_string
     const diffLines = qAll("diff-line");
     expect(diffLines.length).toBeGreaterThan(0);
   });

@@ -140,14 +140,27 @@ function renderToolBody(
   }
 
   // ── File write ──
-  if (toolName === "file_write" && outputText && !isError) {
-    return renderFileWriteBody(args, outputText);
+  if (toolName === "file_write" && !isError) {
+    // The tool output is just a confirmation message; the actual content is in args.content
+    const writtenContent = argStr(args, "content");
+    if (writtenContent) {
+      return renderFileWriteBody(args, writtenContent);
+    }
   }
 
   // ── File edit (diff) ──
-  if (toolName === "file_edit" && outputText && !isError) {
-    const hasDiff = outputText.includes("\n+") || outputText.includes("\n-");
-    if (hasDiff) return renderFileEditBody(args, outputText);
+  if (toolName === "file_edit" && !isError) {
+    // Build a diff from args.old_string and args.new_string
+    const oldStr = argStr(args, "old_string");
+    const newStr = argStr(args, "new_string");
+    if (oldStr && newStr) {
+      return renderFileEditBodyFromArgs(args, oldStr, newStr);
+    }
+    // Fallback: if output contains diff markers, render that
+    if (outputText) {
+      const hasDiff = outputText.includes("\n+") || outputText.includes("\n-");
+      if (hasDiff) return renderFileEditBody(args, outputText);
+    }
   }
 
   // ── File copy / move ──
@@ -295,6 +308,37 @@ function renderFileEditBody(args: unknown, outputText: string) {
   const filePath = extractPath(args);
   const lang = filePath ? langFromPath(filePath) : null;
   const diffLines = parseDiffLines(outputText);
+
+  return (
+    <>
+      {filePath && (
+        <div data-agent-ui="diff-meta">
+          <span data-agent-ui="diff-meta-path">{filePath}</span>
+        </div>
+      )}
+      <HighlightedDiff lines={diffLines} lang={lang} maxHeight={400} />
+    </>
+  );
+}
+
+/** Build diff lines from old_string/new_string args (not a unified diff, just the replacement). */
+function renderFileEditBodyFromArgs(args: unknown, oldStr: string, newStr: string) {
+  const filePath = extractPath(args);
+  const lang = filePath ? langFromPath(filePath) : null;
+
+  const oldLines = oldStr.split("\n");
+  const newLines = newStr.split("\n");
+
+  const diffLines = [
+    ...oldLines.map((line): { type: "add" | "remove" | "context"; content: string } => ({
+      type: "remove",
+      content: line,
+    })),
+    ...newLines.map((line): { type: "add" | "remove" | "context"; content: string } => ({
+      type: "add",
+      content: line,
+    })),
+  ];
 
   return (
     <>
