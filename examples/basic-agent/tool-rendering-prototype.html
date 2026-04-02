@@ -444,6 +444,192 @@ h1 {
   overflow-y: auto;
 }
 
+/* ─── Preview tools ─── */
+.preview-card {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.preview-icon { font-size: 16px; }
+.preview-text { color: var(--text-dim); }
+.preview-text strong { color: var(--text); font-weight: 500; }
+.preview-port {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--orange);
+  padding: 2px 8px;
+  background: var(--yellow-dim);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* ─── Console logs ─── */
+.console-logs {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 8px 14px 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.console-log-line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+}
+.console-log-level {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  width: 38px;
+  text-align: right;
+  text-transform: uppercase;
+}
+.console-log-level[data-level="error"] { color: var(--red); }
+.console-log-level[data-level="warn"] { color: var(--yellow); }
+.console-log-level[data-level="info"] { color: var(--accent); }
+.console-log-level[data-level="log"] { color: var(--text-muted); }
+.console-log-text { color: var(--text-dim); }
+
+/* ─── File delete ─── */
+.file-delete-confirm {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-delete-icon { color: var(--red); font-size: 14px; }
+.file-delete-path { color: var(--text); }
+
+/* ─── File find ─── */
+.file-find-results {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 8px 14px 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+.file-find-pattern {
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-find-pattern-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.file-find-match { color: var(--text-dim); }
+.file-find-match:hover { color: var(--text); }
+
+/* ─── Credential tools ─── */
+.credential-card {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.credential-icon { font-size: 14px; }
+.credential-path { color: var(--text); }
+.credential-list {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 8px 14px 12px;
+  line-height: 1.7;
+}
+.credential-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.credential-item-path { color: var(--text); }
+.credential-item-date { color: var(--text-muted); font-size: 10.5px; }
+
+/* ─── App history ─── */
+.app-history {
+  padding: 8px 14px 12px;
+}
+.app-history-header {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.app-history-version {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.app-history-version + .app-history-version {
+  border-top: 1px solid var(--border-subtle);
+}
+.app-history-v { color: var(--accent); font-weight: 600; width: 24px; }
+.app-history-hash { color: var(--text-muted); }
+.app-history-msg { color: var(--text-dim); flex: 1; }
+.app-history-date { color: var(--text-muted); font-size: 10.5px; }
+.app-history-live {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--green-dim);
+  color: var(--green);
+  text-transform: uppercase;
+}
+
+/* ─── Rollback / delete confirmations ─── */
+.action-confirm {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.action-confirm-icon { font-size: 14px; }
+.action-confirm-text { color: var(--text-dim); }
+.action-confirm-text strong { color: var(--text); font-weight: 500; }
+
+/* ─── Memory tools ─── */
+.memory-card {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.memory-key {
+  color: var(--purple);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.memory-content {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
 /* ─── Elevation card ─── */
 .elevation-card {
   padding: 10px 14px;
@@ -813,6 +999,318 @@ hint: Updates were rejected because the tip of your current branch is behind
       <div class="deploy-url">
         <span>&#8599;</span> /apps/todo-app/
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PREVIEW TOOLS ═══════ -->
+<div class="section-label">Preview &amp; Console</div>
+
+<!-- show_preview -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">show_preview</span>
+    <span class="tool-detail">port 3000</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">preview opened</span>
+    <span class="tool-duration">0.2s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="preview-card">
+      <span class="preview-icon">&#9654;</span>
+      <span class="preview-text">Live preview opened</span>
+      <span class="preview-port">:3000</span>
+    </div>
+  </div>
+</div>
+
+<!-- hide_preview -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">hide_preview</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">preview closed</span>
+    <span class="tool-duration">12ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="preview-card">
+      <span class="preview-icon">&#9724;</span>
+      <span class="preview-text">Preview closed</span>
+    </div>
+  </div>
+</div>
+
+<!-- get_console_logs -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">get_console_logs</span>
+    <span class="tool-detail">level: all</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">8 entries</span>
+    <span class="tool-duration">45ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="console-logs">
+      <div class="console-log-line"><span class="console-log-level" data-level="info">INFO</span><span class="console-log-text">Server listening on http://0.0.0.0:3000</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="log">LOG</span><span class="console-log-text">GET / 200 4ms</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="log">LOG</span><span class="console-log-text">GET /app.tsx 200 12ms</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="warn">WARN</span><span class="console-log-text">React: Each child in a list should have a unique "key" prop</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="log">LOG</span><span class="console-log-text">POST /api/items 200 3ms</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="error">ERR</span><span class="console-log-text">TypeError: Cannot read property 'map' of undefined</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="error">ERR</span><span class="console-log-text">    at TodoList (app.tsx:14:22)</span></div>
+      <div class="console-log-line"><span class="console-log-level" data-level="log">LOG</span><span class="console-log-text">GET /api/items 200 2ms</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MORE FILE OPS ═══════ -->
+<div class="section-label">More File Operations</div>
+
+<!-- file_delete -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_delete</span>
+    <span class="tool-detail">src/old-utils.ts</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">deleted</span>
+    <span class="tool-duration">15ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-delete-confirm">
+      <span class="file-delete-icon">&#10005;</span>
+      <span class="file-delete-path">src/old-utils.ts</span>
+    </div>
+  </div>
+</div>
+
+<!-- file_find -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="file"></span>
+    <span class="tool-name">file_find</span>
+    <span class="tool-detail">**/*.test.ts</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">4 matches</span>
+    <span class="tool-duration">38ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="file-find-pattern">
+      <span class="file-find-pattern-badge">glob</span>
+      <span>**/*.test.ts</span>
+    </div>
+    <div class="file-find-results">
+      <div class="file-find-match">src/__tests__/app.test.ts</div>
+      <div class="file-find-match">src/__tests__/todo-list.test.ts</div>
+      <div class="file-find-match">src/hooks/__tests__/use-storage.test.ts</div>
+      <div class="file-find-match">src/utils/__tests__/format.test.ts</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ CREDENTIALS ═══════ -->
+<div class="section-label">Credentials</div>
+
+<!-- save_file_credential -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">save_file_credential</span>
+    <span class="tool-detail">~/.npmrc</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">saved</span>
+    <span class="tool-duration">85ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="credential-card">
+      <span class="credential-icon">&#128274;</span>
+      <span class="credential-path">~/.npmrc</span>
+    </div>
+  </div>
+</div>
+
+<!-- list_file_credentials -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="bash"></span>
+    <span class="tool-name">list_file_credentials</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">2 credentials</span>
+    <span class="tool-duration">12ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="credential-list">
+      <div class="credential-item"><span class="credential-item-path">~/.npmrc</span> <span class="credential-item-date">saved 2h ago</span></div>
+      <div class="credential-item"><span class="credential-item-path">~/.config/gh/hosts.yml</span> <span class="credential-item-date">saved 1d ago</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ APP MANAGEMENT ═══════ -->
+<div class="section-label">App Management</div>
+
+<!-- list_apps -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">list_apps</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">2 apps</span>
+    <span class="tool-duration">8ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="deploy-card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="deploy-app-name">Todo App</span>
+        <span class="deploy-badge" data-type="version">v3</span>
+        <span class="deploy-badge" data-type="backend">full-stack</span>
+      </div>
+      <div class="deploy-meta">
+        <span class="deploy-meta-item"><strong>abc1234</strong> &mdash; Add dark mode</span>
+      </div>
+      <div class="deploy-url"><span>&#8599;</span> /apps/todo-app/</div>
+    </div>
+    <div style="border-top:1px solid var(--border-subtle)"></div>
+    <div class="deploy-card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="deploy-app-name">Weather Dashboard</span>
+        <span class="deploy-badge" data-type="version">v1</span>
+      </div>
+      <div class="deploy-meta">
+        <span class="deploy-meta-item"><strong>def5678</strong> &mdash; Initial version</span>
+      </div>
+      <div class="deploy-url"><span>&#8599;</span> /apps/weather-dash/</div>
+    </div>
+  </div>
+</div>
+
+<!-- get_app_history -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">get_app_history</span>
+    <span class="tool-detail">todo-app</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">3 versions</span>
+    <span class="tool-duration">5ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="app-history">
+      <div class="app-history-header">Todo App &mdash; 3 versions</div>
+      <div class="app-history-version">
+        <span class="app-history-v">v3</span>
+        <span class="app-history-hash">f2a8c1d</span>
+        <span class="app-history-msg">Add dark mode toggle</span>
+        <span class="app-history-date">2h ago</span>
+        <span class="app-history-live">live</span>
+      </div>
+      <div class="app-history-version">
+        <span class="app-history-v">v2</span>
+        <span class="app-history-hash">9b3e7f0</span>
+        <span class="app-history-msg">Fix login redirect</span>
+        <span class="app-history-date">1d ago</span>
+      </div>
+      <div class="app-history-version">
+        <span class="app-history-v">v1</span>
+        <span class="app-history-hash">a1c4d82</span>
+        <span class="app-history-msg">Initial version</span>
+        <span class="app-history-date">3d ago</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- rollback_app -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">rollback_app</span>
+    <span class="tool-detail">todo-app &rarr; v2</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">rolled back</span>
+    <span class="tool-duration">0.3s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="action-confirm">
+      <span class="action-confirm-icon">&#8634;</span>
+      <span class="action-confirm-text">Rolled back <strong>Todo App</strong> to <strong>v2</strong> &mdash; 9b3e7f0 Fix login redirect</span>
+    </div>
+  </div>
+</div>
+
+<!-- delete_app -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="deploy"></span>
+    <span class="tool-name">delete_app</span>
+    <span class="tool-detail">weather-dash</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">deleted</span>
+    <span class="tool-duration">1.2s</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="action-confirm">
+      <span class="action-confirm-icon" style="color:var(--red)">&#10005;</span>
+      <span class="action-confirm-text">Deleted <strong>Weather Dashboard</strong> and all 1 versions</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MEMORY ═══════ -->
+<div class="section-label">Memory</div>
+
+<!-- memory_write -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="memory"></span>
+    <span class="tool-name">memory_write</span>
+    <span class="tool-detail">user-preferences</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="success">written</span>
+    <span class="tool-duration">32ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="memory-card">
+      <div class="memory-key">user-preferences</div>
+      <div class="memory-content">The user prefers dark mode and TypeScript. They work primarily with React and Cloudflare Workers.</div>
+    </div>
+  </div>
+</div>
+
+<!-- memory_search -->
+<div class="tool-entry" data-open>
+  <div class="tool-header">
+    <span class="tool-indicator" data-cat="memory"></span>
+    <span class="tool-name">memory_search</span>
+    <span class="tool-detail">react preferences</span>
+    <span class="tool-sep">&middot;</span>
+    <span class="tool-result" data-v="muted">2 memories</span>
+    <span class="tool-duration">120ms</span>
+    <span class="tool-chevron">&#9656;</span>
+  </div>
+  <div class="tool-body">
+    <div class="memory-card" style="border-bottom:1px solid var(--border-subtle)">
+      <div class="memory-key">user-preferences <span style="color:var(--text-muted);font-weight:400;font-size:10.5px">0.92</span></div>
+      <div class="memory-content">The user prefers dark mode and TypeScript. They work primarily with React and Cloudflare Workers.</div>
+    </div>
+    <div class="memory-card">
+      <div class="memory-key">project-stack <span style="color:var(--text-muted);font-weight:400;font-size:10.5px">0.78</span></div>
+      <div class="memory-content">Frontend: React 19 + Vite. Backend: Cloudflare Workers + Durable Objects. Testing: Vitest.</div>
     </div>
   </div>
 </div>
