@@ -1,5 +1,4 @@
 import type { CapabilityHttpContext } from "@claw-for-cloudflare/agent-runtime";
-import { validateToken } from "./auth.js";
 import type { CostEntry } from "./cost.js";
 import { getCumulativeCost, persistCost } from "./cost.js";
 import type { AiProxyOptions } from "./types.js";
@@ -10,11 +9,14 @@ const CAPABILITY_ID = "ai-proxy";
 /**
  * Create the handler for POST /ai/v1/chat/completions.
  * Returns an OpenAI-compatible chat completions proxy that:
- * 1. Validates the bearer token
- * 2. Checks model allowlist/blocklist
- * 3. Enforces session cost cap
- * 4. Proxies to OpenRouter
- * 5. Persists cost before returning response
+ * 1. Checks model allowlist/blocklist
+ * 2. Enforces session cost cap
+ * 3. Proxies to OpenRouter
+ * 4. Persists cost before returning response
+ *
+ * No authentication is required — container apps reach this via
+ * `ai.internal` interception (trusted), and deployed apps use
+ * the AiService WorkerEntrypoint directly.
  */
 export function createChatCompletionsHandler(
   options: AiProxyOptions,
@@ -24,16 +26,7 @@ export function createChatCompletionsHandler(
   const upstreamBaseUrl = options.upstreamBaseUrl ?? DEFAULT_UPSTREAM_BASE_URL;
 
   return async (request: Request, ctx: CapabilityHttpContext): Promise<Response> => {
-    // 1. Validate bearer token
-    const authorized = await validateToken(ctx.storage, request.headers.get("authorization"));
-    if (!authorized) {
-      return jsonResponse(
-        { error: { message: "Invalid or missing token", type: "auth_error" } },
-        401,
-      );
-    }
-
-    // 2. Parse request body
+    // 1. Parse request body
     let body: Record<string, unknown>;
     try {
       body = (await request.json()) as Record<string, unknown>;
@@ -52,7 +45,7 @@ export function createChatCompletionsHandler(
       );
     }
 
-    // 3. Check model allowlist/blocklist
+    // 2. Check model allowlist/blocklist
     if (options.allowedModels && options.allowedModels.length > 0) {
       if (!options.allowedModels.includes(model)) {
         return jsonResponse(
@@ -67,7 +60,7 @@ export function createChatCompletionsHandler(
       );
     }
 
-    // 4. Check cost cap
+    // 3. Check cost cap
     if (options.sessionCostCap !== undefined) {
       const currentCost = await getCumulativeCost(ctx.storage);
       if (currentCost >= options.sessionCostCap) {
@@ -83,10 +76,10 @@ export function createChatCompletionsHandler(
       }
     }
 
-    // 5. Determine streaming mode
+    // 4. Determine streaming mode
     const isStreaming = body.stream === true;
 
-    // 6. Forward to OpenRouter
+    // 5. Forward to OpenRouter
     const upstreamUrl = `${upstreamBaseUrl}/chat/completions`;
     const upstreamBody = { ...body };
 
