@@ -153,4 +153,79 @@ export const skillsStyles = `
   font-size: 0.8125rem;
   color: var(--agent-ui-text-dim);
 }
+
+[data-agent-ui="skills-error"] {
+  color: var(--agent-ui-error);
+  font-size: 0.625rem;
+  padding: 0.375rem 0.75rem;
+  margin: 0.5rem;
+  background: var(--agent-ui-error-bg);
+  border: 1px solid var(--agent-ui-error-border);
+  border-radius: 4px;
+}
+
+[data-agent-ui="skills-panel-header"][data-section="available"] {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--agent-ui-border);
+}
+
+[data-agent-ui="skill-status-dot"][data-status="available"] {
+  background: var(--agent-ui-primary);
+  opacity: 0.4;
+}
+
+[data-agent-ui="skill-card"][data-available] {
+  border-style: dashed;
+}
+
+[data-agent-ui="skill-action-btn"] {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--agent-ui-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--agent-ui-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+[data-agent-ui="skill-action-btn"]:hover {
+  background: var(--agent-ui-bg-surface);
+  color: var(--agent-ui-text);
+  border-color: var(--agent-ui-text-muted);
+}
+[data-agent-ui="skill-action-btn"][data-danger]:hover {
+  color: var(--agent-ui-danger);
+  border-color: var(--agent-ui-danger);
+  background: var(--agent-ui-danger-bg-subtle);
+}
+[data-agent-ui="skill-action-btn"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-agent-ui="skill-install-btn"] {
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--agent-ui-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--agent-ui-text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.625rem;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+[data-agent-ui="skill-install-btn"]:hover {
+  background: var(--agent-ui-primary-highlight);
+  color: var(--agent-ui-primary);
+  border-color: var(--agent-ui-primary);
+}
+[data-agent-ui="skill-install-btn"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 `;

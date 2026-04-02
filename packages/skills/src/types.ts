@@ -27,6 +27,8 @@ export interface InstalledSkill {
   r2Key?: string;
   /** Capability IDs required by this skill. */
   requiresCapabilities: string[];
+  /** True for skills declared in getCapabilities() — cannot be uninstalled. */
+  builtIn?: boolean;
 }
 
 /** Pending merge stored in DO state when a user-modified skill has an update. */

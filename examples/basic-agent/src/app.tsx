@@ -208,7 +208,9 @@ export default function App() {
               toggleSchedule={chat.toggleSchedule}
             />
           )}
-          {activeTab === "skills" && <SkillsPanel skills={chat.skills} />}
+          {activeTab === "skills" && (
+            <SkillsPanel skills={chat.skills} agentId={selectedAgentId} />
+          )}
         </div>
       ) : (
         <div

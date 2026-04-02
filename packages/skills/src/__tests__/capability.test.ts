@@ -479,3 +479,245 @@ describe("R2 helpers", () => {
     expect(skillIdFromR2Path("skills/nested/deep/SKILL.md")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// HTTP handlers — install / uninstall / registry browse
+// ---------------------------------------------------------------------------
+
+describe("httpHandlers", () => {
+  const EXTRA_RECORD: SkillRecord = {
+    ...SAMPLE_RECORD,
+    id: "debug-helper",
+    name: "Debug Helper",
+    description: "Helps debug issues systematically",
+  };
+
+  function mockHttpContext(storage?: CapabilityStorage) {
+    return {
+      sessionStore: {} as any,
+      storage: storage ?? capStorage,
+      broadcastToAll: () => {},
+      sendPrompt: async () => ({ sessionId: "s1", response: "" }),
+    };
+  }
+
+  async function syncCap(cap: ReturnType<typeof skills>) {
+    await cap.hooks!.onConnect!({
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: {} as any,
+      storage: capStorage,
+      broadcast: () => {},
+    });
+  }
+
+  describe("GET /skills/registry", () => {
+    it("lists registry skills not already installed", async () => {
+      const cap = skills(createOptions({
+        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+        skills: [{ id: "code-review", enabled: true }],
+      }));
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const registryHandler = handlers.find((h) => h.path === "/skills/registry");
+      expect(registryHandler).toBeDefined();
+
+      const response = await registryHandler!.handler(
+        new Request("http://test/skills/registry"),
+        mockHttpContext(),
+      );
+      const body = await response.json() as Array<{ id: string }>;
+      expect(response.status).toBe(200);
+      expect(body).toHaveLength(1);
+      expect(body[0].id).toBe("debug-helper");
+    });
+
+    it("returns empty array when all registry skills are installed", async () => {
+      const cap = skills(createOptions({
+        registry: createMockRegistry([SAMPLE_RECORD]),
+        skills: [{ id: "code-review", enabled: true }],
+      }));
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const registryHandler = handlers.find((h) => h.path === "/skills/registry")!;
+      const response = await registryHandler.handler(
+        new Request("http://test/skills/registry"),
+        mockHttpContext(),
+      );
+      const body = await response.json() as Array<unknown>;
+      expect(body).toHaveLength(0);
+    });
+  });
+
+  describe("POST /skills/install", () => {
+    it("installs a skill from the registry", async () => {
+      const cap = skills(createOptions({
+        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+        skills: [{ id: "code-review", enabled: true }],
+      }));
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const installHandler = handlers.find((h) => h.path === "/skills/install")!;
+
+      const response = await installHandler.handler(
+        new Request("http://test/skills/install", {
+          method: "POST",
+          body: JSON.stringify({ id: "debug-helper" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      const body = await response.json() as { ok: boolean; skill: { id: string } };
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(true);
+
+      // Verify it's in storage
+      const installed = await capStorage.get<any>("installed:debug-helper");
+      expect(installed).toBeDefined();
+      expect(installed.builtIn).toBe(false);
+      expect(installed.enabled).toBe(true);
+
+      // Verify R2 has content
+      expect(bucket._store.has("test-agent/skills/debug-helper/SKILL.md")).toBe(true);
+    });
+
+    it("rejects installing already-installed skill", async () => {
+      const cap = skills(createOptions());
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const installHandler = handlers.find((h) => h.path === "/skills/install")!;
+
+      const response = await installHandler.handler(
+        new Request("http://test/skills/install", {
+          method: "POST",
+          body: JSON.stringify({ id: "code-review" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      expect(response.status).toBe(409);
+    });
+
+    it("rejects installing skill not in registry", async () => {
+      const cap = skills(createOptions());
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const installHandler = handlers.find((h) => h.path === "/skills/install")!;
+
+      const response = await installHandler.handler(
+        new Request("http://test/skills/install", {
+          method: "POST",
+          body: JSON.stringify({ id: "nonexistent" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    it("rejects missing skill id", async () => {
+      const cap = skills(createOptions());
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const installHandler = handlers.find((h) => h.path === "/skills/install")!;
+
+      const response = await installHandler.handler(
+        new Request("http://test/skills/install", {
+          method: "POST",
+          body: JSON.stringify({}),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("POST /skills/uninstall", () => {
+    it("uninstalls a runtime-added skill", async () => {
+      const cap = skills(createOptions({
+        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+        skills: [{ id: "code-review", enabled: true }],
+      }));
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const installHandler = handlers.find((h) => h.path === "/skills/install")!;
+      const uninstallHandler = handlers.find((h) => h.path === "/skills/uninstall")!;
+
+      // First install
+      await installHandler.handler(
+        new Request("http://test/skills/install", {
+          method: "POST",
+          body: JSON.stringify({ id: "debug-helper" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+
+      // Then uninstall
+      const response = await uninstallHandler.handler(
+        new Request("http://test/skills/uninstall", {
+          method: "POST",
+          body: JSON.stringify({ id: "debug-helper" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      const body = await response.json() as { ok: boolean };
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(true);
+
+      // Verify removed from storage
+      const installed = await capStorage.get("installed:debug-helper");
+      expect(installed).toBeUndefined();
+
+      // Verify removed from R2
+      expect(bucket._store.has("test-agent/skills/debug-helper/SKILL.md")).toBe(false);
+    });
+
+    it("rejects uninstalling built-in skill", async () => {
+      const cap = skills(createOptions());
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const uninstallHandler = handlers.find((h) => h.path === "/skills/uninstall")!;
+
+      const response = await uninstallHandler.handler(
+        new Request("http://test/skills/uninstall", {
+          method: "POST",
+          body: JSON.stringify({ id: "code-review" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      expect(response.status).toBe(403);
+      const body = await response.json() as { error: string };
+      expect(body.error).toContain("built-in");
+    });
+
+    it("rejects uninstalling non-installed skill", async () => {
+      const cap = skills(createOptions());
+      await syncCap(cap);
+
+      const handlers = cap.httpHandlers!(mockContext());
+      const uninstallHandler = handlers.find((h) => h.path === "/skills/uninstall")!;
+
+      const response = await uninstallHandler.handler(
+        new Request("http://test/skills/uninstall", {
+          method: "POST",
+          body: JSON.stringify({ id: "nonexistent" }),
+          headers: { "content-type": "application/json" },
+        }),
+        mockHttpContext(),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+});

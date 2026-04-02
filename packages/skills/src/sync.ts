@@ -68,6 +68,7 @@ async function syncSingleSkill(
       stale: false,
       originalHash: registryRecord.contentHash,
       requiresCapabilities: registryRecord.requiresCapabilities,
+      builtIn: true,
     });
     return;
   }
@@ -83,6 +84,7 @@ async function syncSingleSkill(
       stale: false,
       originalHash: registryRecord.contentHash,
       requiresCapabilities: registryRecord.requiresCapabilities,
+      builtIn: true,
     };
 
     if (enabled) {
