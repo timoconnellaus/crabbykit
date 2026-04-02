@@ -729,17 +729,11 @@ function renderOutputAsMonospace(outputText: string) {
 
 // ─── PROCESS ────────────────────────────────────────────────────────────────
 
-function renderProcessBody(args: unknown, outputText: string, isError: boolean) {
-  const action = argStr(args, "action");
+function renderProcessBody(_args: unknown, outputText: string, isError: boolean) {
   return (
-    <>
-      {action && (
-        <div data-agent-ui="tool-entry-section-label">{action}</div>
-      )}
-      <pre data-agent-ui="exec-output" data-error={isError || undefined}>
-        {outputText}
-      </pre>
-    </>
+    <pre data-agent-ui="exec-output" data-error={isError || undefined}>
+      {outputText}
+    </pre>
   );
 }
 
