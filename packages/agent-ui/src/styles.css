@@ -486,14 +486,18 @@
 /* --- Tool entry (timeline) --- */
 
 [data-agent-ui="tool-entry"] {
-  padding-left: 0.625rem;
   margin: 2px 0;
   cursor: pointer;
   transition: background 0.1s;
   container-type: inline-size;
+  border-radius: 6px;
 }
 
 [data-agent-ui="tool-entry"]:hover {
+  background: var(--agent-ui-user-bg-timeline);
+}
+
+[data-agent-ui="tool-entry"][data-open] {
   background: var(--agent-ui-user-bg-timeline);
 }
 
@@ -505,9 +509,9 @@
   display: flex;
   align-items: center;
   gap: 0.25rem 0.375rem;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-family: var(--agent-ui-font-mono);
   font-size: 0.75rem;
-  padding: 3px 0;
+  padding: 0.25rem 0.5rem;
   min-width: 0;
   overflow: hidden;
 }
@@ -529,6 +533,12 @@
 }
 [data-agent-ui="tool-entry"][data-tool-category="memory"] [data-agent-ui="tool-entry-name"] {
   color: var(--agent-ui-tool-color-memory);
+}
+[data-agent-ui="tool-entry"][data-tool-category="file"] [data-agent-ui="tool-entry-name"] {
+  color: var(--agent-ui-tool-color-file);
+}
+[data-agent-ui="tool-entry"][data-tool-category="preview"] [data-agent-ui="tool-entry-name"] {
+  color: var(--agent-ui-tool-color-preview);
 }
 [data-agent-ui="tool-entry"][data-error] [data-agent-ui="tool-entry-name"] {
   color: var(--agent-ui-error-accent);
@@ -618,8 +628,7 @@
 
 /* Expanded body */
 [data-agent-ui="tool-entry-body"] {
-  padding-bottom: 0.5rem;
-  padding-top: 0.125rem;
+  padding: 0 0.5rem 0.5rem;
 }
 
 [data-agent-ui="tool-entry-section-label"] {
@@ -709,7 +718,7 @@
   display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  padding: 0.375rem 0.875rem 0.125rem;
+  padding: 0.375rem 0.375rem 0.125rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.75rem;
 }
@@ -726,7 +735,7 @@
   font-family: var(--agent-ui-font-mono);
   font-size: 0.72rem;
   line-height: 1.55;
-  padding: 0.5rem 0.875rem 0.75rem;
+  padding: 0.5rem 0.375rem 0.75rem;
   color: var(--agent-ui-text-dim);
   white-space: pre-wrap;
   word-break: break-all;
@@ -759,7 +768,7 @@
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.625rem 0.875rem;
+  padding: 0.625rem 0.375rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.75rem;
 }
@@ -788,7 +797,7 @@
   display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  padding: 0.375rem 0.875rem 0.125rem;
+  padding: 0.375rem 0.375rem 0.125rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.75rem;
 }
@@ -810,7 +819,7 @@
   display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  padding: 0.375rem 0.875rem;
+  padding: 0.375rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.6875rem;
 }
@@ -824,7 +833,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.875rem 0.75rem;
+  padding: 0.5rem 0.375rem 0.75rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.75rem;
 }
@@ -840,7 +849,7 @@
   font-family: var(--agent-ui-font-mono);
   font-size: 0.72rem;
   line-height: 1.65;
-  padding: 0.5rem 0.875rem 0.75rem;
+  padding: 0.5rem 0.375rem 0.75rem;
   max-height: 320px;
   overflow-y: auto;
   margin: 0;
@@ -854,7 +863,7 @@
 
 /* ── Web search results ── */
 [data-agent-ui="search-results"] {
-  padding: 0.5rem 0.875rem 0.75rem;
+  padding: 0.5rem 0.375rem 0.75rem;
 }
 [data-agent-ui="search-query"] {
   display: flex;
@@ -898,7 +907,7 @@
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.875rem;
+  padding: 0.375rem;
   font-family: var(--agent-ui-font-mono);
   font-size: 0.6875rem;
   color: var(--agent-ui-text-muted);
@@ -915,7 +924,7 @@
 
 /* ── Deploy card ── */
 [data-agent-ui="deploy-card"] {
-  padding: 0.75rem 0.875rem;
+  padding: 0.75rem 0.375rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -991,7 +1000,7 @@
 
 [data-agent-ui="code-line"] {
   display: flex;
-  padding: 0 0.875rem;
+  padding: 0 0.375rem;
   min-height: 1.25rem;
 }
 [data-agent-ui="code-line"]:hover {
@@ -1016,7 +1025,7 @@
 
 [data-agent-ui="diff-line"] {
   display: flex;
-  padding: 0 0.875rem;
+  padding: 0 0.375rem;
   min-height: 1.25rem;
 }
 [data-agent-ui="diff-line"][data-diff-type="add"] {
