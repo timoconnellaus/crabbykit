@@ -988,6 +988,33 @@
   background: var(--agent-ui-bg-hover, rgba(255, 255, 255, 0.05));
 }
 
+/* ── Preview card ── */
+[data-agent-ui="preview-card"] {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.375rem;
+  font-family: var(--agent-ui-font-mono);
+  font-size: 0.75rem;
+}
+[data-agent-ui="preview-icon"] {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+[data-agent-ui="preview-text"] {
+  color: var(--agent-ui-text-dim);
+}
+[data-agent-ui="preview-port"] {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--agent-ui-tool-color-preview, #d97706);
+  padding: 0.125rem 0.5rem;
+  background: rgba(251, 191, 36, 0.1);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 /* ── Action confirm (simple one-line confirmations) ── */
 [data-agent-ui="action-confirm"] {
   display: flex;

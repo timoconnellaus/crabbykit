@@ -198,7 +198,12 @@ function renderToolBody(
     return renderShowPreviewBody(args);
   }
   if (toolName === "hide_preview" && !isError) {
-    return renderSimpleConfirm("\u25A0", "Preview closed");
+    return (
+      <div data-agent-ui="preview-card">
+        <span data-agent-ui="preview-icon">{"\u25A0"}</span>
+        <span data-agent-ui="preview-text">Preview closed</span>
+      </div>
+    );
   }
 
   // ── Console logs ──
@@ -214,7 +219,12 @@ function renderToolBody(
   // ── File delete ──
   if (toolName === "file_delete" && !isError) {
     const path = extractPath(args);
-    return renderSimpleConfirm("\u2715", path ? `Deleted ${path}` : "File deleted", true);
+    return (
+      <div data-agent-ui="action-confirm">
+        <span data-agent-ui="action-confirm-icon" data-danger={true}>{"\u2715"}</span>
+        <span data-agent-ui="action-confirm-text">{path ?? "File deleted"}</span>
+      </div>
+    );
   }
 
   // ── File find ──
@@ -224,10 +234,26 @@ function renderToolBody(
 
   // ── Credentials ──
   if (toolName === "save_file_credential" && !isError) {
-    return renderSimpleConfirm("\uD83D\uDD12", `Saved ${argStr(args, "path") ?? "credential"}`);
+    const path = argStr(args, "path");
+    return (
+      <div data-agent-ui="action-confirm">
+        <span data-agent-ui="action-confirm-icon">{"\uD83D\uDD12"}</span>
+        <span data-agent-ui="action-confirm-text">
+          Saved <strong>{path ?? "credential"}</strong>
+        </span>
+      </div>
+    );
   }
   if (toolName === "delete_file_credential" && !isError) {
-    return renderSimpleConfirm("\uD83D\uDD12", `Deleted ${argStr(args, "path") ?? "credential"}`, true);
+    const path = argStr(args, "path");
+    return (
+      <div data-agent-ui="action-confirm">
+        <span data-agent-ui="action-confirm-icon">{"\uD83D\uDD12"}</span>
+        <span data-agent-ui="action-confirm-text">
+          Deleted <strong>{path ?? "credential"}</strong>
+        </span>
+      </div>
+    );
   }
   if (toolName === "list_file_credentials" && outputText && !isError) {
     return renderOutputAsMonospace(outputText);
@@ -241,10 +267,27 @@ function renderToolBody(
     return renderOutputAsMonospace(outputText);
   }
   if (toolName === "rollback_app" && outputText && !isError) {
-    return renderSimpleConfirm("\u21BA", outputText.split("\n")[0]);
+    // Parse: "Rolled back App Name to vN\nCommit: abc123 — message"
+    const lines = outputText.split("\n");
+    return (
+      <div data-agent-ui="action-confirm">
+        <span data-agent-ui="action-confirm-icon">{"\u21BA"}</span>
+        <span data-agent-ui="action-confirm-text">
+          {lines.map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: Static lines
+            <div key={i}>{line}</div>
+          ))}
+        </span>
+      </div>
+    );
   }
   if (toolName === "delete_app" && outputText && !isError) {
-    return renderSimpleConfirm("\u2715", outputText.split("\n")[0], true);
+    return (
+      <div data-agent-ui="action-confirm">
+        <span data-agent-ui="action-confirm-icon" data-danger={true}>{"\u2715"}</span>
+        <span data-agent-ui="action-confirm-text">{outputText.split("\n")[0]}</span>
+      </div>
+    );
   }
 
   // ── Memory tools ──
@@ -579,11 +622,10 @@ function renderShowPreviewBody(args: unknown) {
   const port = typeof obj.port === "number" ? obj.port : null;
 
   return (
-    <div data-agent-ui="action-confirm">
-      <span data-agent-ui="action-confirm-icon">{"\u25B6"}</span>
-      <span data-agent-ui="action-confirm-text">
-        Live preview opened{port ? <> on <strong>:{port}</strong></> : null}
-      </span>
+    <div data-agent-ui="preview-card">
+      <span data-agent-ui="preview-icon">{"\u25B6"}</span>
+      <span data-agent-ui="preview-text">Live preview opened</span>
+      {port && <span data-agent-ui="preview-port">:{port}</span>}
     </div>
   );
 }
