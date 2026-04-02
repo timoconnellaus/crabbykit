@@ -74,7 +74,7 @@ describe("resolveCapabilities", () => {
     expect(result.tools[0].name).toBe("search");
   });
 
-  it("resolves prompt sections from a single capability", () => {
+  it("resolves multiple prompt sections from a single capability with numbered names", () => {
     const cap = makeCap({
       id: "memory",
       promptSections: () => ["You have access to memory.", "Use it wisely."],
@@ -92,6 +92,24 @@ describe("resolveCapabilities", () => {
       name: "memory (2)",
       key: "cap-memory-2",
       content: "Use it wisely.",
+    });
+  });
+
+  it("uses capability name directly when only one prompt section", () => {
+    const cap = makeCap({
+      id: "web-search",
+      name: "Web Search",
+      promptSections: () => ["You can search the web."],
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.promptSections).toHaveLength(1);
+    expect(result.promptSections[0]).toMatchObject({
+      name: "Web Search",
+      key: "cap-web-search",
+      content: "You can search the web.",
+      lines: 1,
     });
   });
 

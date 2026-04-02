@@ -765,6 +765,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     "request_sync",
     "toggle_schedule",
     "custom_response",
+    "request_system_prompt",
     "ping",
   ]);
 
