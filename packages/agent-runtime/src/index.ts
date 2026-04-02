@@ -91,9 +91,10 @@ export type { CostEvent } from "./costs/index.js";
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
 // Prompt building
-export type { PromptOptions } from "./prompt/index.js";
+export type { PromptOptions, PromptSection } from "./prompt/index.js";
 export {
   buildDefaultSystemPrompt,
+  buildDefaultSystemPromptSections,
   identitySection,
   runtimeSection,
   safetySection,
@@ -156,8 +157,10 @@ export type {
   PongMessage,
   PromptMessage,
   RequestSyncMessage,
+  RequestSystemPromptMessage,
   ScheduleListMessage,
   ServerMessage,
+  SystemPromptMessage,
   SessionListMessage,
   SessionSyncMessage,
   SkillListEntry,

@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
+import type { PromptSection } from "../prompt/types.js";
 import type { SkillListEntry } from "../transport/types.js";
 import type { AgentStatus, ConnectionStatus } from "./types.js";
 
@@ -45,6 +46,7 @@ export interface ChatState {
   }>;
   availableCommands: CommandInfo[];
   skills: SkillListEntry[];
+  systemPrompt: { sections: PromptSection[]; raw: string } | null;
   error: string | null;
 }
 
@@ -63,6 +65,7 @@ export type ChatAction =
   | { type: "SET_SCHEDULES"; schedules: ChatState["schedules"] }
   | { type: "SET_AVAILABLE_COMMANDS"; availableCommands: CommandInfo[] }
   | { type: "SET_SKILLS"; skills: SkillListEntry[] }
+  | { type: "SET_SYSTEM_PROMPT"; sections: PromptSection[]; raw: string }
   | { type: "SET_ERROR"; error: string | null }
   | {
       type: "SESSION_SYNC";
@@ -111,6 +114,7 @@ export function createInitialState(sessionId: string | undefined): ChatState {
     schedules: [],
     availableCommands: [],
     skills: [],
+    systemPrompt: null,
     error: null,
   };
 }
@@ -145,6 +149,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, availableCommands: action.availableCommands };
     case "SET_SKILLS":
       return { ...state, skills: action.skills };
+    case "SET_SYSTEM_PROMPT":
+      return {
+        ...state,
+        systemPrompt: { sections: action.sections, raw: action.raw },
+      };
     case "SET_ERROR":
       return { ...state, error: action.error };
     case "SESSION_SYNC":

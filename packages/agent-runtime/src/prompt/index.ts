@@ -1,3 +1,3 @@
-export { buildDefaultSystemPrompt } from "./build-system-prompt.js";
+export { buildDefaultSystemPrompt, buildDefaultSystemPromptSections } from "./build-system-prompt.js";
 export { identitySection, runtimeSection, safetySection } from "./sections.js";
-export type { PromptOptions } from "./types.js";
+export type { PromptOptions, PromptSection } from "./types.js";

@@ -64,8 +64,15 @@ export interface UseAgentChatReturn {
   availableCommands: import("./chat-reducer.js").CommandInfo[];
   /** Installed skills. Updated when skill state changes. */
   skills: import("../transport/types.js").SkillListEntry[];
+  /** Structured system prompt sections. Populated after calling requestSystemPrompt(). */
+  systemPrompt: {
+    sections: import("../prompt/types.js").PromptSection[];
+    raw: string;
+  } | null;
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
+  /** Request the server to send the current system prompt sections. */
+  requestSystemPrompt: () => void;
   sendMessage: (text: string) => void;
   /** Send a slash command programmatically without formatting a string. */
   sendCommand: (name: string, args?: string) => void;
@@ -367,7 +374,11 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     schedules: state.schedules,
     availableCommands: state.availableCommands,
     skills: state.skills,
+    systemPrompt: state.systemPrompt,
     error: state.error,
+    requestSystemPrompt: useCallback(() => {
+      send({ type: "request_system_prompt" });
+    }, [send]),
     sendMessage,
     sendCommand,
     abort,

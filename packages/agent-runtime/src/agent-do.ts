@@ -30,8 +30,11 @@ import { ConfigStore } from "./config/config-store.js";
 import type { ConfigNamespace } from "./config/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { McpManager } from "./mcp/mcp-manager.js";
-import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
-import type { PromptOptions } from "./prompt/types.js";
+import {
+  buildDefaultSystemPrompt,
+  buildDefaultSystemPromptSections,
+} from "./prompt/build-system-prompt.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
@@ -870,9 +873,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
         // Collect ALL connections on the doomed session BEFORE deleting it,
         // so getConnectionsForSession still matches on the old sessionId.
-        const affectedConnections = [
-          ...this.transport.getConnectionsForSession(msg.sessionId),
-        ];
+        const affectedConnections = [...this.transport.getConnectionsForSession(msg.sessionId)];
 
         this.sessionStore.delete(msg.sessionId);
 
@@ -957,11 +958,61 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
       }
 
+      case "request_system_prompt": {
+        const sections = this.getSystemPromptSections();
+        const raw = sections.map((s) => s.content).join("\n\n");
+        connection.send({ type: "system_prompt", sections, raw } as ServerMessage);
+        break;
+      }
+
       case "ping": {
         connection.send({ type: "pong" } as ServerMessage);
         break;
       }
     }
+  }
+
+  /**
+   * Build the system prompt as structured sections for inspection.
+   * Returns default sections + named capability sections.
+   */
+  private getSystemPromptSections(): PromptSection[] {
+    // Check if the consumer overrode buildSystemPrompt
+    const isOverridden =
+      Object.getPrototypeOf(this).buildSystemPrompt !== AgentDO.prototype.buildSystemPrompt;
+
+    let baseSections: PromptSection[];
+    if (isOverridden) {
+      // Can't decompose a custom prompt — return as a single section
+      const context = this.createInspectionContext();
+      const raw = this.buildSystemPrompt(context);
+      baseSections = [
+        { name: "System Prompt", key: "custom", content: raw, lines: raw.split("\n").length },
+      ];
+    } else {
+      baseSections = buildDefaultSystemPromptSections(this.getPromptOptions());
+    }
+
+    // Resolve capabilities for their prompt sections
+    const context = this.createInspectionContext();
+    const capabilities = this.getCachedCapabilities();
+    const resolved = resolveCapabilities(capabilities, context);
+
+    return [...baseSections, ...resolved.promptSections];
+  }
+
+  /** Create a minimal AgentContext for prompt inspection (no active session). */
+  private createInspectionContext(): AgentContext {
+    return {
+      agentId: this.ctx.id.toString(),
+      sessionId: "__inspection__",
+      stepNumber: 0,
+      emitCost: () => {},
+      broadcast: () => {},
+      broadcastToAll: () => {},
+      requestFromClient: () => Promise.reject(new Error("Not available during inspection")),
+      schedules: this.buildScheduleManager(),
+    };
   }
 
   // --- Agent loop ---
@@ -1265,7 +1316,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Build system prompt with capability sections appended
     let systemPrompt = this.buildSystemPrompt(context);
     if (resolved.promptSections.length > 0) {
-      systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
+      systemPrompt += `\n\n${resolved.promptSections.map((s) => s.content).join("\n\n")}`;
     }
 
     const messages = this.sessionStore.buildContext(sessionId);

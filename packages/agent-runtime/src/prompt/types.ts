@@ -1,3 +1,15 @@
+/** A named section of the system prompt, used for structured inspection. */
+export interface PromptSection {
+  /** Display name (e.g. "Identity", "Safety", "Web Search"). */
+  name: string;
+  /** Stable kebab-case key for styling (e.g. "identity", "cap-tavily-web-search"). */
+  key: string;
+  /** Section content (markdown string). */
+  content: string;
+  /** Number of lines in content. */
+  lines: number;
+}
+
 /**
  * Options for customizing the default system prompt.
  * Pass to `buildDefaultSystemPrompt()` or return from `getPromptOptions()`.

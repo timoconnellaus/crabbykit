@@ -1,4 +1,4 @@
-import { type ComponentPropsWithoutRef, useMemo } from "react";
+import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 import { useChat } from "./chat-provider";
 import type { SandboxBadgeProps } from "./sandbox-badge";
 import { SandboxBadge } from "./sandbox-badge";
@@ -6,9 +6,11 @@ import { SandboxBadge } from "./sandbox-badge";
 export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {
   /** Sandbox state. Renders SandboxBadge when provided and elevated. */
   sandboxState?: SandboxBadgeProps;
+  /** Extra elements rendered after the default status indicators. */
+  children?: ReactNode;
 }
 
-export function StatusBar({ sandboxState, ...props }: StatusBarProps) {
+export function StatusBar({ sandboxState, children, ...props }: StatusBarProps) {
   const { connectionStatus, agentStatus, thinking, costs } = useChat();
 
   const totalCost = useMemo(() => {
@@ -40,6 +42,8 @@ export function StatusBar({ sandboxState, ...props }: StatusBarProps) {
       {totalCost && <span data-agent-ui="status-cost">{totalCost}</span>}
 
       {sandboxState && <SandboxBadge {...sandboxState} />}
+
+      {children}
     </div>
   );
 }

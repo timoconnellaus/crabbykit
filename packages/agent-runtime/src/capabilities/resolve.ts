@@ -2,6 +2,7 @@ import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
 import type { McpServerConfig } from "../mcp/types.js";
+import type { PromptSection } from "../prompt/types.js";
 import type { ResolvedScheduleDeclaration } from "../scheduling/types.js";
 import type { CapabilityStorage } from "./storage.js";
 import { createNoopStorage } from "./storage.js";
@@ -17,7 +18,7 @@ import type {
 export interface ResolvedCapabilities {
   tools: AgentTool[];
   commands: Command[];
-  promptSections: string[];
+  promptSections: PromptSection[];
   mcpServers: McpServerConfig[];
   beforeInferenceHooks: Array<
     (messages: AgentMessage[], ctx: CapabilityHookContext) => Promise<AgentMessage[]>
@@ -62,7 +63,7 @@ export function resolveCapabilities(
   const toolNames = new Set<string>();
   const commands: Command[] = [];
   const commandNames = new Set<string>();
-  const promptSections: string[] = [];
+  const promptSections: PromptSection[] = [];
   const mcpServers: McpServerConfig[] = [];
   const beforeInferenceHooks: ResolvedCapabilities["beforeInferenceHooks"] = [];
   const beforeToolExecutionHooks: ResolvedCapabilities["beforeToolExecutionHooks"] = [];
@@ -105,7 +106,12 @@ export function resolveCapabilities(
     }
 
     if (cap.promptSections) {
-      promptSections.push(...cap.promptSections(capContext));
+      const rawSections = cap.promptSections(capContext);
+      for (const [i, content] of rawSections.entries()) {
+        const name = rawSections.length === 1 ? cap.name : `${cap.name} (${i + 1})`;
+        const key = rawSections.length === 1 ? `cap-${cap.id}` : `cap-${cap.id}-${i + 1}`;
+        promptSections.push({ name, key, content, lines: content.split("\n").length });
+      }
     }
 
     if (cap.mcpServers) {

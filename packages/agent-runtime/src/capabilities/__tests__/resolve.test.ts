@@ -82,7 +82,17 @@ describe("resolveCapabilities", () => {
 
     const result = resolveCapabilities([cap], ctx);
 
-    expect(result.promptSections).toEqual(["You have access to memory.", "Use it wisely."]);
+    expect(result.promptSections).toHaveLength(2);
+    expect(result.promptSections[0]).toMatchObject({
+      name: "memory (1)",
+      key: "cap-memory-1",
+      content: "You have access to memory.",
+    });
+    expect(result.promptSections[1]).toMatchObject({
+      name: "memory (2)",
+      key: "cap-memory-2",
+      content: "Use it wisely.",
+    });
   });
 
   it("resolves MCP servers from a single capability", () => {
@@ -134,7 +144,7 @@ describe("resolveCapabilities", () => {
     const result = resolveCapabilities([cap1, cap2], ctx);
 
     expect(result.tools.map((t) => t.name)).toEqual(["tool_a", "tool_b"]);
-    expect(result.promptSections).toEqual(["Section A", "Section B"]);
+    expect(result.promptSections.map((s) => s.content)).toEqual(["Section A", "Section B"]);
   });
 
   it("preserves hook execution order matching registration order", async () => {

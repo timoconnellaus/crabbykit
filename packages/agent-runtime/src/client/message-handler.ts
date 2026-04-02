@@ -292,6 +292,10 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         break;
       }
 
+      case "system_prompt":
+        dispatch({ type: "SET_SYSTEM_PROMPT", sections: msg.sections, raw: msg.raw });
+        break;
+
       case "pong":
         refs.lastPongAtRef.current = Date.now();
         if (refs.pongTimeoutRef.current) {

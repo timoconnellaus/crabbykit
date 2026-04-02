@@ -40,6 +40,8 @@ export type { SkillViewerProps } from "./components/skill-viewer";
 export { SkillViewer } from "./components/skill-viewer";
 export type { StatusBarProps } from "./components/status-bar";
 export { StatusBar } from "./components/status-bar";
+export type { SystemPromptPanelProps } from "./components/system-prompt-panel";
+export { SystemPromptPanel } from "./components/system-prompt-panel";
 export { ThinkingIndicator } from "./components/thinking-indicator";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";

@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
+import type { PromptSection } from "../prompt/types.js";
 import type { Session } from "../session/types.js";
 import type { ErrorCode } from "./error-codes.js";
 
@@ -129,6 +130,12 @@ export interface SkillListMessage {
   skills: SkillListEntry[];
 }
 
+export interface SystemPromptMessage {
+  type: "system_prompt";
+  sections: PromptSection[];
+  raw: string;
+}
+
 export interface PongMessage {
   type: "pong";
 }
@@ -147,6 +154,7 @@ export type ServerMessage =
   | CustomEventMessage
   | InjectMessageMessage
   | SkillListMessage
+  | SystemPromptMessage
   | PongMessage;
 
 // --- Client → Server messages ---
@@ -212,6 +220,10 @@ export interface CustomResponseMessage {
   data: Record<string, unknown>;
 }
 
+export interface RequestSystemPromptMessage {
+  type: "request_system_prompt";
+}
+
 export interface PingMessage {
   type: "ping";
 }
@@ -227,4 +239,5 @@ export type ClientMessage =
   | RequestSyncMessage
   | ToggleScheduleMessage
   | CustomResponseMessage
+  | RequestSystemPromptMessage
   | PingMessage;

@@ -655,7 +655,7 @@ export class TestAgentDO extends AgentDO {
     // Build system prompt
     let systemPrompt = this.buildSystemPrompt(context);
     if (resolved.promptSections.length > 0) {
-      systemPrompt += `\n\n${resolved.promptSections.join("\n\n")}`;
+      systemPrompt += `\n\n${resolved.promptSections.map((s) => s.content).join("\n\n")}`;
     }
 
     const messages = this.sessionStore.buildContext(sessionId);
