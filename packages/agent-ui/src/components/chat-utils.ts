@@ -54,6 +54,10 @@ export type ToolCategory = "bash" | "code" | "web" | "memory" | "default";
 export function toolColorCategory(name: string): ToolCategory {
   switch (name) {
     case "bash":
+    case "exec":
+    case "elevate":
+    case "de_elevate":
+    case "process":
     case "start_process":
       return "bash";
     case "run_code":
