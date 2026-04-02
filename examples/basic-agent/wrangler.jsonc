@@ -11,11 +11,7 @@
     // Used by SandboxContainer to configure FUSE mount inside the container.
     "R2_BUCKET_NAME": "basic-agent-storage",
     // Agent-ops shared secret (override in production via wrangler secret put)
-    "AGENT_SECRET": "dev-secret-change-in-production",
-    // Worker URL for AI proxy callback from container.
-    // Dev: container reaches host via Docker's host.docker.internal.
-    // Prod: set to your worker's public URL (e.g. https://basic-agent.workers.dev).
-    "WORKER_URL": "http://host.docker.internal:5173"
+    "AGENT_SECRET": "dev-secret-change-in-production"
   },
   // Secrets (set via `wrangler secret put`):
   // - OPENROUTER_API_KEY

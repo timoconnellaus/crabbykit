@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { storeToken } from "../auth.js";
 import { createModelsHandler } from "../models-handler.js";
 import type { AiProxyOptions } from "../types.js";
 
@@ -26,32 +25,13 @@ function createMockCtx(storage = createMapStorage()) {
 
 const baseOptions: AiProxyOptions = {
   apiKey: "test-key",
-  workerUrl: "http://localhost:5173",
-  provider: {
-    start: vi.fn(),
-    stop: vi.fn(),
-    health: vi.fn(),
-    exec: vi.fn(),
-  },
 };
 
 describe("createModelsHandler", () => {
-  it("rejects unauthenticated requests", async () => {
+  it("returns empty list when no allowedModels", async () => {
     const handler = createModelsHandler(baseOptions);
     const ctx = createMockCtx();
     const req = new Request("https://agent.test/ai/v1/models");
-    const res = await handler(req, ctx);
-    expect(res.status).toBe(401);
-  });
-
-  it("returns empty list when no allowedModels", async () => {
-    const storage = createMapStorage();
-    await storeToken(storage, "test-token");
-    const handler = createModelsHandler(baseOptions);
-    const ctx = createMockCtx(storage);
-    const req = new Request("https://agent.test/ai/v1/models", {
-      headers: { authorization: "Bearer test-token" },
-    });
     const res = await handler(req, ctx);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: unknown[] };
@@ -59,16 +39,12 @@ describe("createModelsHandler", () => {
   });
 
   it("returns allowedModels in OpenAI format", async () => {
-    const storage = createMapStorage();
-    await storeToken(storage, "test-token");
     const handler = createModelsHandler({
       ...baseOptions,
       allowedModels: ["anthropic/claude-sonnet-4", "openai/gpt-4o"],
     });
-    const ctx = createMockCtx(storage);
-    const req = new Request("https://agent.test/ai/v1/models", {
-      headers: { authorization: "Bearer test-token" },
-    });
+    const ctx = createMockCtx();
+    const req = new Request("https://agent.test/ai/v1/models");
     const res = await handler(req, ctx);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {

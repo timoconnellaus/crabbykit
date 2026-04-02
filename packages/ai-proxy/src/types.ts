@@ -1,19 +1,7 @@
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
-
 /** Configuration options for the AI proxy capability. */
 export interface AiProxyOptions {
   /** OpenRouter API key — string or getter function. */
   apiKey: string | (() => string);
-
-  /**
-   * Worker's public URL so the container can call back to the AI proxy.
-   * Dev: "http://host.docker.internal:5173"
-   * Prod: "https://your-worker.workers.dev"
-   */
-  workerUrl: string;
-
-  /** Sandbox provider for injecting env vars at elevate time. */
-  provider: SandboxProvider;
 
   /** Base URL for the upstream AI provider. Default: "https://openrouter.ai/api/v1" */
   upstreamBaseUrl?: string;

@@ -71,104 +71,21 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
       }),
     ],
 
-    promptSections: () => {
-      const sections: string[] = [];
-
-      if (options.backend) {
-        // Fullstack app with Bun — one process, HMR, API + UI together
-        sections.push(
-          "You have live preview capabilities for fullstack web development using Bun.\n\n" +
-            "Fullstack App Workflow:\n" +
-            "1. Create a project directory and set up the files:\n" +
-            "   - index.html — the HTML entry point with a <script> tag for your React app\n" +
-            "   - app.tsx — your React frontend\n" +
-            "   - server.ts — the Bun.serve() entry point\n" +
-            "   - package.json with dependencies (react, react-dom)\n" +
-            "2. bun install\n" +
-            "3. Start the server (via exec with background=true): bun run server.ts\n" +
-            "4. Call show_preview with the server port (default 3000)\n\n" +
-            "Example server.ts:\n" +
-            "```\n" +
-            'import { Database } from "bun:sqlite";\n' +
-            'import homepage from "./index.html";\n\n' +
-            'const db = new Database("/mnt/r2/app.db");\n' +
-            'db.run("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");\n\n' +
-            "Bun.serve({\n" +
-            '  hostname: "0.0.0.0",\n' +
-            "  port: 3000,\n" +
-            "  routes: {\n" +
-            '    "/": homepage,\n' +
-            '    "/api/items": {\n' +
-            "      async GET() {\n" +
-            '        const items = db.query("SELECT * FROM items").all();\n' +
-            "        return Response.json(items);\n" +
-            "      },\n" +
-            "      async POST(req) {\n" +
-            "        const { name } = await req.json();\n" +
-            '        db.run("INSERT INTO items (name) VALUES (?)", [name]);\n' +
-            "        return Response.json({ ok: true });\n" +
-            "      },\n" +
-            "    },\n" +
-            "  },\n" +
-            "  development: true,\n" +
-            "});\n" +
-            "```\n\n" +
-            "Example index.html:\n" +
-            "```\n" +
-            "<!DOCTYPE html>\n" +
-            '<html><head><title>My App</title></head>\n' +
-            "<body>\n" +
-            '  <div id="root"></div>\n' +
-            '  <script type="module" src="./app.tsx"></script>\n' +
-            "</body></html>\n" +
-            "```\n\n" +
-            "Key points:\n" +
-            "- Bun handles bundling TypeScript/JSX, HMR, and serving — no build tools needed\n" +
-            "- Import HTML files directly in server.ts — Bun bundles the referenced scripts/styles\n" +
-            "- Use bun:sqlite for the database — it's built into Bun, zero dependencies\n" +
-            "- Store the database file on /mnt/r2/ so it persists\n" +
-            '- Set development: true for HMR and console output\n' +
-            '- The server MUST bind to 0.0.0.0 or use the "host" option — use port 3000\n' +
-            "- Frontend fetch calls use relative paths: fetch('/api/items')\n\n" +
-            "Use get_console_logs to check for errors. Call hide_preview when done.",
-        );
-      } else {
-        // Frontend-only app with Bun
-        sections.push(
-          "You have live preview capabilities for web development using Bun.\n\n" +
-            "Frontend App Workflow:\n" +
-            "1. Create a project directory with:\n" +
-            "   - index.html — HTML entry point with <script> for your app\n" +
-            "   - app.tsx — your React frontend\n" +
-            "   - server.ts — simple Bun.serve() to host it\n" +
-            "   - package.json with dependencies (react, react-dom)\n" +
-            "2. bun install\n" +
-            "3. Start the server (via exec with background=true): bun run server.ts\n" +
-            "4. Call show_preview with the server port (default 3000)\n\n" +
-            "Example server.ts:\n" +
-            "```\n" +
-            'import homepage from "./index.html";\n' +
-            "Bun.serve({\n" +
-            '  hostname: "0.0.0.0",\n' +
-            "  port: 3000,\n" +
-            '  routes: { "/": homepage },\n' +
-            "  development: true,\n" +
-            "});\n" +
-            "```\n\n" +
-            "Key points:\n" +
-            "- Bun handles TypeScript/JSX bundling and HMR automatically\n" +
-            "- Import HTML files directly — Bun bundles referenced scripts/styles\n" +
-            '- Set development: true for HMR\n' +
-            "- No Vite or build tools needed\n\n" +
-            "Use get_console_logs to check for errors. Call hide_preview when done.",
-        );
-      }
-
-      return sections;
-    },
-
     hooks: {
       afterToolExecution: async (event, ctx) => {
+        // When the sandbox elevates, inject CLAW_DB_BACKEND_ID so the
+        // container-db client library can include it in requests automatically.
+        if (event.toolName === "elevate" && !event.isError && options.backend) {
+          const backendId = `${ctx.agentId}:default`;
+          try {
+            await options.provider.start({
+              envVars: { CLAW_DB_BACKEND_ID: backendId },
+            });
+          } catch (err) {
+            console.warn("[vibe-coder] Failed to inject CLAW_DB_BACKEND_ID:", err);
+          }
+        }
+
         // When the sandbox de-elevates, close the preview if this session owns it
         if (event.toolName === "de_elevate") {
           const preview = await ctx.storage.get<{ port: number; sessionId: string }>("preview");

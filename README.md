@@ -27,6 +27,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 | `sandbox` | Controlled shell execution with elevation model and process management |
 | `cloudflare-sandbox` | Sandbox provider implementation for Cloudflare Containers |
 | `vibe-coder` | Live app preview with console capture (show_preview, hide_preview, get_console_logs) |
+| `container-db` | Tiny client library for container apps providing `env.DB`-compatible interface over `db.internal` |
 | `skill-registry` | D1-backed skill registry with self-seeding and `SkillRegistry` interface |
 | `skills` | On-demand procedural knowledge capability (skill_load tool, auto-update, agent-assisted merge) |
 
