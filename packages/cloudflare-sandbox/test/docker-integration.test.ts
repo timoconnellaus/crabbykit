@@ -96,7 +96,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     it("returns ready status", async () => {
       const health = (await fetchJson("/health")) as Record<string, unknown>;
       expect(health.ready).toBe(true);
-      expect(health.workspace).toBe("/mnt/r2");
+      expect(health.workspace).toBe("/workspace");
     });
   });
 
@@ -142,7 +142,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
         body: JSON.stringify({ command: "pwd" }),
       })) as { stdout: string };
 
-      expect(result.stdout.trim()).toBe("/mnt/r2");
+      expect(result.stdout.trim()).toBe("/workspace");
     });
   });
 
@@ -1141,14 +1141,14 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
   describe("nm-guard", () => {
     it("bind-mounts local disk over node_modules within 2 seconds", async () => {
       // Create a project with node_modules on the workspace
-      containerExec("sh -c 'mkdir -p /mnt/r2/test-project/node_modules'");
+      containerExec("sh -c 'mkdir -p /workspace/test-project/node_modules'");
 
       // Wait for nm-guard to detect and mount (polls every 500ms)
       await new Promise((r) => setTimeout(r, 2000));
 
       // Check if it's now a mountpoint
       const isMounted = containerExec(
-        "sh -c 'grep -q /mnt/r2/test-project/node_modules /proc/mounts && echo yes || echo no'",
+        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
       );
       expect(isMounted).toBe("yes");
     });
@@ -1157,13 +1157,13 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       // nm-intercept handles mounts instantly via LD_PRELOAD, but nm-guard
       // is the fallback that reports cleanup prefixes. Create a directory
       // as root (bypassing LD_PRELOAD) so nm-guard picks it up.
-      containerExec("sh -c 'mkdir -p /mnt/r2/guard-project/node_modules'");
+      containerExec("sh -c 'mkdir -p /workspace/guard-project/node_modules'");
       await new Promise((r) => setTimeout(r, 2000));
 
       // Consume any stale prefixes
       await fetchJson("/health");
       // nm-guard may have already reported — create another
-      containerExec("sh -c 'mkdir -p /mnt/r2/another-guard-project/node_modules'");
+      containerExec("sh -c 'mkdir -p /workspace/another-guard-project/node_modules'");
       await new Promise((r) => setTimeout(r, 2000));
 
       const health2 = (await fetchJson("/health")) as Record<string, unknown>;
@@ -1176,11 +1176,11 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     it("files written to bind-mounted node_modules have execute bits", async () => {
       // Write a file with execute permission in the mounted node_modules
       containerExec(
-        "sh -c 'echo \"#!/bin/sh\" > /mnt/r2/test-project/node_modules/test-bin && chmod +x /mnt/r2/test-project/node_modules/test-bin'",
+        "sh -c 'echo \"#!/bin/sh\" > /workspace/test-project/node_modules/test-bin && chmod +x /workspace/test-project/node_modules/test-bin'",
       );
 
       // Verify execute bit is preserved (would fail on FUSE)
-      const perms = containerExec("sh -c 'stat -c %a /mnt/r2/test-project/node_modules/test-bin'");
+      const perms = containerExec("sh -c 'stat -c %a /workspace/test-project/node_modules/test-bin'");
       expect(Number.parseInt(perms, 8) & 0o111).toBeGreaterThan(0);
     });
 
@@ -1188,20 +1188,20 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       // test-project already has a mount from earlier test
       // guard-project also has one from the cleanup prefix test
       const mount1 = containerExec(
-        "sh -c 'grep -q /mnt/r2/test-project/node_modules /proc/mounts && echo yes || echo no'",
+        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
       );
       const mount2 = containerExec(
-        "sh -c 'grep -q /mnt/r2/guard-project/node_modules /proc/mounts && echo yes || echo no'",
+        "sh -c 'grep -q /workspace/guard-project/node_modules /proc/mounts && echo yes || echo no'",
       );
       expect(mount1).toBe("yes");
       expect(mount2).toBe("yes");
 
       // Write different files to verify independence
-      containerExec("sh -c 'echo p1 > /mnt/r2/test-project/node_modules/marker'");
-      containerExec("sh -c 'echo p2 > /mnt/r2/guard-project/node_modules/marker'");
+      containerExec("sh -c 'echo p1 > /workspace/test-project/node_modules/marker'");
+      containerExec("sh -c 'echo p2 > /workspace/guard-project/node_modules/marker'");
 
-      const f1 = containerExec("cat /mnt/r2/test-project/node_modules/marker");
-      const f2 = containerExec("cat /mnt/r2/guard-project/node_modules/marker");
+      const f1 = containerExec("cat /workspace/test-project/node_modules/marker");
+      const f2 = containerExec("cat /workspace/guard-project/node_modules/marker");
       expect(f1.trim()).toBe("p1");
       expect(f2.trim()).toBe("p2");
     });
@@ -1211,7 +1211,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       // Just verify the mount is still valid after multiple guard cycles
       await new Promise((r) => setTimeout(r, 1500));
       const still = containerExec(
-        "sh -c 'grep -q /mnt/r2/test-project/node_modules /proc/mounts && echo yes || echo no'",
+        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
       );
       expect(still).toBe("yes");
     });
@@ -1228,7 +1228,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           command:
-            "mkdir -p /mnt/r2/intercept-test/node_modules && grep -q /mnt/r2/intercept-test/node_modules /proc/mounts && echo mounted || echo not-mounted",
+            "mkdir -p /workspace/intercept-test/node_modules && grep -q /workspace/intercept-test/node_modules /proc/mounts && echo mounted || echo not-mounted",
         }),
       })) as { stdout: string; exitCode: number };
 
@@ -1238,7 +1238,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     it("npm install succeeds in a project on the workspace", async () => {
       // Create a minimal package.json (as sandbox user so npm can write)
       containerExec(
-        `gosu sandbox sh -c 'mkdir -p /mnt/r2/npm-test && cat > /mnt/r2/npm-test/package.json << "PKGJSON"
+        `gosu sandbox sh -c 'mkdir -p /workspace/npm-test && cat > /workspace/npm-test/package.json << "PKGJSON"
 {
   "name": "nm-test",
   "private": true,
@@ -1254,7 +1254,7 @@ PKGJSON'`,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          command: "cd /mnt/r2/npm-test && npm install --no-audit --no-fund 2>&1",
+          command: "cd /workspace/npm-test && npm install --no-audit --no-fund 2>&1",
           timeout: 60000,
         }),
       })) as { stdout: string; stderr: string; exitCode: number };
@@ -1263,13 +1263,13 @@ PKGJSON'`,
 
       // Verify node_modules was bind-mounted
       const isMounted = containerExec(
-        "sh -c 'grep -q /mnt/r2/npm-test/node_modules /proc/mounts && echo yes || echo no'",
+        "sh -c 'grep -q /workspace/npm-test/node_modules /proc/mounts && echo yes || echo no'",
       );
       expect(isMounted).toBe("yes");
 
       // Verify the package was actually installed
       const installed = containerExec(
-        "sh -c 'test -d /mnt/r2/npm-test/node_modules/is-odd && echo yes || echo no'",
+        "sh -c 'test -d /workspace/npm-test/node_modules/is-odd && echo yes || echo no'",
       );
       expect(installed).toBe("yes");
     }, 90_000);
@@ -1277,7 +1277,7 @@ PKGJSON'`,
     it("node_modules/.bin scripts have execute bits after npm install", async () => {
       // Install a package with .bin entries to verify execute bits are preserved
       containerExec(
-        `gosu sandbox sh -c 'mkdir -p /mnt/r2/bin-test && cat > /mnt/r2/bin-test/package.json << "PKGJSON"
+        `gosu sandbox sh -c 'mkdir -p /workspace/bin-test && cat > /workspace/bin-test/package.json << "PKGJSON"
 {
   "name": "bin-test",
   "private": true,
@@ -1292,7 +1292,7 @@ PKGJSON'`,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          command: "cd /mnt/r2/bin-test && npm install --no-audit --no-fund 2>&1",
+          command: "cd /workspace/bin-test && npm install --no-audit --no-fund 2>&1",
           timeout: 60000,
         }),
       })) as { exitCode: number };
@@ -1301,7 +1301,7 @@ PKGJSON'`,
 
       // Verify .bin/semver is executable
       const perms = containerExec(
-        "sh -c 'stat -c %a /mnt/r2/bin-test/node_modules/.bin/semver 2>/dev/null || echo missing'",
+        "sh -c 'stat -c %a /workspace/bin-test/node_modules/.bin/semver 2>/dev/null || echo missing'",
       );
       expect(perms).not.toBe("missing");
       expect(Number.parseInt(perms, 8) & 0o111).toBeGreaterThan(0);

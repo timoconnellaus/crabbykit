@@ -33,12 +33,12 @@ export function createDeployAppTool(
     parameters: Type.Object({
       buildDir: Type.String({
         description:
-          "Absolute path to the build output directory in the sandbox (e.g. /mnt/r2/my-app/dist)",
+          "Absolute path to the build output directory in the sandbox (e.g. /workspace/my-app/dist)",
       }),
       backendEntry: Type.Optional(
         Type.String({
           description:
-            "Path to backend entry file (e.g. /mnt/r2/my-app/server/index.ts). " +
+            "Path to backend entry file (e.g. /workspace/my-app/server/index.ts). " +
             "When provided, the backend is bundled and deployed alongside the frontend.",
         }),
       ),
@@ -96,7 +96,7 @@ export function createDeployAppTool(
 
       // Generate deploy ID
       const deployId = crypto.randomUUID().slice(0, 8);
-      const deployPath = `/mnt/r2/deploys/${deployId}`;
+      const deployPath = `/workspace/deploys/${deployId}`;
 
       // Copy build output to deploy path on R2 (via FUSE mount)
       const copyResult = await provider.exec(

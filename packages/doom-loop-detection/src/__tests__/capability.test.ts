@@ -241,15 +241,18 @@ describe("doomLoopDetection", () => {
       expect(broadcast).not.toHaveBeenCalled();
     });
 
-    it("uses separate storage per ctx (no cross-session bleed)", async () => {
+    it("uses separate storage per session (no cross-session bleed)", async () => {
       const cap = doomLoopDetection({ threshold: 2 });
       const hook = cap.hooks!.beforeToolExecution!;
-      const ctx1 = makeCtx();
-      const ctx2 = makeCtx();
+      // Same storage, different session IDs — mirrors production where
+      // capability storage is shared across sessions within a DO.
+      const sharedStorage = createMockStorage();
+      const ctx1 = makeCtx({ sessionId: "session-1", storage: sharedStorage });
+      const ctx2 = makeCtx({ sessionId: "session-2", storage: sharedStorage });
       const event = makeEvent("search", {});
 
       await hook(event, ctx1);
-      // ctx2 has separate storage — no bleed
+      // ctx2 has same storage but different sessionId — no bleed
       expect(await hook(event, ctx2)).toBeUndefined();
     });
   });

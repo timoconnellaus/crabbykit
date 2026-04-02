@@ -20,7 +20,7 @@ import type { SandboxConfig, SandboxProvider } from "./types.js";
 
 const DEFAULT_IDLE_TIMEOUT = 180;
 const DEFAULT_ACTIVE_TIMEOUT = 900;
-const DEFAULT_CWD = "/mnt/r2";
+const DEFAULT_CWD = "/workspace";
 const DEFAULT_EXEC_TIMEOUT = 60_000;
 
 const DE_ELEVATION_NOTICE =

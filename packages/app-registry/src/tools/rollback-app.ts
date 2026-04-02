@@ -44,7 +44,7 @@ export function createRollbackAppTool(
       }
 
       // Update CURRENT file
-      const currentPath = `/mnt/r2/apps/${slug}/.deploys/CURRENT`;
+      const currentPath = `/workspace/apps/${slug}/.deploys/CURRENT`;
       await provider.exec(`echo "${version}" > "${currentPath}"`, { timeout: 10_000 });
 
       // Update SQL

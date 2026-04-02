@@ -304,7 +304,7 @@ describe("Message — toolResultMap", () => {
 // A2A system notes
 // ---------------------------------------------------------------------------
 describe("Message — A2A notes", () => {
-  it("renders complete A2A note", () => {
+  it("renders complete A2A note with header", () => {
     render(
       <Message
         message={{ role: "user", content: "[A2A Task Complete] Agent finished work" } as any}
@@ -313,7 +313,8 @@ describe("Message — A2A notes", () => {
     expect(q("a2a-note")).not.toBeNull();
     expect(q("a2a-note")?.getAttribute("data-status")).toBe("complete");
     expect(q("a2a-note-tag")?.textContent).toBe("Task complete");
-    expect(q("a2a-note-body")?.textContent).toBe("Agent finished work");
+    // Body is collapsed by default
+    expect(q("a2a-note-body")).toBeNull();
   });
 
   it("renders failed A2A note", () => {

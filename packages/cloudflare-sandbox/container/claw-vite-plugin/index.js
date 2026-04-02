@@ -54,7 +54,7 @@ export function clawForCloudflare(options) {
             overlay: false,
           },
           watch: {
-            // FUSE mounts (tigrisfs on /mnt/r2) don't support inotify.
+            // FUSE mounts (tigrisfs on /workspace) don't support inotify.
             // Polling lets chokidar detect file changes for HMR.
             usePolling: true,
             interval: 500,

@@ -13,10 +13,10 @@
  *   gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so nm-intercept.c -ldl
  *
  * Usage:
- *   LD_PRELOAD=/usr/local/lib/nm-intercept.so NM_INTERCEPT_MOUNT=/mnt/r2 <command>
+ *   LD_PRELOAD=/usr/local/lib/nm-intercept.so NM_INTERCEPT_MOUNT=/workspace <command>
  *
  * Environment:
- *   NM_INTERCEPT_MOUNT  — FUSE mount prefix to watch (default: /mnt/r2)
+ *   NM_INTERCEPT_MOUNT  — FUSE mount prefix to watch (default: /workspace)
  *   NM_INTERCEPT_BASE   — Local backing directory (default: /opt/sandbox/nm)
  */
 
@@ -50,7 +50,7 @@ static void ensure_init(void) {
     real_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
 
     mount_prefix = getenv("NM_INTERCEPT_MOUNT");
-    if (!mount_prefix) mount_prefix = "/mnt/r2";
+    if (!mount_prefix) mount_prefix = "/workspace";
     mount_prefix_len = strlen(mount_prefix);
 }
 

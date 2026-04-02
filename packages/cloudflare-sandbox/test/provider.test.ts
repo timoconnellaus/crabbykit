@@ -94,12 +94,12 @@ describe("CloudflareSandboxProvider", () => {
     it("returns parsed JSON on success", async () => {
       const stub = mockStub();
       (stub.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response(JSON.stringify({ ready: true, workspace: "/mnt/r2" })),
+        new Response(JSON.stringify({ ready: true, workspace: "/workspace" })),
       );
       const provider = createProvider(stub);
 
       const result = await provider.health();
-      expect(result).toEqual({ ready: true, workspace: "/mnt/r2" });
+      expect(result).toEqual({ ready: true, workspace: "/workspace" });
     });
 
     it("returns ready:false on failure", async () => {

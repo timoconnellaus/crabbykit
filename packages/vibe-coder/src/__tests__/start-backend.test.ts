@@ -92,7 +92,7 @@ describe("start_backend tool", () => {
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -109,7 +109,7 @@ describe("start_backend tool", () => {
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -120,14 +120,14 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/utils.ts\n" },
+        find: { stdout: "/workspace/app/server/utils.ts\n" },
         "cat": { stdout: "export const x = 1;" },
       }),
     });
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -139,7 +139,7 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/index.ts\n/mnt/r2/app/server/package.json\n" },
+        find: { stdout: "/workspace/app/server/index.ts\n/workspace/app/server/package.json\n" },
         cat: { stdout: "export default { fetch() {} }" },
       }),
     });
@@ -149,7 +149,7 @@ describe("start_backend tool", () => {
     const tool = createStartBackendTool(provider, ctx, backend);
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -202,7 +202,7 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/index.ts\n" },
+        find: { stdout: "/workspace/app/server/index.ts\n" },
         cat: { stdout: "code" },
       }),
     });
@@ -212,7 +212,7 @@ describe("start_backend tool", () => {
     const tool = createStartBackendTool(provider, ctx, backend);
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts", backendId: "my-custom-app" },
+      { entryPoint: "/workspace/app/server/index.ts", backendId: "my-custom-app" },
       { toolCallId: "tc1" },
     );
 
@@ -228,7 +228,7 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/index.ts\n" },
+        find: { stdout: "/workspace/app/server/index.ts\n" },
         cat: { stdout: "code" },
       }),
     });
@@ -241,7 +241,7 @@ describe("start_backend tool", () => {
     const tool = createStartBackendTool(provider, ctx, backend);
 
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -256,14 +256,14 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/index.ts\n" },
+        find: { stdout: "/workspace/app/server/index.ts\n" },
         cat: { stdout: "bad code" },
       }),
     });
 
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
     const result = await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts" },
+      { entryPoint: "/workspace/app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -275,14 +275,14 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/main.ts\n" },
+        find: { stdout: "/workspace/app/server/main.ts\n" },
         cat: { stdout: "code" },
       }),
     });
 
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
     await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/main.ts" },
+      { entryPoint: "/workspace/app/server/main.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -295,14 +295,14 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/src/server/index.ts\n" },
+        find: { stdout: "/workspace/app/src/server/index.ts\n" },
         cat: { stdout: "code" },
       }),
     });
 
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
     await tool.execute(
-      { entryPoint: "/mnt/r2/app/src/server/index.ts", sourceDir: "/mnt/r2/app/src" },
+      { entryPoint: "/workspace/app/src/server/index.ts", sourceDir: "/workspace/app/src" },
       { toolCallId: "tc1" },
     );
 
@@ -315,7 +315,7 @@ describe("start_backend tool", () => {
     const provider = mockProvider({
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
-        find: { stdout: "/mnt/r2/app/server/index.ts\n" },
+        find: { stdout: "/workspace/app/server/index.ts\n" },
         cat: { stdout: "export default { fetch() {} }" },
       }),
     });
@@ -323,7 +323,7 @@ describe("start_backend tool", () => {
     const backend = mockBackendOptions();
     const tool = createStartBackendTool(provider, mockContext(), backend);
     await tool.execute(
-      { entryPoint: "/mnt/r2/app/server/index.ts", backendId: "test-app" },
+      { entryPoint: "/workspace/app/server/index.ts", backendId: "test-app" },
       { toolCallId: "tc1" },
     );
 

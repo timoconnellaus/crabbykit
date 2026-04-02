@@ -31,7 +31,7 @@ function createMapStorage(): CapabilityStorage {
 const DEFAULT_CONFIG: Required<SandboxConfig> = {
   idleTimeout: 180,
   activeTimeout: 900,
-  defaultCwd: "/mnt/r2",
+  defaultCwd: "/workspace",
   defaultExecTimeout: 60_000,
 };
 
@@ -230,7 +230,7 @@ describe("exec tool — background mode", () => {
     );
 
     // sessionStart called with correct args
-    expect(provider.sessionStart).toHaveBeenCalledWith("npm start", { cwd: "/mnt/r2" });
+    expect(provider.sessionStart).toHaveBeenCalledWith("npm start", { cwd: "/workspace" });
 
     // Process ownership recorded
     const owner = await storage.get<string>("proc:bg-1");

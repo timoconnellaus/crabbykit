@@ -15,7 +15,7 @@ The example app SHALL declare `{ id: "vibe-webapp", enabled: true, autoUpdate: t
 - **THEN** the skill "vibe-webapp" appears in the available skills list in the system prompt
 
 ### Requirement: Skill content covers project setup
-The SKILL.md SHALL document the project directory structure, required files (index.html, app.tsx, server.ts, package.json, bunfig.toml), and how to create them on `/mnt/r2/`.
+The SKILL.md SHALL document the project directory structure, required files (index.html, app.tsx, server.ts, package.json, bunfig.toml), and how to create them on `/workspace/`.
 
 #### Scenario: Agent loads skill and creates project
 - **WHEN** the agent loads the vibe-webapp skill and follows the setup instructions

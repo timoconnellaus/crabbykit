@@ -114,7 +114,7 @@ export function createStartBackendTool(
     parameters: Type.Object({
       entryPoint: Type.String({
         description:
-          "Path to the backend entry file in the sandbox (e.g. /mnt/r2/my-app/server/index.ts)",
+          "Path to the backend entry file in the sandbox (e.g. /workspace/my-app/server/index.ts)",
       }),
       backendId: Type.Optional(
         Type.String({

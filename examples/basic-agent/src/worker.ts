@@ -82,10 +82,10 @@ Build fullstack web apps using Bun inside the sandbox container. Apps run on Bun
 
 ## Project Structure
 
-Create apps on \`/mnt/r2/\` so files persist. Typical layout:
+Create apps on \`/workspace/\` so files persist. Typical layout:
 
 \`\`\`
-/mnt/r2/my-app/
+/workspace/my-app/
   package.json
   bunfig.toml        # (optional, for Tailwind plugin)
   server.ts          # Bun.serve() entry point
@@ -98,7 +98,7 @@ Create apps on \`/mnt/r2/\` so files persist. Typical layout:
 
 Use Bun.serve() with HTML imports and route-based API handlers.
 
-**IMPORTANT: \`@claw-for-cloudflare/container-db\` is pre-installed in the container via a Bun plugin. Do NOT add it to package.json — it is not on npm and will cause \`bun install\` to fail with a 404. Just import it directly in your code.**
+Use \`@claw-for-cloudflare/container-db\` for database access. Add it to package.json and run \`bun install\` — the package is pre-installed in the container.
 
 \`\`\`typescript
 import { createDB } from "@claw-for-cloudflare/container-db";
@@ -179,7 +179,7 @@ createRoot(document.getElementById("root")).render(<App />);
 
 ## Database (container-db)
 
-Use \`@claw-for-cloudflare/container-db\` for database access. It works identically in dev (container) and deploy (worker). It is pre-installed — do NOT add it to package.json.
+Use \`@claw-for-cloudflare/container-db\` for database access. Add it to package.json and run \`bun install\`. It works identically in dev (container) and deploy (worker).
 
 \`\`\`typescript
 import { createDB } from "@claw-for-cloudflare/container-db";
@@ -197,7 +197,7 @@ await db.batch([
 
 Always use parameterized queries (\`?\` placeholders) — never interpolate values into SQL strings.
 
-\`@claw-for-cloudflare/container-db\` is pre-installed in the container — no need to add it to package.json or run bun install for it.
+\`@claw-for-cloudflare/container-db\` is pre-installed in the container and resolves automatically via \`bun install\`.
 
 ## AI Access
 
@@ -237,10 +237,10 @@ Then use Tailwind classes in your components and import the CSS file in index.ht
 
 ## Dev Workflow
 
-1. Create the project directory on /mnt/r2/
+1. Create the project directory on /workspace/
 2. Write all source files
-3. \`cd /mnt/r2/my-app && bun install\`
-4. Start the server: \`exec\` with \`background=true\`: \`cd /mnt/r2/my-app && bun run server.ts\`
+3. \`cd /workspace/my-app && bun install\`
+4. Start the server: \`exec\` with \`background=true\`: \`cd /workspace/my-app && bun run server.ts\`
 5. Call \`show_preview\` with the server port (default 3000)
 6. Iterate: edit files, the server auto-reloads with HMR
 7. Use \`get_console_logs\` to check for frontend errors
@@ -269,7 +269,7 @@ For apps with backends, use \`start_backend\` first to bundle and load the backe
 - **Absolute fetch paths**: Frontend fetch calls must use relative paths (\`fetch("/api/items")\`), not absolute URLs
 - **Missing development: true**: Without \`development: true\` in Bun.serve(), HMR and console output won't work
 - **Forgetting to restart after changes**: If you change server.ts structure (new routes, etc.), restart the server process
-- **Trying to install container-db**: \`@claw-for-cloudflare/container-db\` is pre-installed in the container via a Bun plugin — do NOT add it to package.json (it will 404 from npm)
+- **Missing container-db dependency**: Add \`@claw-for-cloudflare/container-db\` to package.json — it's pre-installed in the container and resolves via \`bun install\`
 `;
 
 const EXAMPLE_SKILL_SEEDS: SkillSeed[] = [
@@ -278,7 +278,7 @@ const EXAMPLE_SKILL_SEEDS: SkillSeed[] = [
     name: "Vibe Webapp",
     description:
       "Fullstack Bun web app development with database via container-db, React frontend, Tailwind styling, live preview, and deployment. Load when building web apps in the sandbox.",
-    version: "1.1.0",
+    version: "1.4.0",
     requiresCapabilities: ["vibe-coder", "sandbox"],
     skillMd: VIBE_WEBAPP_SKILL_MD,
   },

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
 import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client";
-import type { ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, useState } from "react";
 import { MarkdownContent } from "./markdown-content";
 import type { ToolResultInfo } from "./message-list";
 import { ToolCallEntry } from "./tool-call-entry";
@@ -179,14 +179,83 @@ function isA2ASystemNote(role: string, text: string): boolean {
 }
 
 /** Parse an A2A system note into structured parts. */
-function parseA2ANote(text: string): { status: "complete" | "failed" | "other"; body: string } {
+function parseA2ANote(text: string): {
+  status: "complete" | "failed" | "other";
+  agentName: string | null;
+  summary: string;
+  body: string;
+} {
   const status = text.startsWith("[A2A Task Complete]")
     ? ("complete" as const)
     : text.startsWith("[A2A Task Failed]")
       ? ("failed" as const)
       : ("other" as const);
   const body = text.replace(/^\[A2A Task[^\]]*\]\s*/, "");
-  return { status, body };
+
+  // Extract agent name from patterns like: Agent "child-agent" finished.
+  const agentMatch = body.match(/^Agent "([^"]+)"/);
+  const agentName = agentMatch ? agentMatch[1] : null;
+
+  // Extract result/error text after "Result: " or "Error: "
+  const resultMatch = body.match(/\n(?:Result|Error): ([\s\S]*)$/);
+  const summary = resultMatch ? resultMatch[1].trim() : body;
+
+  return { status, agentName, summary, body };
+}
+
+/** Collapsible A2A task note, styled to match tool-entry rows. */
+function A2ANote({
+  text,
+  ...props
+}: { text: string } & ComponentPropsWithoutRef<"div">) {
+  const [open, setOpen] = useState(false);
+  const { status, agentName, summary, body } = parseA2ANote(text);
+
+  const label =
+    status === "complete"
+      ? "Task complete"
+      : status === "failed"
+        ? "Task failed"
+        : "Task update";
+
+  return (
+    <div
+      data-agent-ui="a2a-note"
+      data-status={status}
+      data-open={open || undefined}
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        const sel = window.getSelection();
+        if (sel && sel.toString().length > 0) return;
+        setOpen(!open);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setOpen(!open);
+        }
+      }}
+      {...props}
+    >
+      <div data-agent-ui="a2a-note-header">
+        <span data-agent-ui="a2a-note-indicator" data-status={status} />
+        <span data-agent-ui="a2a-note-tag">{label}</span>
+        {agentName && <span data-agent-ui="a2a-note-detail">{agentName}</span>}
+      </div>
+
+      {open && (
+        <div
+          data-agent-ui="a2a-note-body"
+          role="none"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <MarkdownContent content={summary || body} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Message({ message, toolResultMap, ...props }: MessageProps) {
@@ -197,21 +266,9 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
   const thinkingText = (message as StreamableMessage)._thinking;
   const timestamp = "timestamp" in message ? (message.timestamp as number) : undefined;
 
-  // A2A task results render as system notes
+  // A2A task results render as system notes (tool-entry style)
   if (isA2ASystemNote(role, text)) {
-    const { status, body } = parseA2ANote(text);
-    return (
-      <div data-agent-ui="a2a-note" data-status={status} {...props}>
-        <span data-agent-ui="a2a-note-tag">
-          {status === "complete"
-            ? "Task complete"
-            : status === "failed"
-              ? "Task failed"
-              : "Task update"}
-        </span>
-        <span data-agent-ui="a2a-note-body">{body}</span>
-      </div>
-    );
+    return <A2ANote text={text} {...props} />;
   }
 
   if (isCommandResult) {

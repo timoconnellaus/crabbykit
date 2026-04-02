@@ -1286,12 +1286,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
-      broadcast: (name, data) =>
-        this.broadcastToSession(sessionId, {
-          type: "custom_event",
-          sessionId,
-          event: { name, data },
-        }),
+      broadcast: this.createSessionBroadcast(sessionId),
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       requestFromClient: (eventName, eventData, timeoutMs) =>
         this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
@@ -1464,12 +1459,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
-      broadcast: (name, data) =>
-        this.broadcastToSession(sessionId, {
-          type: "custom_event",
-          sessionId,
-          event: { name, data },
-        }),
+      broadcast: this.createSessionBroadcast(sessionId),
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: this.buildScheduleManager(),
@@ -1549,12 +1539,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         (capId) => createCapabilityStorage(this.kvStore, capId),
       );
 
-    const broadcastFn = (name: string, data: Record<string, unknown>) =>
-      this.broadcastToSession(sessionId, {
-        type: "custom_event",
-        sessionId,
-        event: { name, data },
-      });
+    const broadcastFn = this.createSessionBroadcast(sessionId);
 
     for (const hook of resolved.onConnectHooks) {
       try {
@@ -2074,12 +2059,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       callbackBaseUrl: clientOpts.callbackBaseUrl ?? "https://agent",
       maxDepth: clientOpts.maxDepth ?? 5,
       authHeaders: clientOpts.authHeaders,
-      broadcast: (name, data) =>
-        this.broadcastToSession(sessionId, {
-          type: "custom_event",
-          sessionId,
-          event: { name, data },
-        }),
+      broadcast: this.createSessionBroadcast(sessionId),
     };
 
     return [
@@ -2453,7 +2433,28 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.transport.broadcastToSession(sessionId, msg);
   }
 
+  /** Create a session-scoped broadcast function that converts well-known events to typed messages. */
+  private createSessionBroadcast(sessionId: string): (name: string, data: Record<string, unknown>) => void {
+    return (name, data) => {
+      if (name === "skill_list_update" && Array.isArray(data.skills)) {
+        this.broadcastToSession(sessionId, { type: "skill_list", skills: data.skills } as ServerMessage);
+        return;
+      }
+      this.broadcastToSession(sessionId, {
+        type: "custom_event",
+        sessionId,
+        event: { name, data },
+      });
+    };
+  }
+
   protected broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
+    // Convert well-known custom events into their typed transport messages
+    if (name === "skill_list_update" && Array.isArray(data.skills)) {
+      const msg: ServerMessage = { type: "skill_list", skills: data.skills };
+      this.transport.broadcast(msg);
+      return;
+    }
     for (const connection of this.transport.getConnections()) {
       connection.send({
         type: "custom_event",

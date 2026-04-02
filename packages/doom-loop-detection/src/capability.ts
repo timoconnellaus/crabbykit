@@ -4,7 +4,7 @@ import { stableStringify } from "./stable-stringify.js";
 
 const DEFAULT_THRESHOLD = 3;
 const DEFAULT_LOOKBACK = 10;
-const STORAGE_KEY = "recent-tool-calls";
+const STORAGE_KEY_PREFIX = "recent-tool-calls";
 
 /** Serialized record of a tool call for comparison. */
 interface ToolCallRecord {
@@ -52,14 +52,16 @@ export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capab
     configDefault: { threshold, lookbackWindow },
     hooks: {
       beforeToolExecution: async (event, ctx) => {
+        const storageKey = `${STORAGE_KEY_PREFIX}:${ctx.sessionId}`;
+
         // Check allow-repeat exemption
         if (allowRepeatSet.has(event.toolName)) {
-          await recordToolCall(ctx.storage, event.toolName, event.args, lookbackWindow);
+          await recordToolCall(ctx.storage, storageKey, event.toolName, event.args, lookbackWindow);
           return;
         }
 
         const argsSignature = stableStringify(event.args);
-        const recentCalls = await getRecentCalls(ctx.storage);
+        const recentCalls = await getRecentCalls(ctx.storage, storageKey);
 
         // Count consecutive identical calls from the tail
         let consecutiveCount = 0;
@@ -75,7 +77,7 @@ export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capab
         }
 
         // Record the current call
-        await recordToolCall(ctx.storage, event.toolName, event.args, lookbackWindow);
+        await recordToolCall(ctx.storage, storageKey, event.toolName, event.args, lookbackWindow);
 
         // +1 because the current call counts too
         if (consecutiveCount + 1 >= threshold) {
@@ -93,8 +95,8 @@ export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capab
   };
 }
 
-async function getRecentCalls(storage: CapabilityStorage): Promise<ToolCallRecord[]> {
-  const raw = await storage.get<string>(STORAGE_KEY);
+async function getRecentCalls(storage: CapabilityStorage, key: string): Promise<ToolCallRecord[]> {
+  const raw = await storage.get<string>(key);
   if (!raw) return [];
   try {
     return JSON.parse(raw) as ToolCallRecord[];
@@ -105,15 +107,16 @@ async function getRecentCalls(storage: CapabilityStorage): Promise<ToolCallRecor
 
 async function recordToolCall(
   storage: CapabilityStorage,
+  key: string,
   toolName: string,
   args: unknown,
   lookbackWindow: number,
 ): Promise<void> {
-  const recent = await getRecentCalls(storage);
+  const recent = await getRecentCalls(storage, key);
   recent.push({ toolName, argsSignature: stableStringify(args) });
   // Trim to lookback window
   while (recent.length > lookbackWindow) {
     recent.shift();
   }
-  await storage.put(STORAGE_KEY, JSON.stringify(recent));
+  await storage.put(key, JSON.stringify(recent));
 }

@@ -34,12 +34,12 @@ export function createDeployAppTool(
       ),
       buildDir: Type.String({
         description:
-          "Absolute path to the build output directory in the sandbox (e.g. /mnt/r2/my-app/dist)",
+          "Absolute path to the build output directory in the sandbox (e.g. /workspace/my-app/dist)",
       }),
       backendEntry: Type.Optional(
         Type.String({
           description:
-            "Path to backend entry file (e.g. /mnt/r2/my-app/server/index.ts). " +
+            "Path to backend entry file (e.g. /workspace/my-app/server/index.ts). " +
             "When provided, the backend is bundled and deployed alongside the frontend.",
         }),
       ),
@@ -120,7 +120,7 @@ export function createDeployAppTool(
       // Generate deploy ID and create version path
       const deployId = crypto.randomUUID().slice(0, 8);
       const versionNum = app.currentVersion + 1;
-      const deployPath = `/mnt/r2/apps/${appSlug}/.deploys/v${versionNum}`;
+      const deployPath = `/workspace/apps/${appSlug}/.deploys/v${versionNum}`;
 
       // Copy build output to deploy path
       const copyResult = await provider.exec(
@@ -150,7 +150,7 @@ export function createDeployAppTool(
       }
 
       // Write CURRENT file
-      const currentPath = `/mnt/r2/apps/${appSlug}/.deploys/CURRENT`;
+      const currentPath = `/workspace/apps/${appSlug}/.deploys/CURRENT`;
       await provider.exec(`echo "${versionNum}" > "${currentPath}"`, { timeout: 10_000 });
 
       // Register version in SQL

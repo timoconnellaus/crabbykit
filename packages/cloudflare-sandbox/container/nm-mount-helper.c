@@ -8,7 +8,7 @@
  * Usage:  nm-mount-helper <node_modules_path>
  *
  * Environment:
- *   NM_INTERCEPT_MOUNT  — FUSE mount prefix (default: /mnt/r2)
+ *   NM_INTERCEPT_MOUNT  — FUSE mount prefix (default: /workspace)
  *   NM_INTERCEPT_BASE   — Local backing directory (default: /opt/sandbox/nm)
  *
  * Security: Validates that the path is a node_modules directory under
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     }
 
     const char *mount_prefix = getenv("NM_INTERCEPT_MOUNT");
-    if (!mount_prefix) mount_prefix = "/mnt/r2";
+    if (!mount_prefix) mount_prefix = "/workspace";
     size_t mount_prefix_len = strlen(mount_prefix);
 
     const char *nm_base = getenv("NM_INTERCEPT_BASE");

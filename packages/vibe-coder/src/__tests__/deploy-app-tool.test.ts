@@ -101,7 +101,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, mockContext(), mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -119,7 +119,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, mockContext(), mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -137,7 +137,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, mockContext(), mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -155,7 +155,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, mockContext(), mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -176,7 +176,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, ctx, storage);
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -199,7 +199,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, ctx, storage);
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 
@@ -218,7 +218,7 @@ describe("deploy_app tool", () => {
     const ctx = mockContext();
     const tool = createDeployAppTool(provider, ctx, mockAgentStorage());
 
-    await tool.execute({ buildDir: "/mnt/r2/my-app/dist" }, { toolCallId: "tc1" });
+    await tool.execute({ buildDir: "/workspace/my-app/dist" }, { toolCallId: "tc1" });
 
     const putFn = ctx.storage!.put as ReturnType<typeof vi.fn>;
     expect(putFn).toHaveBeenCalledWith(
@@ -227,7 +227,7 @@ describe("deploy_app tool", () => {
         deployId: expect.any(String),
         files: ["index.html", "app.js"],
         deployedAt: expect.any(String),
-        buildDir: "/mnt/r2/my-app/dist",
+        buildDir: "/workspace/my-app/dist",
         hasBackend: false,
       }),
     );
@@ -244,7 +244,7 @@ describe("deploy_app tool", () => {
     const ctx = mockContext();
     const tool = createDeployAppTool(provider, ctx, mockAgentStorage());
 
-    await tool.execute({ buildDir: "/mnt/r2/my-app/dist" }, { toolCallId: "tc1" });
+    await tool.execute({ buildDir: "/workspace/my-app/dist" }, { toolCallId: "tc1" });
 
     expect(ctx.broadcast).toHaveBeenCalledWith(
       "deploy_complete",
@@ -273,7 +273,7 @@ describe("deploy_app tool", () => {
         }
         // Backend file listing — must return absolute paths matching the sourceDir
         return Promise.resolve({
-          stdout: "/mnt/r2/my-app/server/index.ts\n",
+          stdout: "/workspace/my-app/server/index.ts\n",
           stderr: "",
           exitCode: 0,
         });
@@ -290,7 +290,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, ctx, mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist", backendEntry: "/mnt/r2/my-app/server/index.ts" },
+      { buildDir: "/workspace/my-app/dist", backendEntry: "/workspace/my-app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -316,7 +316,7 @@ describe("deploy_app tool", () => {
           return Promise.resolve({ stdout: "index.html\n", stderr: "", exitCode: 0 });
         }
         return Promise.resolve({
-          stdout: "/mnt/r2/my-app/server/index.ts\n",
+          stdout: "/workspace/my-app/server/index.ts\n",
           stderr: "",
           exitCode: 0,
         });
@@ -332,7 +332,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, ctx, mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist", backendEntry: "/mnt/r2/my-app/server/index.ts" },
+      { buildDir: "/workspace/my-app/dist", backendEntry: "/workspace/my-app/server/index.ts" },
       { toolCallId: "tc1" },
     );
 
@@ -352,7 +352,7 @@ describe("deploy_app tool", () => {
     const tool = createDeployAppTool(provider, mockContext(), mockAgentStorage());
 
     const result = await tool.execute(
-      { buildDir: "/mnt/r2/my-app/dist" },
+      { buildDir: "/workspace/my-app/dist" },
       { toolCallId: "tc1" },
     );
 

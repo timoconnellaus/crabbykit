@@ -2,9 +2,15 @@
 export type { AppPreviewProps, ConsoleLogEntry } from "./components/app-preview";
 export { AppPreview } from "./components/app-preview";
 
+// Browser panel
+export type { BrowserPanelProps } from "./components/browser-panel";
+export { BrowserPanel } from "./components/browser-panel";
+
 // Hooks
 export type { UsePreviewReturn } from "./hooks/use-preview";
 export { usePreview } from "./hooks/use-preview";
+export type { UseBrowserReturn, BrowserState } from "./hooks/use-browser";
+export { useBrowser } from "./hooks/use-browser";
 
 // Context
 

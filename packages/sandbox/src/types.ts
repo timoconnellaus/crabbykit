@@ -120,7 +120,7 @@ export interface SandboxConfig {
   idleTimeout?: number;
   /** Seconds before auto-de-elevation with active processes (default 900). */
   activeTimeout?: number;
-  /** Default working directory for exec (default "/mnt/r2"). */
+  /** Default working directory for exec (default "/workspace"). */
   defaultCwd?: string;
   /** Default exec timeout in milliseconds (default 60000). */
   defaultExecTimeout?: number;

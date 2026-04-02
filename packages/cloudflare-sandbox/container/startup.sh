@@ -10,7 +10,7 @@
 
 set -e
 
-MOUNT_POINT="/mnt/r2"
+MOUNT_POINT="/workspace"
 R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 CONTAINER_MODE="${CONTAINER_MODE:-normal}"
 

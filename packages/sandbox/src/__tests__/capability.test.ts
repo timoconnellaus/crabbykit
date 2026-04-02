@@ -158,7 +158,7 @@ describe("sandboxCapability", () => {
 
       expect(provider.exec).toHaveBeenCalledWith("echo hello", {
         timeout: 60_000,
-        cwd: "/mnt/r2",
+        cwd: "/workspace",
         signal: undefined,
       });
       const text = (result.content[0] as { text: string }).text;

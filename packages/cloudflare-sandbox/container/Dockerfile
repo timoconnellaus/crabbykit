@@ -25,7 +25,7 @@ RUN ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
     chmod +x /usr/local/bin/tigrisfs
 
 # Create workspace and persist directories
-RUN mkdir -p /mnt/r2 /opt/sandbox/persist /opt/sandbox/nm && \
+RUN mkdir -p /workspace /opt/sandbox/persist /opt/sandbox/nm && \
     chown -R sandbox:sandbox /opt/sandbox
 
 # Redirect global package managers to persist volume (not FUSE)
@@ -64,14 +64,11 @@ COPY claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
 RUN mkdir -p /node_modules/@claw-for-cloudflare && \
     ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
 
-# Install @claw-for-cloudflare/container-db and the Bun plugin that resolves
-# @claw-for-cloudflare/* imports. The plugin is preloaded globally via bunfig.toml
-# so apps can `import { createDB } from "@claw-for-cloudflare/container-db"` without
-# needing to bun install claw packages.
+# Install @claw-for-cloudflare/container-db so vibe-coded apps can import it.
+# Symlinked into /node_modules/ (same approach as vite-plugin) so standard
+# Node/Bun resolution finds it from any project path.
 COPY claw-container-db/ /usr/local/lib/claw-container-db/
-COPY claw-bun-plugin.ts /usr/local/lib/claw-bun-plugin.ts
-RUN echo 'preload = ["/usr/local/lib/claw-bun-plugin.ts"]' > /home/sandbox/.bunfig.toml && \
-    chown sandbox:sandbox /home/sandbox/.bunfig.toml
+RUN ln -sf /usr/local/lib/claw-container-db /node_modules/@claw-for-cloudflare/container-db
 
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts constants.ts types.ts state.ts helpers.ts sessions.ts routes.ts /app/

@@ -48,7 +48,7 @@ export class SandboxContainer extends Container<SandboxContainerEnv> {
     super(ctx, env);
     // AGENT_ID is derived from the DO name (set by idFromName in the provider).
     // R2 credentials are forwarded from the worker env to the container process
-    // so tigrisfs can mount the correct bucket prefix at /mnt/r2.
+    // so tigrisfs can mount the correct bucket prefix at /workspace.
     const agentId = ctx.id.name ?? "default";
     this.envVars = {
       AWS_ACCESS_KEY_ID: env.AWS_ACCESS_KEY_ID,

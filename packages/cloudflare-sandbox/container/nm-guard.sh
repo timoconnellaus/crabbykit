@@ -11,7 +11,7 @@
 
 set -e
 
-MOUNT_POINT="${MOUNT_POINT:-/mnt/r2}"
+MOUNT_POINT="${MOUNT_POINT:-/workspace}"
 NM_BASE="/opt/sandbox/nm"
 POLL_INTERVAL="0.5"
 SANDBOX_PORT="${SANDBOX_PORT:-8080}"

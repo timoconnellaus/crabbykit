@@ -112,6 +112,29 @@ export interface InjectMessageMessage {
   message: AgentMessage;
 }
 
+export interface SkillListEntry {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  enabled: boolean;
+  autoUpdate: boolean;
+  stale: boolean;
+  /** True for skills declared at build time — cannot be uninstalled. */
+  builtIn?: boolean;
+}
+
+export interface SkillListMessage {
+  type: "skill_list";
+  skills: SkillListEntry[];
+}
+
+export interface SystemPromptMessage {
+  type: "system_prompt";
+  sections: Array<{ name: string; key: string; content: string; lines: number }>;
+  raw: string;
+}
+
 export interface PongMessage {
   type: "pong";
 }
@@ -148,6 +171,8 @@ export type ServerMessage =
   | CommandListMessage
   | CustomEventMessage
   | InjectMessageMessage
+  | SkillListMessage
+  | SystemPromptMessage
   | TaskEventMessage
   | SubagentEventMessage
   | PongMessage;
@@ -215,6 +240,10 @@ export interface CustomResponseMessage {
   data: Record<string, unknown>;
 }
 
+export interface RequestSystemPromptMessage {
+  type: "request_system_prompt";
+}
+
 export interface PingMessage {
   type: "ping";
 }
@@ -230,4 +259,5 @@ export type ClientMessage =
   | RequestSyncMessage
   | ToggleScheduleMessage
   | CustomResponseMessage
+  | RequestSystemPromptMessage
   | PingMessage;

@@ -9,8 +9,8 @@ RUN apk add --no-cache coreutils gosu shadow curl gcc musl-dev linux-headers pyt
 RUN useradd -m -s /bin/sh sandbox
 
 # Create workspace and persist directories (no FUSE — just regular dirs)
-RUN mkdir -p /mnt/r2 /opt/sandbox/persist /opt/sandbox/nm && \
-    chown -R sandbox:sandbox /mnt/r2 /opt/sandbox
+RUN mkdir -p /workspace /opt/sandbox/persist /opt/sandbox/nm && \
+    chown -R sandbox:sandbox /workspace /opt/sandbox
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ RUN chmod +x /app/nm-guard.sh
 
 # Set up LD_PRELOAD for nm-intercept
 ENV LD_PRELOAD=/usr/local/lib/nm-intercept.so \
-    NM_INTERCEPT_MOUNT=/mnt/r2 \
+    NM_INTERCEPT_MOUNT=/workspace \
     NM_INTERCEPT_BASE=/opt/sandbox/nm
 
 EXPOSE 8080

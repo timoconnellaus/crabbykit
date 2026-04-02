@@ -30,7 +30,7 @@ export function createDeleteAppTool(
       }
 
       // Clean up R2 artifacts
-      await provider.exec(`rm -rf "/mnt/r2/apps/${slug}"`, { timeout: 30_000 });
+      await provider.exec(`rm -rf "/workspace/apps/${slug}"`, { timeout: 30_000 });
 
       // Remove from SQL
       appStore.delete(app.id);

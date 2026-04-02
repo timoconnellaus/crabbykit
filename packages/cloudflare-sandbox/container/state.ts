@@ -3,7 +3,7 @@
  */
 import type { ManagedProcess, Session } from "./types.ts";
 
-export let workspacePath = process.env.AGENT_ID ? "/mnt/r2" : "";
+export let workspacePath = process.env.AGENT_ID ? "/workspace" : "";
 export let injectedEnv: Record<string, string> = {};
 export let lastActivityAt = Date.now();
 export let containerMode = process.env.CONTAINER_MODE ?? "normal";

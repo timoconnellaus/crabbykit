@@ -36,7 +36,7 @@ function createMapStorage(): CapabilityStorage {
 const DEFAULT_CONFIG: Required<SandboxConfig> = {
   idleTimeout: 180,
   activeTimeout: 900,
-  defaultCwd: "/mnt/r2",
+  defaultCwd: "/workspace",
   defaultExecTimeout: 60_000,
 };
 
