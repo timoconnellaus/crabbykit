@@ -17,6 +17,8 @@ export function createDeElevateTool(
   return defineTool({
     name: "de_elevate",
     description: "Deactivate the sandbox and release resources.",
+    guidance:
+      "Explicitly deactivate the sandbox when you're done with shell access. This releases container resources. The sandbox also auto-deactivates after idle timeout, but prefer explicit de-elevation when you know you're finished.",
     parameters: Type.Object({}),
     execute: async () => {
       const storage = context.storage;

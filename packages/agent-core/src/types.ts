@@ -311,6 +311,11 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any
   extends Tool<TParameters> {
   // A human-readable label for the tool to be displayed in UI
   label: string;
+  /** Behavioral instructions injected into the system prompt.
+   *  Unlike `description` (which goes to the API tool definition for tool selection),
+   *  `guidance` provides detailed usage instructions visible in the system prompt.
+   *  Falls back to `description` if unset. */
+  guidance?: string;
   execute: (
     args: Static<TParameters>,
     context: ToolExecuteContext<TDetails>,

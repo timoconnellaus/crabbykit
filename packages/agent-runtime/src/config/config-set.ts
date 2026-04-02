@@ -40,6 +40,8 @@ export function createConfigSet(ctx: ConfigContext) {
       "For capabilities, use 'capability:{id}' namespace.",
       "To rename session: config_set('session', { name: '...' }).",
     ].join(" "),
+    guidance:
+      "Update the agent's configuration for a given namespace. Values are validated against the config schema. Use config_schema first to inspect the expected shape. For capabilities, use 'capability:{id}' namespace.",
     parameters: Type.Object({
       namespace: Type.String({ description: "Config namespace to update." }),
       value: Type.Unknown({ description: "The new configuration value." }),

@@ -16,6 +16,8 @@ export function createFileReadTool(
     name: "file_read",
     description:
       "Read file contents from storage. Supports optional line-based offset and limit for partial reads. Large files are automatically truncated.",
+    guidance:
+      "Read the contents of a file in storage. Supports optional line-based offset and limit for partial reads. Large files are automatically truncated with a notice. Prefer this over other methods for reading files — it provides better error handling.",
     parameters: Type.Object({
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
       offset: Type.Optional(

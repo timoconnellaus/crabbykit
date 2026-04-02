@@ -15,6 +15,8 @@ export function createProcessTool(
       "Manage backgrounded command sessions. Use after exec with background=true. " +
       "Actions: list (show all sessions), poll (check output), log (read log file), " +
       "write (send stdin input), kill (terminate), remove (clean up finished session).",
+    guidance:
+      "Manage backgrounded command sessions started with exec background=true. Use poll to check for new output, log to read the full log file, write to send stdin input, kill to terminate, and remove to clean up finished sessions. Always poll or check logs before assuming a background command has failed.",
     parameters: Type.Object({
       action: Type.Union(
         [

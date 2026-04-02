@@ -10,6 +10,8 @@ export function createFileEditTool(getBucket: () => R2Bucket, getPrefix: () => s
     name: "file_edit",
     description:
       "Edit a file by replacing a specific string. The old_string must match exactly including whitespace and indentation. By default replaces only the first occurrence; use replace_all for all occurrences.",
+    guidance:
+      "Apply targeted string replacements to a file. The old_string must match exactly including whitespace and indentation. Use this for small changes to existing files instead of file_write, which overwrites the entire file.",
     parameters: Type.Object({
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
       old_string: Type.String({ description: "The exact string to find and replace" }),

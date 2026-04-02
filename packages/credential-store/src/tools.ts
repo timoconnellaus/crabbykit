@@ -8,6 +8,8 @@ export function createSaveSecretTool(context: AgentContext) {
     name: "save_secret",
     description:
       "Encrypt and store a named secret (API key, token, password). The secret is persisted across sessions and can be retrieved by other capabilities.",
+    guidance:
+      "Encrypt and store a named secret for use across sessions. Use this for API keys, tokens, or passwords that other capabilities need. Secrets are encrypted at rest. Maximum size is 100KB.",
     parameters: Type.Object({
       name: Type.String({
         description: "Name for the secret (e.g., OPENAI_API_KEY, GITHUB_TOKEN)",
@@ -52,6 +54,8 @@ export function createListSecretsTool(context: AgentContext) {
   return defineTool({
     name: "list_secrets",
     description: "List saved secrets (names only, no values).",
+    guidance:
+      "Show all stored secret names and when they were saved. Does not reveal secret values — use this to check what credentials are available before attempting operations that need them.",
     parameters: Type.Object({}),
     execute: async () => {
       const storage = context.storage;
@@ -83,6 +87,8 @@ export function createDeleteSecretTool(context: AgentContext) {
   return defineTool({
     name: "delete_secret",
     description: "Delete a saved secret.",
+    guidance:
+      "Permanently remove a stored secret. Use this to clean up credentials that are no longer needed or have been rotated.",
     parameters: Type.Object({
       name: Type.String({ description: "Name of the secret to delete" }),
     }),

@@ -12,6 +12,8 @@ export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => 
     name: "file_write",
     description:
       "Create or overwrite a file in storage. Parent directories are created automatically. Maximum content size is 1MB.",
+    guidance:
+      "Create or overwrite a file in storage. Parent directories are created automatically. Use file_edit for targeted changes to existing files instead of rewriting the entire file.",
     parameters: Type.Object({
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
       content: Type.String({ description: "Content to write to the file" }),

@@ -10,6 +10,8 @@ export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => s
     name: "file_list",
     description:
       "List directory contents (one level deep). Returns files and subdirectories at the given path.",
+    guidance:
+      "List directory contents one level deep. Use file_tree for a recursive view of directory structure, or file_find to search by glob pattern.",
     parameters: Type.Object({
       path: Type.Optional(
         Type.String({

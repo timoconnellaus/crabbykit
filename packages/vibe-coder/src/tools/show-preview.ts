@@ -13,6 +13,10 @@ export function createShowPreviewTool(
     description:
       "Open a live preview of the app running on the given port in the sandbox container. " +
       "The preview will appear as an iframe in the user's browser.",
+    guidance:
+      "Open a live preview of the app running on the given port in the sandbox. " +
+      "The preview appears as an iframe in the user's browser. " +
+      "Make sure the dev server is running (via exec with background=true) before showing the preview.",
     parameters: Type.Object({
       port: Type.Number({ description: "The port the dev server is running on (e.g. 5173)" }),
     }),

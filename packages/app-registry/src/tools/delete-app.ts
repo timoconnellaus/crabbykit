@@ -13,6 +13,8 @@ export function createDeleteAppTool(
   return defineTool({
     name: "delete_app",
     description: "Delete a deployed app and all its versions.",
+    guidance:
+      "Permanently delete a deployed app and all its versions from storage. This cannot be undone.",
     parameters: Type.Object({
       slug: Type.String({ description: "The app slug to delete (e.g. 'todo-app')" }),
     }),

@@ -11,6 +11,8 @@ export function createFileMoveTool(getBucket: () => R2Bucket, getPrefix: () => s
     name: "file_move",
     description:
       "Move (rename) a file to a new path. Overwrites the destination if it exists. The source file is deleted after a successful copy.",
+    guidance:
+      "Rename or relocate a file. Implemented as copy + delete. Overwrites the destination if it already exists.",
     parameters: Type.Object({
       source: Type.String({ description: "Source file path, relative to the storage root" }),
       destination: Type.String({

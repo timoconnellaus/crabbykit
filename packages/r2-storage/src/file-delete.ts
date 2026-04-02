@@ -12,6 +12,8 @@ export function createFileDeleteTool(
   return defineTool({
     name: "file_delete",
     description: "Delete a file from storage. Idempotent — no error if the file does not exist.",
+    guidance:
+      "Remove a file from storage. This is idempotent — no error if the file doesn't exist. Use with caution as deleted files cannot be recovered.",
     parameters: Type.Object({
       path: Type.String({ description: "Path to the file, relative to the storage root" }),
     }),

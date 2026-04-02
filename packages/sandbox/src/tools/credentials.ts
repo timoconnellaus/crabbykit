@@ -52,6 +52,8 @@ export function createSaveFileCredentialTool(
     name: "save_file_credential",
     description:
       "Save a config file from the sandbox as a persistent credential. The file will be read from the container and encrypted. On next elevation, it will be restored automatically. Only files in ~/.config/, ~/.local/, or home dotfiles are allowed.",
+    guidance:
+      "Save a config file from the sandbox as a persistent credential that will be automatically restored on next elevation. Only files in ~/.config/, ~/.local/, or home dotfiles are allowed. Use this for auth tokens, SSH keys, or tool configs that should persist across sessions.",
     parameters: Type.Object({
       path: Type.String({
         description: "The file path in the container (e.g., ~/.npmrc, ~/.config/gh/hosts.yml)",
@@ -131,6 +133,8 @@ export function createListFileCredentialsTool(
   return defineTool({
     name: "list_file_credentials",
     description: "List saved file credentials that will be restored on sandbox elevation.",
+    guidance:
+      "List all saved file credentials that will be restored when the sandbox is next elevated. Shows file paths and save timestamps without exposing file contents.",
     parameters: Type.Object({}),
     execute: async () => {
       const storage = context.storage;
@@ -169,6 +173,8 @@ export function createDeleteFileCredentialTool(
   return defineTool({
     name: "delete_file_credential",
     description: "Delete a saved file credential so it is no longer restored on elevation.",
+    guidance:
+      "Remove a saved file credential so it will no longer be restored on elevation. Use this to clean up credentials that are no longer needed.",
     parameters: Type.Object({
       path: Type.String({ description: "The file path to delete (e.g., ~/.npmrc)" }),
     }),

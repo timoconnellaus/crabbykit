@@ -10,6 +10,10 @@ export function createGetConsoleLogsTool(
     description:
       "Retrieve console logs from the preview iframe. " +
       "Useful for debugging errors, warnings, and other output from the running app.",
+    guidance:
+      "Retrieve console logs (errors, warnings, info) from the preview iframe running in the user's browser. " +
+      "Use this to debug runtime issues in the app. " +
+      "Logs are captured from the client side, so they reflect what the user sees.",
     parameters: Type.Object({
       level: Type.Optional(
         Type.String({

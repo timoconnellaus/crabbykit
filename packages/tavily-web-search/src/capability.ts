@@ -55,8 +55,5 @@ export function tavilyWebSearch(options: TavilyWebSearchOptions): Capability {
       ),
       createFetchTool(options.userAgent, options.maxFetchSize, context),
     ],
-    promptSections: () => [
-      "You have access to web search and URL fetching. Use web_search to find current information, then web_fetch to read specific pages in detail.",
-    ],
   };
 }

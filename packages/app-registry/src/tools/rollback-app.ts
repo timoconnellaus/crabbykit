@@ -13,6 +13,8 @@ export function createRollbackAppTool(
   return defineTool({
     name: "rollback_app",
     description: "Rollback a deployed app to a previous version.",
+    guidance:
+      "Revert a deployed app to a previous version. Use get_app_history first to see available versions and their commit info.",
     parameters: Type.Object({
       slug: Type.String({ description: "The app slug (e.g. 'todo-app')" }),
       version: Type.Number({ description: "The version number to rollback to" }),

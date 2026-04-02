@@ -76,6 +76,8 @@ function createSkillLoadTool(
     name: "skill_load",
     description:
       "Load a skill's instructions into context. Use when the skill's description matches your current task.",
+    guidance:
+      "Load a skill's procedural instructions into context. Use this when a skill's description matches your current task — the loaded content provides step-by-step guidance for that specific workflow.",
     parameters: Type.Object({
       name: Type.String({ description: "The skill ID to load" }),
     }),

@@ -113,12 +113,6 @@ export function agentPeering(options: PeeringOptions): {
       ];
     },
 
-    promptSections: (context) => {
-      _storage = context.storage;
-      return [
-        "This agent supports peering with other agents. Peer relationships are managed via the agent-peering capability.",
-      ];
-    },
   };
 
   return { capability, service };

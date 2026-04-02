@@ -22,6 +22,8 @@ export function createConfigSchema(ctx: ConfigContext) {
       "Pass a namespace to get its schema, or omit for the full schema listing.",
       "Use this to understand what configuration options are available before using config_set.",
     ].join(" "),
+    guidance:
+      "View the configuration schema for a namespace. Use this to understand what configuration options are available and their expected types before using config_set.",
     parameters: Type.Object({
       namespace: Type.Optional(
         Type.String({

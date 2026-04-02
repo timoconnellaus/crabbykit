@@ -31,6 +31,8 @@ export function createExecTool(
     description:
       "Execute a shell command in the sandbox. All output is logged to a file in the container. " +
       "Set background=true for long-running commands — use the process tool to poll, write, or kill them.",
+    guidance:
+      "Execute a shell command in the sandbox. All output is logged to a file in the container for later inspection. For long-running commands (dev servers, watchers, builds), set background=true to get a session ID, then use the process tool to manage it. Never use exec for interactive programs like vim or less.",
     parameters: Type.Object({
       command: Type.String({ description: "Shell command to execute" }),
       background: Type.Optional(

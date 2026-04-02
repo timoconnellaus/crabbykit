@@ -20,6 +20,8 @@ export function createDeployAppTool(
       "On first deploy, the app is auto-created with the given name. " +
       "On subsequent deploys, a new version is added. " +
       "If the app has a backend, provide the backend entry point.",
+    guidance:
+      "Deploy a built web app with versioning. Requires a clean git working tree — commit changes first. On first deploy, the app is auto-created. On subsequent deploys, a new version is added. Deployed apps are accessible at /apps/{slug}/ with automatic SPA routing.",
     parameters: Type.Object({
       name: Type.String({
         description: "Human-readable app name (e.g. 'Todo App'). Used to derive the URL slug.",

@@ -37,6 +37,8 @@ export function createSearchTool(
     name: "web_search",
     description:
       "Search the web for current information. Returns titles, URLs, and content snippets.",
+    guidance:
+      "Use web_search to find current information from the web. Prefer this as a first step when the user asks about something you're unsure of. After searching, use web_fetch to read specific pages in detail.",
     parameters: Type.Object({
       query: Type.String({ description: "The search query" }),
       search_depth: Type.Optional(

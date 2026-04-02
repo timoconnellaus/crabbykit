@@ -59,6 +59,8 @@ export function batchTool(options: BatchToolOptions): Capability {
         name: BATCH_TOOL_NAME,
         description:
           "Execute multiple tool calls in parallel. Each call runs independently — failures in one do not affect others. Maximum 25 calls per batch.",
+        guidance:
+          "Execute multiple independent tool calls in parallel. Use this when you have several operations that don't depend on each other (e.g., multiple file reads, multiple searches). Each call runs independently — failures in one do not affect others.",
         parameters: Type.Object({
           calls: Type.Array(
             Type.Object({
@@ -139,9 +141,6 @@ export function batchTool(options: BatchToolOptions): Capability {
           );
         },
       }),
-    ],
-    promptSections: () => [
-      "You have access to the `batch` tool for executing multiple tool calls in parallel. Use it when you have independent operations that can run concurrently (e.g., multiple file reads, multiple searches). Maximum 25 calls per batch.",
     ],
   };
 }

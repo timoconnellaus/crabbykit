@@ -26,6 +26,10 @@ export function createDeployAppTool(
       "and deploys it as a static site served via a dynamic worker. " +
       "The app must already be built before calling this tool. " +
       "If the app has a backend, also provide the backend entry point to deploy it alongside the frontend.",
+    guidance:
+      "Deploy a built web app as a static site. " +
+      "The app must be built first (e.g., via Vite build in the sandbox). " +
+      "If the app has a backend, provide the backend entry point to deploy it alongside the frontend.",
     parameters: Type.Object({
       buildDir: Type.String({
         description:

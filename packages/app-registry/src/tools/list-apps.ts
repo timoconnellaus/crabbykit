@@ -9,6 +9,8 @@ export function createListAppsTool(
   return defineTool({
     name: "list_apps",
     description: "List all deployed apps with their current version and status.",
+    guidance:
+      "Show all deployed apps with their current version, status, and commit metadata. Use this to check what's deployed before making changes.",
     parameters: Type.Object({}),
     execute: async () => {
       const apps = appStore.list();

@@ -95,13 +95,6 @@ export function agentFleet(options: FleetOptions): Capability {
       ];
     },
 
-    promptSections: (context) => {
-      _storage = context.storage;
-      return [
-        "You can manage other agents using agent_list, agent_create, agent_delete. Use agent_attach to configure a child agent.",
-      ];
-    },
-
     hooks: {
       beforeInference: async (messages, ctx) => {
         const attachedId = await getAttachedAgentId(ctx.storage, ctx.sessionId);

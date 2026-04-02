@@ -16,6 +16,8 @@ export function createAgentListTool(
     name: "agent_list",
     description:
       "List all agents in the fleet. Shows each agent's ID, name, status, and relationship to this agent.",
+    guidance:
+      "List all agents in the fleet with their status and relationship to this agent. Use this to discover available child agents before delegating work.",
     parameters: Type.Object({}),
     execute: async () => {
       const agents = await options.registry.list(options.ownerId);
@@ -48,6 +50,8 @@ export function createAgentCreateTool(
     name: "agent_create",
     description:
       "Create a new child agent. The new agent is registered, initialized via /agent-init, and auto-attached for immediate configuration.",
+    guidance:
+      "Create a new child agent in the fleet. The agent is registered, initialized, and auto-attached for immediate configuration. Use agent_detach when done configuring.",
     parameters: Type.Object({
       name: Type.String({ description: "Human-readable name for the new agent" }),
     }),
@@ -123,6 +127,8 @@ export function createAgentDeleteTool(
   return defineTool({
     name: "agent_delete",
     description: "Delete a child agent. Only agents where this agent is the parent can be deleted.",
+    guidance:
+      "Delete a child agent from the fleet. Only agents where this agent is the parent can be deleted. The agent is detached and its peering revoked before deletion.",
     parameters: Type.Object({
       agentId: Type.String({ description: "ID of the agent to delete" }),
     }),
@@ -168,6 +174,8 @@ export function createAgentAttachTool(
     name: "agent_attach",
     description:
       "Attach to another agent to enter configuration mode. Only parent or child agents can be attached.",
+    guidance:
+      "Enter configuration mode for another agent. Only parent or child agents can be attached. While attached, configuration actions apply to the target agent instead of this one.",
     parameters: Type.Object({
       agentId: Type.String({ description: "ID of the agent to attach to" }),
     }),
@@ -209,6 +217,8 @@ export function createAgentDetachTool(
   return defineTool({
     name: "agent_detach",
     description: "Detach from the currently attached agent and return to your own context.",
+    guidance:
+      "Exit configuration mode and return to your own context. Use this after finishing configuration of an attached agent.",
     parameters: Type.Object({}),
     execute: async () => {
       const storage = getStorage();

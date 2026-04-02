@@ -10,6 +10,9 @@ export function createHidePreviewTool(
   return defineTool({
     name: "hide_preview",
     description: "Close the live preview iframe and stop proxying to the dev server.",
+    guidance:
+      "Close the live preview iframe and stop proxying traffic to the dev server. " +
+      "Use this when the user is done reviewing the app or before switching to a different preview.",
     parameters: Type.Object({}),
     execute: async () => {
       // Verify this session owns the preview

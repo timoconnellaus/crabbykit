@@ -28,8 +28,5 @@ export function credentialStore(): Capability {
       return tools;
     },
 
-    promptSections: () => [
-      "You can securely store and manage secrets (API keys, tokens, passwords) using the credential store tools. Secrets are encrypted at rest and persist across sessions. Use `save_secret` to store a secret by name, `list_secrets` to see what's stored, and `delete_secret` to remove one.",
-    ],
   };
 }

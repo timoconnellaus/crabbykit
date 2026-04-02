@@ -13,6 +13,8 @@ export function createFileTreeTool(getBucket: () => R2Bucket, getPrefix: () => s
     name: "file_tree",
     description:
       "View storage structure as a hierarchical tree. Configurable depth (default 3, max 5).",
+    guidance:
+      "View storage structure as a hierarchical tree. Useful for understanding project layout. Use file_list for a flat listing of a single directory, or file_find to search for specific files.",
     parameters: Type.Object({
       path: Type.Optional(
         Type.String({

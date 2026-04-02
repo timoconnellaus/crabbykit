@@ -12,6 +12,10 @@ import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox
 export function defineTool<TParameters extends TObject>(opts: {
   name: string;
   description: string;
+  /** Behavioral instructions injected into the system prompt. Unlike `description`
+   *  (which goes to the API tool definition), `guidance` provides detailed usage
+   *  instructions. Falls back to `description` if unset. */
+  guidance?: string;
   parameters: TParameters;
   label?: string;
   /** Optional timeout in milliseconds. Tool execution is aborted if it exceeds this duration. */
@@ -30,6 +34,7 @@ export function defineTool<TParameters extends TObject>(opts: {
     name: opts.name,
     label: opts.label ?? opts.name,
     description: opts.description,
+    guidance: opts.guidance,
     parameters: opts.parameters,
     execute,
   };

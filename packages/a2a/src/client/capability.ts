@@ -92,13 +92,6 @@ export function a2aClient(options: A2AClientOptions): Capability {
       return [createCallbackHandler(getStorage)];
     },
 
-    promptSections: () => [
-      "You can delegate work to other agents using the A2A (Agent-to-Agent) protocol. " +
-        "Use call_agent for quick tasks that need an immediate response. " +
-        "Use start_task for long-running work — the result will arrive asynchronously via push notification. " +
-        "Use check_task to check status, and cancel_task to cancel.",
-    ],
-
     hooks: {
       onConnect: async (ctx) => {
         const taskStore = new PendingTaskStore(ctx.storage);

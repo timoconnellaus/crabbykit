@@ -27,6 +27,8 @@ export function createConfigGet(ctx: ConfigContext) {
       "Use this to check current settings before making changes.",
       `Available namespaces: ${namespaceList.join(", ")}.`,
     ].join(" "),
+    guidance:
+      "Read the current configuration for a given namespace. Use this to check current settings before making changes with config_set. Available namespaces include capability-specific configs and session settings.",
     parameters: Type.Object({
       namespace: Type.String({
         description: `Config namespace to read (e.g. ${namespaceList.slice(0, 3).join(", ")}).`,

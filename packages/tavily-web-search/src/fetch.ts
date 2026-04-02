@@ -38,6 +38,8 @@ export function createFetchTool(
   return defineTool({
     name: "web_fetch",
     description: "Fetch the content of a URL. Returns the page text (HTML stripped) or JSON.",
+    guidance:
+      "Fetch and read the full content of a URL. Use this after web_search to get detailed information from a specific page, or when the user provides a URL to read. Returns plain text with HTML stripped.",
     parameters: Type.Object({
       url: Type.String({ description: "The URL to fetch" }),
     }),

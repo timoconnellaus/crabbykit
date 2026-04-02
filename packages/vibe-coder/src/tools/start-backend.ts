@@ -106,6 +106,11 @@ export function createStartBackendTool(
       "Reads the Hono server source from the sandbox, bundles it, and loads it as a dynamic worker " +
       "with a SQLite database backed by a Durable Object. Call this after writing or changing backend code. " +
       "The backend serves requests at /api/* relative to the preview URL.",
+    guidance:
+      "Bundle and start (or restart) the backend server. " +
+      "Call this after writing or changing backend code. " +
+      "The backend serves requests at /api/* relative to the preview URL. " +
+      "The server is bundled from source and loaded as a dynamic worker with a SQLite database.",
     parameters: Type.Object({
       entryPoint: Type.String({
         description:

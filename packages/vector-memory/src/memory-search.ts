@@ -18,6 +18,8 @@ export function createMemorySearchTool(
     name: "memory_search",
     description:
       "Search memory files using semantic similarity. Returns relevant snippets with file locations.",
+    guidance:
+      "Search memory files using semantic similarity. Use this to find previously saved information by describing what you're looking for in natural language. Falls back to keyword search if vector search is unavailable.",
     parameters: Type.Object({
       query: Type.String({ description: "Natural language search query" }),
       max_results: Type.Optional(

@@ -66,14 +66,6 @@ export function appRegistry(options: AppRegistryOptions): Capability {
       return tools;
     },
 
-    promptSections: (_context) => [
-      "You can deploy web apps with versioning. Use deploy_app to deploy a built app " +
-        "(requires a clean git working tree — commit your changes first). " +
-        "Use list_apps to see all deployed apps, get_app_history for version history, " +
-        "rollback_app to revert to a previous version, and delete_app to remove an app.\n\n" +
-        "Deployed apps are accessible at /apps/{slug}/ with automatic SPA routing.",
-    ],
-
     hooks: {
       onConnect: async (ctx: CapabilityHookContext) => {
         ctx.broadcast?.("app_list", buildAppListPayload(appStore));

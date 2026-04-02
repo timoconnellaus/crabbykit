@@ -21,6 +21,8 @@ export function createMemoryGetTool(
   return defineTool({
     name: "memory_get",
     description: "Read the full content of a memory file, with optional line range.",
+    guidance:
+      "Read the full content of a specific memory file. Use this after memory_search to read the complete file when search snippets aren't sufficient. Supports optional line range for partial reads.",
     parameters: Type.Object({
       path: Type.String({
         description: "Path to the memory file (e.g. 'MEMORY.md' or 'memory/notes.md')",

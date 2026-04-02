@@ -35,6 +35,7 @@ import {
   buildDefaultSystemPromptSections,
 } from "./prompt/build-system-prompt.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
+import { buildToolPromptSections } from "./prompt/tool-sections.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
@@ -994,12 +995,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       baseSections = buildDefaultSystemPromptSections(this.getPromptOptions());
     }
 
-    // Resolve capabilities for their prompt sections
+    // Resolve capabilities for their prompt sections and tools
     const context = this.createInspectionContext();
     const capabilities = this.getCachedCapabilities();
     const resolved = resolveCapabilities(capabilities, context);
 
-    return [...baseSections, ...resolved.promptSections];
+    // Include base tools + capability tools for tool prompt sections
+    const baseTools = this.getTools(context);
+    const inspectionTools = [...baseTools, ...resolved.tools];
+    const toolSections = buildToolPromptSections(inspectionTools);
+
+    return [...baseSections, ...toolSections, ...resolved.promptSections];
   }
 
   /** Create a minimal AgentContext for prompt inspection (no active session). */
@@ -1314,10 +1320,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       allTools = applyDefaultTimeout(allTools, config.defaultToolTimeout);
     }
 
-    // Build system prompt with capability sections appended
+    // Build system prompt with tool sections and capability sections appended
+    const toolSections = buildToolPromptSections(allTools);
+    const allPromptSections = [...toolSections, ...resolved.promptSections];
     let systemPrompt = this.buildSystemPrompt(context);
-    if (resolved.promptSections.length > 0) {
-      systemPrompt += `\n\n${resolved.promptSections.map((s) => s.content).join("\n\n")}`;
+    if (allPromptSections.length > 0) {
+      systemPrompt += `\n\n${allPromptSections.map((s) => s.content).join("\n\n")}`;
     }
 
     const messages = this.sessionStore.buildContext(sessionId);

@@ -23,6 +23,8 @@ export function createElevateTool(
     name: "elevate",
     description:
       "Activate the sandbox to get shell access. Provide a reason explaining why you need it.",
+    guidance:
+      "Activate the sandbox to get shell access. Always elevate before using exec or process tools. Provide a clear reason explaining why you need sandbox access. The sandbox auto-deactivates after a period of inactivity.",
     parameters: Type.Object({
       reason: Type.String({ description: "Why sandbox access is needed" }),
       timeout: Type.Optional(

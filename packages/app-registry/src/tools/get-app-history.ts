@@ -9,6 +9,8 @@ export function createGetAppHistoryTool(
   return defineTool({
     name: "get_app_history",
     description: "Get the version history for a deployed app.",
+    guidance:
+      "View the full version history for a deployed app including commit info, file counts, and deployment timestamps. Use this before rollback to identify the target version.",
     parameters: Type.Object({
       slug: Type.String({ description: "The app slug (e.g. 'todo-app')" }),
     }),

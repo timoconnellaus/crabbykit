@@ -73,10 +73,6 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
       return tools;
     },
 
-    promptSections: () => [
-      "You have access to a sandbox environment for shell access. Use the `elevate` tool to activate it when you need to run shell commands, install packages, or start servers. The sandbox will auto-deactivate after a period of inactivity to conserve resources.\n\nUse `exec` to run commands. All output is logged to a file in the container. For long-running commands (dev servers, watchers, builds), set `background=true` to get a session ID, then use the `process` tool to poll output, send input, or kill the session.",
-    ],
-
     hooks: {
       beforeInference: async (messages, ctx) => {
         const elevated = await isSessionElevated(ctx.storage, ctx.sessionId);

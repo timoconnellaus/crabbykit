@@ -84,6 +84,8 @@ export function createCallAgentTool(
     description:
       "Call another agent via the A2A protocol and wait for its response. " +
       "Use this for quick tasks that need an immediate answer.",
+    guidance:
+      "Synchronously delegate a task to another agent via A2A and wait for its response. Use this for quick tasks that need an immediate answer. For longer tasks, use start_task instead to avoid blocking.",
     parameters: Type.Object({
       targetAgent: Type.String({
         description: "Agent URL (https://...) or same-platform agent ID to call.",
@@ -162,6 +164,8 @@ export function createStartTaskTool(
     description:
       "Start a long-running task on another agent. Returns immediately with a task ID. " +
       "The result will arrive asynchronously via push notification — no need to poll.",
+    guidance:
+      "Start a long-running task on another agent asynchronously. Returns immediately with a task ID. The result arrives via push notification — no need to poll. Use check_task to check status if needed.",
     parameters: Type.Object({
       targetAgent: Type.String({
         description: "Agent URL (https://...) or same-platform agent ID to delegate to.",
@@ -276,6 +280,8 @@ export function createCheckTaskTool(
   return defineTool({
     name: "check_task",
     description: "Check the status of an A2A task that was started with start_task.",
+    guidance:
+      "Check the current status of an A2A task started with start_task. Use this only if you need to verify progress — results are normally delivered via push notification automatically.",
     parameters: Type.Object({
       taskId: Type.String({
         description: "The A2A task ID (returned by start_task).",
@@ -346,6 +352,8 @@ export function createCancelTaskTool(
   return defineTool({
     name: "cancel_task",
     description: "Cancel an in-flight A2A task.",
+    guidance:
+      "Cancel an in-flight A2A task. Use this if the task is no longer needed or taking too long.",
     parameters: Type.Object({
       taskId: Type.String({
         description: "The A2A task ID to cancel.",

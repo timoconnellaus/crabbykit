@@ -9,6 +9,8 @@ export function createFileCopyTool(getBucket: () => R2Bucket, getPrefix: () => s
   return defineTool({
     name: "file_copy",
     description: "Copy a file to a new path. Overwrites the destination if it exists.",
+    guidance:
+      "Duplicate a file to a new path. Overwrites the destination if it already exists. Use file_move instead if you want to rename without keeping the original.",
     parameters: Type.Object({
       source: Type.String({ description: "Source file path, relative to the storage root" }),
       destination: Type.String({

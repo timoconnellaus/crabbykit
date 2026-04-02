@@ -12,6 +12,8 @@ export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => s
     name: "file_find",
     description:
       "Search for files by glob pattern. Supports * (within directory), ** (across directories), and ? (single char).",
+    guidance:
+      "Search for files by glob pattern across the entire storage. Supports * (within directory), ** (across directories), and ? (single char). Use this to locate files when you don't know their exact path.",
     parameters: Type.Object({
       pattern: Type.String({
         description:
