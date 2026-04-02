@@ -268,6 +268,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     return this.capabilitiesCache;
   }
 
+  /** Returns the IDs of all registered capabilities. */
+  private getCapabilityIds(): string[] {
+    return this.getCachedCapabilities().map((c) => c.id);
+  }
+
   /**
    * Override to register consumer config namespaces.
    * Config tools (config_get, config_set, config_schema) will include
@@ -1365,6 +1370,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
+          capabilityIds: this.getCapabilityIds(),
         };
         const event = {
           toolName: btcContext.toolCall.name as string,
@@ -1394,6 +1400,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
+          capabilityIds: this.getCapabilityIds(),
         };
         const event = {
           toolName: atcContext.toolCall.name as string,
@@ -1462,6 +1469,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       sessionId,
       sessionStore: this.sessionStore,
       storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+      capabilityIds: this.getCapabilityIds(),
     };
 
     for (const hook of this.beforeInferenceHooks) {
@@ -1528,6 +1536,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+          capabilityIds: this.getCapabilityIds(),
           broadcast: broadcastFn,
         };
         await hook(hookContext);

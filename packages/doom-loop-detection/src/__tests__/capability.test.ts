@@ -13,6 +13,7 @@ function makeCtx(overrides: Partial<CapabilityHookContext> = {}): CapabilityHook
     sessionId: "s1",
     sessionStore: {} as CapabilityHookContext["sessionStore"],
     storage: createMockStorage(),
+    capabilityIds: [],
     broadcast: vi.fn(),
     ...overrides,
   };

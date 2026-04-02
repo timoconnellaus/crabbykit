@@ -304,6 +304,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.afterToolExecution!(
         { toolName: "de_elevate", args: {}, isError: false },
@@ -328,6 +329,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.afterToolExecution!(
         { toolName: "de_elevate", args: {}, isError: false },
@@ -353,6 +355,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.afterToolExecution!({ toolName: "exec", args: {}, isError: false }, hookCtx);
       expect(hookCtx.storage.get).not.toHaveBeenCalled();
@@ -373,6 +376,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.onConnect!(hookCtx);
       expect(hookCtx.broadcast).toHaveBeenCalledWith("preview_close", {});
@@ -392,6 +396,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.onConnect!(hookCtx);
       expect(provider.setDevPort).toHaveBeenCalledWith(5173, "/preview/test-agent/");
@@ -412,6 +417,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.onConnect!(hookCtx);
       // Should tell this client to close preview UI
@@ -439,6 +445,7 @@ describe("vibeCoder", () => {
           list: vi.fn(),
         },
         broadcast: vi.fn(),
+        capabilityIds: [] as string[],
       };
       await cap.hooks!.onConnect!(hookCtx);
       expect(hookCtx.storage.delete).toHaveBeenCalledWith("preview");
@@ -519,6 +526,7 @@ describe("vibeCoder", () => {
           sessionStore: {} as any,
           storage,
           broadcast: vi.fn(),
+          capabilityIds: [],
         },
       );
       expect(await storage.get("preview")).toBeUndefined();
@@ -552,6 +560,7 @@ describe("vibeCoder", () => {
         sessionStore: {} as any,
         storage,
         broadcast: broadcastA,
+        capabilityIds: [],
       });
 
       expect(await storage.get("preview")).toBeUndefined();
@@ -566,6 +575,7 @@ describe("vibeCoder", () => {
         sessionStore: {} as any,
         storage,
         broadcast: broadcastB,
+        capabilityIds: [],
       });
       expect(broadcastB).toHaveBeenCalledWith("preview_close", {});
     });

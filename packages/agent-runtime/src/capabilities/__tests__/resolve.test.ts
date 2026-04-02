@@ -142,6 +142,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     const output = await result.beforeInferenceHooks[0](msgs, hookCtx);
     expect(output).toBe(msgs);
@@ -189,6 +190,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     const msgs = [] as any[];
     await result.beforeInferenceHooks[0](msgs, hookCtx);
@@ -315,6 +317,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(), // This should be overridden per hook
+      capabilityIds: [],
     };
     await result.beforeInferenceHooks[0]([], baseHookCtx);
     await result.beforeInferenceHooks[1]([], baseHookCtx);
@@ -342,6 +345,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     await result.beforeInferenceHooks[0]([], hookCtx);
 
@@ -432,6 +436,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     await result.afterToolExecutionHooks[0](event, hookCtx);
     expect(hookFn).toHaveBeenCalledWith(event, expect.objectContaining({ sessionId: "s1" }));
@@ -465,6 +470,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     await result.afterToolExecutionHooks[0](event, hookCtx);
     await result.afterToolExecutionHooks[1](event, hookCtx);
@@ -492,6 +498,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     await result.afterToolExecutionHooks[0](event, hookCtx);
     expect(receivedStorage).toBe(scopedStorage);
@@ -568,6 +575,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     });
     expect(hookFn).toHaveBeenCalled();
   });
@@ -592,6 +600,7 @@ describe("resolveCapabilities", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
     await result.beforeToolExecutionHooks[0](event, hookCtx);
     expect(hookFn).toHaveBeenCalledWith(event, expect.objectContaining({ sessionId: "s1" }));

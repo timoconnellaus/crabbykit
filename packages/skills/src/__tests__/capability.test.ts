@@ -164,6 +164,7 @@ describe("promptSections", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -184,6 +185,7 @@ describe("promptSections", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -206,6 +208,7 @@ describe("skill_load tool", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -231,6 +234,7 @@ describe("skill_load tool", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -253,6 +257,7 @@ describe("skill_load tool", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -279,6 +284,7 @@ describe("onConnect sync", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -307,6 +313,7 @@ describe("onConnect sync", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
   });
@@ -331,6 +338,7 @@ describe("onConnect sync", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
 
@@ -507,6 +515,7 @@ describe("httpHandlers", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
       broadcast: () => {},
     });
   }

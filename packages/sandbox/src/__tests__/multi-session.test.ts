@@ -367,6 +367,7 @@ describe("beforeInference per-session scoping", () => {
       sessionId: "session-a",
       sessionStore: {} as never,
       storage,
+      capabilityIds: [],
     });
     expect(resultA).toHaveLength(2);
     expect((resultA![0] as { content: string }).content).toContain("Sandbox Status: ACTIVE");
@@ -378,6 +379,7 @@ describe("beforeInference per-session scoping", () => {
       sessionId: "session-b",
       sessionStore: {} as never,
       storage,
+      capabilityIds: [],
     });
     expect(resultB).toHaveLength(1);
   });

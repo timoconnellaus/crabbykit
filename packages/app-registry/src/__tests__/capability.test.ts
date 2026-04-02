@@ -89,6 +89,7 @@ describe("appRegistry capability", () => {
         list: vi.fn(),
       },
       broadcast: broadcastFn,
+      capabilityIds: [],
     };
 
     await cap.hooks!.onConnect!(ctx);
@@ -125,6 +126,7 @@ describe("appRegistry capability", () => {
         list: vi.fn(),
       },
       broadcast: broadcastFn,
+      capabilityIds: [],
     };
 
     await cap.hooks!.onConnect!(ctx);
@@ -160,6 +162,7 @@ describe("appRegistry capability", () => {
         list: vi.fn(),
       },
       broadcast: broadcastFn,
+      capabilityIds: [],
     };
 
     await cap.hooks!.onConnect!(ctx);

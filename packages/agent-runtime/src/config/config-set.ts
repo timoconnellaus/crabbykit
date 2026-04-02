@@ -85,6 +85,7 @@ export function createConfigSet(ctx: ConfigContext) {
             agentId: ctx.agentId,
             sessionId: ctx.sessionId,
             sessionStore: ctx.sessionStore,
+            capabilityIds: ctx.capabilities.map((c) => c.id),
             storage: {
               get: async () => undefined,
               put: async () => {},

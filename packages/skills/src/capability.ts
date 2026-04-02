@@ -158,13 +158,9 @@ export function skills(options: SkillsOptions): Capability {
         const bucket = agentStorage.bucket();
         const namespace = agentStorage.namespace();
 
-        // Resolve capability IDs for dependency validation.
-        // We check for 'skills' itself to avoid self-reference and deduce the list
-        // from what's in the existing cache structure. Since onConnect runs after
-        // all capabilities are resolved, we read cap: keys from storage.
-        // For now, we pass an empty list — dependency validation will be implemented
-        // when we have access to the resolved capability list.
-        const capabilityIds: string[] = [];
+        // Use capability IDs from the hook context for dependency validation.
+        // The runtime populates this with all registered capability IDs.
+        const capabilityIds = ctx.capabilityIds;
 
         try {
           await syncSkills({

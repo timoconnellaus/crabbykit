@@ -19,6 +19,8 @@ export interface CapabilityHookContext {
   sessionStore: SessionStore;
   /** Persistent key-value storage scoped to this capability. */
   storage: CapabilityStorage;
+  /** IDs of all capabilities registered on this agent. */
+  capabilityIds: string[];
   /** Broadcast a custom event to the current session's clients. Only available in onConnect. */
   broadcast?: (name: string, data: Record<string, unknown>) => void;
   /** Emit a cost event. Persisted to session and broadcast to clients. */

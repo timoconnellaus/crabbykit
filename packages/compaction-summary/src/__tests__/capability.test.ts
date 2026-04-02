@@ -97,6 +97,7 @@ describe("compactionSummary", () => {
       sessionId: "s1",
       sessionStore: store as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
 
     const result = await cap.hooks!.beforeInference!(messages, ctx);
@@ -128,6 +129,7 @@ describe("compactionSummary", () => {
       sessionId: "s1",
       sessionStore: store as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
 
     const result = await cap.hooks!.beforeInference!(messages, ctx);
@@ -195,6 +197,7 @@ describe("compactionSummary", () => {
       sessionId: "s1",
       sessionStore: store as any,
       storage: createNoopStorage(),
+      capabilityIds: [],
     };
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
