@@ -81,6 +81,8 @@
   --agent-ui-tool-color-web: #0891b2;
   --agent-ui-tool-color-memory: #7c3aed;
   --agent-ui-tool-color-default: #2563eb;
+  --agent-ui-tool-color-file: #2563eb;
+  --agent-ui-tool-color-preview: #d97706;
   --agent-ui-tool-border-bash: rgba(5, 150, 105, 0.25);
   --agent-ui-tool-border-code: rgba(124, 58, 237, 0.25);
   --agent-ui-tool-border-web: rgba(8, 145, 178, 0.25);
@@ -174,6 +176,8 @@
     --agent-ui-tool-color-web: #22d3ee;
     --agent-ui-tool-color-memory: #a78bfa;
     --agent-ui-tool-color-default: #60a5fa;
+    --agent-ui-tool-color-file: #60a5fa;
+    --agent-ui-tool-color-preview: #fbbf24;
     --agent-ui-tool-border-bash: rgba(52, 211, 153, 0.25);
     --agent-ui-tool-border-code: rgba(167, 139, 250, 0.25);
     --agent-ui-tool-border-web: rgba(34, 211, 238, 0.25);
@@ -482,7 +486,6 @@
 /* --- Tool entry (timeline) --- */
 
 [data-agent-ui="tool-entry"] {
-  border-left: 3px solid var(--agent-ui-tool-border-default);
   padding-left: 0.625rem;
   margin: 2px 0;
   cursor: pointer;
@@ -494,21 +497,8 @@
   background: var(--agent-ui-user-bg-timeline);
 }
 
-[data-agent-ui="tool-entry"][data-tool-category="bash"] {
-  border-left-color: var(--agent-ui-tool-border-bash);
-}
-[data-agent-ui="tool-entry"][data-tool-category="code"] {
-  border-left-color: var(--agent-ui-tool-border-code);
-}
-[data-agent-ui="tool-entry"][data-tool-category="web"] {
-  border-left-color: var(--agent-ui-tool-border-web);
-}
-[data-agent-ui="tool-entry"][data-tool-category="memory"] {
-  border-left-color: var(--agent-ui-tool-border-memory);
-}
-
-[data-agent-ui="tool-entry"][data-error] {
-  border-left-color: var(--agent-ui-error-accent);
+[data-agent-ui="tool-entry"][data-error] [data-agent-ui="tool-entry-indicator"] {
+  background: var(--agent-ui-error-accent);
 }
 
 [data-agent-ui="tool-entry-header"] {
@@ -706,6 +696,12 @@
 }
 [data-agent-ui="tool-entry-indicator"][data-cat="default"] {
   background: var(--agent-ui-tool-color-default);
+}
+[data-agent-ui="tool-entry-indicator"][data-cat="file"] {
+  background: var(--agent-ui-tool-color-file);
+}
+[data-agent-ui="tool-entry-indicator"][data-cat="preview"] {
+  background: var(--agent-ui-tool-color-preview);
 }
 
 /* ── Exec: command + output ── */

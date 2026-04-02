@@ -149,8 +149,27 @@ describe("toolColorCategory", () => {
     expect(toolColorCategory("memory_get")).toBe("memory");
   });
 
+  it("maps exec and sandbox tools to bash", () => {
+    expect(toolColorCategory("exec")).toBe("bash");
+    expect(toolColorCategory("elevate")).toBe("bash");
+    expect(toolColorCategory("de_elevate")).toBe("bash");
+    expect(toolColorCategory("process")).toBe("bash");
+  });
+
+  it("maps file tools", () => {
+    expect(toolColorCategory("file_read")).toBe("file");
+    expect(toolColorCategory("file_write")).toBe("file");
+    expect(toolColorCategory("file_edit")).toBe("file");
+    expect(toolColorCategory("file_tree")).toBe("file");
+  });
+
+  it("maps preview and deploy tools", () => {
+    expect(toolColorCategory("show_preview")).toBe("preview");
+    expect(toolColorCategory("deploy_app")).toBe("preview");
+    expect(toolColorCategory("get_console_logs")).toBe("preview");
+  });
+
   it("returns default for unknown tools", () => {
-    expect(toolColorCategory("file_read")).toBe("default");
     expect(toolColorCategory("custom_tool")).toBe("default");
   });
 });

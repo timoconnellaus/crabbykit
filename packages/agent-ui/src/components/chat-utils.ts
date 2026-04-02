@@ -48,10 +48,13 @@ export function summarizeToolInput(input: unknown): string {
   return "";
 }
 
-export type ToolCategory = "bash" | "code" | "web" | "memory" | "default";
+export type ToolCategory = "bash" | "code" | "web" | "memory" | "file" | "preview" | "default";
 
 /** Map a tool name to a color category for CSS styling. */
 export function toolColorCategory(name: string): ToolCategory {
+  // Prefix-based matching for tool families
+  if (name.startsWith("file_")) return "file";
+
   switch (name) {
     case "bash":
     case "exec":
@@ -70,6 +73,16 @@ export function toolColorCategory(name: string): ToolCategory {
     case "memory_search":
     case "memory_get":
       return "memory";
+    case "show_preview":
+    case "hide_preview":
+    case "get_console_logs":
+    case "start_backend":
+    case "deploy_app":
+    case "list_apps":
+    case "get_app_history":
+    case "rollback_app":
+    case "delete_app":
+      return "preview";
     default:
       return "default";
   }
