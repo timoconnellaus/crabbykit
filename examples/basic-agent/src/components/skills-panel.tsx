@@ -1,115 +1,77 @@
 import type { SkillListEntry } from "@claw-for-cloudflare/agent-runtime";
+import { skillsStyles } from "../styles/skills";
 
 interface SkillsPanelProps {
   skills: SkillListEntry[];
 }
 
-const styles = {
-  container: {
-    flex: 1,
-    padding: "1.5rem",
-    overflow: "auto",
-    fontFamily: "SF Mono, Fira Code, JetBrains Mono, ui-monospace, monospace",
-    fontSize: "0.8rem",
-    color: "var(--agent-ui-text)",
-  },
-  header: {
-    fontSize: "0.9rem",
-    fontWeight: 600,
-    marginBottom: "1rem",
-    color: "var(--agent-ui-text)",
-  },
-  card: {
-    border: "1px solid var(--agent-ui-border)",
-    borderRadius: "8px",
-    padding: "0.75rem 1rem",
-    marginBottom: "0.5rem",
-    background: "var(--agent-ui-bg-secondary, #1a1a1a)",
-  },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "0.25rem",
-  },
-  name: {
-    fontWeight: 600,
-  },
-  version: {
-    color: "var(--agent-ui-text-muted)",
-    fontSize: "0.7rem",
-  },
-  description: {
-    color: "var(--agent-ui-text-muted)",
-    fontSize: "0.75rem",
-    marginTop: "0.25rem",
-  },
-  badge: {
-    display: "inline-block",
-    padding: "0.1rem 0.4rem",
-    borderRadius: "4px",
-    fontSize: "0.65rem",
-    fontWeight: 500,
-    marginLeft: "0.5rem",
-  },
-  enabled: {
-    background: "rgba(74, 222, 128, 0.15)",
-    color: "rgb(74, 222, 128)",
-  },
-  disabled: {
-    background: "rgba(156, 163, 175, 0.15)",
-    color: "rgb(156, 163, 175)",
-  },
-  stale: {
-    background: "rgba(251, 191, 36, 0.15)",
-    color: "rgb(251, 191, 36)",
-  },
-  empty: {
-    color: "var(--agent-ui-text-muted)",
-    textAlign: "center" as const,
-    padding: "2rem",
-  },
-} as const;
+function skillStatus(skill: SkillListEntry): "enabled" | "disabled" | "stale" {
+  if (skill.stale) return "stale";
+  return skill.enabled ? "enabled" : "disabled";
+}
+
+function SkillCard({ skill }: { skill: SkillListEntry }) {
+  return (
+    <div data-agent-ui="skill-card" data-disabled={!skill.enabled || undefined}>
+      <span
+        data-agent-ui="skill-status-dot"
+        data-status={skillStatus(skill)}
+        title={skillStatus(skill)}
+      />
+      <div data-agent-ui="skill-card-info">
+        <div data-agent-ui="skill-card-name">{skill.name}</div>
+        <div data-agent-ui="skill-card-meta">
+          <span data-agent-ui="skill-card-description">{skill.description}</span>
+        </div>
+      </div>
+      <div data-agent-ui="skill-card-badges">
+        {skill.stale && (
+          <span data-agent-ui="skill-badge" data-variant="stale">
+            update available
+          </span>
+        )}
+        {skill.autoUpdate && (
+          <span data-agent-ui="skill-badge" data-variant="auto-update">
+            auto-update
+          </span>
+        )}
+        <span data-agent-ui="skill-badge" data-variant="version">
+          v{skill.version}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function SkillsPanel({ skills }: SkillsPanelProps) {
-  if (skills.length === 0) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.empty}>No skills installed</div>
-      </div>
-    );
-  }
+  const enabledCount = skills.filter((s) => s.enabled).length;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>Installed Skills</div>
-      {skills.map((skill) => (
-        <div key={skill.id} style={styles.card}>
-          <div style={styles.row}>
-            <span>
-              <span style={styles.name}>{skill.name}</span>
-              <span style={styles.version}> v{skill.version}</span>
+    <>
+      <style>{skillsStyles}</style>
+      <div data-agent-ui="skills-panel">
+        <div data-agent-ui="skills-panel-header">
+          <span data-agent-ui="skills-panel-title">Skills</span>
+          {skills.length > 0 && (
+            <span data-agent-ui="skills-panel-count">
+              {enabledCount}/{skills.length} enabled
             </span>
-            <span>
-              <span
-                style={{
-                  ...styles.badge,
-                  ...(skill.enabled ? styles.enabled : styles.disabled),
-                }}
-              >
-                {skill.enabled ? "Enabled" : "Disabled"}
-              </span>
-              {skill.stale && (
-                <span style={{ ...styles.badge, ...styles.stale }}>Update available</span>
-              )}
-              {skill.autoUpdate && (
-                <span style={{ ...styles.badge, ...styles.disabled }}>Auto-update</span>
-              )}
-            </span>
-          </div>
-          <div style={styles.description}>{skill.description}</div>
+          )}
         </div>
-      ))}
-    </div>
+
+        {skills.length === 0 ? (
+          <div data-agent-ui="skills-empty">
+            <div data-agent-ui="skills-empty-title">No skills installed</div>
+            <div>Skills provide on-demand instructions for specific tasks</div>
+          </div>
+        ) : (
+          <div data-agent-ui="skills-panel-list">
+            {skills.map((s) => (
+              <SkillCard key={s.id} skill={s} />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
