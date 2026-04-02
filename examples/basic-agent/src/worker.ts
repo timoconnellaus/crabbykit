@@ -96,7 +96,9 @@ Create apps on \`/mnt/r2/\` so files persist. Typical layout:
 
 ## Server Pattern (server.ts)
 
-Use Bun.serve() with HTML imports and route-based API handlers:
+Use Bun.serve() with HTML imports and route-based API handlers.
+
+**IMPORTANT: \`@claw-for-cloudflare/container-db\` is pre-installed in the container via a Bun plugin. Do NOT add it to package.json — it is not on npm and will cause \`bun install\` to fail with a 404. Just import it directly in your code.**
 
 \`\`\`typescript
 import { createDB } from "@claw-for-cloudflare/container-db";
@@ -177,7 +179,7 @@ createRoot(document.getElementById("root")).render(<App />);
 
 ## Database (container-db)
 
-Use \`@claw-for-cloudflare/container-db\` for database access. It works identically in dev (container) and deploy (worker).
+Use \`@claw-for-cloudflare/container-db\` for database access. It works identically in dev (container) and deploy (worker). It is pre-installed — do NOT add it to package.json.
 
 \`\`\`typescript
 import { createDB } from "@claw-for-cloudflare/container-db";
@@ -195,7 +197,7 @@ await db.batch([
 
 Always use parameterized queries (\`?\` placeholders) — never interpolate values into SQL strings.
 
-package.json must include: \`"@claw-for-cloudflare/container-db": "*"\`
+\`@claw-for-cloudflare/container-db\` is pre-installed in the container — no need to add it to package.json or run bun install for it.
 
 ## AI Access
 
@@ -267,7 +269,7 @@ For apps with backends, use \`start_backend\` first to bundle and load the backe
 - **Absolute fetch paths**: Frontend fetch calls must use relative paths (\`fetch("/api/items")\`), not absolute URLs
 - **Missing development: true**: Without \`development: true\` in Bun.serve(), HMR and console output won't work
 - **Forgetting to restart after changes**: If you change server.ts structure (new routes, etc.), restart the server process
-- **Not installing container-db**: Add \`"@claw-for-cloudflare/container-db": "*"\` to package.json and run bun install
+- **Trying to install container-db**: \`@claw-for-cloudflare/container-db\` is pre-installed in the container via a Bun plugin — do NOT add it to package.json (it will 404 from npm)
 `;
 
 const EXAMPLE_SKILL_SEEDS: SkillSeed[] = [
@@ -276,7 +278,7 @@ const EXAMPLE_SKILL_SEEDS: SkillSeed[] = [
     name: "Vibe Webapp",
     description:
       "Fullstack Bun web app development with database via container-db, React frontend, Tailwind styling, live preview, and deployment. Load when building web apps in the sandbox.",
-    version: "1.0.0",
+    version: "1.1.0",
     requiresCapabilities: ["vibe-coder", "sandbox"],
     skillMd: VIBE_WEBAPP_SKILL_MD,
   },

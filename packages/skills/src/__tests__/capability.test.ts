@@ -730,3 +730,120 @@ describe("httpHandlers", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Seed version bump → sync update flow
+// ---------------------------------------------------------------------------
+
+describe("seed version bump updates installed skill", () => {
+  const V1_SKILL_MD = `---
+name: vibe-webapp
+description: Build web apps v1
+---
+
+# Vibe Webapp v1
+
+Old instructions here.
+`;
+
+  const V2_SKILL_MD = `---
+name: vibe-webapp
+description: Build web apps v2
+---
+
+# Vibe Webapp v2
+
+IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
+`;
+
+  /** Compute SHA-256 hex hash matching the real hashSkillContent / computeHash */
+  async function sha256(content: string): Promise<string> {
+    const encoded = new TextEncoder().encode(content);
+    const buffer = await crypto.subtle.digest("SHA-256", encoded);
+    const bytes = new Uint8Array(buffer);
+    let hex = "";
+    for (const b of bytes) {
+      hex += b.toString(16).padStart(2, "0");
+    }
+    return hex;
+  }
+
+  it("updates R2 content when registry version bumps", async () => {
+    const v1Hash = await sha256(V1_SKILL_MD);
+
+    const v1Record: SkillRecord = {
+      id: "vibe-webapp",
+      name: "Vibe Webapp",
+      description: "Build web apps v1",
+      version: "1.0.0",
+      contentHash: v1Hash,
+      requiresCapabilities: [],
+      skillMd: V1_SKILL_MD,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    // First sync with v1.0.0
+    const v1Registry = createMockRegistry([v1Record]);
+    const cap1 = skills(createOptions({
+      registry: v1Registry,
+      skills: [{ id: "vibe-webapp", enabled: true, autoUpdate: true }],
+    }));
+
+    await cap1.hooks!.onConnect!({
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: {} as any,
+      storage: capStorage,
+      capabilityIds: [],
+      broadcast: () => {},
+    });
+
+    // Verify v1 content in R2
+    const v1Content = bucket._store.get("test-agent/skills/vibe-webapp/SKILL.md");
+    expect(v1Content).toContain("Old instructions here");
+
+    // Verify skill_load returns v1 content
+    const tools1 = cap1.tools!(mockContext());
+    const result1 = await tools1[0].execute({ name: "vibe-webapp" }, { toolCallId: "t1" });
+    expect(textOf(result1)).toContain("Old instructions here");
+
+    // Now simulate app restart with updated seed (v1.1.0)
+    const v2Hash = await sha256(V2_SKILL_MD);
+    const v2Record: SkillRecord = {
+      ...v1Record,
+      description: "Build web apps v2",
+      version: "1.1.0",
+      contentHash: v2Hash,
+      skillMd: V2_SKILL_MD,
+      updatedAt: "2026-02-01T00:00:00Z",
+    };
+
+    // New capability instance (simulates app restart) with same storage + bucket
+    const v2Registry = createMockRegistry([v2Record]);
+    const cap2 = skills(createOptions({
+      registry: v2Registry,
+      skills: [{ id: "vibe-webapp", enabled: true, autoUpdate: true }],
+    }));
+
+    // Re-sync (simulates new client connecting after restart)
+    await cap2.hooks!.onConnect!({
+      agentId: "test-agent",
+      sessionId: "s1",
+      sessionStore: {} as any,
+      storage: capStorage,
+      capabilityIds: [],
+      broadcast: () => {},
+    });
+
+    // Verify R2 now has v2 content
+    const v2Content = bucket._store.get("test-agent/skills/vibe-webapp/SKILL.md");
+    expect(v2Content).toContain("container-db is pre-installed");
+    expect(v2Content).not.toContain("Old instructions here");
+
+    // Verify skill_load returns v2 content
+    const tools2 = cap2.tools!(mockContext());
+    const result2 = await tools2[0].execute({ name: "vibe-webapp" }, { toolCallId: "t2" });
+    expect(textOf(result2)).toContain("container-db is pre-installed");
+  });
+});

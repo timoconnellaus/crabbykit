@@ -86,12 +86,24 @@ export class D1SkillRegistry implements SkillRegistry {
     for (const seed of this.seeds) {
       const newHash = await computeHash(seed.skillMd);
       const existing = await this.db
-        .prepare("SELECT content_hash FROM skills WHERE id = ?")
+        .prepare("SELECT content_hash, version FROM skills WHERE id = ?")
         .bind(seed.id)
         .first();
 
-      if (existing && (existing as { content_hash: string }).content_hash === newHash) {
+      const existingHash = existing ? (existing as { content_hash: string }).content_hash : null;
+      const existingVersion = existing ? (existing as { version: string }).version : null;
+
+      if (existingHash === newHash && existingVersion === seed.version) {
         continue; // Unchanged — skip
+      }
+
+      if (existingHash === newHash && existingVersion !== seed.version) {
+        // Content unchanged but version differs — update metadata only
+        await this.db
+          .prepare("UPDATE skills SET version = ?, name = ?, description = ?, updated_at = ? WHERE id = ?")
+          .bind(seed.version, seed.name, seed.description, new Date().toISOString(), seed.id)
+          .run();
+        continue;
       }
 
       // Insert or update

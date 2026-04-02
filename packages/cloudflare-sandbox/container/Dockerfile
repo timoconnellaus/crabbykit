@@ -64,6 +64,15 @@ COPY claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
 RUN mkdir -p /node_modules/@claw-for-cloudflare && \
     ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
 
+# Install @claw-for-cloudflare/container-db and the Bun plugin that resolves
+# @claw-for-cloudflare/* imports. The plugin is preloaded globally via bunfig.toml
+# so apps can `import { createDB } from "@claw-for-cloudflare/container-db"` without
+# needing to bun install claw packages.
+COPY claw-container-db/ /usr/local/lib/claw-container-db/
+COPY claw-bun-plugin.ts /usr/local/lib/claw-bun-plugin.ts
+RUN echo 'preload = ["/usr/local/lib/claw-bun-plugin.ts"]' > /home/sandbox/.bunfig.toml && \
+    chown sandbox:sandbox /home/sandbox/.bunfig.toml
+
 # Copy container scripts and sandbox server
 COPY startup.sh nm-guard.sh restic-syncd.sh server.ts constants.ts types.ts state.ts helpers.ts sessions.ts routes.ts /app/
 RUN chmod +x /app/startup.sh /app/nm-guard.sh /app/restic-syncd.sh

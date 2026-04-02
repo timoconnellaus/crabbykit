@@ -338,6 +338,25 @@ describe("seeding", () => {
     expect(updated!.contentHash).not.toBe(original!.contentHash);
   });
 
+  it("updates version when content is unchanged but version differs", async () => {
+    const seed = sampleSkill();
+
+    // First boot — seed at v1.0.0
+    const first = new D1SkillRegistry(env.SKILL_DB, { seeds: [seed] });
+    await first.list();
+    const original = await first.get("code-review");
+    expect(original!.version).toBe("1.0.0");
+
+    // Second boot — same content, bumped version
+    const bumpedSeed = { ...seed, version: "1.1.0" };
+    const second = new D1SkillRegistry(env.SKILL_DB, { seeds: [bumpedSeed] });
+    await second.list();
+
+    const updated = await second.get("code-review");
+    expect(updated!.version).toBe("1.1.0");
+    expect(updated!.contentHash).toBe(original!.contentHash); // Content unchanged
+  });
+
   it("adds new seeds on subsequent boot without affecting existing", async () => {
     // First boot with one seed
     const first = new D1SkillRegistry(env.SKILL_DB, { seeds: [sampleSkill()] });
