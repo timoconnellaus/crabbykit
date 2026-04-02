@@ -36,6 +36,10 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/cloudflare-sandbox`** — Sandbox provider implementation for Cloudflare Containers. Proxies sandbox operations to a Container DO via HTTP.
 - **`packages/vibe-coder`** — Live app preview capability. Provides 3 tools: show_preview, hide_preview, get_console_logs. Proxies dev server traffic through the container, injects console capture script, retrieves logs from the browser via client round-trip.
 
+### Skills Packages
+- **`packages/skill-registry`** — D1-backed skill registry with `SkillRegistry` interface. Stores skill metadata, content, and version info. Supports self-seeding from a skill definitions array on startup.
+- **`packages/skills`** — Skills capability for on-demand procedural knowledge. Syncs from registry, stores enabled skills in R2, provides `skill_load` tool for loading SKILL.md into agent context. Supports auto-update with hash-based conflict detection and agent-assisted merge.
+
 ### Agent Operations Packages
 - **`packages/a2a`** — Agent-to-Agent protocol (A2A v1.0). Task store, handler, executor, and tools (call_agent, start_task, check_task, cancel_task).
 - **`packages/agent-fleet`** — Fleet management capability. Create/list/delete child agents via D1 registry.
@@ -66,6 +70,8 @@ packages/vector-memory     — Semantic memory search (Vectorize + R2)
 packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
+packages/skill-registry     — D1-backed skill registry with self-seeding
+packages/skills             — Skills capability (on-demand procedural knowledge)
 packages/a2a                — Agent-to-Agent protocol (A2A v1.0)
 packages/agent-fleet        — Fleet management (create/list child agents)
 packages/agent-peering      — Peer-to-peer agent communication

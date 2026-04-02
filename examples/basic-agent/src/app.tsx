@@ -7,11 +7,13 @@ import { AgentRail } from "./components/agent-rail";
 import { ChatView } from "./components/chat-view";
 import type { PendingA2ATask } from "./components/pending-tasks";
 import { SchedulePanel } from "./components/schedule-panel";
+import { SkillsPanel } from "./components/skills-panel";
 import { TabBar } from "./components/tab-bar";
 
 const TABS = [
   { id: "chat", label: "Chat" },
   { id: "schedules", label: "Schedules" },
+  { id: "skills", label: "Skills" },
 ] as const;
 
 export default function App() {
@@ -185,6 +187,7 @@ export default function App() {
               toggleSchedule={chat.toggleSchedule}
             />
           )}
+          {activeTab === "skills" && <SkillsPanel skills={chat.skills} />}
         </div>
       ) : (
         <div

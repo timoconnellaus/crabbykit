@@ -147,6 +147,8 @@ export type {
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,
+  SkillListEntry,
+  SkillListMessage,
   SteerMessage,
   SwitchSessionMessage,
   ToggleScheduleMessage,

@@ -216,6 +216,10 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         dispatch({ type: "SET_AVAILABLE_COMMANDS", availableCommands: msg.commands });
         break;
 
+      case "skill_list":
+        dispatch({ type: "SET_SKILLS", skills: msg.skills });
+        break;
+
       case "command_result": {
         if (msg.sessionId !== refs.currentSessionIdRef.current) break;
         const resultText =
