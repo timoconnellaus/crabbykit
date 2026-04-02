@@ -56,15 +56,6 @@ function mockBackendOptions(): BackendOptions {
   };
 }
 
-function mockDeployOptions() {
-  return {
-    storage: {
-      bucket: () => ({}) as any,
-      namespace: () => "test-ns",
-    },
-  };
-}
-
 describe("vibeCoder with backend option", () => {
   describe("tool registration", () => {
     it("does not add extra tools when backend is configured (backend runs in Bun, not as a tool)", () => {
@@ -78,15 +69,14 @@ describe("vibeCoder with backend option", () => {
       expect(names).toEqual(["show_preview", "hide_preview", "get_console_logs"]);
     });
 
-    it("includes deploy_app when deploy is configured alongside backend", () => {
+    it("does not include deploy_app even with backend configured", () => {
       const cap = vibeCoder({
         provider: mockProvider(),
         backend: mockBackendOptions(),
-        deploy: mockDeployOptions(),
       });
       const tools = cap.tools!(mockContext());
-      expect(tools).toHaveLength(4);
-      expect(tools.map((t) => t.name)).toContain("deploy_app");
+      expect(tools).toHaveLength(3);
+      expect(tools.map((t) => t.name)).not.toContain("deploy_app");
     });
   });
 
@@ -112,16 +102,16 @@ describe("vibeCoder with backend option", () => {
       expect(sections[0]).not.toContain("bun:sqlite");
     });
 
-    it("includes deploy section when deploy is configured", () => {
+    it("does not include deploy section (deploy moved to app-registry)", () => {
       const cap = vibeCoder({
         provider: mockProvider(),
         backend: mockBackendOptions(),
-        deploy: mockDeployOptions(),
       });
       const sections = cap.promptSections!(mockContext());
-      expect(sections).toHaveLength(2);
-      expect(sections[1]).toContain("Deploying");
-      expect(sections[1]).toContain("deploy_app");
+      expect(sections).toHaveLength(1);
+      for (const section of sections) {
+        expect(section).not.toContain("deploy_app");
+      }
     });
 
     it("fullstack prompt includes database example with bun:sqlite", () => {

@@ -1,6 +1,5 @@
 import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
-import { createDeployAppTool } from "./tools/deploy-app.js";
 import { createGetConsoleLogsTool } from "./tools/get-console-logs.js";
 import { createHidePreviewTool } from "./tools/hide-preview.js";
 import { createShowPreviewTool } from "./tools/show-preview.js";
@@ -28,9 +27,6 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
         createHidePreviewTool(options.provider, context),
         createGetConsoleLogsTool(context),
       ];
-      if (options.deploy) {
-        tools.push(createDeployAppTool(options.provider, context, options.deploy.storage));
-      }
       return tools;
     },
 
@@ -165,15 +161,6 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
             '- Set development: true for HMR\n' +
             "- No Vite or build tools needed\n\n" +
             "Use get_console_logs to check for errors. Call hide_preview when done.",
-        );
-      }
-
-      if (options.deploy) {
-        sections.push(
-          "Deploying:\n" +
-            "After the app is working in preview, you can deploy it:\n" +
-            "1. Call deploy_app with the project directory path\n" +
-            "2. Share the deploy URL with the user",
         );
       }
 
