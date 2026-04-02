@@ -568,4 +568,39 @@ describe("resolveCapabilities", () => {
     await result.beforeToolExecutionHooks[0](event, hookCtx);
     expect(hookFn).toHaveBeenCalledWith(event, expect.objectContaining({ sessionId: "s1" }));
   });
+
+  // --- Disposer collection ---
+
+  it("collects disposers from capabilities with dispose field", () => {
+    const disposeFn = vi.fn().mockResolvedValue(undefined);
+    const cap = makeCap({ id: "has-dispose", dispose: disposeFn });
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.disposers).toHaveLength(1);
+    expect(result.disposers[0].capabilityId).toBe("has-dispose");
+    expect(result.disposers[0].dispose).toBe(disposeFn);
+  });
+
+  it("skips capabilities without dispose field", () => {
+    const cap = makeCap({ id: "no-dispose" });
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.disposers).toHaveLength(0);
+  });
+
+  it("collects disposers in registration order", () => {
+    const cap1 = makeCap({ id: "a", dispose: vi.fn() });
+    const cap2 = makeCap({ id: "b", dispose: vi.fn() });
+    const cap3 = makeCap({ id: "c" }); // no dispose
+    const result = resolveCapabilities([cap1, cap2, cap3], ctx);
+
+    expect(result.disposers).toHaveLength(2);
+    expect(result.disposers[0].capabilityId).toBe("a");
+    expect(result.disposers[1].capabilityId).toBe("b");
+  });
+
+  it("returns empty disposers for empty capabilities", () => {
+    const result = resolveCapabilities([], ctx);
+    expect(result.disposers).toEqual([]);
+  });
 });

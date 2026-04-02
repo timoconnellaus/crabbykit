@@ -1,3 +1,16 @@
+// Errors
+export type { RuntimeErrorType } from "./errors/index.js";
+export {
+  RuntimeError,
+  isRuntimeError,
+  sessionNotFound,
+  toolNotFound,
+  toolExecutionFailed,
+  toolTimeout,
+  agentBusy,
+  compactionOverflow,
+  doomLoopDetected,
+} from "./errors/index.js";
 // Storage interfaces
 export type { KvStore, SqlResult, SqlStore } from "./storage/index.js";
 export { createCfKvStore, createCfSqlStore } from "./storage/index.js";
@@ -118,7 +131,7 @@ export type {
   SessionEntryType,
 } from "./session/types.js";
 // Tool system
-export { defineTool, mcpToolToAgentTool, toolResult } from "./tools/define-tool.js";
+export { applyDefaultTimeout, defineTool, mcpToolToAgentTool, toolResult } from "./tools/define-tool.js";
 // Transport interfaces
 export { CfWebSocketTransport } from "./transport/cloudflare.js";
 export type { ErrorCode } from "./transport/error-codes.js";
