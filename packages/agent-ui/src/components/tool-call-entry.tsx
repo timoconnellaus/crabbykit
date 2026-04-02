@@ -79,6 +79,7 @@ export const ToolCallEntry = memo(function ToolCallEntry({
     >
       {/* Collapsed header */}
       <div data-agent-ui="tool-entry-header">
+        <span data-agent-ui="tool-entry-indicator" data-cat={category} />
         <span data-agent-ui="tool-entry-name">{toolName}</span>
         {detail && <span data-agent-ui="tool-entry-detail">{detail}</span>}
 
@@ -192,6 +193,8 @@ function renderToolBody(
 
 function renderExecBody(args: unknown, outputText: string | null, isError: boolean) {
   const command = argStr(args, "command");
+  const exitMatch = outputText?.match(/\[exit code: (\d+)\]/);
+  const exitCode = exitMatch ? Number.parseInt(exitMatch[1], 10) : null;
 
   return (
     <>
@@ -204,6 +207,18 @@ function renderExecBody(args: unknown, outputText: string | null, isError: boole
       {outputText && (
         <pre data-agent-ui="exec-output" data-error={isError || undefined}>
           {outputText}
+          {exitCode !== null && (
+            <>
+              {"\n"}
+              <span
+                data-agent-ui="exit-code-badge"
+                data-exit-ok={exitCode === 0 || undefined}
+                data-exit-err={exitCode !== 0 || undefined}
+              >
+                exit {exitCode}
+              </span>
+            </>
+          )}
         </pre>
       )}
     </>
@@ -214,14 +229,26 @@ function renderExecBody(args: unknown, outputText: string | null, isError: boole
 
 function renderElevateBody(args: unknown, _outputText: string | null) {
   const reason = argStr(args, "reason");
+  const obj = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const timeout = typeof obj.timeout === "number" ? obj.timeout : null;
+
   return (
     <div data-agent-ui="elevation-card">
       <span data-agent-ui="elevation-icon">{"\u26A1"}</span>
       <span data-agent-ui="elevation-text">
         Shell access granted{reason ? <> &mdash; <strong>{reason}</strong></> : null}
       </span>
+      {timeout && (
+        <span data-agent-ui="elevation-timeout">auto-off in {formatTimeout(timeout)}</span>
+      )}
     </div>
   );
+}
+
+function formatTimeout(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  return `${m}m`;
 }
 
 function renderDeElevateBody(_outputText: string | null) {
