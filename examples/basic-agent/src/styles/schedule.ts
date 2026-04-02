@@ -14,6 +14,7 @@ export const scheduleStyles = `
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
+  min-height: 2.5rem;
   border-bottom: 1px solid var(--agent-ui-border);
 }
 
@@ -26,7 +27,8 @@ export const scheduleStyles = `
 }
 
 [data-agent-ui="schedule-panel-add"] {
-  padding: 0.25rem 0.625rem;
+  height: 1.25rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--agent-ui-border);
   border-radius: 4px;
   background: transparent;
@@ -34,6 +36,8 @@ export const scheduleStyles = `
   cursor: pointer;
   font: inherit;
   font-size: 0.625rem;
+  line-height: 1;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 [data-agent-ui="schedule-panel-add"]:hover {

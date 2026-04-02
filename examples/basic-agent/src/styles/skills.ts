@@ -14,6 +14,7 @@ export const skillsStyles = `
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
+  min-height: 2.5rem;
   border-bottom: 1px solid var(--agent-ui-border);
 }
 

@@ -14,6 +14,7 @@ export const appsStyles = `
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
+  min-height: 2.5rem;
   border-bottom: 1px solid var(--agent-ui-border);
 }
 
@@ -34,15 +35,16 @@ export const appsStyles = `
 
 [data-agent-ui="app-card"] {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.625rem;
   padding: 0.625rem 0.75rem;
+  border: 1px solid var(--agent-ui-schedule-border);
   border-radius: 6px;
-  background: var(--agent-ui-bg-surface);
-  transition: background 0.15s ease;
+  background: var(--agent-ui-schedule-bg);
+  transition: all 0.15s ease;
 }
 [data-agent-ui="app-card"]:hover {
-  background: var(--agent-ui-bg-hover);
+  border-color: var(--agent-ui-border-input);
 }
 
 [data-agent-ui="app-card-info"] {
@@ -119,13 +121,13 @@ export const appsStyles = `
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: 3rem 1rem;
-  color: var(--agent-ui-text-dim);
+  color: var(--agent-ui-text-muted);
   text-align: center;
-  gap: 0.375rem;
 }
 [data-agent-ui="apps-empty-title"] {
-  color: var(--agent-ui-text-muted);
-  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--agent-ui-text-dim);
 }
 `;
