@@ -134,6 +134,20 @@ export interface ScheduleManager {
 /** Default timeout in milliseconds for requestFromClient. */
 const DEFAULT_CLIENT_REQUEST_TIMEOUT_MS = 5_000;
 
+/**
+ * A subagent profile defines the configuration for a child agent.
+ * Defined here to avoid a circular dependency between agent-runtime and subagent packages.
+ * The full SubagentProfile type in @claw-for-cloudflare/subagent extends this.
+ */
+export interface SubagentProfile {
+  id: string;
+  name: string;
+  description: string;
+  systemPrompt: string | ((parentPrompt: string) => string);
+  tools?: string[];
+  model?: string;
+}
+
 export interface AgentContext {
   /** The Durable Object ID of the agent (hex string). */
   agentId: string;
@@ -271,6 +285,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   /** Returns the IDs of all registered capabilities. */
   private getCapabilityIds(): string[] {
     return this.getCachedCapabilities().map((c) => c.id);
+  }
+
+  /**
+   * Override to register subagent profiles. Profiles define the configuration
+   * (system prompt, tool allowlist, model override) for child agents that can
+   * be spawned by the subagent capability.
+   *
+   * Each profile is a lightweight configuration — not a full capability.
+   * Pre-built profiles (e.g., `explorer()` from `@claw-for-cloudflare/subagent-explorer`)
+   * are composable functions that return a SubagentProfile.
+   */
+  protected getSubagentProfiles(): SubagentProfile[] {
+    return [];
   }
 
   /**

@@ -34,7 +34,7 @@ export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition and validation
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export { Value } from "@sinclair/typebox/value";
-export type { A2AConfig, AgentConfig, AgentContext, ScheduleManager } from "./agent-do.js";
+export type { A2AConfig, AgentConfig, AgentContext, ScheduleManager, SubagentProfile } from "./agent-do.js";
 // Agent DO
 export { AgentDO } from "./agent-do.js";
 export type {
@@ -166,7 +166,9 @@ export type {
   SkillListEntry,
   SkillListMessage,
   SteerMessage,
+  SubagentEventMessage,
   SwitchSessionMessage,
+  TaskEventMessage,
   ToggleScheduleMessage,
   ToolEventMessage,
 } from "./transport/types.js";

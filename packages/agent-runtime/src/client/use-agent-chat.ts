@@ -25,6 +25,20 @@ export interface UseAgentChatConfig {
   maxReconnectDelay?: number;
   /** Called when a custom event is received from a capability. */
   onCustomEvent?: (name: string, data: Record<string, unknown>) => void;
+  /** Called when a task_event is received (task created, updated, closed, dep changed). */
+  onTaskEvent?: (event: {
+    changeType: string;
+    task: Record<string, unknown>;
+    dep?: Record<string, unknown>;
+  }) => void;
+  /** Called when a subagent_event is received (child agent activity). */
+  onSubagentEvent?: (event: {
+    subagentId: string;
+    profileId: string;
+    childSessionId: string;
+    taskId?: string;
+    event: unknown;
+  }) => void;
   /**
    * Called when the server requests data from the client (via requestFromClient).
    * The handler receives the event name and data, and should return the response data.
@@ -101,6 +115,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   onCustomEventRef.current = config.onCustomEvent;
   const onCustomRequestRef = useRef(config.onCustomRequest);
   onCustomRequestRef.current = config.onCustomRequest;
+  const onTaskEventRef = useRef(config.onTaskEvent);
+  onTaskEventRef.current = config.onTaskEvent;
+  const onSubagentEventRef = useRef(config.onSubagentEvent);
+  onSubagentEventRef.current = config.onSubagentEvent;
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPongAtRef = useRef<number>(0);
@@ -118,6 +136,8 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       streamMessageRef,
       onCustomEventRef,
       onCustomRequestRef,
+      onTaskEventRef,
+      onSubagentEventRef,
       lastPongAtRef,
       pongTimeoutRef,
     }),

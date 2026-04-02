@@ -9,7 +9,16 @@ import type {
   Capability,
   PromptOptions,
 } from "@claw-for-cloudflare/agent-runtime";
-import { AgentDO, createCfSqlStore, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
+import {
+  AgentDO,
+  createCfSqlStore,
+  defineTool,
+  Type,
+  Value,
+} from "@claw-for-cloudflare/agent-runtime";
+import type { SubagentProfile } from "@claw-for-cloudflare/agent-runtime";
+import { explorer } from "@claw-for-cloudflare/subagent-explorer";
+import { taskTracker } from "@claw-for-cloudflare/task-tracker";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
@@ -397,6 +406,7 @@ export class BasicAgent extends AgentDO<Env> {
       batchTool({
         getTools: () => this.resolveToolsForSession(this.sessionStore.list()[0]?.id ?? "").tools,
       }),
+      taskTracker({ sql: createCfSqlStore(this.ctx.storage.sql) }),
       debugInspector(),
       vibeCoder({
         provider: sandboxProvider,
@@ -508,6 +518,10 @@ export class BasicAgent extends AgentDO<Env> {
       resolveDoId: (id: string) => this.env.AGENT.idFromName(id).toString(),
       callbackBaseUrl: "https://agent",
     };
+  }
+
+  protected getSubagentProfiles(): SubagentProfile[] {
+    return [explorer({ model: "google/gemini-2.5-flash" })];
   }
 
   protected getPromptOptions(): PromptOptions {

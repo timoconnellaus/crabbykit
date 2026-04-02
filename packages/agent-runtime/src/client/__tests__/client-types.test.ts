@@ -37,8 +37,8 @@ describe("Client Types", () => {
         command_list: true,
         custom_event: true,
         inject_message: true,
-        skill_list: true,
-        system_prompt: true,
+        task_event: true,
+        subagent_event: true,
         pong: true,
       };
       expect(Object.keys(handlers)).toHaveLength(15);
@@ -57,9 +57,8 @@ describe("Client Types", () => {
         request_sync: true,
         toggle_schedule: true,
         custom_response: true,
-        request_system_prompt: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(12);
+      expect(Object.keys(handlers)).toHaveLength(11);
     });
   });
 

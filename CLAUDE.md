@@ -41,6 +41,11 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/skill-registry`** — D1-backed skill registry with `SkillRegistry` interface. Stores skill metadata, content, and version info. Supports self-seeding from a skill definitions array on startup.
 - **`packages/skills`** — Skills capability for on-demand procedural knowledge. Syncs from registry, stores enabled skills in R2, provides `skill_load` tool for loading SKILL.md into agent context. Supports auto-update with hash-based conflict detection and agent-assisted merge.
 
+### Task & Subagent Packages
+- **`packages/task-tracker`** — DAG-based task management capability. SQLite-backed task store with dependency graph, ready-work computation, session ownership, and 6 tools (task_create, task_update, task_close, task_ready, task_tree, task_dep_add).
+- **`packages/subagent`** — Same-DO child agent spawning capability. Blocking and non-blocking execution modes with steer-or-prompt dual-path result delivery. SubagentHost interface, PendingSubagentStore, event forwarding, and 4 tools (call_subagent, start_subagent, check_subagent, cancel_subagent).
+- **`packages/subagent-explorer`** — Pre-built explorer subagent profile. Read-only codebase search with configurable model override and tool filtering.
+
 ### Agent Operations Packages
 - **`packages/a2a`** — Agent-to-Agent protocol (A2A v1.0). Task store, handler, executor, and tools (call_agent, start_task, check_task, cancel_task).
 - **`packages/agent-fleet`** — Fleet management capability. Create/list/delete child agents via D1 registry.
@@ -71,6 +76,9 @@ packages/vector-memory     — Semantic memory search (Vectorize + R2)
 packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
+packages/task-tracker       — DAG-based task management (deps, ready-work)
+packages/subagent           — Same-DO child agent spawning
+packages/subagent-explorer  — Pre-built explorer subagent profile
 packages/container-db       — DB client for containers (db.internal)
 packages/skill-registry     — D1-backed skill registry with self-seeding
 packages/skills             — Skills capability (on-demand procedural knowledge)

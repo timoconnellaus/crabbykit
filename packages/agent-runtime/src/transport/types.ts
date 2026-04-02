@@ -1,6 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
-import type { PromptSection } from "../prompt/types.js";
 import type { Session } from "../session/types.js";
 import type { ErrorCode } from "./error-codes.js";
 
@@ -113,31 +112,27 @@ export interface InjectMessageMessage {
   message: AgentMessage;
 }
 
-export interface SkillListEntry {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  enabled: boolean;
-  autoUpdate: boolean;
-  stale: boolean;
-  /** True for skills declared at build time — cannot be uninstalled. */
-  builtIn?: boolean;
-}
-
-export interface SkillListMessage {
-  type: "skill_list";
-  skills: SkillListEntry[];
-}
-
-export interface SystemPromptMessage {
-  type: "system_prompt";
-  sections: PromptSection[];
-  raw: string;
-}
-
 export interface PongMessage {
   type: "pong";
+}
+
+export interface TaskEventMessage {
+  type: "task_event";
+  event: {
+    changeType: "created" | "updated" | "closed" | "dep_added" | "dep_removed";
+    task: Record<string, unknown>;
+    dep?: Record<string, unknown>;
+  };
+}
+
+export interface SubagentEventMessage {
+  type: "subagent_event";
+  sessionId: string;
+  subagentId: string;
+  profileId: string;
+  childSessionId: string;
+  taskId?: string;
+  event: AgentEvent;
 }
 
 export type ServerMessage =
@@ -153,8 +148,8 @@ export type ServerMessage =
   | CommandListMessage
   | CustomEventMessage
   | InjectMessageMessage
-  | SkillListMessage
-  | SystemPromptMessage
+  | TaskEventMessage
+  | SubagentEventMessage
   | PongMessage;
 
 // --- Client → Server messages ---
@@ -220,10 +215,6 @@ export interface CustomResponseMessage {
   data: Record<string, unknown>;
 }
 
-export interface RequestSystemPromptMessage {
-  type: "request_system_prompt";
-}
-
 export interface PingMessage {
   type: "ping";
 }
@@ -239,5 +230,4 @@ export type ClientMessage =
   | RequestSyncMessage
   | ToggleScheduleMessage
   | CustomResponseMessage
-  | RequestSystemPromptMessage
   | PingMessage;

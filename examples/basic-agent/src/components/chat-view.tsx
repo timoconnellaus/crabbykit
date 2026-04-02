@@ -1,5 +1,10 @@
 import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
-import type { ConsoleLogEntry, SandboxBadgeProps } from "@claw-for-cloudflare/agent-ui";
+import type {
+  ConsoleLogEntry,
+  SandboxBadgeProps,
+  SubagentInfo,
+  TaskNode,
+} from "@claw-for-cloudflare/agent-ui";
 import {
   AppPreview,
   ChatInput,
@@ -7,7 +12,10 @@ import {
   MessageList,
   SessionList,
   StatusBar,
+  SubagentList,
   SystemPromptPanel,
+  TaskBreadcrumb,
+  TaskTreePanel,
   ThinkingIndicator,
 } from "@claw-for-cloudflare/agent-ui";
 import { useState } from "react";
@@ -25,6 +33,10 @@ export function ChatView({
   onClosePreview,
   logFilter,
   onLogFilterChange,
+  taskTree,
+  activeTaskId,
+  onTaskClick,
+  subagents,
 }: {
   chat: UseAgentChatReturn;
   sandboxState: SandboxBadgeProps;
@@ -36,6 +48,10 @@ export function ChatView({
   onClosePreview: () => void;
   logFilter: "all" | "error" | "warn" | "info" | "log";
   onLogFilterChange: (filter: "all" | "error" | "warn" | "info" | "log") => void;
+  taskTree?: TaskNode | null;
+  activeTaskId?: string;
+  onTaskClick?: (taskId: string) => void;
+  subagents?: SubagentInfo[];
 }) {
   const [promptOpen, setPromptOpen] = useState(false);
 
@@ -43,6 +59,13 @@ export function ChatView({
     <ChatPanel chat={chat} style={{ flexDirection: "row", flex: 1 }}>
       <div data-agent-ui="sidebar">
         <SessionList />
+        {taskTree && (
+          <TaskTreePanel
+            tree={taskTree}
+            activeTaskId={activeTaskId}
+            onTaskClick={onTaskClick}
+          />
+        )}
       </div>
       <div
         style={{ display: "flex", flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}
@@ -56,6 +79,7 @@ export function ChatView({
             overflow: "hidden",
           }}
         >
+          <TaskBreadcrumb tree={taskTree ?? null} activeTaskId={activeTaskId} />
           <StatusBar sandboxState={sandboxState}>
             <button
               type="button"
@@ -83,6 +107,7 @@ export function ChatView({
           </StatusBar>
           <MessageList />
           <ThinkingIndicator />
+          {subagents && subagents.length > 0 && <SubagentList subagents={subagents} />}
           <PendingTasksBanner tasks={pendingTasks} />
           <ChatInput />
         </div>
