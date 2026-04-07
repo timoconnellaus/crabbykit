@@ -1,6 +1,6 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
 import type { SandboxBadgeProps, SubagentInfo, TaskNode } from "@claw-for-cloudflare/agent-ui";
-import { usePreview } from "@claw-for-cloudflare/agent-ui";
+import { useBrowser, usePreview } from "@claw-for-cloudflare/agent-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentRecord } from "./components/agent-rail";
 import { AgentRail } from "./components/agent-rail";
@@ -42,6 +42,7 @@ export default function App() {
   const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
 
   const preview = usePreview();
+  const browser = useBrowser();
 
   // Reset tab when switching agents
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedAgentId is the intentional trigger
@@ -81,8 +82,9 @@ export default function App() {
 
   const onCustomEvent = useCallback(
     (name: string, data: Record<string, unknown>) => {
-      // Let the preview hook handle preview events first
+      // Let the preview/browser hooks handle their events first
       if (preview.handleCustomEvent(name, data)) return;
+      if (browser.handleCustomEvent(name, data)) return;
 
       if (name === "app_list") {
         const apps = data.apps as typeof deployedApps;
@@ -132,7 +134,7 @@ export default function App() {
         }
       }
     },
-    [preview],
+    [preview, browser],
   );
 
   const onCustomRequest = useCallback(
@@ -277,6 +279,8 @@ export default function App() {
               activeTaskId={activeTaskId}
               onTaskClick={setActiveTaskId}
               subagents={subagents}
+              browserState={browser.browserState}
+              onCloseBrowser={browser.closeBrowser}
             />
           </div>
           {activeTab === "apps" && <AppsPanel apps={deployedApps} />}

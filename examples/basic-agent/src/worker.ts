@@ -26,6 +26,7 @@ import {
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { batchTool } from "@claw-for-cloudflare/batch-tool";
+import { browserbase } from "@claw-for-cloudflare/browserbase";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
 import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
@@ -69,6 +70,9 @@ interface Env {
   AGENT_SECRET: string;
   AGENT_DB: D1Database;
   SKILL_DB: D1Database;
+  // Browserbase (set via .dev.vars or wrangler secret put)
+  BROWSERBASE_API_KEY: string;
+  BROWSERBASE_PROJECT_ID: string;
 }
 
 const VIBE_WEBAPP_SKILL_MD = `---
@@ -409,6 +413,10 @@ export class BasicAgent extends AgentDO<Env> {
         getTools: () => this.resolveToolsForSession(this.sessionStore.list()[0]?.id ?? "").tools,
       }),
       taskTracker({ sql: createCfSqlStore(this.ctx.storage.sql) }),
+      browserbase({
+        apiKey: this.env.BROWSERBASE_API_KEY,
+        projectId: this.env.BROWSERBASE_PROJECT_ID,
+      }),
       debugInspector(),
       vibeCoder({
         provider: sandboxProvider,

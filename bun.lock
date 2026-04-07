@@ -18,7 +18,7 @@
         "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
         "@claw-for-cloudflare/r2-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
-        "@cloudflare/containers": "^0.1.0",
+        "@cloudflare/containers": "^0.2.0",
       },
       "devDependencies": {
         "@cloudflare/vitest-pool-workers": "^0.8.0",
@@ -44,6 +44,7 @@
         "@claw-for-cloudflare/ai-proxy": "workspace:*",
         "@claw-for-cloudflare/app-registry": "workspace:*",
         "@claw-for-cloudflare/batch-tool": "workspace:*",
+        "@claw-for-cloudflare/browserbase": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
         "@claw-for-cloudflare/credential-store": "workspace:*",
@@ -61,7 +62,7 @@
         "@claw-for-cloudflare/tool-output-truncation": "workspace:*",
         "@claw-for-cloudflare/vector-memory": "workspace:*",
         "@claw-for-cloudflare/vibe-coder": "workspace:*",
-        "@cloudflare/containers": "^0.1.0",
+        "@cloudflare/containers": "^0.2.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
@@ -305,7 +306,7 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
-        "@cloudflare/containers": "^0.1.0",
+        "@cloudflare/containers": "^0.2.0",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.0.0",
@@ -713,7 +714,7 @@
 
     "@claw-for-cloudflare/vite-plugin": ["@claw-for-cloudflare/vite-plugin@workspace:packages/vite-plugin"],
 
-    "@cloudflare/containers": ["@cloudflare/containers@0.1.1", "", {}, "sha512-YTdobRTnTlUOUPMFemufH367A9Z8pDfZ+UboYMLbGpO0VlvEXZDiioSmXPQMHld2vRtkL31mcRii3bcbQU6fdw=="],
+    "@cloudflare/containers": ["@cloudflare/containers@0.2.2", "", {}, "sha512-cfTSd7M96Z9NeCiaN4i3FuMb+i2Nzi0HbMuxvMAnUmkXwtWIZCQ3XLqUWQkdCKWNJZ/3BLMInC6ntFvpbTWIpA=="],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.4.2", "", {}, "sha512-SIOD2DxrRRwQ+jgzlXCqoEFiKOFqaPjhnNTGKXSRLvp1HiOvapLaFG2kEr9dYQTYe8rKrd9uvDUzmAITeNyaHQ=="],
 

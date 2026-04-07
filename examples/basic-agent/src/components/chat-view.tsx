@@ -1,5 +1,6 @@
 import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
 import type {
+  BrowserState,
   ConsoleLogEntry,
   SandboxBadgeProps,
   SubagentInfo,
@@ -7,6 +8,7 @@ import type {
 } from "@claw-for-cloudflare/agent-ui";
 import {
   AppPreview,
+  BrowserPanel,
   ChatInput,
   ChatPanel,
   MessageList,
@@ -37,6 +39,8 @@ export function ChatView({
   activeTaskId,
   onTaskClick,
   subagents,
+  browserState,
+  onCloseBrowser,
 }: {
   chat: UseAgentChatReturn;
   sandboxState: SandboxBadgeProps;
@@ -52,6 +56,8 @@ export function ChatView({
   activeTaskId?: string;
   onTaskClick?: (taskId: string) => void;
   subagents?: SubagentInfo[];
+  browserState?: BrowserState;
+  onCloseBrowser?: () => void;
 }) {
   const [promptOpen, setPromptOpen] = useState(false);
 
@@ -74,7 +80,7 @@ export function ChatView({
           style={{
             display: "flex",
             flexDirection: "column",
-            flex: previewState.open ? 3 : 1,
+            flex: previewState.open || browserState?.open ? 3 : 1,
             minWidth: 0,
             overflow: "hidden",
           }}
@@ -123,6 +129,16 @@ export function ChatView({
               onLogFilterChange={(f) =>
                 onLogFilterChange(f as "all" | "error" | "warn" | "info" | "log")
               }
+              connected={chat.connectionStatus === "connected"}
+            />
+          </div>
+        )}
+        {browserState?.open && browserState.debuggerFullscreenUrl && (
+          <div style={{ flex: 7, minWidth: 0 }}>
+            <BrowserPanel
+              debuggerFullscreenUrl={browserState.debuggerFullscreenUrl}
+              pageUrl={browserState.pageUrl}
+              onClose={onCloseBrowser}
               connected={chat.connectionStatus === "connected"}
             />
           </div>
