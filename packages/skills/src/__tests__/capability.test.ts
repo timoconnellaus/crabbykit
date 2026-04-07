@@ -91,7 +91,7 @@ function createOptions(overrides?: Partial<SkillsOptions>): SkillsOptions {
       namespace: () => "test-agent",
     },
     registry,
-    skills: [{ id: "code-review", enabled: true, autoUpdate: true }],
+    skills: [{ id: "code-review", enabled: true }],
     ...overrides,
   };
 }
@@ -349,11 +349,11 @@ describe("onConnect sync", () => {
 });
 
 // ---------------------------------------------------------------------------
-// beforeInference merge injection
+// beforeInference conflict injection
 // ---------------------------------------------------------------------------
 
 describe("beforeInference", () => {
-  it("passes messages through when no pending merges", async () => {
+  it("passes messages through when no conflicts", async () => {
     const cap = skills(createOptions());
     const messages = [{ role: "user", content: "hello", timestamp: Date.now() }];
 
@@ -362,21 +362,22 @@ describe("beforeInference", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
     });
 
     expect(result).toHaveLength(1);
     expect((result[0] as any).content).toBe("hello");
   });
 
-  it("injects merge instructions when pending merges exist", async () => {
+  it("injects merge instructions when pending conflicts exist", async () => {
     const cap = skills(createOptions());
 
-    // Manually set a pending merge
-    await capStorage.put("merge:code-review", {
+    // Store a conflict using the new prefix
+    await capStorage.put("conflict:code-review", {
       skillId: "code-review",
-      newContent: "# Updated\nNew instructions",
-      newVersion: "1.1.0",
-      newHash: "newhash",
+      upstreamContent: "# Updated\nNew instructions",
+      upstreamVersion: "1.1.0",
+      upstreamHash: "newhash",
     });
 
     const messages = [{ role: "user", content: "hello", timestamp: Date.now() }];
@@ -386,6 +387,7 @@ describe("beforeInference", () => {
       sessionId: "s1",
       sessionStore: {} as any,
       storage: capStorage,
+      capabilityIds: [],
     });
 
     // Should have the merge instruction prepended + the original message
@@ -409,11 +411,10 @@ describe("storage helpers", () => {
     const skill = {
       name: "Test",
       description: "Test skill",
-      version: "1.0.0",
       enabled: true,
-      autoUpdate: true,
-      stale: false,
-      originalHash: "abc",
+      origin: "registry" as const,
+      registryVersion: "1.0.0",
+      registryHash: "abc",
       requiresCapabilities: [],
     };
 
@@ -429,22 +430,22 @@ describe("storage helpers", () => {
     expect(afterDelete).toBeUndefined();
   });
 
-  it("round-trips pending merge through storage", async () => {
-    const { setPendingMerge, getPendingMerges, clearPendingMerge } =
+  it("round-trips skill conflict through storage", async () => {
+    const { setSkillConflict, getSkillConflicts, clearSkillConflict } =
       await import("../storage.js");
 
-    await setPendingMerge(capStorage, {
+    await setSkillConflict(capStorage, {
       skillId: "test",
-      newContent: "# New",
-      newVersion: "2.0.0",
-      newHash: "xyz",
+      upstreamContent: "# New",
+      upstreamVersion: "2.0.0",
+      upstreamHash: "xyz",
     });
 
-    const merges = await getPendingMerges(capStorage);
-    expect(merges.size).toBe(1);
+    const conflicts = await getSkillConflicts(capStorage);
+    expect(conflicts.size).toBe(1);
 
-    await clearPendingMerge(capStorage, "test");
-    const afterClear = await getPendingMerges(capStorage);
+    await clearSkillConflict(capStorage, "test");
+    const afterClear = await getSkillConflicts(capStorage);
     expect(afterClear.size).toBe(0);
   });
 });
@@ -561,7 +562,7 @@ describe("httpHandlers", () => {
   });
 
   describe("POST /skills/install", () => {
-    it("installs a skill from the registry", async () => {
+    it("installs a skill from the registry with origin registry", async () => {
       const cap = skills(createOptions({
         registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
         skills: [{ id: "code-review", enabled: true }],
@@ -579,14 +580,15 @@ describe("httpHandlers", () => {
         }),
         mockHttpContext(),
       );
-      const body = await response.json() as { ok: boolean; skill: { id: string } };
+      const body = await response.json() as { ok: boolean; skill: { id: string; origin: string } };
       expect(response.status).toBe(200);
       expect(body.ok).toBe(true);
+      expect(body.skill.origin).toBe("registry");
 
       // Verify it's in storage
       const installed = await capStorage.get<any>("installed:debug-helper");
       expect(installed).toBeDefined();
-      expect(installed.builtIn).toBe(false);
+      expect(installed.origin).toBe("registry");
       expect(installed.enabled).toBe(true);
 
       // Verify R2 has content
@@ -691,7 +693,7 @@ describe("httpHandlers", () => {
       expect(bucket._store.has("test-agent/skills/debug-helper/SKILL.md")).toBe(false);
     });
 
-    it("rejects uninstalling built-in skill", async () => {
+    it("rejects uninstalling built-in skill (checked via declarations)", async () => {
       const cap = skills(createOptions());
       await syncCap(cap);
 
@@ -732,7 +734,7 @@ describe("httpHandlers", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Seed version bump → sync update flow
+// Seed version bump -> sync update flow
 // ---------------------------------------------------------------------------
 
 describe("seed version bump updates installed skill", () => {
@@ -768,7 +770,7 @@ IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
     return hex;
   }
 
-  it("updates R2 content when registry version bumps", async () => {
+  it("updates R2 content when registry version bumps (clean skill)", async () => {
     const v1Hash = await sha256(V1_SKILL_MD);
 
     const v1Record: SkillRecord = {
@@ -787,7 +789,7 @@ IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
     const v1Registry = createMockRegistry([v1Record]);
     const cap1 = skills(createOptions({
       registry: v1Registry,
-      skills: [{ id: "vibe-webapp", enabled: true, autoUpdate: true }],
+      skills: [{ id: "vibe-webapp", enabled: true }],
     }));
 
     await cap1.hooks!.onConnect!({
@@ -823,7 +825,7 @@ IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
     const v2Registry = createMockRegistry([v2Record]);
     const cap2 = skills(createOptions({
       registry: v2Registry,
-      skills: [{ id: "vibe-webapp", enabled: true, autoUpdate: true }],
+      skills: [{ id: "vibe-webapp", enabled: true }],
     }));
 
     // Re-sync (simulates new client connecting after restart)

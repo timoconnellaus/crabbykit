@@ -40,7 +40,7 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 
 ### Skills Packages
 - **`packages/skill-registry`** — D1-backed skill registry with `SkillRegistry` interface. Stores skill metadata, content, and version info. Supports self-seeding from a skill definitions array on startup.
-- **`packages/skills`** — Skills capability for on-demand procedural knowledge. Syncs from registry, stores enabled skills in R2, provides `skill_load` tool for loading SKILL.md into agent context. Supports auto-update with hash-based conflict detection and agent-assisted merge.
+- **`packages/skills`** — Skills capability for on-demand procedural knowledge. Syncs from registry, stores enabled skills in R2, provides `skill_load` tool for loading SKILL.md into agent context. Three-scenario sync (new, update-clean, update-dirty), dirty tracking at mutation time via afterToolExecution hook, and conflict resolution for agent-modified skills with upstream updates.
 
 ### Task & Subagent Packages
 - **`packages/task-tracker`** — DAG-based task management capability. SQLite-backed task store with dependency graph, ready-work computation, session ownership, and 6 tools (task_create, task_update, task_close, task_ready, task_tree, task_dep_add).

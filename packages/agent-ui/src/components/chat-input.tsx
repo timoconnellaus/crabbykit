@@ -22,7 +22,7 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   { placeholder = "Type a message...", onSend, ...props },
   ref,
 ) {
-  const { sendMessage, abort, agentStatus, availableCommands } = useChat();
+  const { sendMessage, steerMessage, abort, agentStatus, availableCommands } = useChat();
   const isRunning = agentStatus !== "idle";
   const [text, setText] = useState("");
   const pickerVisibleRef = useRef(false);
@@ -65,17 +65,35 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
     [submit],
   );
 
+  const steer = useCallback(() => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    steerMessage(trimmed);
+    setText("");
+    onSend?.(trimmed);
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+    }
+  }, [text, steerMessage, onSend]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       // When command picker is visible, it captures Enter/Escape/Arrow/Tab via document listener
       if (pickerVisibleRef.current) return;
+
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        steer();
+        return;
+      }
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         submit();
       }
     },
-    [submit],
+    [submit, steer],
   );
 
   return (
@@ -109,15 +127,22 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
         placeholder={placeholder}
         rows={1}
       />
-      {isRunning ? (
-        <button data-agent-ui="chat-input-abort" type="button" onClick={abort}>
-          Stop
-        </button>
-      ) : (
-        <button data-agent-ui="chat-input-submit" type="submit" disabled={!text.trim()}>
-          Send
-        </button>
-      )}
+      <div data-agent-ui="chat-input-actions">
+        {isRunning && (
+          <button data-agent-ui="chat-input-submit" type="submit" disabled={!text.trim()}>
+            Queue
+          </button>
+        )}
+        {isRunning ? (
+          <button data-agent-ui="chat-input-abort" type="button" onClick={abort}>
+            Stop
+          </button>
+        ) : (
+          <button data-agent-ui="chat-input-submit" type="submit" disabled={!text.trim()}>
+            Send
+          </button>
+        )}
+      </div>
     </form>
   );
 });

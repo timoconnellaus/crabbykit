@@ -4,7 +4,6 @@ import type { SkillRegistry } from "@claw-for-cloudflare/skill-registry";
 export interface SkillDeclaration {
   id: string;
   enabled?: boolean;
-  autoUpdate?: boolean;
 }
 
 export interface SkillsOptions {
@@ -17,24 +16,23 @@ export interface SkillsOptions {
 export interface InstalledSkill {
   name: string;
   description: string;
-  version: string;
   enabled: boolean;
-  autoUpdate: boolean;
-  stale: boolean;
-  /** SHA-256 hash of SKILL.md as installed/last updated from registry. */
-  originalHash: string;
-  /** R2 key when enabled, undefined when disabled. */
-  r2Key?: string;
+  /** Where this skill came from: "registry" if synced from D1, "agent" if created by the agent. */
+  origin: "registry" | "agent";
+  /** Registry version at last sync. Only present for registry-origin skills. */
+  registryVersion?: string;
+  /** SHA-256 hash of content as last synced from registry. Only present for registry-origin skills. */
+  registryHash?: string;
+  /** True when agent has modified content since last registry sync. */
+  dirty?: boolean;
   /** Capability IDs required by this skill. */
   requiresCapabilities: string[];
-  /** True for skills declared in getCapabilities() — cannot be uninstalled. */
-  builtIn?: boolean;
 }
 
-/** Pending merge stored in DO state when a user-modified skill has an update. */
-export interface PendingMerge {
+/** Conflict stored in DO state when a dirty registry skill has an upstream update. */
+export interface SkillConflict {
   skillId: string;
-  newContent: string;
-  newVersion: string;
-  newHash: string;
+  upstreamContent: string;
+  upstreamVersion: string;
+  upstreamHash: string;
 }

@@ -41,9 +41,10 @@ describe("Client Types", () => {
         system_prompt: true,
         task_event: true,
         subagent_event: true,
+        queue_state: true,
         pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(17);
+      expect(Object.keys(handlers)).toHaveLength(18);
     });
 
     it("discriminates client messages by type", () => {
@@ -60,8 +61,11 @@ describe("Client Types", () => {
         toggle_schedule: true,
         custom_response: true,
         request_system_prompt: true,
+        queue_message: true,
+        queue_delete: true,
+        queue_steer: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(12);
+      expect(Object.keys(handlers)).toHaveLength(15);
     });
   });
 

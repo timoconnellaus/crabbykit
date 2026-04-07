@@ -8,18 +8,17 @@ import {
   toolResult,
 } from "@claw-for-cloudflare/agent-runtime";
 import { Type } from "@sinclair/typebox";
+import { createAfterToolExecutionHook } from "./dirty-tracking.js";
 import {
   deleteSkillFromR2,
-  hashSkillContent,
   readSkillFromR2,
   skillIdFromR2Path,
   writeSkillToR2,
 } from "./r2.js";
 import {
-  clearPendingMerge,
   deleteInstalledSkill,
   getInstalledSkill,
-  getPendingMerges,
+  getSkillConflicts,
   listInstalledSkills,
   putInstalledSkill,
 } from "./storage.js";
@@ -33,29 +32,29 @@ function stripFrontmatter(content: string): string {
 }
 
 /** Build the skill list array for transport messages. */
-function buildSkillList(skills: Map<string, InstalledSkill>) {
+function buildSkillList(skills: Map<string, InstalledSkill>, declarations: Set<string>) {
   const list: Array<{
     id: string;
     name: string;
     description: string;
-    version: string;
     enabled: boolean;
-    autoUpdate: boolean;
-    stale: boolean;
-    builtIn?: boolean;
+    origin: "registry" | "agent";
+    registryVersion?: string;
+    dirty?: boolean;
+    builtIn: boolean;
   }> = [];
 
   for (const [key, skill] of skills) {
-    const id = key.startsWith("installed:") ? key.slice("installed:".length) : key;
+    const id = storageKeyToId(key);
     list.push({
       id,
       name: skill.name,
       description: skill.description,
-      version: skill.version,
       enabled: skill.enabled,
-      autoUpdate: skill.autoUpdate,
-      stale: skill.stale,
-      builtIn: skill.builtIn,
+      origin: skill.origin,
+      registryVersion: skill.registryVersion,
+      dirty: skill.dirty,
+      builtIn: declarations.has(id),
     });
   }
   return list;
@@ -108,6 +107,7 @@ function createSkillLoadTool(
 
 export function skills(options: SkillsOptions): Capability {
   const { storage: agentStorage, registry, skills: declarations } = options;
+  const declarationIds = new Set(declarations.map((d) => d.id));
 
   // Cache for installed skills, populated on connect, used by promptSections
   let cachedSkills: Map<string, InstalledSkill> | null = null;
@@ -116,6 +116,13 @@ export function skills(options: SkillsOptions): Capability {
     cachedSkills = await listInstalledSkills(capStorage);
     return cachedSkills;
   }
+
+  const afterToolExecution = createAfterToolExecutionHook(
+    agentStorage,
+    declarations,
+    () => cachedSkills,
+    (cache) => { cachedSkills = cache; },
+  );
 
   return {
     id: "skills",
@@ -179,30 +186,30 @@ export function skills(options: SkillsOptions): Capability {
         }
 
         const installed = await refreshCache(capStorage);
-        const skillList = buildSkillList(installed);
+        const skillList = buildSkillList(installed, declarationIds);
 
         ctx.broadcast?.("skill_list_update", { skills: skillList });
       },
 
       beforeInference: async (messages, ctx) => {
-        const merges = await getPendingMerges(ctx.storage);
-        if (merges.size === 0) return messages;
+        const conflicts = await getSkillConflicts(ctx.storage);
+        if (conflicts.size === 0) return messages;
 
         const injections: AgentMessage[] = [];
 
-        for (const [key, merge] of merges) {
-          const skillId = key.startsWith("merge:") ? key.slice("merge:".length) : key;
+        for (const [key, conflict] of conflicts) {
+          const skillId = key.startsWith("conflict:") ? key.slice("conflict:".length) : key;
           injections.push({
             role: "user",
             content: [
-              `[SKILL UPDATE] The skill "${skillId}" has a new version (${merge.newVersion}) available.`,
+              `[SKILL UPDATE] The skill "${skillId}" has a new version (${conflict.upstreamVersion}) available.`,
               "Your current version has been customized. Please merge the changes:",
               "",
               "Load your current version with: skill_load({ name: \"" + skillId + "\" })",
               "",
               "NEW VERSION (upstream):",
               "```",
-              merge.newContent,
+              conflict.upstreamContent,
               "```",
               "",
               `Write the merged result to skills/${skillId}/SKILL.md using file_write, preserving your customizations while incorporating the upstream changes.`,
@@ -215,46 +222,11 @@ export function skills(options: SkillsOptions): Capability {
         return [...injections, ...messages];
       },
 
-      afterToolExecution: async (event, ctx) => {
-        if (event.toolName !== "file_write") return;
-
-        const args = event.args as Record<string, unknown> | undefined;
-        const path = typeof args?.path === "string" ? args.path : undefined;
-        if (!path) return;
-
-        const skillId = skillIdFromR2Path(path);
-        if (!skillId) return;
-
-        // Check if there's a pending merge for this skill
-        const merges = await getPendingMerges(ctx.storage);
-        const mergeKey = `merge:${skillId}`;
-        const merge = merges.get(mergeKey);
-        if (!merge) return;
-
-        // Merge completed — update originalHash and clear pending merge
-        const bucket = agentStorage.bucket();
-        const namespace = agentStorage.namespace();
-        const newContent = await readSkillFromR2(bucket, namespace, skillId);
-        if (!newContent) return;
-
-        const newHash = await hashSkillContent(newContent);
-        const existing = await getInstalledSkill(ctx.storage, skillId);
-        if (existing) {
-          await putInstalledSkill(ctx.storage, skillId, {
-            ...existing,
-            version: merge.newVersion,
-            originalHash: newHash,
-            stale: false,
-          });
-        }
-
-        await clearPendingMerge(ctx.storage, skillId);
-        cachedSkills = await listInstalledSkills(ctx.storage);
-      },
+      afterToolExecution,
 
       onConfigChange: async (_oldConfig, newConfig, ctx) => {
         const skillConfigs = newConfig.skills as
-          | Array<{ id: string; enabled?: boolean; autoUpdate?: boolean }>
+          | Array<{ id: string; enabled?: boolean }>
           | undefined;
         if (!skillConfigs) return;
 
@@ -266,7 +238,6 @@ export function skills(options: SkillsOptions): Capability {
           if (!existing) continue;
 
           const enabled = config.enabled ?? existing.enabled;
-          const autoUpdate = config.autoUpdate ?? existing.autoUpdate;
 
           if (enabled && !existing.enabled) {
             // Enabling — write to R2
@@ -282,13 +253,11 @@ export function skills(options: SkillsOptions): Capability {
           await putInstalledSkill(ctx.storage, config.id, {
             ...existing,
             enabled,
-            autoUpdate,
-            r2Key: enabled ? `skills/${config.id}/SKILL.md` : undefined,
           });
         }
 
         cachedSkills = await listInstalledSkills(ctx.storage);
-        const skillList = buildSkillList(cachedSkills);
+        const skillList = buildSkillList(cachedSkills, declarationIds);
         ctx.broadcast?.("skill_list_update", { skills: skillList });
       },
     },
@@ -330,7 +299,7 @@ export function skills(options: SkillsOptions): Capability {
         path: "/skills/install",
         handler: async (request: Request, ctx) => {
           try {
-            const body = (await request.json()) as { id: string; enabled?: boolean; autoUpdate?: boolean };
+            const body = (await request.json()) as { id: string; enabled?: boolean };
             if (!body.id) {
               return new Response(JSON.stringify({ error: "Missing skill id" }), {
                 status: 400,
@@ -355,30 +324,26 @@ export function skills(options: SkillsOptions): Capability {
             }
 
             const enabled = body.enabled ?? true;
-            const autoUpdate = body.autoUpdate ?? true;
             const bucket = agentStorage.bucket();
             const namespace = agentStorage.namespace();
 
             const installed: InstalledSkill = {
               name: registryRecord.name,
               description: registryRecord.description,
-              version: registryRecord.version,
               enabled,
-              autoUpdate,
-              stale: false,
-              originalHash: registryRecord.contentHash,
+              origin: "registry",
+              registryVersion: registryRecord.version,
+              registryHash: registryRecord.contentHash,
               requiresCapabilities: registryRecord.requiresCapabilities,
-              builtIn: false,
             };
 
             if (enabled) {
               await writeSkillToR2(bucket, namespace, body.id, registryRecord.skillMd);
-              installed.r2Key = `skills/${body.id}/SKILL.md`;
             }
 
             await putInstalledSkill(ctx.storage, body.id, installed);
             cachedSkills = await listInstalledSkills(ctx.storage);
-            const skillList = buildSkillList(cachedSkills);
+            const skillList = buildSkillList(cachedSkills, declarationIds);
             ctx.broadcastToAll("skill_list_update", { skills: skillList });
 
             return new Response(JSON.stringify({ ok: true, skill: { id: body.id, ...installed } }), {
@@ -412,7 +377,8 @@ export function skills(options: SkillsOptions): Capability {
                 headers: { "content-type": "application/json" },
               });
             }
-            if (existing.builtIn) {
+            // Check declarations array instead of builtIn field
+            if (declarationIds.has(body.id)) {
               return new Response(JSON.stringify({ error: "Cannot uninstall built-in skill" }), {
                 status: 403,
                 headers: { "content-type": "application/json" },
@@ -420,7 +386,7 @@ export function skills(options: SkillsOptions): Capability {
             }
 
             // Remove from R2 if enabled
-            if (existing.enabled && existing.r2Key) {
+            if (existing.enabled) {
               const bucket = agentStorage.bucket();
               const namespace = agentStorage.namespace();
               await deleteSkillFromR2(bucket, namespace, body.id);
@@ -428,7 +394,7 @@ export function skills(options: SkillsOptions): Capability {
 
             await deleteInstalledSkill(ctx.storage, body.id);
             cachedSkills = await listInstalledSkills(ctx.storage);
-            const skillList = buildSkillList(cachedSkills);
+            const skillList = buildSkillList(cachedSkills, declarationIds);
             ctx.broadcastToAll("skill_list_update", { skills: skillList });
 
             return new Response(JSON.stringify({ ok: true }), {
@@ -447,29 +413,28 @@ export function skills(options: SkillsOptions): Capability {
     configNamespaces: (context: AgentContext): ConfigNamespace[] => [
       {
         id: "skills",
-        description: "Manage installed skills — toggle enabled/autoUpdate per skill",
+        description: "Manage installed skills — toggle enabled per skill",
         schema: Type.Object({
           skills: Type.Array(
             Type.Object({
               id: Type.String(),
               enabled: Type.Optional(Type.Boolean()),
-              autoUpdate: Type.Optional(Type.Boolean()),
             }),
           ),
         }),
         get: async () => {
           const installed = cachedSkills ?? await listInstalledSkills(context.storage!);
-          const result: Array<{ id: string; enabled: boolean; autoUpdate: boolean }> = [];
+          const result: Array<{ id: string; enabled: boolean }> = [];
           for (const [key, skill] of installed) {
             const id = key.startsWith("installed:") ? key.slice("installed:".length) : key;
-            result.push({ id, enabled: skill.enabled, autoUpdate: skill.autoUpdate });
+            result.push({ id, enabled: skill.enabled });
           }
           return { skills: result };
         },
         set: async (_namespace, value) => {
           // The actual state changes are handled by onConfigChange hook
           // This set function just needs to exist for the config system
-          const cfg = value as { skills?: Array<{ id: string; enabled?: boolean; autoUpdate?: boolean }> };
+          const cfg = value as { skills?: Array<{ id: string; enabled?: boolean }> };
           if (!cfg.skills) return;
           return `Updated ${cfg.skills.length} skill(s)`;
         },

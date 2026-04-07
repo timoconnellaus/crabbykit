@@ -2455,3 +2455,74 @@
   z-index: 5;
   backdrop-filter: blur(4px);
 }
+
+/* --- Queued messages --- */
+
+[data-agent-ui="queued-messages"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 16px;
+}
+
+[data-agent-ui="queued-message"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--agent-ui-primary-highlight);
+  border: 1px solid var(--agent-ui-primary-highlight-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--agent-ui-text);
+}
+
+[data-agent-ui="queued-message-text"] {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-agent-ui="queued-message-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+[data-agent-ui="queued-message-steer"] {
+  padding: 2px 8px;
+  border: 1px solid var(--agent-ui-border);
+  border-radius: 4px;
+  background: var(--agent-ui-bg-surface);
+  color: var(--agent-ui-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+[data-agent-ui="queued-message-steer"]:hover {
+  background: var(--agent-ui-primary-highlight-hover);
+}
+
+[data-agent-ui="queued-message-delete"] {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--agent-ui-text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+[data-agent-ui="queued-message-delete"]:hover {
+  color: var(--agent-ui-danger);
+  background: var(--agent-ui-danger-bg-subtle);
+}
+
+[data-agent-ui="chat-input-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

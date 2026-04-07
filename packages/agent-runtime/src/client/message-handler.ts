@@ -331,6 +331,11 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         refs.onSubagentEventRef.current?.(msg);
         break;
 
+      case "queue_state":
+        if (msg.sessionId !== refs.currentSessionIdRef.current) break;
+        dispatch({ type: "SET_QUEUE", items: msg.items });
+        break;
+
       case "mcp_status":
         // Could expose this, keeping it simple for now
         break;

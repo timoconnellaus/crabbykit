@@ -15,6 +15,10 @@ export type {
   McpStatusMessage,
   NewSessionMessage,
   PromptMessage,
+  QueueDeleteMessage,
+  QueueMessageMessage,
+  QueueStateMessage,
+  QueueSteerMessage,
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,
@@ -22,6 +26,7 @@ export type {
   SwitchSessionMessage,
   ToolEventMessage,
 } from "../transport/types.js";
+export type { QueuedItem } from "./chat-reducer.js";
 // Agent status types
 export type {
   AgentStatus,

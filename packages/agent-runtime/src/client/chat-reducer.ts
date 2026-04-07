@@ -24,6 +24,13 @@ export type ToolState =
   | { status: "streaming"; toolName: string; partialResult: unknown }
   | { status: "complete"; toolName: string; result: unknown; isError: boolean };
 
+/** A queued message waiting to be processed after the current agent turn. */
+export interface QueuedItem {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface ChatState {
   messages: AgentMessage[];
   connectionStatus: ConnectionStatus;
@@ -33,6 +40,7 @@ export interface ChatState {
   thinking: string | null;
   completedThinking: string | null;
   toolStates: Map<string, ToolState>;
+  queuedMessages: QueuedItem[];
   costs: CostEvent[];
   schedules: Array<{
     id: string;
@@ -67,6 +75,7 @@ export type ChatAction =
   | { type: "SET_SKILLS"; skills: SkillListEntry[] }
   | { type: "SET_SYSTEM_PROMPT"; sections: PromptSection[]; raw: string }
   | { type: "SET_ERROR"; error: string | null }
+  | { type: "SET_QUEUE"; items: QueuedItem[] }
   | {
       type: "SESSION_SYNC";
       messages: AgentMessage[];
@@ -110,6 +119,7 @@ export function createInitialState(sessionId: string | undefined): ChatState {
     thinking: null,
     completedThinking: null,
     toolStates: new Map(),
+    queuedMessages: [],
     costs: [],
     schedules: [],
     availableCommands: [],
@@ -156,6 +166,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     case "SET_ERROR":
       return { ...state, error: action.error };
+    case "SET_QUEUE":
+      return { ...state, queuedMessages: action.items };
     case "SESSION_SYNC":
       return {
         ...state,
@@ -163,6 +175,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         currentSessionId: action.currentSessionId,
         agentStatus: action.agentStatus,
         toolStates: new Map(),
+        queuedMessages: [],
         costs: [],
         thinking: null,
         completedThinking: null,

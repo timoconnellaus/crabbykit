@@ -5,15 +5,16 @@ export { AppPreview } from "./components/app-preview";
 // Browser panel
 export type { BrowserPanelProps } from "./components/browser-panel";
 export { BrowserPanel } from "./components/browser-panel";
-
+export type { BrowserState, UseBrowserReturn } from "./hooks/use-browser";
+export { useBrowser } from "./hooks/use-browser";
 // Hooks
 export type { UsePreviewReturn } from "./hooks/use-preview";
 export { usePreview } from "./hooks/use-preview";
-export type { UseBrowserReturn, BrowserState } from "./hooks/use-browser";
-export { useBrowser } from "./hooks/use-browser";
 
 // Context
 
+export type { BrowserBadgeProps } from "./components/browser-badge";
+export { BrowserBadge } from "./components/browser-badge";
 export type { ChatInputProps } from "./components/chat-input";
 export { ChatInput } from "./components/chat-input";
 export type { ChatPanelProps } from "./components/chat-panel";
@@ -36,8 +37,7 @@ export { Message } from "./components/message";
 export type { MessageListProps } from "./components/message-list";
 // Individual components
 export { MessageList } from "./components/message-list";
-export type { BrowserBadgeProps } from "./components/browser-badge";
-export { BrowserBadge } from "./components/browser-badge";
+export { QueuedMessages } from "./components/queued-messages";
 export type { SandboxBadgeProps } from "./components/sandbox-badge";
 export { SandboxBadge } from "./components/sandbox-badge";
 export type { SessionListProps } from "./components/session-list";
@@ -48,17 +48,21 @@ export type { SkillViewerProps } from "./components/skill-viewer";
 export { SkillViewer } from "./components/skill-viewer";
 export type { StatusBarProps } from "./components/status-bar";
 export { StatusBar } from "./components/status-bar";
+// Subagent
+export type {
+  SubagentCardProps,
+  SubagentInfo,
+  SubagentListProps,
+} from "./components/subagent-card";
+export { SubagentCard, SubagentList } from "./components/subagent-card";
 export type { SystemPromptPanelProps } from "./components/system-prompt-panel";
 export { SystemPromptPanel } from "./components/system-prompt-panel";
-export { ThinkingIndicator } from "./components/thinking-indicator";
-// Subagent
-export type { SubagentCardProps, SubagentInfo, SubagentListProps } from "./components/subagent-card";
-export { SubagentCard, SubagentList } from "./components/subagent-card";
 // Task tree
 export type { TaskBreadcrumbProps } from "./components/task-breadcrumb";
 export { TaskBreadcrumb } from "./components/task-breadcrumb";
 export type { TaskNode, TaskTreePanelProps } from "./components/task-tree-panel";
 export { TaskTreePanel } from "./components/task-tree-panel";
+export { ThinkingIndicator } from "./components/thinking-indicator";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";
 export { ToolCallEntry } from "./components/tool-call-entry";

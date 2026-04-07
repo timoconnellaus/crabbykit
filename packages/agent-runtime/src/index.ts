@@ -1,15 +1,15 @@
 // Errors
 export type { RuntimeErrorType } from "./errors/index.js";
 export {
-  RuntimeError,
-  isRuntimeError,
-  sessionNotFound,
-  toolNotFound,
-  toolExecutionFailed,
-  toolTimeout,
   agentBusy,
   compactionOverflow,
   doomLoopDetected,
+  isRuntimeError,
+  RuntimeError,
+  sessionNotFound,
+  toolExecutionFailed,
+  toolNotFound,
+  toolTimeout,
 } from "./errors/index.js";
 // Storage interfaces
 export type { KvStore, SqlResult, SqlStore } from "./storage/index.js";
@@ -34,7 +34,13 @@ export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition and validation
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export { Value } from "@sinclair/typebox/value";
-export type { A2AConfig, AgentConfig, AgentContext, ScheduleManager, SubagentProfile } from "./agent-do.js";
+export type {
+  A2AConfig,
+  AgentConfig,
+  AgentContext,
+  ScheduleManager,
+  SubagentProfile,
+} from "./agent-do.js";
 // Agent DO
 export { AgentDO } from "./agent-do.js";
 export type {
@@ -99,6 +105,9 @@ export {
   runtimeSection,
   safetySection,
 } from "./prompt/index.js";
+export type { QueuedMessage } from "./queue/index.js";
+// Message queue
+export { QueueStore } from "./queue/index.js";
 export type {
   CallbackScheduleConfig,
   PromptScheduleConfig,
@@ -132,7 +141,12 @@ export type {
   SessionEntryType,
 } from "./session/types.js";
 // Tool system
-export { applyDefaultTimeout, defineTool, mcpToolToAgentTool, toolResult } from "./tools/define-tool.js";
+export {
+  applyDefaultTimeout,
+  defineTool,
+  mcpToolToAgentTool,
+  toolResult,
+} from "./tools/define-tool.js";
 // Transport interfaces
 export { CfWebSocketTransport } from "./transport/cloudflare.js";
 export type { ErrorCode } from "./transport/error-codes.js";
@@ -156,11 +170,14 @@ export type {
   PingMessage,
   PongMessage,
   PromptMessage,
+  QueueDeleteMessage,
+  QueueMessageMessage,
+  QueueStateMessage,
+  QueueSteerMessage,
   RequestSyncMessage,
   RequestSystemPromptMessage,
   ScheduleListMessage,
   ServerMessage,
-  SystemPromptMessage,
   SessionListMessage,
   SessionSyncMessage,
   SkillListEntry,
@@ -168,6 +185,7 @@ export type {
   SteerMessage,
   SubagentEventMessage,
   SwitchSessionMessage,
+  SystemPromptMessage,
   TaskEventMessage,
   ToggleScheduleMessage,
   ToolEventMessage,

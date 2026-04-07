@@ -1,8 +1,8 @@
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import type { InstalledSkill, PendingMerge } from "./types.js";
+import type { InstalledSkill, SkillConflict } from "./types.js";
 
 const INSTALLED_PREFIX = "installed:";
-const MERGE_PREFIX = "merge:";
+const CONFLICT_PREFIX = "conflict:";
 
 export async function getInstalledSkill(
   storage: CapabilityStorage,
@@ -32,22 +32,22 @@ export async function deleteInstalledSkill(
   await storage.delete(`${INSTALLED_PREFIX}${id}`);
 }
 
-export async function setPendingMerge(
+export async function setSkillConflict(
   storage: CapabilityStorage,
-  merge: PendingMerge,
+  conflict: SkillConflict,
 ): Promise<void> {
-  await storage.put(`${MERGE_PREFIX}${merge.skillId}`, merge);
+  await storage.put(`${CONFLICT_PREFIX}${conflict.skillId}`, conflict);
 }
 
-export async function getPendingMerges(
+export async function getSkillConflicts(
   storage: CapabilityStorage,
-): Promise<Map<string, PendingMerge>> {
-  return storage.list<PendingMerge>(MERGE_PREFIX);
+): Promise<Map<string, SkillConflict>> {
+  return storage.list<SkillConflict>(CONFLICT_PREFIX);
 }
 
-export async function clearPendingMerge(
+export async function clearSkillConflict(
   storage: CapabilityStorage,
   skillId: string,
 ): Promise<void> {
-  await storage.delete(`${MERGE_PREFIX}${skillId}`);
+  await storage.delete(`${CONFLICT_PREFIX}${skillId}`);
 }

@@ -1,11 +1,11 @@
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import type { SkillRegistry } from "@claw-for-cloudflare/skill-registry";
-import { deleteSkillFromR2, hashSkillContent, readSkillFromR2, writeSkillToR2 } from "./r2.js";
+import { writeSkillToR2 } from "./r2.js";
 import {
   getInstalledSkill,
   listInstalledSkills,
   putInstalledSkill,
-  setPendingMerge,
+  setSkillConflict,
 } from "./storage.js";
 import type { InstalledSkill, SkillDeclaration } from "./types.js";
 
@@ -24,7 +24,8 @@ export async function syncSkills(ctx: SyncContext): Promise<void> {
 
   for (const decl of ctx.declarations) {
     try {
-      await syncSingleSkill(ctx, decl, existingSkills.has(`installed:${decl.id}`));
+      const existsInState = existingSkills.has(`installed:${decl.id}`);
+      await syncSingleSkill(ctx, decl, existsInState);
     } catch (err) {
       // Registry failure is non-fatal — log and continue with cached state
       console.warn(
@@ -41,7 +42,6 @@ async function syncSingleSkill(
   existsInState: boolean,
 ): Promise<void> {
   const enabled = decl.enabled ?? true;
-  const autoUpdate = decl.autoUpdate ?? true;
 
   // Fetch from registry
   const registryRecord = await ctx.registry.get(decl.id);
@@ -62,34 +62,29 @@ async function syncSingleSkill(
     await putInstalledSkill(ctx.storage, decl.id, {
       name: registryRecord.name,
       description: registryRecord.description,
-      version: registryRecord.version,
       enabled: false,
-      autoUpdate,
-      stale: false,
-      originalHash: registryRecord.contentHash,
+      origin: "registry",
+      registryVersion: registryRecord.version,
+      registryHash: registryRecord.contentHash,
       requiresCapabilities: registryRecord.requiresCapabilities,
-      builtIn: true,
     });
     return;
   }
 
   if (!existsInState) {
-    // First install
+    // Scenario 1: New skill — fetch from registry, write to R2, create DO KV entry
     const installed: InstalledSkill = {
       name: registryRecord.name,
       description: registryRecord.description,
-      version: registryRecord.version,
       enabled,
-      autoUpdate,
-      stale: false,
-      originalHash: registryRecord.contentHash,
+      origin: "registry",
+      registryVersion: registryRecord.version,
+      registryHash: registryRecord.contentHash,
       requiresCapabilities: registryRecord.requiresCapabilities,
-      builtIn: true,
     };
 
     if (enabled) {
       await writeSkillToR2(ctx.bucket, ctx.namespace, decl.id, registryRecord.skillMd);
-      installed.r2Key = `skills/${decl.id}/SKILL.md`;
     }
 
     await putInstalledSkill(ctx.storage, decl.id, installed);
@@ -100,86 +95,44 @@ async function syncSingleSkill(
   const existing = await getInstalledSkill(ctx.storage, decl.id);
   if (!existing) return;
 
-  if (existing.version === registryRecord.version) {
-    // No update available — just sync declaration changes (enabled/autoUpdate)
-    if (existing.enabled !== enabled || existing.autoUpdate !== autoUpdate) {
-      const updated = { ...existing, enabled, autoUpdate };
-      if (enabled && !existing.enabled) {
-        // Enabling: write to R2
+  // Only registry-origin skills can be updated from the registry
+  if (existing.origin !== "registry") return;
+
+  if (existing.registryVersion === registryRecord.version) {
+    // No update available — just sync enabled state from declaration
+    if (existing.enabled !== enabled) {
+      await putInstalledSkill(ctx.storage, decl.id, {
+        ...existing,
+        enabled,
+      });
+      if (enabled) {
         await writeSkillToR2(ctx.bucket, ctx.namespace, decl.id, registryRecord.skillMd);
-        updated.r2Key = `skills/${decl.id}/SKILL.md`;
-      } else if (!enabled && existing.enabled) {
-        // Disabling: delete from R2
-        await deleteSkillFromR2(ctx.bucket, ctx.namespace, decl.id);
-        updated.r2Key = undefined;
       }
-      await putInstalledSkill(ctx.storage, decl.id, updated);
     }
     return;
   }
 
-  // Newer version in registry
-  if (!existing.enabled) {
-    // Disabled skill — just update metadata
-    await putInstalledSkill(ctx.storage, decl.id, {
-      ...existing,
-      name: registryRecord.name,
-      description: registryRecord.description,
-      version: registryRecord.version,
-      originalHash: registryRecord.contentHash,
-      stale: false,
-    });
-    return;
-  }
-
-  // Enabled skill with update — check if user modified
-  const currentContent = await readSkillFromR2(ctx.bucket, ctx.namespace, decl.id);
-  if (!currentContent) {
-    // R2 content missing — reinstall
-    await writeSkillToR2(ctx.bucket, ctx.namespace, decl.id, registryRecord.skillMd);
-    await putInstalledSkill(ctx.storage, decl.id, {
-      ...existing,
-      name: registryRecord.name,
-      description: registryRecord.description,
-      version: registryRecord.version,
-      originalHash: registryRecord.contentHash,
-      r2Key: `skills/${decl.id}/SKILL.md`,
-      stale: false,
-    });
-    return;
-  }
-
-  const currentHash = await hashSkillContent(currentContent);
-
-  if (currentHash === existing.originalHash) {
-    // User hasn't modified — safe to overwrite
-    await writeSkillToR2(ctx.bucket, ctx.namespace, decl.id, registryRecord.skillMd);
-    await putInstalledSkill(ctx.storage, decl.id, {
-      ...existing,
-      name: registryRecord.name,
-      description: registryRecord.description,
-      version: registryRecord.version,
-      originalHash: registryRecord.contentHash,
-      r2Key: `skills/${decl.id}/SKILL.md`,
-      stale: false,
-    });
-  } else if (autoUpdate) {
-    // User modified + autoUpdate on — queue merge
-    await setPendingMerge(ctx.storage, {
+  // Newer version available
+  if (existing.dirty) {
+    // Scenario 3: Update-dirty — create conflict, don't touch R2
+    await setSkillConflict(ctx.storage, {
       skillId: decl.id,
-      newContent: registryRecord.skillMd,
-      newVersion: registryRecord.version,
-      newHash: registryRecord.contentHash,
-    });
-    await putInstalledSkill(ctx.storage, decl.id, {
-      ...existing,
-      stale: true,
+      upstreamContent: registryRecord.skillMd,
+      upstreamVersion: registryRecord.version,
+      upstreamHash: registryRecord.contentHash,
     });
   } else {
-    // User modified + autoUpdate off — mark stale
+    // Scenario 2: Update-clean — overwrite R2, update DO KV
+    if (enabled) {
+      await writeSkillToR2(ctx.bucket, ctx.namespace, decl.id, registryRecord.skillMd);
+    }
     await putInstalledSkill(ctx.storage, decl.id, {
       ...existing,
-      stale: true,
+      name: registryRecord.name,
+      description: registryRecord.description,
+      registryVersion: registryRecord.version,
+      registryHash: registryRecord.contentHash,
+      enabled,
     });
   }
 }

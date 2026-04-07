@@ -83,11 +83,19 @@ export interface UseAgentChatReturn {
     sections: import("../prompt/types.js").PromptSection[];
     raw: string;
   } | null;
+  /** Queued messages waiting to be processed after the current agent turn. */
+  queuedMessages: import("./chat-reducer.js").QueuedItem[];
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
   /** Request the server to send the current system prompt sections. */
   requestSystemPrompt: () => void;
   sendMessage: (text: string) => void;
+  /** Send a message as a steer (injected into running inference). Use Ctrl+Enter. */
+  steerMessage: (text: string) => void;
+  /** Delete a queued message by ID. */
+  deleteQueuedMessage: (queueId: string) => void;
+  /** Promote a queued message to a steer (inject into running inference). */
+  steerQueuedMessage: (queueId: string) => void;
   /** Send a slash command programmatically without formatting a string. */
   sendCommand: (name: string, args?: string) => void;
   abort: () => void;
@@ -296,17 +304,73 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         }
       }
 
-      const type = state.agentStatus === "idle" ? "prompt" : "steer";
-      send({ type, sessionId: state.currentSessionId, text } as ClientMessage);
+      if (state.agentStatus === "idle") {
+        send({ type: "prompt", sessionId: state.currentSessionId, text } as ClientMessage);
+        // Optimistically add user message and set agent as streaming
+        dispatch({
+          type: "ADD_MESSAGE",
+          message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
+        });
+        dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
+      } else {
+        send({ type: "queue_message", sessionId: state.currentSessionId, text } as ClientMessage);
+        // Optimistically add to queued messages
+        dispatch({
+          type: "SET_QUEUE",
+          items: [
+            ...state.queuedMessages,
+            { id: `optimistic-${Date.now()}`, text, createdAt: new Date().toISOString() },
+          ],
+        });
+      }
+    },
+    [
+      state.currentSessionId,
+      state.agentStatus,
+      state.queuedMessages,
+      state.availableCommands,
+      send,
+    ],
+  );
 
-      // Optimistically add user message and set agent as streaming
+  const steerMessage = useCallback(
+    (text: string) => {
+      if (!state.currentSessionId) return;
+      dispatch({ type: "SET_ERROR", error: null });
+      send({ type: "steer", sessionId: state.currentSessionId, text } as ClientMessage);
       dispatch({
         type: "ADD_MESSAGE",
         message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
       });
       dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
     },
-    [state.currentSessionId, state.agentStatus, state.availableCommands, send],
+    [state.currentSessionId, send],
+  );
+
+  const deleteQueuedMessage = useCallback(
+    (queueId: string) => {
+      if (!state.currentSessionId) return;
+      send({ type: "queue_delete", sessionId: state.currentSessionId, queueId } as ClientMessage);
+      // Optimistically remove from local queue
+      dispatch({
+        type: "SET_QUEUE",
+        items: state.queuedMessages.filter((item) => item.id !== queueId),
+      });
+    },
+    [state.currentSessionId, state.queuedMessages, send],
+  );
+
+  const steerQueuedMessage = useCallback(
+    (queueId: string) => {
+      if (!state.currentSessionId) return;
+      send({ type: "queue_steer", sessionId: state.currentSessionId, queueId } as ClientMessage);
+      // Optimistically remove from local queue
+      dispatch({
+        type: "SET_QUEUE",
+        items: state.queuedMessages.filter((item) => item.id !== queueId),
+      });
+    },
+    [state.currentSessionId, state.queuedMessages, send],
   );
 
   const abort = useCallback(() => {
@@ -395,11 +459,15 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     availableCommands: state.availableCommands,
     skills: state.skills,
     systemPrompt: state.systemPrompt,
+    queuedMessages: state.queuedMessages,
     error: state.error,
     requestSystemPrompt: useCallback(() => {
       send({ type: "request_system_prompt" });
     }, [send]),
     sendMessage,
+    steerMessage,
+    deleteQueuedMessage,
+    steerQueuedMessage,
     sendCommand,
     abort,
     switchSession,

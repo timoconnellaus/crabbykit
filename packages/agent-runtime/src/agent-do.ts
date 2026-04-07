@@ -29,13 +29,15 @@ import { createConfigSet } from "./config/config-set.js";
 import { ConfigStore } from "./config/config-store.js";
 import type { ConfigNamespace } from "./config/types.js";
 import type { CostEvent } from "./costs/types.js";
+import { isRuntimeError } from "./errors/runtime-error.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import {
   buildDefaultSystemPrompt,
   buildDefaultSystemPromptSections,
 } from "./prompt/build-system-prompt.js";
-import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { buildToolPromptSections } from "./prompt/tool-sections.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
+import { QueueStore } from "./queue/queue-store.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
@@ -49,9 +51,8 @@ import type {
 import { SessionStore } from "./session/session-store.js";
 import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import type { KvStore, SqlStore } from "./storage/types.js";
-import { CfWebSocketTransport } from "./transport/cloudflare.js";
-import { isRuntimeError } from "./errors/runtime-error.js";
 import { applyDefaultTimeout } from "./tools/define-tool.js";
+import { CfWebSocketTransport } from "./transport/cloudflare.js";
 import { ErrorCodes } from "./transport/error-codes.js";
 import type { Transport, TransportConnection } from "./transport/transport.js";
 import type { ClientMessage, ServerMessage } from "./transport/types.js";
@@ -207,6 +208,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   protected capabilitiesCache: Capability[] | null = null;
   /** A2A task store — always initialized alongside SessionStore. */
   protected taskStore: TaskStore;
+  /** Message queue for storing prompts while agent is busy. */
+  private queueStore!: QueueStore;
   /** Cached A2A handler — lazily created on first A2A request. */
   private a2aHandler: A2AHandler | null = null;
   private a2aExecutor: ClawExecutor | null = null;
@@ -231,6 +234,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.sessionStore = new SessionStore(sqlStore);
     this.taskStore = new TaskStore(sqlStore);
     this.scheduleStore = new ScheduleStore(sqlStore);
+    this.queueStore = new QueueStore(sqlStore);
     this.configStore = new ConfigStore(this.kvStore);
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
     this.transport = new CfWebSocketTransport(ctx);
@@ -669,10 +673,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       });
     }
 
-    // Send session list, schedule list, and command list
+    // Send session list, schedule list, command list, and queue state
     this.sendSessionList(connection);
     this.sendCommandList(connection, sessionId);
     this.broadcastScheduleList();
+    this.broadcastQueueState(sessionId);
 
     // Fire onConnect hooks asynchronously (don't block WS handshake)
     this.fireOnConnectHooks(sessionId).catch((err) => {
@@ -799,6 +804,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     "toggle_schedule",
     "custom_response",
     "request_system_prompt",
+    "queue_message",
+    "queue_delete",
+    "queue_steer",
     "ping",
   ]);
 
@@ -828,6 +836,17 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       (typeof obj.scheduleId !== "string" || typeof obj.enabled !== "boolean")
     ) {
       return '"toggle_schedule" message requires a "scheduleId" string and "enabled" boolean field';
+    }
+
+    if (obj.type === "queue_message" && typeof obj.text !== "string") {
+      return '"queue_message" message requires a "text" string field';
+    }
+
+    if (
+      (obj.type === "queue_delete" || obj.type === "queue_steer") &&
+      typeof obj.queueId !== "string"
+    ) {
+      return `"${obj.type}" message requires a "queueId" string field`;
     }
 
     return null;
@@ -874,6 +893,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.fireOnConnectHooks(msg.sessionId).catch((err) => {
           console.error("[AgentDO] onConnect hooks error (session switch):", err);
         });
+        this.broadcastQueueState(msg.sessionId);
         break;
       }
 
@@ -909,6 +929,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         // so getConnectionsForSession still matches on the old sessionId.
         const affectedConnections = [...this.transport.getConnectionsForSession(msg.sessionId)];
 
+        this.queueStore.deleteAll(msg.sessionId);
         this.sessionStore.delete(msg.sessionId);
 
         // Redirect every connection that was on the deleted session
@@ -999,6 +1020,34 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
       }
 
+      case "queue_message": {
+        // If agent idle on this session → treat as normal prompt
+        const queueAgent = this.sessionAgents.get(msg.sessionId);
+        if (!queueAgent?.state.isStreaming) {
+          await this.handlePrompt(msg.sessionId, msg.text);
+        } else {
+          this.queueStore.enqueue(msg.sessionId, msg.text);
+          this.broadcastQueueState(msg.sessionId);
+        }
+        break;
+      }
+
+      case "queue_delete": {
+        this.queueStore.delete(msg.queueId);
+        this.broadcastQueueState(msg.sessionId);
+        break;
+      }
+
+      case "queue_steer": {
+        const queueItem = this.queueStore.get(msg.queueId);
+        if (queueItem) {
+          this.queueStore.delete(msg.queueId);
+          this.handleSteer(msg.sessionId, queueItem.text);
+          this.broadcastQueueState(msg.sessionId);
+        }
+        break;
+      }
+
       case "ping": {
         connection.send({ type: "pong" } as ServerMessage);
         break;
@@ -1076,15 +1125,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       data: { role: "user", content: text, timestamp: Date.now() },
     });
 
-    // If this session already has an active agent streaming, steer instead
+    // If this session already has an active agent streaming, queue instead
     const existingAgent = this.sessionAgents.get(sessionId);
     if (existingAgent?.state.isStreaming) {
-      this.broadcastToSession(sessionId, {
-        type: "error",
-        code: ErrorCodes.AGENT_BUSY,
-        message: "Agent is busy — message will be injected as a steer",
-      });
-      this.handleSteer(sessionId, text);
+      this.queueStore.enqueue(sessionId, text);
+      this.broadcastQueueState(sessionId);
       return;
     }
 
@@ -1380,6 +1425,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         this.resolvedCapabilitiesCache = null;
         this.capabilitiesCache = null;
         this.disposeCapabilities();
+        this.processQueue(sessionId).catch((err) => {
+          console.error("[AgentDO] processQueue error:", err);
+        });
       }
     });
 
@@ -2433,11 +2481,32 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.transport.broadcastToSession(sessionId, msg);
   }
 
+  private broadcastQueueState(sessionId: string): void {
+    const items = this.queueStore.list(sessionId).map(({ id, text, createdAt }) => ({
+      id,
+      text,
+      createdAt,
+    }));
+    this.broadcastToSession(sessionId, { type: "queue_state", sessionId, items });
+  }
+
+  private async processQueue(sessionId: string): Promise<void> {
+    const next = this.queueStore.dequeue(sessionId);
+    if (!next) return;
+    this.broadcastQueueState(sessionId);
+    await this.handlePrompt(sessionId, next.text);
+  }
+
   /** Create a session-scoped broadcast function that converts well-known events to typed messages. */
-  private createSessionBroadcast(sessionId: string): (name: string, data: Record<string, unknown>) => void {
+  private createSessionBroadcast(
+    sessionId: string,
+  ): (name: string, data: Record<string, unknown>) => void {
     return (name, data) => {
       if (name === "skill_list_update" && Array.isArray(data.skills)) {
-        this.broadcastToSession(sessionId, { type: "skill_list", skills: data.skills } as ServerMessage);
+        this.broadcastToSession(sessionId, {
+          type: "skill_list",
+          skills: data.skills,
+        } as ServerMessage);
         return;
       }
       this.broadcastToSession(sessionId, {

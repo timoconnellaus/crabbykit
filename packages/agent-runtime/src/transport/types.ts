@@ -158,6 +158,12 @@ export interface SubagentEventMessage {
   event: AgentEvent;
 }
 
+export interface QueueStateMessage {
+  type: "queue_state";
+  sessionId: string;
+  items: Array<{ id: string; text: string; createdAt: string }>;
+}
+
 export type ServerMessage =
   | AgentEventMessage
   | ToolEventMessage
@@ -175,6 +181,7 @@ export type ServerMessage =
   | SystemPromptMessage
   | TaskEventMessage
   | SubagentEventMessage
+  | QueueStateMessage
   | PongMessage;
 
 // --- Client → Server messages ---
@@ -244,6 +251,24 @@ export interface RequestSystemPromptMessage {
   type: "request_system_prompt";
 }
 
+export interface QueueMessageMessage {
+  type: "queue_message";
+  sessionId: string;
+  text: string;
+}
+
+export interface QueueDeleteMessage {
+  type: "queue_delete";
+  sessionId: string;
+  queueId: string;
+}
+
+export interface QueueSteerMessage {
+  type: "queue_steer";
+  sessionId: string;
+  queueId: string;
+}
+
 export interface PingMessage {
   type: "ping";
 }
@@ -260,4 +285,7 @@ export type ClientMessage =
   | ToggleScheduleMessage
   | CustomResponseMessage
   | RequestSystemPromptMessage
+  | QueueMessageMessage
+  | QueueDeleteMessage
+  | QueueSteerMessage
   | PingMessage;
