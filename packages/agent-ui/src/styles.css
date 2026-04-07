@@ -251,7 +251,7 @@
 [data-agent-ui="message"][data-role="user"] {
   background: var(--agent-ui-user-bg-timeline);
   padding: 0.5rem 1rem;
-  margin: 0.75rem calc(-1rem + 5px);
+  margin: 0.25rem calc(-1rem + 5px);
   max-width: none;
   width: calc(100% + 2rem - 10px);
   border-radius: 4px;
