@@ -14,6 +14,6 @@ export const Route = createFileRoute("/")({
       const agent = (await res.json()) as { id: string };
       agents = [agent];
     }
-    throw redirect({ to: "/$agentId/chat", params: { agentId: agents[0].id } });
+    throw redirect({ to: "/$agentId/$sessionId/chat", params: { agentId: agents[0].id, sessionId: "latest" } });
   },
 });

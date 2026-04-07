@@ -17,6 +17,7 @@ export interface AppSummary {
 export interface ChatContextValue {
   chat: UseAgentChatReturn;
   agentId: string;
+  sessionId: string;
   sandboxState: SandboxBadgeProps;
   pendingTasks: PendingA2ATask[];
   deployedApps: AppSummary[];

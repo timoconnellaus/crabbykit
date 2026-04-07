@@ -11,11 +11,17 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AgentIdRouteImport } from './routes/$agentId'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentIdIndexRouteImport } from './routes/$agentId/index'
 import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as AgentIdSkillsRouteImport } from './routes/$agentId/skills'
 import { Route as AgentIdSchedulesRouteImport } from './routes/$agentId/schedules'
 import { Route as AgentIdChatRouteImport } from './routes/$agentId/chat'
 import { Route as AgentIdAppsRouteImport } from './routes/$agentId/apps'
+import { Route as AgentIdSessionIdRouteImport } from './routes/$agentId/$sessionId'
+import { Route as AgentIdSessionIdSkillsRouteImport } from './routes/$agentId/$sessionId/skills'
+import { Route as AgentIdSessionIdSchedulesRouteImport } from './routes/$agentId/$sessionId/schedules'
+import { Route as AgentIdSessionIdChatRouteImport } from './routes/$agentId/$sessionId/chat'
+import { Route as AgentIdSessionIdAppsRouteImport } from './routes/$agentId/$sessionId/apps'
 import { Route as ApiPreviewIdSplatRouteImport } from './routes/api/preview/$id/$'
 import { Route as ApiAppsSlugSplatRouteImport } from './routes/api/apps/$slug/$'
 import { Route as ApiAgentAgentIdSplatRouteImport } from './routes/api/agent/$agentId/$'
@@ -30,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AgentIdIndexRoute = AgentIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgentIdRoute,
 } as any)
 const ApiAgentsRoute = ApiAgentsRouteImport.update({
   id: '/api/agents',
@@ -56,6 +67,32 @@ const AgentIdAppsRoute = AgentIdAppsRouteImport.update({
   path: '/apps',
   getParentRoute: () => AgentIdRoute,
 } as any)
+const AgentIdSessionIdRoute = AgentIdSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => AgentIdRoute,
+} as any)
+const AgentIdSessionIdSkillsRoute = AgentIdSessionIdSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AgentIdSessionIdRoute,
+} as any)
+const AgentIdSessionIdSchedulesRoute =
+  AgentIdSessionIdSchedulesRouteImport.update({
+    id: '/schedules',
+    path: '/schedules',
+    getParentRoute: () => AgentIdSessionIdRoute,
+  } as any)
+const AgentIdSessionIdChatRoute = AgentIdSessionIdChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AgentIdSessionIdRoute,
+} as any)
+const AgentIdSessionIdAppsRoute = AgentIdSessionIdAppsRouteImport.update({
+  id: '/apps',
+  path: '/apps',
+  getParentRoute: () => AgentIdSessionIdRoute,
+} as any)
 const ApiPreviewIdSplatRoute = ApiPreviewIdSplatRouteImport.update({
   id: '/api/preview/$id/$',
   path: '/api/preview/$id/$',
@@ -81,11 +118,17 @@ const ApiDeployAgentIdDeployIdSplatRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$agentId': typeof AgentIdRouteWithChildren
+  '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
+  '/$agentId/': typeof AgentIdIndexRoute
+  '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
+  '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
@@ -93,12 +136,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$agentId': typeof AgentIdRouteWithChildren
+  '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
+  '/$agentId': typeof AgentIdIndexRoute
+  '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
+  '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
@@ -108,11 +156,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$agentId': typeof AgentIdRouteWithChildren
+  '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
+  '/$agentId/': typeof AgentIdIndexRoute
+  '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
+  '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
@@ -123,11 +177,17 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$agentId'
+    | '/$agentId/$sessionId'
     | '/$agentId/apps'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
+    | '/$agentId/'
+    | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/schedules'
+    | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
@@ -135,12 +195,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$agentId'
+    | '/$agentId/$sessionId'
     | '/$agentId/apps'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
+    | '/$agentId'
+    | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/schedules'
+    | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
@@ -149,11 +214,17 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$agentId'
+    | '/$agentId/$sessionId'
     | '/$agentId/apps'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
+    | '/$agentId/'
+    | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/schedules'
+    | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
@@ -185,6 +256,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$agentId/': {
+      id: '/$agentId/'
+      path: '/'
+      fullPath: '/$agentId/'
+      preLoaderRoute: typeof AgentIdIndexRouteImport
+      parentRoute: typeof AgentIdRoute
     }
     '/api/agents': {
       id: '/api/agents'
@@ -221,6 +299,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentIdAppsRouteImport
       parentRoute: typeof AgentIdRoute
     }
+    '/$agentId/$sessionId': {
+      id: '/$agentId/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/$agentId/$sessionId'
+      preLoaderRoute: typeof AgentIdSessionIdRouteImport
+      parentRoute: typeof AgentIdRoute
+    }
+    '/$agentId/$sessionId/skills': {
+      id: '/$agentId/$sessionId/skills'
+      path: '/skills'
+      fullPath: '/$agentId/$sessionId/skills'
+      preLoaderRoute: typeof AgentIdSessionIdSkillsRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
+    '/$agentId/$sessionId/schedules': {
+      id: '/$agentId/$sessionId/schedules'
+      path: '/schedules'
+      fullPath: '/$agentId/$sessionId/schedules'
+      preLoaderRoute: typeof AgentIdSessionIdSchedulesRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
+    '/$agentId/$sessionId/chat': {
+      id: '/$agentId/$sessionId/chat'
+      path: '/chat'
+      fullPath: '/$agentId/$sessionId/chat'
+      preLoaderRoute: typeof AgentIdSessionIdChatRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
+    '/$agentId/$sessionId/apps': {
+      id: '/$agentId/$sessionId/apps'
+      path: '/apps'
+      fullPath: '/$agentId/$sessionId/apps'
+      preLoaderRoute: typeof AgentIdSessionIdAppsRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
     '/api/preview/$id/$': {
       id: '/api/preview/$id/$'
       path: '/api/preview/$id/$'
@@ -252,18 +365,39 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AgentIdSessionIdRouteChildren {
+  AgentIdSessionIdAppsRoute: typeof AgentIdSessionIdAppsRoute
+  AgentIdSessionIdChatRoute: typeof AgentIdSessionIdChatRoute
+  AgentIdSessionIdSchedulesRoute: typeof AgentIdSessionIdSchedulesRoute
+  AgentIdSessionIdSkillsRoute: typeof AgentIdSessionIdSkillsRoute
+}
+
+const AgentIdSessionIdRouteChildren: AgentIdSessionIdRouteChildren = {
+  AgentIdSessionIdAppsRoute: AgentIdSessionIdAppsRoute,
+  AgentIdSessionIdChatRoute: AgentIdSessionIdChatRoute,
+  AgentIdSessionIdSchedulesRoute: AgentIdSessionIdSchedulesRoute,
+  AgentIdSessionIdSkillsRoute: AgentIdSessionIdSkillsRoute,
+}
+
+const AgentIdSessionIdRouteWithChildren =
+  AgentIdSessionIdRoute._addFileChildren(AgentIdSessionIdRouteChildren)
+
 interface AgentIdRouteChildren {
+  AgentIdSessionIdRoute: typeof AgentIdSessionIdRouteWithChildren
   AgentIdAppsRoute: typeof AgentIdAppsRoute
   AgentIdChatRoute: typeof AgentIdChatRoute
   AgentIdSchedulesRoute: typeof AgentIdSchedulesRoute
   AgentIdSkillsRoute: typeof AgentIdSkillsRoute
+  AgentIdIndexRoute: typeof AgentIdIndexRoute
 }
 
 const AgentIdRouteChildren: AgentIdRouteChildren = {
+  AgentIdSessionIdRoute: AgentIdSessionIdRouteWithChildren,
   AgentIdAppsRoute: AgentIdAppsRoute,
   AgentIdChatRoute: AgentIdChatRoute,
   AgentIdSchedulesRoute: AgentIdSchedulesRoute,
   AgentIdSkillsRoute: AgentIdSkillsRoute,
+  AgentIdIndexRoute: AgentIdIndexRoute,
 }
 
 const AgentIdRouteWithChildren =
