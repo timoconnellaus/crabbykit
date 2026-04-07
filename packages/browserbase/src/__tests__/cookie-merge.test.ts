@@ -48,8 +48,12 @@ describe("mergeCookies", () => {
 
   it("keeps stored cookie when incoming has older expiry", () => {
     const future = Math.floor(Date.now() / 1000) + 86400;
-    const stored = [cookie({ name: "token", domain: "github.com", value: "newer", expires: future + 3600 })];
-    const incoming = [cookie({ name: "token", domain: "github.com", value: "older", expires: future })];
+    const stored = [
+      cookie({ name: "token", domain: "github.com", value: "newer", expires: future + 3600 }),
+    ];
+    const incoming = [
+      cookie({ name: "token", domain: "github.com", value: "older", expires: future }),
+    ];
 
     const result = mergeCookies(stored, incoming);
 
@@ -111,7 +115,13 @@ describe("mergeCookies", () => {
       cookie({ name: "token", domain: "a.com", path: "/api", value: "api", expires: future }),
     ];
     const incoming = [
-      cookie({ name: "token", domain: "a.com", path: "/api", value: "api-updated", expires: future + 1 }),
+      cookie({
+        name: "token",
+        domain: "a.com",
+        path: "/api",
+        value: "api-updated",
+        expires: future + 1,
+      }),
     ];
 
     const result = mergeCookies(stored, incoming);

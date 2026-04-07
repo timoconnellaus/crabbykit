@@ -10,17 +10,9 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  clearMockResponses,
-  setMockResponses,
-} from "../../src/test-helpers/test-agent-do.js";
+import { clearMockResponses, setMockResponses } from "../../src/test-helpers/test-agent-do.js";
 import type { ServerMessage } from "../../src/transport/types.js";
-import {
-  connectAndGetSession,
-  getStub,
-  openSocket,
-  prompt,
-} from "../helpers/ws-client.js";
+import { connectAndGetSession, getStub, openSocket, prompt } from "../helpers/ws-client.js";
 
 type SessionSyncMsg = Extract<ServerMessage, { type: "session_sync" }>;
 type AgentEventMsg = Extract<ServerMessage, { type: "agent_event" }>;

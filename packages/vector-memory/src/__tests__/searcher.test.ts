@@ -35,14 +35,7 @@ describe("vectorSearch", () => {
       "agent-1/MEMORY.md": "Line one\nLine two\nLine three\nLine four",
     });
 
-    const results = await vectorSearch(
-      "test query",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("test query", 5, prefix, embed, vectorize, () => bucket);
 
     expect(results).not.toBeNull();
     expect(results!.length).toBeGreaterThanOrEqual(1);
@@ -55,14 +48,7 @@ describe("vectorSearch", () => {
     const emptyEmbed: EmbedFn = async () => [];
     const bucket = createMockR2Bucket();
 
-    const results = await vectorSearch(
-      "query",
-      5,
-      "agent-1",
-      emptyEmbed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("query", 5, "agent-1", emptyEmbed, vectorize, () => bucket);
 
     expect(results).toBeNull();
   });
@@ -97,14 +83,7 @@ describe("vectorSearch", () => {
     const embed = mockEmbed();
     const bucket = createMockR2Bucket();
 
-    const results = await vectorSearch(
-      "query",
-      5,
-      "agent-1",
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("query", 5, "agent-1", embed, vectorize, () => bucket);
 
     expect(results).toEqual([]);
   });
@@ -134,14 +113,7 @@ describe("vectorSearch", () => {
       "agent-1/MEMORY.md": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8",
     });
 
-    const results = await vectorSearch(
-      "test",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("test", 5, prefix, embed, vectorize, () => bucket);
 
     // Should only have one result per path
     const paths = results!.map((r) => r.path);
@@ -164,14 +136,7 @@ describe("vectorSearch", () => {
 
     const bucket = createMockR2Bucket();
 
-    const results = await vectorSearch(
-      "test",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("test", 5, prefix, embed, vectorize, () => bucket);
 
     expect(results).toEqual([]);
   });
@@ -199,14 +164,7 @@ describe("vectorSearch", () => {
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const results = await vectorSearch(
-      "test",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => failingBucket,
-    );
+    const results = await vectorSearch("test", 5, prefix, embed, vectorize, () => failingBucket);
 
     // Should still return a result but with empty snippet
     expect(results).not.toBeNull();
@@ -232,14 +190,7 @@ describe("vectorSearch", () => {
 
     const bucket = createMockR2Bucket(); // empty — file not found
 
-    const results = await vectorSearch(
-      "test",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("test", 5, prefix, embed, vectorize, () => bucket);
 
     expect(results!.length).toBe(1);
     expect(results![0].snippet).toBe("");
@@ -260,17 +211,12 @@ describe("vectorSearch", () => {
     ]);
 
     // Create content larger than SNIPPET_MAX_CHARS (700)
-    const longContent = Array.from({ length: 100 }, (_, i) => `Line ${i}: ${"x".repeat(20)}`).join("\n");
+    const longContent = Array.from({ length: 100 }, (_, i) => `Line ${i}: ${"x".repeat(20)}`).join(
+      "\n",
+    );
     const bucket = createMockR2Bucket({ "agent-1/big.md": longContent });
 
-    const results = await vectorSearch(
-      "test",
-      5,
-      prefix,
-      embed,
-      vectorize,
-      () => bucket,
-    );
+    const results = await vectorSearch("test", 5, prefix, embed, vectorize, () => bucket);
 
     expect(results![0].snippet.length).toBeLessThanOrEqual(701); // 700 + ellipsis char
   });
@@ -321,13 +267,7 @@ describe("keywordSearch", () => {
 
   it("avoids overlapping results from same file", async () => {
     // Two "target" lines close together should merge into one result
-    const lines = [
-      "target line 1",
-      "target line 2",
-      "filler",
-      "filler",
-      "filler",
-    ].join("\n");
+    const lines = ["target line 1", "target line 2", "filler", "filler", "filler"].join("\n");
 
     const bucket = createMockR2Bucket({
       "agent-1/MEMORY.md": lines,

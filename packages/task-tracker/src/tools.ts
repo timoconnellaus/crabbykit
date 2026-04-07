@@ -144,14 +144,10 @@ export function createTaskReadyTool(deps: ToolDeps): AgentTool<any> {
   return defineTool({
     name: "task_ready",
     description:
-      "List tasks that are ready to work on — open tasks whose blocking dependencies are all closed.",
-    parameters: Type.Object({
-      ownerSession: Type.Optional(
-        Type.String({ description: "Filter to a specific session's tasks" }),
-      ),
-    }),
-    execute: async (args) => {
-      const ready = deps.getStore().ready(args.ownerSession);
+      "List tasks that are ready to work on — open tasks whose blocking dependencies are all closed. Scoped to the current session by default.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const ready = deps.getStore().ready(deps.getSessionId());
       if (ready.length === 0) {
         return toolResult.text("No tasks are currently ready.", { tasks: [] });
       }
@@ -159,6 +155,25 @@ export function createTaskReadyTool(deps: ToolDeps): AgentTool<any> {
       return toolResult.text(`${ready.length} ready task(s):\n${lines.join("\n")}`, {
         tasks: ready,
       });
+    },
+  });
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
+export function createTaskClearTool(deps: ToolDeps): AgentTool<any> {
+  return defineTool({
+    name: "task_clear",
+    description:
+      "Clear all tasks for the current session. Use when the current plan is stale or you're switching to new work.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      const count = deps.getStore().deleteBySession(deps.getSessionId());
+      if (count === 0) {
+        return toolResult.text("No tasks to clear.");
+      }
+      const broadcast = deps.getBroadcast();
+      broadcast("task_event", { changeType: "cleared" });
+      return toolResult.text(`Cleared ${count} task(s).`);
     },
   });
 }

@@ -34,7 +34,11 @@ function createMockStorage(): CapabilityStorage {
 
 function createMinimalSqlStore(): SqlStore {
   return {
-    exec: vi.fn().mockReturnValue({ toArray: () => [], one: () => null, [Symbol.iterator]: () => [][Symbol.iterator]() }),
+    exec: vi.fn().mockReturnValue({
+      toArray: () => [],
+      one: () => null,
+      [Symbol.iterator]: () => [][Symbol.iterator](),
+    }),
   };
 }
 

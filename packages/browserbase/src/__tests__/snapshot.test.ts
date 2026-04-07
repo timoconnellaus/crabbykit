@@ -47,7 +47,7 @@ describe("formatAXTree", () => {
     const { tree, refs } = formatAXTree(sampleTree);
 
     expect(tree).toContain('heading "Welcome" [ref=e1]');
-    expect(tree).toContain('[level=1]');
+    expect(tree).toContain("[level=1]");
     expect(tree).toContain('button "Submit" [ref=e2]');
     expect(tree).toContain('textbox "Email" [ref=e3]');
 

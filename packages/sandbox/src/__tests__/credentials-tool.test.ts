@@ -129,10 +129,7 @@ describe("save_file_credential", () => {
     const ctx = mockContext("s1", storage);
     const tool = createSaveFileCredentialTool(provider, DEFAULT_CONFIG, ctx);
 
-    const result = await tool.execute(
-      { path: "~/.config/gh/hosts.yml" },
-      { toolCallId: "tc1" },
-    );
+    const result = await tool.execute({ path: "~/.config/gh/hosts.yml" }, { toolCallId: "tc1" });
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("saved");
   });

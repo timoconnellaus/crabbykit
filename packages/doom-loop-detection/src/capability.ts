@@ -81,10 +81,10 @@ export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capab
 
         // +1 because the current call counts too
         if (consecutiveCount + 1 >= threshold) {
-          ctx.broadcast?.(
-            "doom_loop_detected",
-            { toolName: event.toolName, count: consecutiveCount + 1 },
-          );
+          ctx.broadcast?.("doom_loop_detected", {
+            toolName: event.toolName,
+            count: consecutiveCount + 1,
+          });
           return {
             block: true,
             reason: `Doom loop detected: you have called '${event.toolName}' with identical arguments ${consecutiveCount + 1} times. Try a different approach.`,

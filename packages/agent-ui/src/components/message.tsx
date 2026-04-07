@@ -204,19 +204,12 @@ function parseA2ANote(text: string): {
 }
 
 /** Collapsible A2A task note, styled to match tool-entry rows. */
-function A2ANote({
-  text,
-  ...props
-}: { text: string } & ComponentPropsWithoutRef<"div">) {
+function A2ANote({ text, ...props }: { text: string } & ComponentPropsWithoutRef<"div">) {
   const [open, setOpen] = useState(false);
   const { status, agentName, summary, body } = parseA2ANote(text);
 
   const label =
-    status === "complete"
-      ? "Task complete"
-      : status === "failed"
-        ? "Task failed"
-        : "Task update";
+    status === "complete" ? "Task complete" : status === "failed" ? "Task failed" : "Task update";
 
   return (
     <div

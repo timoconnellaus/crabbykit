@@ -42,21 +42,21 @@ export class QueueStore {
   }
 
   dequeue(sessionId: string): QueuedMessage | null {
-    const row = this.sql
+    const rows = this.sql
       .exec(
         "SELECT * FROM message_queue WHERE session_id = ? ORDER BY created_at ASC LIMIT 1",
         sessionId,
       )
-      .one();
-    if (!row) return null;
-    const item = rowToQueuedMessage(row);
+      .toArray();
+    if (rows.length === 0) return null;
+    const item = rowToQueuedMessage(rows[0]);
     this.sql.exec("DELETE FROM message_queue WHERE id = ?", item.id);
     return item;
   }
 
   get(id: string): QueuedMessage | null {
-    const row = this.sql.exec("SELECT * FROM message_queue WHERE id = ? LIMIT 1", id).one();
-    return row ? rowToQueuedMessage(row) : null;
+    const rows = this.sql.exec("SELECT * FROM message_queue WHERE id = ? LIMIT 1", id).toArray();
+    return rows.length > 0 ? rowToQueuedMessage(rows[0]) : null;
   }
 
   list(sessionId: string): QueuedMessage[] {

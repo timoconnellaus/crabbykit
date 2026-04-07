@@ -22,9 +22,7 @@ export function createDeleteAppTool(
       const app = appStore.getBySlug(slug);
       if (!app) {
         return {
-          content: [
-            { type: "text" as const, text: `Error: App "${slug}" not found.` },
-          ],
+          content: [{ type: "text" as const, text: `Error: App "${slug}" not found.` }],
           details: null,
         };
       }

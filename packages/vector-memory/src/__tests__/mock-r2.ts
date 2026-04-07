@@ -7,9 +7,7 @@ interface StoredObject {
   body: string;
 }
 
-export function createMockR2Bucket(
-  initial: Record<string, string> = {},
-): R2Bucket {
+export function createMockR2Bucket(initial: Record<string, string> = {}): R2Bucket {
   const store = new Map<string, StoredObject>();
 
   for (const [key, body] of Object.entries(initial)) {
@@ -39,9 +37,7 @@ export function createMockR2Bucket(
     },
 
     async head(key: string) {
-      return store.has(key)
-        ? ({ key } as R2Object)
-        : null;
+      return store.has(key) ? ({ key } as R2Object) : null;
     },
 
     async list(options?: R2ListOptions) {

@@ -279,7 +279,11 @@ describe("deploy_app tool", () => {
         });
       }
       if (cmd.includes("cat")) {
-        return Promise.resolve({ stdout: "export default { fetch() {} }", stderr: "", exitCode: 0 });
+        return Promise.resolve({
+          stdout: "export default { fetch() {} }",
+          stderr: "",
+          exitCode: 0,
+        });
       }
       // mkdir -p, cp -r, etc.
       return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });

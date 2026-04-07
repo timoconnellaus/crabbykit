@@ -140,4 +140,3 @@ export interface SnapshotResult {
   url: string;
   title: string;
 }
-

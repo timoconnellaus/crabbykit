@@ -94,17 +94,13 @@ describe("usePreview", () => {
           }),
         );
       });
-      expect(result.current.consoleLogs).toEqual([
-        { level: "error", text: "boom", ts: 123 },
-      ]);
+      expect(result.current.consoleLogs).toEqual([{ level: "error", text: "boom", ts: 123 }]);
     });
 
     it("ignores non-claw messages", () => {
       const { result } = renderHook(() => usePreview());
       act(() => {
-        window.dispatchEvent(
-          new MessageEvent("message", { data: { type: "other", text: "hi" } }),
-        );
+        window.dispatchEvent(new MessageEvent("message", { data: { type: "other", text: "hi" } }));
       });
       expect(result.current.consoleLogs).toEqual([]);
     });

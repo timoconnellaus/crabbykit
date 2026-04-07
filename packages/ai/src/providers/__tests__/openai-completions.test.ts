@@ -87,7 +87,11 @@ function toolResultMsg(
   };
 }
 
-function ctx(messages: Context["messages"], systemPrompt?: string, tools?: Context["tools"]): Context {
+function ctx(
+  messages: Context["messages"],
+  systemPrompt?: string,
+  tools?: Context["tools"],
+): Context {
   return { messages, systemPrompt, tools };
 }
 
@@ -190,7 +194,11 @@ describe("convertMessages", () => {
 
     it("skips assistant messages with no content and no tool calls", () => {
       const msg = assistantMsg([{ type: "text", text: "" }]);
-      const result = convertMessages(model, ctx([userMsg(), msg, userMsg("follow up")]), DEFAULT_COMPAT);
+      const result = convertMessages(
+        model,
+        ctx([userMsg(), msg, userMsg("follow up")]),
+        DEFAULT_COMPAT,
+      );
       // Should have user, user (assistant skipped)
       expect(result).toHaveLength(2);
       expect(result.every((m: any) => m.role === "user")).toBe(true);
@@ -199,9 +207,7 @@ describe("convertMessages", () => {
 
   describe("tool results", () => {
     it('converts to "tool" role messages', () => {
-      const msg = assistantMsg([
-        { type: "toolCall", id: "tc-1", name: "test", arguments: {} },
-      ]);
+      const msg = assistantMsg([{ type: "toolCall", id: "tc-1", name: "test", arguments: {} }]);
       const tr = toolResultMsg("tc-1", "the result");
       const result = convertMessages(model, ctx([msg, tr]), DEFAULT_COMPAT);
       const toolMsg = result[1] as any;
@@ -211,9 +217,7 @@ describe("convertMessages", () => {
     });
 
     it("includes name field when requiresToolResultName is true", () => {
-      const msg = assistantMsg([
-        { type: "toolCall", id: "tc-1", name: "my_tool", arguments: {} },
-      ]);
+      const msg = assistantMsg([{ type: "toolCall", id: "tc-1", name: "my_tool", arguments: {} }]);
       const tr = toolResultMsg("tc-1", "result", "my_tool");
       const compat = { ...DEFAULT_COMPAT, requiresToolResultName: true };
       const result = convertMessages(model, ctx([msg, tr]), compat);
@@ -224,9 +228,7 @@ describe("convertMessages", () => {
 
   describe("requiresAssistantAfterToolResult", () => {
     it("inserts synthetic assistant message between toolResult and user", () => {
-      const msg = assistantMsg([
-        { type: "toolCall", id: "tc-1", name: "test", arguments: {} },
-      ]);
+      const msg = assistantMsg([{ type: "toolCall", id: "tc-1", name: "test", arguments: {} }]);
       const tr = toolResultMsg("tc-1");
       const user = userMsg("next question");
       const compat = { ...DEFAULT_COMPAT, requiresAssistantAfterToolResult: true };
@@ -259,7 +261,10 @@ describe("convertMessages", () => {
       const result = convertMessages(model, ctx([msg, tr]), DEFAULT_COMPAT);
       // assistant, tool, user (with images)
       const imageUserMsg = result.find(
-        (m: any) => m.role === "user" && Array.isArray(m.content) && m.content.some((c: any) => c.type === "image_url"),
+        (m: any) =>
+          m.role === "user" &&
+          Array.isArray(m.content) &&
+          m.content.some((c: any) => c.type === "image_url"),
       ) as any;
       expect(imageUserMsg).toBeDefined();
       expect(imageUserMsg.content[0]).toEqual({

@@ -43,13 +43,21 @@ export function createBrowserNavigateTool(
         });
 
         return {
-          content: [{ type: "text" as const, text: `Navigated to ${url}. Use browser_snapshot to see the page content.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Navigated to ${url}. Use browser_snapshot to see the page content.`,
+            },
+          ],
           details: { url },
         };
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error navigating: ${err instanceof Error ? err.message : String(err)}` },
+            {
+              type: "text" as const,
+              text: `Error navigating: ${err instanceof Error ? err.message : String(err)}`,
+            },
           ],
           details: null,
         };

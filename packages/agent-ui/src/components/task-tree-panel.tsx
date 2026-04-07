@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { STATUS_COLORS, STATUS_ICONS } from "./task-status";
 
 export interface TaskNode {
   id: string;
@@ -18,20 +19,6 @@ export interface TaskTreePanelProps {
   /** Called when a task node is clicked. */
   onTaskClick?: (taskId: string) => void;
 }
-
-const STATUS_ICONS: Record<string, string> = {
-  open: "○",
-  in_progress: "▶",
-  blocked: "◼",
-  closed: "✓",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  open: "var(--task-open, #888)",
-  in_progress: "var(--task-in-progress, #3b82f6)",
-  blocked: "var(--task-blocked, #ef4444)",
-  closed: "var(--task-closed, #22c55e)",
-};
 
 export function TaskTreePanel({ tree, activeTaskId, onTaskClick }: TaskTreePanelProps) {
   if (!tree) return null;

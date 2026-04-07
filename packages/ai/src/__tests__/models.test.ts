@@ -89,33 +89,36 @@ describe("calculateCost", () => {
 });
 
 describe("supportsXhigh", () => {
-  it.each(["gpt-5.2", "gpt-5.2-mini", "some-gpt-5.2-variant"])(
-    "returns true for model ID containing gpt-5.2: %s",
-    (id) => {
-      expect(supportsXhigh(makeModel({ id }))).toBe(true);
-    },
-  );
+  it.each([
+    "gpt-5.2",
+    "gpt-5.2-mini",
+    "some-gpt-5.2-variant",
+  ])("returns true for model ID containing gpt-5.2: %s", (id) => {
+    expect(supportsXhigh(makeModel({ id }))).toBe(true);
+  });
 
-  it.each(["gpt-5.3", "gpt-5.4"])(
-    "returns true for model ID containing %s",
-    (id) => {
-      expect(supportsXhigh(makeModel({ id }))).toBe(true);
-    },
-  );
+  it.each(["gpt-5.3", "gpt-5.4"])("returns true for model ID containing %s", (id) => {
+    expect(supportsXhigh(makeModel({ id }))).toBe(true);
+  });
 
-  it.each(["claude-opus-4-6", "claude-opus-4.6", "anthropic/opus-4-6", "opus-4.6-1m"])(
-    "returns true for model ID containing opus-4-6 or opus-4.6: %s",
-    (id) => {
-      expect(supportsXhigh(makeModel({ id }))).toBe(true);
-    },
-  );
+  it.each([
+    "claude-opus-4-6",
+    "claude-opus-4.6",
+    "anthropic/opus-4-6",
+    "opus-4.6-1m",
+  ])("returns true for model ID containing opus-4-6 or opus-4.6: %s", (id) => {
+    expect(supportsXhigh(makeModel({ id }))).toBe(true);
+  });
 
-  it.each(["gpt-4o", "gpt-4o-mini", "claude-3-sonnet", "claude-3.5-sonnet", "gpt-5.1"])(
-    "returns false for model ID: %s",
-    (id) => {
-      expect(supportsXhigh(makeModel({ id }))).toBe(false);
-    },
-  );
+  it.each([
+    "gpt-4o",
+    "gpt-4o-mini",
+    "claude-3-sonnet",
+    "claude-3.5-sonnet",
+    "gpt-5.1",
+  ])("returns false for model ID: %s", (id) => {
+    expect(supportsXhigh(makeModel({ id }))).toBe(false);
+  });
 });
 
 describe("modelsAreEqual", () => {

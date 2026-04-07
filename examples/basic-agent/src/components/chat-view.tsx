@@ -9,7 +9,7 @@ import {
   SubagentList,
   SystemPromptPanel,
   TaskBreadcrumb,
-  TaskTreePanel,
+  TaskList,
   ThinkingIndicator,
 } from "@claw-for-cloudflare/agent-ui";
 import { useState } from "react";
@@ -29,6 +29,8 @@ export function ChatView() {
     logFilter,
     onLogFilterChange,
     taskTree,
+    displayTasks,
+    overflowCount,
     activeTaskId,
     onTaskClick,
     subagents,
@@ -42,13 +44,6 @@ export function ChatView() {
     <ChatPanel chat={chat} style={{ flexDirection: "row", flex: 1 }}>
       <div data-agent-ui="sidebar">
         <SessionList />
-        {taskTree && (
-          <TaskTreePanel
-            tree={taskTree}
-            activeTaskId={activeTaskId}
-            onTaskClick={onTaskClick}
-          />
-        )}
       </div>
       <div
         style={{ display: "flex", flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}
@@ -92,6 +87,12 @@ export function ChatView() {
           <ThinkingIndicator />
           {subagents && subagents.length > 0 && <SubagentList subagents={subagents} />}
           <PendingTasksBanner tasks={pendingTasks} />
+          <TaskList
+            tasks={displayTasks}
+            overflowCount={overflowCount}
+            activeTaskId={activeTaskId}
+            onTaskClick={onTaskClick}
+          />
           <ChatInput />
         </div>
         <SystemPromptPanel open={promptOpen} onClose={() => setPromptOpen(false)} />

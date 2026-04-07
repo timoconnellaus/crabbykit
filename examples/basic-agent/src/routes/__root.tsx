@@ -22,9 +22,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <style>{`* { margin: 0; padding: 0; box-sizing: border-box; } html, body { height: 100%; color-scheme: light dark; } a { color: inherit; text-decoration: none; }`}</style>
       </head>
       <body>
-        <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
-          {children}
-        </div>
+        <div style={{ display: "flex", height: "100vh", width: "100vw" }}>{children}</div>
         <Scripts />
       </body>
     </html>

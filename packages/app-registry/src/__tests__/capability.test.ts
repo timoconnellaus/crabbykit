@@ -205,9 +205,6 @@ describe("appRegistry capability", () => {
     // Execute delete — this triggers broadcastList which calls broadcastToAll
     await deleteTool.execute({ slug: "delete-me" }, { toolCallId: "test" });
 
-    expect(broadcastToAll).toHaveBeenCalledWith(
-      "app_list",
-      expect.objectContaining({ apps: [] }),
-    );
+    expect(broadcastToAll).toHaveBeenCalledWith("app_list", expect.objectContaining({ apps: [] }));
   });
 });

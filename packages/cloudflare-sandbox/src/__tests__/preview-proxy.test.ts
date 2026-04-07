@@ -14,10 +14,7 @@ function mockNamespace(hexId = "abc123hex") {
   };
 }
 
-function createOpts(
-  url: string,
-  overrides?: { agentHexId?: string; containerHexId?: string },
-) {
+function createOpts(url: string, overrides?: { agentHexId?: string; containerHexId?: string }) {
   const agent = mockNamespace(overrides?.agentHexId ?? "agent-hex-id");
   const container = mockNamespace(overrides?.containerHexId ?? "container-hex-id");
 
@@ -86,9 +83,7 @@ describe("handlePreviewRequest", () => {
 
     it("passes hex IDs through without normalization", async () => {
       const hexId = "abc123def456";
-      const { opts, agent, container } = createOpts(
-        `http://example.com/preview/${hexId}`,
-      );
+      const { opts, agent, container } = createOpts(`http://example.com/preview/${hexId}`);
 
       await handlePreviewRequest(opts);
 
@@ -102,9 +97,7 @@ describe("handlePreviewRequest", () => {
   describe("container proxying", () => {
     it("proxies to container with correct URL for root subpath", async () => {
       const hexId = "abc123";
-      const { opts, container } = createOpts(
-        `http://example.com/preview/${hexId}`,
-      );
+      const { opts, container } = createOpts(`http://example.com/preview/${hexId}`);
 
       await handlePreviewRequest(opts);
 
@@ -167,9 +160,7 @@ describe("handlePreviewRequest", () => {
   describe("edge cases", () => {
     it("handles deeply nested subpaths", async () => {
       const hexId = "abc123";
-      const { opts, container } = createOpts(
-        `http://example.com/preview/${hexId}/a/b/c/d/e.js`,
-      );
+      const { opts, container } = createOpts(`http://example.com/preview/${hexId}/a/b/c/d/e.js`);
 
       await handlePreviewRequest(opts);
 
@@ -183,10 +174,9 @@ describe("handlePreviewRequest", () => {
     it("handles IDs with only a single dash (not a UUID)", async () => {
       // A single dash makes rawId.includes("-") true, so it goes through normalization
       const idWithDash = "agent-1";
-      const { opts, agent } = createOpts(
-        `http://example.com/preview/${idWithDash}`,
-        { agentHexId: "resolved-hex" },
-      );
+      const { opts, agent } = createOpts(`http://example.com/preview/${idWithDash}`, {
+        agentHexId: "resolved-hex",
+      });
 
       await handlePreviewRequest(opts);
 
@@ -195,9 +185,7 @@ describe("handlePreviewRequest", () => {
 
     it("handles empty query string", async () => {
       const hexId = "abc123";
-      const { opts, container } = createOpts(
-        `http://example.com/preview/${hexId}/path`,
-      );
+      const { opts, container } = createOpts(`http://example.com/preview/${hexId}/path`);
 
       await handlePreviewRequest(opts);
 

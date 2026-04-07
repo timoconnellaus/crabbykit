@@ -1,6 +1,6 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
-import type { SandboxBadgeProps, SubagentInfo, TaskNode } from "@claw-for-cloudflare/agent-ui";
-import { useBrowser, usePreview } from "@claw-for-cloudflare/agent-ui";
+import type { SandboxBadgeProps, SubagentInfo } from "@claw-for-cloudflare/agent-ui";
+import { useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentRecord } from "../../components/agent-rail";
@@ -25,7 +25,7 @@ function SessionLayout() {
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
   const [deployedApps, setDeployedApps] = useState<AppSummary[]>([]);
-  const [taskTree, setTaskTree] = useState<TaskNode | null>(null);
+  const taskState = useTaskState({ maxVisible: 5 });
   const [activeTaskId, setActiveTaskId] = useState<string | undefined>();
   const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
 
@@ -134,23 +134,7 @@ function SessionLayout() {
     [preview],
   );
 
-  const onTaskEvent = useCallback(
-    (event: { changeType: string; task: Record<string, unknown> }) => {
-      const task = event.task;
-      if (event.changeType === "created" && !task.parentId) {
-        setTaskTree({
-          id: task.id as string,
-          title: task.title as string,
-          status: task.status as TaskNode["status"],
-          type: task.type as TaskNode["type"],
-          priority: task.priority as number,
-          depth: 0,
-          children: [],
-        });
-      }
-    },
-    [],
-  );
+  const onTaskEvent = taskState.handleTaskEvent;
 
   const onSubagentEvent = useCallback(
     (event: {
@@ -186,9 +170,7 @@ function SessionLayout() {
 
         if (agentEvent.type === "message_update" && agentEvent.message?.content) {
           const text =
-            typeof agentEvent.message.content === "string"
-              ? agentEvent.message.content
-              : "";
+            typeof agentEvent.message.content === "string" ? agentEvent.message.content : "";
           return prev.map((s) =>
             s.subagentId === event.subagentId ? { ...s, latestText: text } : s,
           );
@@ -201,9 +183,10 @@ function SessionLayout() {
   );
 
   // Build WebSocket URL — only on the client
-  const wsUrl = typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/agent/${agentId}`
-    : "";
+  const wsUrl =
+    typeof window !== "undefined"
+      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/agent/${agentId}`
+      : "";
 
   const chat = useAgentChat({
     url: wsUrl,
@@ -213,6 +196,11 @@ function SessionLayout() {
     onTaskEvent,
     onSubagentEvent,
   });
+
+  // Reset task state when session changes (e.g. /clear creates a new session)
+  useEffect(() => {
+    taskState.reset();
+  }, [chat.currentSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL when server assigns/changes session
   useEffect(() => {
@@ -240,7 +228,10 @@ function SessionLayout() {
     });
     const agent = (await res.json()) as AgentRecord;
     setAgents((prev) => [...prev, agent]);
-    navigate({ to: "/$agentId/$sessionId/chat", params: { agentId: agent.id, sessionId: "latest" } });
+    navigate({
+      to: "/$agentId/$sessionId/chat",
+      params: { agentId: agent.id, sessionId: "latest" },
+    });
   }, [navigate]);
 
   const contextValue = useMemo(
@@ -257,7 +248,9 @@ function SessionLayout() {
       onClosePreview: handleClosePreview,
       logFilter: preview.logFilter,
       onLogFilterChange: preview.setLogFilter,
-      taskTree,
+      taskTree: taskState.taskTree,
+      displayTasks: taskState.displayTasks,
+      overflowCount: taskState.overflowCount,
       activeTaskId,
       onTaskClick: setActiveTaskId,
       subagents,
@@ -277,7 +270,9 @@ function SessionLayout() {
       handleClosePreview,
       preview.logFilter,
       preview.setLogFilter,
-      taskTree,
+      taskState.taskTree,
+      taskState.displayTasks,
+      taskState.overflowCount,
       activeTaskId,
       subagents,
       browser.browserState,
@@ -287,11 +282,7 @@ function SessionLayout() {
 
   return (
     <ChatContextProvider value={contextValue}>
-      <AgentRail
-        agents={agents}
-        selectedId={agentId}
-        onCreateAgent={handleCreateAgent}
-      />
+      <AgentRail agents={agents} selectedId={agentId} onCreateAgent={handleCreateAgent} />
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
         <TabBar agentId={agentId} sessionId={sessionId} activeTab={activeTab} />
         {/* Chat stays mounted (hidden) to keep WebSocket alive */}
@@ -305,9 +296,7 @@ function SessionLayout() {
         >
           <ChatView />
         </div>
-        {activeTab !== "chat" && (
-          <Outlet />
-        )}
+        {activeTab !== "chat" && <Outlet />}
       </div>
     </ChatContextProvider>
   );

@@ -2,7 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
 import { syncSkills } from "../sync.js";
-import { getInstalledSkill, getSkillConflicts, listInstalledSkills, putInstalledSkill } from "../storage.js";
+import {
+  getInstalledSkill,
+  getSkillConflicts,
+  listInstalledSkills,
+  putInstalledSkill,
+} from "../storage.js";
 import type { InstalledSkill } from "../types.js";
 
 function createMockRegistry(records: SkillRecord[]): SkillRegistry {
@@ -36,7 +41,8 @@ function createMockBucket(): R2Bucket {
       else store.delete(key);
     },
     head: async () => null,
-    list: async () => ({ objects: [], truncated: false, delimitedPrefixes: [] }) as unknown as R2Objects,
+    list: async () =>
+      ({ objects: [], truncated: false, delimitedPrefixes: [] }) as unknown as R2Objects,
     createMultipartUpload: async () => ({}) as R2MultipartUpload,
     resumeMultipartUpload: () => ({}) as R2MultipartUpload,
   } as R2Bucket;
@@ -115,7 +121,12 @@ describe("syncSkills", () => {
   });
 
   it("creates a conflict for dirty skill with new version (scenario 3)", async () => {
-    const v2Record = { ...SKILL_RECORD, version: "2.0.0", contentHash: "def456", skillMd: "updated content" };
+    const v2Record = {
+      ...SKILL_RECORD,
+      version: "2.0.0",
+      contentHash: "def456",
+      skillMd: "updated content",
+    };
     const registry = createMockRegistry([v2Record]);
 
     // Pre-install v1, marked dirty

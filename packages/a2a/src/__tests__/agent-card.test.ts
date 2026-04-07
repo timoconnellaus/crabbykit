@@ -132,8 +132,16 @@ describe("capabilitiesToSkills", () => {
     const skills = capabilitiesToSkills(capabilities);
 
     expect(skills).toHaveLength(2);
-    expect(skills[0]).toEqual({ id: "cap-1", name: "Capability 1", description: "First capability" });
-    expect(skills[1]).toEqual({ id: "cap-2", name: "Capability 2", description: "Second capability" });
+    expect(skills[0]).toEqual({
+      id: "cap-1",
+      name: "Capability 1",
+      description: "First capability",
+    });
+    expect(skills[1]).toEqual({
+      id: "cap-2",
+      name: "Capability 2",
+      description: "Second capability",
+    });
   });
 
   it("returns empty array for empty input", () => {

@@ -60,8 +60,13 @@ export { SystemPromptPanel } from "./components/system-prompt-panel";
 // Task tree
 export type { TaskBreadcrumbProps } from "./components/task-breadcrumb";
 export { TaskBreadcrumb } from "./components/task-breadcrumb";
+export type { TaskListProps } from "./components/task-list";
+export { TaskList } from "./components/task-list";
 export type { TaskNode, TaskTreePanelProps } from "./components/task-tree-panel";
 export { TaskTreePanel } from "./components/task-tree-panel";
+// Task state hook
+export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
+export { useTaskState } from "./hooks/use-task-state";
 export { ThinkingIndicator } from "./components/thinking-indicator";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";

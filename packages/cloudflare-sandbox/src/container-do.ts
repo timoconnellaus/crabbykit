@@ -11,7 +11,10 @@ export interface SandboxContainerEnv {
   R2_ACCOUNT_ID: string;
   R2_BUCKET_NAME: string;
   /** Service binding to DbService for proxying database requests from the container. */
-  DB_SERVICE: { exec(backendId: string, sql: string, params?: unknown[]): Promise<unknown>; batch(backendId: string, statements: { sql: string; params?: unknown[] }[]): Promise<unknown> };
+  DB_SERVICE: {
+    exec(backendId: string, sql: string, params?: unknown[]): Promise<unknown>;
+    batch(backendId: string, statements: { sql: string; params?: unknown[] }[]): Promise<unknown>;
+  };
   /** OpenRouter API key for proxying AI requests from the container. */
   OPENROUTER_API_KEY: string;
   [key: string]: unknown;

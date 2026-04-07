@@ -12,7 +12,8 @@ export function createMockR2Bucket(): R2Bucket {
       const encoded = new TextEncoder().encode(value);
       return {
         text: async () => value,
-        arrayBuffer: async () => encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength),
+        arrayBuffer: async () =>
+          encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength),
         key,
         size: encoded.byteLength,
       } as unknown as R2ObjectBody;

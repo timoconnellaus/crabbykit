@@ -9,6 +9,7 @@ export {
   TaskStore,
 } from "./task-store.js";
 export {
+  createTaskClearTool,
   createTaskCloseTool,
   createTaskCreateTool,
   createTaskDepAddTool,

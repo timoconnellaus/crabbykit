@@ -124,8 +124,19 @@ async function listAgentIds(bucket: R2Bucket): Promise<string[]> {
 
 /** Text file extensions that are embedded as-is (not base64). */
 const TEXT_EXTENSIONS = new Set([
-  ".html", ".htm", ".js", ".mjs", ".cjs", ".css", ".json",
-  ".svg", ".txt", ".xml", ".webmanifest", ".map", ".md",
+  ".html",
+  ".htm",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".css",
+  ".json",
+  ".svg",
+  ".txt",
+  ".xml",
+  ".webmanifest",
+  ".map",
+  ".md",
 ]);
 
 function isTextFile(path: string): boolean {
@@ -209,9 +220,7 @@ function escapeStringForJS(str: string): string {
   return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "");
 }
 
-function generateWorkerScript(
-  assets: Map<string, { content: string; binary: boolean }>,
-): string {
+function generateWorkerScript(assets: Map<string, { content: string; binary: boolean }>): string {
   const textEntries: string[] = [];
   const binaryEntries: string[] = [];
 

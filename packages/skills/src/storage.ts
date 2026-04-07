@@ -25,10 +25,7 @@ export async function listInstalledSkills(
   return storage.list<InstalledSkill>(INSTALLED_PREFIX);
 }
 
-export async function deleteInstalledSkill(
-  storage: CapabilityStorage,
-  id: string,
-): Promise<void> {
+export async function deleteInstalledSkill(storage: CapabilityStorage, id: string): Promise<void> {
   await storage.delete(`${INSTALLED_PREFIX}${id}`);
 }
 

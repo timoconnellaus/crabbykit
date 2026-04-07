@@ -51,12 +51,7 @@ function AppCard({ app }: { app: AppSummary }) {
         </div>
       </div>
       <div data-agent-ui="app-card-actions">
-        <a
-          href={appUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-agent-ui="app-action-btn"
-        >
+        <a href={appUrl} target="_blank" rel="noopener noreferrer" data-agent-ui="app-action-btn">
           Open
         </a>
       </div>

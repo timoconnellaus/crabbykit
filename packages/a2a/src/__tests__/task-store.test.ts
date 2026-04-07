@@ -152,7 +152,8 @@ function createInMemorySqlStore(): SqlStore {
       // SELECT MAX(seq) as max_seq FROM a2a_artifacts WHERE task_id = ?
       if (trimmed.startsWith("SELECT MAX(seq) as max_seq")) {
         const artifacts = getTable("a2a_artifacts").filter((r) => r.task_id === bindings[0]);
-        const maxSeq = artifacts.length > 0 ? Math.max(...artifacts.map((r) => r.seq as number)) : null;
+        const maxSeq =
+          artifacts.length > 0 ? Math.max(...artifacts.map((r) => r.seq as number)) : null;
         return makeSqlResult([{ max_seq: maxSeq }] as T[]);
       }
 

@@ -317,7 +317,8 @@ describe("Hibernation — onConnect hook reconciliation", () => {
 
       // Second hook should still fire despite first one throwing
       const event = await client.waitForMessage(
-        (m) => m.type === "custom_event" && (m as CustomEventMsg).event.name === "second_hook_fired",
+        (m) =>
+          m.type === "custom_event" && (m as CustomEventMsg).event.name === "second_hook_fired",
       );
       expect(event).toBeTruthy();
 
@@ -351,7 +352,8 @@ describe("Hibernation — onConnect hook reconciliation", () => {
       // First connect — hook fires, count=1
       const { client, sessionId } = await connectAndGetSession(stub);
       await client.waitForMessage(
-        (m) => m.type === "custom_event" && (m as CustomEventMsg).event.name === "storage_onconnect",
+        (m) =>
+          m.type === "custom_event" && (m as CustomEventMsg).event.name === "storage_onconnect",
       );
 
       client.messages.length = 0;
@@ -360,7 +362,8 @@ describe("Hibernation — onConnect hook reconciliation", () => {
       // Recovery — hook fires again, count should be 2 (persisted across hibernation)
       client.send({ type: "request_sync", sessionId });
       const event = await client.waitForMessage(
-        (m) => m.type === "custom_event" && (m as CustomEventMsg).event.name === "storage_onconnect",
+        (m) =>
+          m.type === "custom_event" && (m as CustomEventMsg).event.name === "storage_onconnect",
       );
       const data = (event as CustomEventMsg).event.data as { count: number };
       expect(data.count).toBe(2);

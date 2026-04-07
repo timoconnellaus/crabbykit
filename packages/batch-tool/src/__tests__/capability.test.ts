@@ -3,7 +3,11 @@ import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { batchTool } from "../capability.js";
 
-function makeTool(name: string, result = "ok", opts: { throws?: boolean; delay?: number } = {}): AgentTool {
+function makeTool(
+  name: string,
+  result = "ok",
+  opts: { throws?: boolean; delay?: number } = {},
+): AgentTool {
   return {
     name,
     label: name,
@@ -63,11 +67,14 @@ describe("batchTool", () => {
       const toolB = makeTool("tool_b", "result_b");
       const toolC = makeTool("tool_c", "result_c");
 
-      const result = await executeBatch(() => [toolA, toolB, toolC], [
-        { tool: "tool_a", args: {} },
-        { tool: "tool_b", args: {} },
-        { tool: "tool_c", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [toolA, toolB, toolC],
+        [
+          { tool: "tool_a", args: {} },
+          { tool: "tool_b", args: {} },
+          { tool: "tool_c", args: {} },
+        ],
+      );
 
       const text = textOf(result);
       expect(text).toContain("3 succeeded, 0 failed");
@@ -92,9 +99,7 @@ describe("batchTool", () => {
         execute: spy,
       } as unknown as AgentTool;
 
-      await executeBatch(() => [tool], [
-        { tool: "search", args: { query: "hello" } },
-      ]);
+      await executeBatch(() => [tool], [{ tool: "search", args: { query: "hello" } }]);
 
       expect(spy).toHaveBeenCalledWith(
         { query: "hello" },
@@ -105,9 +110,7 @@ describe("batchTool", () => {
 
   describe("negative — error handling", () => {
     it("blocks self-referential batch calls", async () => {
-      const result = await executeBatch(() => [], [
-        { tool: "batch", args: {} },
-      ]);
+      const result = await executeBatch(() => [], [{ tool: "batch", args: {} }]);
 
       const text = textOf(result);
       expect(text).toContain("Recursive batch calls are not allowed");
@@ -115,9 +118,10 @@ describe("batchTool", () => {
     });
 
     it("returns error for unregistered tool name", async () => {
-      const result = await executeBatch(() => [makeTool("existing")], [
-        { tool: "nonexistent", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [makeTool("existing")],
+        [{ tool: "nonexistent", args: {} }],
+      );
 
       const text = textOf(result);
       expect(text).toContain("Tool 'nonexistent' not found");
@@ -127,9 +131,7 @@ describe("batchTool", () => {
     it("returns error for sub-call that throws", async () => {
       const failTool = makeTool("fail_tool", "unused", { throws: true });
 
-      const result = await executeBatch(() => [failTool], [
-        { tool: "fail_tool", args: {} },
-      ]);
+      const result = await executeBatch(() => [failTool], [{ tool: "fail_tool", args: {} }]);
 
       const text = textOf(result);
       expect(text).toContain("fail_tool failed");
@@ -146,9 +148,7 @@ describe("batchTool", () => {
     });
 
     it("handles single item batch", async () => {
-      const result = await executeBatch(() => [makeTool("a", "done")], [
-        { tool: "a", args: {} },
-      ]);
+      const result = await executeBatch(() => [makeTool("a", "done")], [{ tool: "a", args: {} }]);
 
       const text = textOf(result);
       expect(text).toContain("1 succeeded, 0 failed");
@@ -171,11 +171,14 @@ describe("batchTool", () => {
     it("handles all sub-calls failing", async () => {
       const failTool = makeTool("fail", "unused", { throws: true });
 
-      const result = await executeBatch(() => [failTool], [
-        { tool: "fail", args: {} },
-        { tool: "fail", args: {} },
-        { tool: "fail", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [failTool],
+        [
+          { tool: "fail", args: {} },
+          { tool: "fail", args: {} },
+          { tool: "fail", args: {} },
+        ],
+      );
 
       const text = textOf(result);
       expect(text).toContain("0 succeeded, 3 failed");
@@ -187,11 +190,14 @@ describe("batchTool", () => {
       const goodTool = makeTool("good", "success");
       const badTool = makeTool("bad", "unused", { throws: true });
 
-      const result = await executeBatch(() => [goodTool, badTool], [
-        { tool: "good", args: {} },
-        { tool: "bad", args: {} },
-        { tool: "good", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [goodTool, badTool],
+        [
+          { tool: "good", args: {} },
+          { tool: "bad", args: {} },
+          { tool: "good", args: {} },
+        ],
+      );
 
       const text = textOf(result);
       expect(text).toContain("2 succeeded, 1 failed");
@@ -205,11 +211,14 @@ describe("batchTool", () => {
     it("result array length equals input array length", async () => {
       const tool = makeTool("t", "ok");
 
-      const result = await executeBatch(() => [tool], [
-        { tool: "t", args: {} },
-        { tool: "t", args: {} },
-        { tool: "nonexistent", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [tool],
+        [
+          { tool: "t", args: {} },
+          { tool: "t", args: {} },
+          { tool: "nonexistent", args: {} },
+        ],
+      );
 
       const text = textOf(result);
       // 3 entries: [0], [1], [2]
@@ -223,10 +232,13 @@ describe("batchTool", () => {
       const toolB = makeTool("b", "beta");
 
       // toolA is slower but should still appear first in results
-      const result = await executeBatch(() => [toolA, toolB], [
-        { tool: "a", args: {} },
-        { tool: "b", args: {} },
-      ]);
+      const result = await executeBatch(
+        () => [toolA, toolB],
+        [
+          { tool: "a", args: {} },
+          { tool: "b", args: {} },
+        ],
+      );
 
       const text = textOf(result);
       const indexA = text.indexOf("[0] a: OK");
@@ -254,10 +266,7 @@ describe("batchTool", () => {
       expect(getTools).not.toHaveBeenCalled();
 
       // Called when batch executes
-      await tools[0].execute(
-        { calls: [{ tool: "dynamic", args: {} }] },
-        { toolCallId: "test" },
-      );
+      await tools[0].execute({ calls: [{ tool: "dynamic", args: {} }] }, { toolCallId: "test" });
 
       expect(getTools).toHaveBeenCalledTimes(1);
     });

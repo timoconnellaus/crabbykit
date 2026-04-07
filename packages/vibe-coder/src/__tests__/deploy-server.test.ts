@@ -8,7 +8,9 @@ function mockR2Object(content: string | ArrayBuffer) {
   const isText = typeof content === "string";
   return {
     text: vi.fn().mockResolvedValue(isText ? content : ""),
-    arrayBuffer: vi.fn().mockResolvedValue(isText ? new TextEncoder().encode(content).buffer : content),
+    arrayBuffer: vi
+      .fn()
+      .mockResolvedValue(isText ? new TextEncoder().encode(content).buffer : content),
     json: vi.fn().mockResolvedValue(isText ? JSON.parse(content) : null),
   };
 }
@@ -111,7 +113,9 @@ describe("handleDeployRequest", () => {
     const ns = mockAgentNamespace();
     const loader = mockLoader();
     const opts = createOpts({
-      request: new Request("http://localhost/deploy/550e8400-e29b-41d4-a716-446655440000/deploy456/"),
+      request: new Request(
+        "http://localhost/deploy/550e8400-e29b-41d4-a716-446655440000/deploy456/",
+      ),
       agentNamespace: ns as unknown as DurableObjectNamespace,
       loader: loader as unknown as WorkerLoader,
     });

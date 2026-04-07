@@ -54,21 +54,13 @@ describe("Sandbox E2E", () => {
   });
 
   it("elevate starts the container", async () => {
-    const { body } = await executeTool(
-      "elevate",
-      { reason: "e2e test" },
-      sessionId,
-    );
+    const { body } = await executeTool("elevate", { reason: "e2e test" }, sessionId);
     const result = body.result as { content: Array<{ text: string }> };
     expect(result.content[0].text).toContain("activated");
   }, 120_000); // container startup can be slow
 
   it("exec ls returns directory listing", async () => {
-    const { body } = await executeTool(
-      "exec",
-      { command: "ls /" },
-      sessionId,
-    );
+    const { body } = await executeTool("exec", { command: "ls /" }, sessionId);
     const result = body.result as {
       content: Array<{ text: string }>;
       details: { exitCode: number; stdout: string };
@@ -81,11 +73,7 @@ describe("Sandbox E2E", () => {
   });
 
   it("exec can run commands and capture output", async () => {
-    const { body } = await executeTool(
-      "exec",
-      { command: "echo hello-from-e2e" },
-      sessionId,
-    );
+    const { body } = await executeTool("exec", { command: "echo hello-from-e2e" }, sessionId);
     const result = body.result as {
       content: Array<{ text: string }>;
       details: { exitCode: number; stdout: string };
@@ -95,11 +83,7 @@ describe("Sandbox E2E", () => {
   });
 
   it("exec captures non-zero exit codes", async () => {
-    const { body } = await executeTool(
-      "exec",
-      { command: "ls /nonexistent-path-e2e" },
-      sessionId,
-    );
+    const { body } = await executeTool("exec", { command: "ls /nonexistent-path-e2e" }, sessionId);
     const result = body.result as {
       content: Array<{ text: string }>;
       details: { exitCode: number; stderr: string };
@@ -109,18 +93,10 @@ describe("Sandbox E2E", () => {
 
   it("exec can write and read files in the container", async () => {
     // Write a file
-    await executeTool(
-      "exec",
-      { command: "echo 'e2e-content' > /tmp/e2e-test.txt" },
-      sessionId,
-    );
+    await executeTool("exec", { command: "echo 'e2e-content' > /tmp/e2e-test.txt" }, sessionId);
 
     // Read it back
-    const { body } = await executeTool(
-      "exec",
-      { command: "cat /tmp/e2e-test.txt" },
-      sessionId,
-    );
+    const { body } = await executeTool("exec", { command: "cat /tmp/e2e-test.txt" }, sessionId);
     const result = body.result as {
       details: { exitCode: number; stdout: string };
     };

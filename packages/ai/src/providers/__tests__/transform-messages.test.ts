@@ -321,10 +321,9 @@ describe("transformMessages", () => {
 
   describe("text blocks", () => {
     it("strips textSignature for cross-model (reconstructed as plain text)", () => {
-      const msg = assistantMsg(
-        [{ type: "text", text: "hello", textSignature: "sig-abc" }],
-        { provider: "other-provider" },
-      );
+      const msg = assistantMsg([{ type: "text", text: "hello", textSignature: "sig-abc" }], {
+        provider: "other-provider",
+      });
       const result = transformMessages([msg], TEST_MODEL);
       const assistant = result[0] as AssistantMessage;
       expect(assistant.content[0]).toEqual({ type: "text", text: "hello" });

@@ -71,9 +71,7 @@ function chunk(
 }
 
 /** Turn an array of chunks into an async iterable (simulates SSE stream) */
-async function* chunksToStream(
-  chunks: ChatCompletionChunk[],
-): AsyncIterable<ChatCompletionChunk> {
+async function* chunksToStream(chunks: ChatCompletionChunk[]): AsyncIterable<ChatCompletionChunk> {
   for (const c of chunks) {
     yield c;
   }
@@ -177,22 +175,23 @@ describe("streamOpenAICompletions", () => {
           chunk({
             delta: {
               tool_calls: [
-                { index: 0, id: "call_1", type: "function", function: { name: "get_weather", arguments: "" } },
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "get_weather", arguments: "" },
+                },
               ],
             },
           }),
           chunk({
             delta: {
-              tool_calls: [
-                { index: 0, function: { arguments: '{"cit' } },
-              ],
+              tool_calls: [{ index: 0, function: { arguments: '{"cit' } }],
             } as any,
           }),
           chunk({
             delta: {
-              tool_calls: [
-                { index: 0, function: { arguments: 'y":"NYC"}' } },
-              ],
+              tool_calls: [{ index: 0, function: { arguments: 'y":"NYC"}' } }],
             } as any,
           }),
           chunk({ finish_reason: "tool_calls" }),
@@ -232,14 +231,24 @@ describe("streamOpenAICompletions", () => {
           chunk({
             delta: {
               tool_calls: [
-                { index: 0, id: "call_1", type: "function", function: { name: "tool_a", arguments: '{"a":1}' } },
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "tool_a", arguments: '{"a":1}' },
+                },
               ],
             },
           }),
           chunk({
             delta: {
               tool_calls: [
-                { index: 1, id: "call_2", type: "function", function: { name: "tool_b", arguments: '{"b":2}' } },
+                {
+                  index: 1,
+                  id: "call_2",
+                  type: "function",
+                  function: { name: "tool_b", arguments: '{"b":2}' },
+                },
               ],
             },
           }),
@@ -269,7 +278,12 @@ describe("streamOpenAICompletions", () => {
           chunk({
             delta: {
               tool_calls: [
-                { index: 0, id: "call_1", type: "function", function: { name: "search", arguments: '{}' } },
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "search", arguments: "{}" },
+                },
               ],
             },
           }),
@@ -482,7 +496,9 @@ describe("streamOpenAICompletions", () => {
         chunksToStream([
           chunk({
             delta: {
-              tool_calls: [{ index: 0, id: "c1", type: "function", function: { name: "f", arguments: "{}" } }],
+              tool_calls: [
+                { index: 0, id: "c1", type: "function", function: { name: "f", arguments: "{}" } },
+              ],
             },
           }),
           chunk({ finish_reason: "tool_calls" }),
@@ -642,7 +658,12 @@ describe("streamOpenAICompletions", () => {
           chunk({
             delta: {
               tool_calls: [
-                { index: 0, id: "call_1", type: "function", function: { name: "f", arguments: '{}' } },
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "f", arguments: "{}" },
+                },
               ],
             },
           }),
@@ -674,15 +695,18 @@ describe("streamOpenAICompletions", () => {
           chunk({
             delta: {
               tool_calls: [
-                { index: 0, id: "call_1", type: "function", function: { name: "f", arguments: '{}' } },
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "f", arguments: "{}" },
+                },
               ],
             },
           }),
           chunk({
             delta: {
-              reasoning_details: [
-                { type: "reasoning.encrypted", id: "call_999", data: "blob" },
-              ],
+              reasoning_details: [{ type: "reasoning.encrypted", id: "call_999", data: "blob" }],
             } as any,
           }),
           chunk({ finish_reason: "tool_calls" }),
@@ -792,7 +816,11 @@ describe("streamOpenAICompletions", () => {
       );
 
       const tools = [
-        { name: "get_weather", description: "Get weather", parameters: { type: "object", properties: {} } },
+        {
+          name: "get_weather",
+          description: "Get weather",
+          parameters: { type: "object", properties: {} },
+        },
       ];
       const stream = streamOpenAICompletions(BASE_MODEL, ctx(undefined, undefined, tools as any), {
         apiKey: "k",

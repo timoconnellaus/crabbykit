@@ -48,10 +48,7 @@ export function createBrowserScreenshotTool(
           }
         }
 
-        const result = await cdp.send<{ data: string }>(
-          "Page.captureScreenshot",
-          params,
-        );
+        const result = await cdp.send<{ data: string }>("Page.captureScreenshot", params);
 
         return {
           content: [

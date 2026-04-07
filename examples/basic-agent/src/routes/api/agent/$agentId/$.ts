@@ -4,7 +4,13 @@ import type { Env } from "../../../../worker";
 
 const env = rawEnv as unknown as Env;
 
-async function agentProxy({ request, params }: { request: Request; params: { agentId: string; _splat: string } }) {
+async function agentProxy({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { agentId: string; _splat: string };
+}) {
   const id = env.AGENT.idFromName(params.agentId);
   const stub = env.AGENT.get(id);
   const url = new URL(request.url);

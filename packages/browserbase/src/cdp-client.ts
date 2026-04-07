@@ -15,7 +15,10 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 25_000;
 export class CDPClient {
   private ws: WebSocket | null = null;
   private nextId = 0;
-  private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private pending = new Map<
+    number,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void }
+  >();
   private listeners = new Map<string, Set<(params: Record<string, unknown>) => void>>();
   private connected = false;
   /** Flattened CDP session ID for page-level commands. */
@@ -47,7 +50,9 @@ export class CDPClient {
           if (entry) {
             this.pending.delete(response.id);
             if (response.error) {
-              entry.reject(new Error(`CDP error: ${response.error.message} (${response.error.code})`));
+              entry.reject(
+                new Error(`CDP error: ${response.error.message} (${response.error.code})`),
+              );
             } else {
               entry.resolve(response.result);
             }
@@ -96,18 +101,17 @@ export class CDPClient {
 
     if (!pageTarget) {
       // Create a new blank page
-      const { targetId } = await this.sendRaw<{ targetId: string }>(
-        "Target.createTarget",
-        { url: "about:blank" },
-      );
+      const { targetId } = await this.sendRaw<{ targetId: string }>("Target.createTarget", {
+        url: "about:blank",
+      });
       pageTarget = { targetId, type: "page", url: "about:blank" };
     }
 
     // Attach with flatten so events/responses come on this connection
-    const { sessionId } = await this.sendRaw<{ sessionId: string }>(
-      "Target.attachToTarget",
-      { targetId: pageTarget.targetId, flatten: true },
-    );
+    const { sessionId } = await this.sendRaw<{ sessionId: string }>("Target.attachToTarget", {
+      targetId: pageTarget.targetId,
+      flatten: true,
+    });
 
     this.sessionId = sessionId;
   }

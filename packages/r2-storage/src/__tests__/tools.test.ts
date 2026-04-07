@@ -498,10 +498,7 @@ describe("file_find", () => {
   });
 
   it("rejects invalid scoped path", async () => {
-    const result = await tool.execute(
-      { pattern: "*.ts", path: "../evil" },
-      { toolCallId: "test" },
-    );
+    const result = await tool.execute({ pattern: "*.ts", path: "../evil" }, { toolCallId: "test" });
     expect(textOf(result)).toContain("Error:");
     expect(result.details).toEqual({ error: "invalid_path" });
   });

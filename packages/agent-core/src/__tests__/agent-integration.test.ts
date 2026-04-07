@@ -16,13 +16,7 @@ import {
   type ToolCall,
 } from "@claw-for-cloudflare/ai";
 import { Agent } from "../agent.js";
-import type {
-  AgentEvent,
-  AgentMessage,
-  AgentTool,
-  AgentToolResult,
-  StreamFn,
-} from "../types.js";
+import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, StreamFn } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -50,9 +44,7 @@ const TEST_MODEL: Model<any> = {
   contextWindow: 8192,
 };
 
-function makeAssistantMsg(
-  overrides: Partial<AssistantMessage> = {},
-): AssistantMessage {
+function makeAssistantMsg(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
   return {
     role: "assistant",
     content: [{ type: "text", text: "hello" }],
@@ -149,7 +141,11 @@ function createRealisticStreamFn(...responses: AssistantMessage[]): StreamFn {
         } as AssistantMessageEvent);
       } else {
         const reason =
-          msg.stopReason === "toolUse" ? "toolUse" : msg.stopReason === "length" ? "length" : "stop";
+          msg.stopReason === "toolUse"
+            ? "toolUse"
+            : msg.stopReason === "length"
+              ? "length"
+              : "stop";
         stream.push({
           type: "done",
           reason,
@@ -243,9 +239,7 @@ describe("Agent full loop integration", () => {
 
   describe("single tool call → result → final response", () => {
     it("executes a tool and continues to final response", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "get_time", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "get_time", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "The time is 3pm." }],
       });
@@ -458,9 +452,7 @@ describe("Agent full loop integration", () => {
 
   describe("steering messages", () => {
     it("injects steering messages between turns", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "slow_task", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "slow_task", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "Done with steering." }],
       });
@@ -498,9 +490,7 @@ describe("Agent full loop integration", () => {
           m.role === "user" &&
           "content" in m &&
           Array.isArray(m.content) &&
-          m.content.some(
-            (c: any) => c.type === "text" && c.text === "Hurry up!",
-          ),
+          m.content.some((c: any) => c.type === "text" && c.text === "Hurry up!"),
       );
       expect(steeringInMessages).toBeDefined();
     });
@@ -533,23 +523,17 @@ describe("Agent full loop integration", () => {
       await agent.prompt("First question");
 
       // Both responses in messages
-      const assistantMessages = agent.state.messages.filter(
-        (m) => m.role === "assistant",
-      );
+      const assistantMessages = agent.state.messages.filter((m) => m.role === "assistant");
       expect(assistantMessages).toHaveLength(2);
       // Follow-up user message in conversation
-      const userMessages = agent.state.messages.filter(
-        (m) => m.role === "user",
-      );
+      const userMessages = agent.state.messages.filter((m) => m.role === "user");
       expect(userMessages).toHaveLength(2);
     });
   });
 
   describe("beforeToolCall hook", () => {
     it("blocks tool execution and returns error result", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "dangerous", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "dangerous", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "OK, I won't do that." }],
       });
@@ -582,9 +566,7 @@ describe("Agent full loop integration", () => {
 
   describe("afterToolCall hook", () => {
     it("modifies tool result content", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "my_tool", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "my_tool", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "Got it." }],
       });
@@ -612,9 +594,7 @@ describe("Agent full loop integration", () => {
     });
 
     it("can flip isError flag", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "my_tool", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "my_tool", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "ok" }],
       });
@@ -748,9 +728,7 @@ describe("Agent full loop integration", () => {
 
       await agent.prompt("stream something");
 
-      const updateEvents = events.filter(
-        (e) => e.type === "tool_execution_update",
-      );
+      const updateEvents = events.filter((e) => e.type === "tool_execution_update");
       expect(updateEvents).toHaveLength(2);
       expect((updateEvents[0] as any).partialResult.details.progress).toBe(50);
       expect((updateEvents[1] as any).partialResult.details.progress).toBe(100);
@@ -976,7 +954,9 @@ describe("Agent full loop integration", () => {
 
       await agent.prompt("hi");
 
-      await expect(agent.continue()).rejects.toThrow("Cannot continue from message role: assistant");
+      await expect(agent.continue()).rejects.toThrow(
+        "Cannot continue from message role: assistant",
+      );
     });
 
     it("throws if no messages exist", async () => {
@@ -987,9 +967,7 @@ describe("Agent full loop integration", () => {
 
   describe("pendingToolCalls tracking", () => {
     it("tracks pending tool calls during execution", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "slow_tool", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "slow_tool", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "done" }],
       });
@@ -1098,9 +1076,7 @@ describe("Agent full loop integration", () => {
 
   describe("event ordering", () => {
     it("emits events in correct order for a tool call round trip", async () => {
-      const toolCallResponse = makeToolCallMsg([
-        { id: "tc-1", name: "my_tool", arguments: {} },
-      ]);
+      const toolCallResponse = makeToolCallMsg([{ id: "tc-1", name: "my_tool", arguments: {} }]);
       const finalResponse = makeAssistantMsg({
         content: [{ type: "text", text: "done" }],
       });
@@ -1131,9 +1107,7 @@ describe("Agent full loop integration", () => {
       expect(toolExecEnd).toBeLessThan(agentEnd);
 
       // turn_end appears after tool execution
-      const turnEnds = types
-        .map((t, i) => (t === "turn_end" ? i : -1))
-        .filter((i) => i >= 0);
+      const turnEnds = types.map((t, i) => (t === "turn_end" ? i : -1)).filter((i) => i >= 0);
       expect(turnEnds.length).toBeGreaterThanOrEqual(2); // at least 2 turns
       expect(turnEnds[0]).toBeGreaterThan(toolExecEnd);
     });

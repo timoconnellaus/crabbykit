@@ -136,7 +136,8 @@ export function createStartBackendTool(
 
       // Derive backend ID from path if not provided
       const backendId =
-        backendIdArg ?? `${context.agentId}:${sourceDir.split("/").filter(Boolean).pop() ?? "default"}`;
+        backendIdArg ??
+        `${context.agentId}:${sourceDir.split("/").filter(Boolean).pop() ?? "default"}`;
 
       // Verify entry point exists
       const checkResult = await provider.exec(`test -f "${entryPoint}" && echo "OK"`, {

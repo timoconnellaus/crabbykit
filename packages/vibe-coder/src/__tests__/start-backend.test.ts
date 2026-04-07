@@ -25,11 +25,17 @@ function mockProvider(overrides: Partial<SandboxProvider> = {}): SandboxProvider
 }
 
 /** Create a mock provider.exec that routes based on command prefix. */
-function mockExecRouter(handlers: Record<string, { stdout: string; stderr?: string; exitCode?: number }>) {
+function mockExecRouter(
+  handlers: Record<string, { stdout: string; stderr?: string; exitCode?: number }>,
+) {
   return vi.fn().mockImplementation((cmd: string) => {
     for (const [prefix, result] of Object.entries(handlers)) {
       if (cmd.includes(prefix)) {
-        return Promise.resolve({ stdout: result.stdout, stderr: result.stderr ?? "", exitCode: result.exitCode ?? 0 });
+        return Promise.resolve({
+          stdout: result.stdout,
+          stderr: result.stderr ?? "",
+          exitCode: result.exitCode ?? 0,
+        });
       }
     }
     return Promise.resolve({ stdout: "", stderr: "unhandled command", exitCode: 1 });
@@ -121,7 +127,7 @@ describe("start_backend tool", () => {
       exec: mockExecRouter({
         "test -f": { stdout: "OK" },
         find: { stdout: "/workspace/app/server/utils.ts\n" },
-        "cat": { stdout: "export const x = 1;" },
+        cat: { stdout: "export const x = 1;" },
       }),
     });
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
@@ -281,14 +287,9 @@ describe("start_backend tool", () => {
     });
 
     const tool = createStartBackendTool(provider, mockContext(), mockBackendOptions());
-    await tool.execute(
-      { entryPoint: "/workspace/app/server/main.ts" },
-      { toolCallId: "tc1" },
-    );
+    await tool.execute({ entryPoint: "/workspace/app/server/main.ts" }, { toolCallId: "tc1" });
 
-    expect(createWorker).toHaveBeenCalledWith(
-      expect.objectContaining({ entryPoint: "main.ts" }),
-    );
+    expect(createWorker).toHaveBeenCalledWith(expect.objectContaining({ entryPoint: "main.ts" }));
   });
 
   it("uses explicit sourceDir when provided", async () => {

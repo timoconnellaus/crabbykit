@@ -28,7 +28,8 @@ function createMockBucket(): R2Bucket & { _store: Map<string, string> } {
       else store.delete(key);
     },
     head: async () => null,
-    list: async () => ({ objects: [], truncated: false, delimitedPrefixes: [] }) as unknown as R2Objects,
+    list: async () =>
+      ({ objects: [], truncated: false, delimitedPrefixes: [] }) as unknown as R2Objects,
     createMultipartUpload: async () => ({}) as R2MultipartUpload,
     resumeMultipartUpload: () => ({}) as R2MultipartUpload,
   } as R2Bucket & { _store: Map<string, string> };
@@ -38,7 +39,10 @@ describe("createAfterToolExecutionHook", () => {
   let storage: ReturnType<typeof createMockStorage>;
   let bucket: ReturnType<typeof createMockBucket>;
   let cachedSkills: Map<string, InstalledSkill> | null;
-  let hook: (event: { toolName: string; args: unknown; isError: boolean }, ctx: { agentId: string; sessionId: string; storage: ReturnType<typeof createMockStorage> }) => Promise<void>;
+  let hook: (
+    event: { toolName: string; args: unknown; isError: boolean },
+    ctx: { agentId: string; sessionId: string; storage: ReturnType<typeof createMockStorage> },
+  ) => Promise<void>;
 
   const hookCtx = { agentId: "agent-1", sessionId: "session-1", storage: null as any };
 
@@ -52,7 +56,9 @@ describe("createAfterToolExecutionHook", () => {
       { bucket: () => bucket, namespace: () => "ns" } as any,
       [{ id: "builtin-skill" }],
       () => cachedSkills,
-      (cache) => { cachedSkills = cache; },
+      (cache) => {
+        cachedSkills = cache;
+      },
     );
   });
 
@@ -255,18 +261,12 @@ describe("createAfterToolExecutionHook", () => {
   });
 
   it("ignores events with no path arg", async () => {
-    await hook(
-      { toolName: "file_write", args: {}, isError: false },
-      hookCtx,
-    );
+    await hook({ toolName: "file_write", args: {}, isError: false }, hookCtx);
     // Should not throw, nothing to process
   });
 
   it("ignores events with non-string path", async () => {
-    await hook(
-      { toolName: "file_write", args: { path: 42 }, isError: false },
-      hookCtx,
-    );
+    await hook({ toolName: "file_write", args: { path: 42 }, isError: false }, hookCtx);
     // Should not throw
   });
 
@@ -279,7 +279,8 @@ describe("createAfterToolExecutionHook", () => {
       requiresCapabilities: [],
     });
 
-    const content = "---\nname: New Name\ndescription: New desc\nrequiresCapabilities: [sandbox]\n---\n# Updated";
+    const content =
+      "---\nname: New Name\ndescription: New desc\nrequiresCapabilities: [sandbox]\n---\n# Updated";
     await writeSkillToR2(bucket, "ns", "agent-skill", content);
 
     await hook(

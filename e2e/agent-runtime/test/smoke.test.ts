@@ -44,9 +44,7 @@ async function getSessions(stub: DurableObjectStub) {
 }
 
 async function getEntries(stub: DurableObjectStub, sessionId?: string) {
-  const url = sessionId
-    ? `http://fake/entries?sessionId=${sessionId}`
-    : "http://fake/entries";
+  const url = sessionId ? `http://fake/entries?sessionId=${sessionId}` : "http://fake/entries";
   const res = await stub.fetch(url);
   // biome-ignore lint/suspicious/noExplicitAny: Test helper
   return res.json() as Promise<{ entries: any[] }>;
@@ -66,9 +64,7 @@ describe("E2E Smoke", () => {
     expect(result.sessionId).toBeDefined();
     expect(result.entries.length).toBeGreaterThanOrEqual(2); // user + assistant
 
-    const userEntry = result.entries.find(
-      (e) => e.type === "message" && e.data?.role === "user",
-    );
+    const userEntry = result.entries.find((e) => e.type === "message" && e.data?.role === "user");
     const assistantEntry = result.entries.find(
       (e) => e.type === "message" && e.data?.role === "assistant",
     );

@@ -90,10 +90,7 @@ describe("exec tool — sessionExecStream path", () => {
 
     const tool = createExecTool(provider, DEFAULT_CONFIG, ctx);
     const onUpdate = vi.fn();
-    const result = await tool.execute(
-      { command: "echo line1" },
-      { toolCallId: "tc1", onUpdate },
-    );
+    const result = await tool.execute({ command: "echo line1" }, { toolCallId: "tc1", onUpdate });
 
     // onUpdate called for stdout and stderr chunks
     expect(onUpdate).toHaveBeenCalledTimes(2);
@@ -146,10 +143,7 @@ describe("exec tool — execStream path", () => {
 
     const tool = createExecTool(provider, DEFAULT_CONFIG, ctx);
     const onUpdate = vi.fn();
-    const result = await tool.execute(
-      { command: "failing-cmd" },
-      { toolCallId: "tc1", onUpdate },
-    );
+    const result = await tool.execute({ command: "failing-cmd" }, { toolCallId: "tc1", onUpdate });
 
     expect(onUpdate).toHaveBeenCalledTimes(2);
 
@@ -255,9 +249,12 @@ describe("exec tool — background mode", () => {
     expect(ctx.schedules.setTimer).toHaveBeenCalledWith("sandbox:de-elevate", 900);
 
     // Broadcasts sandbox_timeout
-    expect(ctx.broadcast).toHaveBeenCalledWith("sandbox_timeout", expect.objectContaining({
-      timeoutSeconds: 900,
-    }));
+    expect(ctx.broadcast).toHaveBeenCalledWith(
+      "sandbox_timeout",
+      expect.objectContaining({
+        timeoutSeconds: 900,
+      }),
+    );
   });
 
   it("handles missing sessionPoll gracefully in background mode", async () => {
@@ -293,7 +290,16 @@ describe("exec tool — resetTimer logic", () => {
     const provider = mockProvider({
       exec: vi.fn().mockResolvedValue({ stdout: "ok", stderr: "", exitCode: 0 }),
       sessionList: vi.fn().mockResolvedValue([
-        { sessionId: "s1", running: true, command: "npm start", exitCode: null, pid: 1, startedAt: Date.now(), logFile: "/tmp/s1.log", outputBytes: 0 },
+        {
+          sessionId: "s1",
+          running: true,
+          command: "npm start",
+          exitCode: null,
+          pid: 1,
+          startedAt: Date.now(),
+          logFile: "/tmp/s1.log",
+          outputBytes: 0,
+        },
       ]),
     });
 
@@ -306,18 +312,21 @@ describe("exec tool — resetTimer logic", () => {
 
     // Should use activeTimeout (900) since there are running sessions
     expect(ctx.schedules.setTimer).toHaveBeenCalledWith("sandbox:de-elevate", 900);
-    expect(ctx.broadcast).toHaveBeenCalledWith("sandbox_timeout", expect.objectContaining({
-      timeoutSeconds: 900,
-    }));
+    expect(ctx.broadcast).toHaveBeenCalledWith(
+      "sandbox_timeout",
+      expect.objectContaining({
+        timeoutSeconds: 900,
+      }),
+    );
   });
 
   it("uses activeTimeout when processList has running processes", async () => {
     const provider = mockProvider({
       exec: vi.fn().mockResolvedValue({ stdout: "ok", stderr: "", exitCode: 0 }),
       sessionList: vi.fn().mockResolvedValue([]), // no running sessions
-      processList: vi.fn().mockResolvedValue([
-        { name: "dev", running: true, command: "npm run dev", pid: 100 },
-      ]),
+      processList: vi
+        .fn()
+        .mockResolvedValue([{ name: "dev", running: true, command: "npm run dev", pid: 100 }]),
     });
 
     const storage = createMapStorage();

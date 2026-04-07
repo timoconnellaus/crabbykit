@@ -58,7 +58,9 @@ function wrapWithTimeout<TArgs, TCtx>(
     return Promise.race([fn(args, ctx), timeout]).catch((err) => {
       if (err instanceof ToolTimeoutError) {
         return {
-          content: [{ type: "text" as const, text: `Tool '${toolName}' timed out after ${timeoutMs}ms` }],
+          content: [
+            { type: "text" as const, text: `Tool '${toolName}' timed out after ${timeoutMs}ms` },
+          ],
           details: { error: true, timeout: true },
           isError: true as const,
         };
@@ -96,7 +98,11 @@ export const toolResult = {
     return { content: [{ type: "text" as const, text }], details: details ?? {} };
   },
   error(text: string, details?: unknown) {
-    return { content: [{ type: "text" as const, text }], details: details ?? { error: true }, isError: true as const };
+    return {
+      content: [{ type: "text" as const, text }],
+      details: details ?? { error: true },
+      isError: true as const,
+    };
   },
 };
 

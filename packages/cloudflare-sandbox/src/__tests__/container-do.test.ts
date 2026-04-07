@@ -78,7 +78,9 @@ describe("SandboxContainer", () => {
     });
 
     it("uses 'default' when ctx.id.name is null-ish", () => {
-      const ctx = { id: { name: null } } as unknown as ConstructorParameters<typeof SandboxContainer>[0];
+      const ctx = { id: { name: null } } as unknown as ConstructorParameters<
+        typeof SandboxContainer
+      >[0];
       const container = new SandboxContainer(ctx, createEnv());
 
       expect(container.envVars?.AGENT_ID).toBe("default");
@@ -232,7 +234,11 @@ describe("SandboxContainer", () => {
       const container = new SandboxContainer(createCtx("agent-1"), env);
       const request = new Request("http://db.internal/exec", {
         method: "POST",
-        body: JSON.stringify({ sql: "SELECT * FROM items", params: [], backendId: "agent-1:default" }),
+        body: JSON.stringify({
+          sql: "SELECT * FROM items",
+          params: [],
+          backendId: "agent-1:default",
+        }),
       });
 
       const response = await container.handleDbRequest(request);
@@ -240,7 +246,11 @@ describe("SandboxContainer", () => {
 
       expect(response.status).toBe(200);
       expect(body).toEqual(mockResult);
-      expect(env.DB_SERVICE.exec).toHaveBeenCalledWith("agent-1:default", "SELECT * FROM items", []);
+      expect(env.DB_SERVICE.exec).toHaveBeenCalledWith(
+        "agent-1:default",
+        "SELECT * FROM items",
+        [],
+      );
     });
 
     it("executes batch statements via DB_SERVICE", async () => {
@@ -303,7 +313,9 @@ describe("SandboxContainer", () => {
 
     it("returns 500 when DB_SERVICE throws", async () => {
       const env = createEnv();
-      (env.DB_SERVICE.exec as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("DB connection failed"));
+      (env.DB_SERVICE.exec as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("DB connection failed"),
+      );
 
       const container = new SandboxContainer(createCtx("agent-1"), env);
       const request = new Request("http://db.internal/exec", {
@@ -336,11 +348,14 @@ describe("SandboxContainer", () => {
       const env = createEnv();
       const container = new SandboxContainer(createCtx("agent-1"), env);
 
-      const mockUpstream = new Response(JSON.stringify({
-        choices: [{ message: { content: "Hello!" } }],
-      }), {
-        headers: { "content-type": "application/json" },
-      });
+      const mockUpstream = new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "Hello!" } }],
+        }),
+        {
+          headers: { "content-type": "application/json" },
+        },
+      );
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = vi.fn().mockResolvedValue(mockUpstream);
@@ -355,7 +370,9 @@ describe("SandboxContainer", () => {
         });
 
         const response = await container.handleAiRequest(request);
-        const body = (await response.json()) as { choices: Array<{ message: { content: string } }> };
+        const body = (await response.json()) as {
+          choices: Array<{ message: { content: string } }>;
+        };
 
         expect(response.status).toBe(200);
         expect(body.choices[0].message.content).toBe("Hello!");

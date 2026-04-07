@@ -361,10 +361,7 @@ describe("config_set", () => {
 
   it("unknown capability returns error", async () => {
     const tool = createConfigSet(makeCtx());
-    const result = await tool.execute(
-      { namespace: "capability:nope", value: {} },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "capability:nope", value: {} }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown capability");
   });
@@ -390,10 +387,7 @@ describe("config_set", () => {
     });
     const ctx = makeCtx({ capabilities: [cap] });
     const tool = createConfigSet(ctx);
-    await tool.execute(
-      { namespace: "capability:my-cap", value: { model: "new-model" } },
-      TOOL_CTX,
-    );
+    await tool.execute({ namespace: "capability:my-cap", value: { model: "new-model" } }, TOOL_CTX);
     expect(onConfigChange).toHaveBeenCalledOnce();
     expect(onConfigChange.mock.calls[0][0]).toEqual({ model: "old-model" });
     expect(onConfigChange.mock.calls[0][1]).toEqual({ model: "new-model" });
@@ -410,10 +404,7 @@ describe("config_set", () => {
     const ctx = makeCtx({ capabilities: [cap] });
     await ctx.configStore.setCapabilityConfig("my-cap", { model: "stored" });
     const tool = createConfigSet(ctx);
-    await tool.execute(
-      { namespace: "capability:my-cap", value: { model: "updated" } },
-      TOOL_CTX,
-    );
+    await tool.execute({ namespace: "capability:my-cap", value: { model: "updated" } }, TOOL_CTX);
     expect(onConfigChange.mock.calls[0][0]).toEqual({ model: "stored" });
   });
 
@@ -448,10 +439,7 @@ describe("config_set", () => {
 
   it("session with empty name returns error", async () => {
     const tool = createConfigSet(makeCtx());
-    const result = await tool.execute(
-      { namespace: "session", value: { name: "" } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "session", value: { name: "" } }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("1-200 characters");
   });
@@ -478,20 +466,14 @@ describe("config_set", () => {
 
   it("session with null value returns error", async () => {
     const tool = createConfigSet(makeCtx());
-    const result = await tool.execute(
-      { namespace: "session", value: null },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "session", value: null }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain('Expected { name: "..." }');
   });
 
   it("session with missing name property returns error", async () => {
     const tool = createConfigSet(makeCtx());
-    const result = await tool.execute(
-      { namespace: "session", value: { foo: "bar" } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "session", value: { foo: "bar" } }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain('Expected { name: "..." }');
   });
@@ -506,10 +488,7 @@ describe("config_set", () => {
       set: setFn,
     };
     const tool = createConfigSet(makeCtx({ namespaces: [ns] }));
-    const result = await tool.execute(
-      { namespace: "theme", value: { dark: true } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "theme", value: { dark: true } }, TOOL_CTX);
     expect(isError(result)).toBeUndefined();
     expect(textOf(result)).toContain("Configuration updated: theme");
     expect(setFn).toHaveBeenCalledWith("theme", { dark: true });
@@ -561,10 +540,7 @@ describe("config_set", () => {
       set: vi.fn().mockRejectedValue(new Error("set failed")),
     };
     const tool = createConfigSet(makeCtx({ namespaces: [ns] }));
-    const result = await tool.execute(
-      { namespace: "theme", value: { dark: true } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "theme", value: { dark: true } }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("set failed");
   });
@@ -578,19 +554,13 @@ describe("config_set", () => {
       set: vi.fn().mockResolvedValue("Theme applied!"),
     };
     const tool = createConfigSet(makeCtx({ namespaces: [ns] }));
-    const result = await tool.execute(
-      { namespace: "theme", value: { dark: true } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "theme", value: { dark: true } }, TOOL_CTX);
     expect(textOf(result)).toBe("Theme applied!");
   });
 
   it("unknown namespace returns error", async () => {
     const tool = createConfigSet(makeCtx());
-    const result = await tool.execute(
-      { namespace: "nope", value: {} },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "nope", value: {} }, TOOL_CTX);
     expect(isError(result)).toBe(true);
     expect(textOf(result)).toContain("Unknown namespace");
   });
@@ -629,10 +599,7 @@ describe("config_set", () => {
       set: setFn,
     };
     const tool = createConfigSet(makeCtx({ namespaces: [ns] }));
-    const result = await tool.execute(
-      { namespace: "theme", value: null },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "theme", value: null }, TOOL_CTX);
     expect(isError(result)).toBeUndefined();
     expect(setFn).toHaveBeenCalledWith("theme", null);
   });

@@ -99,10 +99,7 @@ describe("pruneToolOutputs", () => {
 
     it("prunes when over budget", () => {
       // Two tool results of 100 tokens each, budget for only one
-      const messages = [
-        makeToolResult(textOfTokens(100)),
-        makeToolResult(textOfTokens(100)),
-      ];
+      const messages = [makeToolResult(textOfTokens(100)), makeToolResult(textOfTokens(100))];
 
       const result = pruneToolOutputs(messages, 100);
 
@@ -112,10 +109,7 @@ describe("pruneToolOutputs", () => {
     });
 
     it("handles zero tool outputs", () => {
-      const messages = [
-        makeUserMessage("hello"),
-        makeAssistantMessage("world"),
-      ];
+      const messages = [makeUserMessage("hello"), makeAssistantMessage("world")];
 
       const result = pruneToolOutputs(messages, 100);
 
@@ -209,10 +203,7 @@ describe("pruneToolOutputs", () => {
 
   describe("custom budget", () => {
     it("respects budget of 20,000 tokens", () => {
-      const messages = [
-        makeToolResult(textOfTokens(15000)),
-        makeToolResult(textOfTokens(15000)),
-      ];
+      const messages = [makeToolResult(textOfTokens(15000)), makeToolResult(textOfTokens(15000))];
 
       const result = pruneToolOutputs(messages, 20000);
 

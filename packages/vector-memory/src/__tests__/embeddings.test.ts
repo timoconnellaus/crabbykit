@@ -26,7 +26,10 @@ describe("createWorkersAiEmbedder", () => {
   });
 
   it("embeds a single batch of texts", async () => {
-    const mockVectors = [[0.1, 0.2], [0.3, 0.4]];
+    const mockVectors = [
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ];
     const ai = {
       run: vi.fn().mockResolvedValue({ data: mockVectors }),
     } as unknown as Ai;

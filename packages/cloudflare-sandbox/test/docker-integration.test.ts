@@ -650,9 +650,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       })) as { sessionId: string };
       await new Promise((r) => setTimeout(r, 500));
 
-      const res = await fetch_(
-        `/session-log/${startResult.sessionId}?tail=2`,
-      );
+      const res = await fetch_(`/session-log/${startResult.sessionId}?tail=2`);
       expect(res.status).toBe(200);
       const text = await res.text();
       const lines = text.trim().split("\n").filter(Boolean);
@@ -1180,7 +1178,9 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       );
 
       // Verify execute bit is preserved (would fail on FUSE)
-      const perms = containerExec("sh -c 'stat -c %a /workspace/test-project/node_modules/test-bin'");
+      const perms = containerExec(
+        "sh -c 'stat -c %a /workspace/test-project/node_modules/test-bin'",
+      );
       expect(Number.parseInt(perms, 8) & 0o111).toBeGreaterThan(0);
     });
 

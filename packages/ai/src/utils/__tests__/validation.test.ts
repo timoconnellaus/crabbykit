@@ -42,20 +42,14 @@ describe("validateToolArguments", () => {
   });
 
   it("throws formatted error for invalid args (missing required field)", () => {
-    const tool = makeTool(
-      "strict",
-      Type.Object({ required_field: Type.String() }),
-    );
+    const tool = makeTool("strict", Type.Object({ required_field: Type.String() }));
     expect(() => validateToolArguments(tool, makeToolCall("strict", {}))).toThrow(
       'Validation failed for tool "strict"',
     );
   });
 
   it("throws error with tool name in message", () => {
-    const tool = makeTool(
-      "my_tool",
-      Type.Object({ x: Type.Number() }),
-    );
+    const tool = makeTool("my_tool", Type.Object({ x: Type.Number() }));
     try {
       validateToolArguments(tool, makeToolCall("my_tool", { x: "not-a-number" }));
       // If coercion doesn't fail, force a real validation error
@@ -90,10 +84,7 @@ describe("validateToolArguments", () => {
       }),
     );
     expect(() =>
-      validateToolArguments(
-        tool,
-        makeToolCall("nested", { outer: { inner: "not-a-number" } }),
-      ),
+      validateToolArguments(tool, makeToolCall("nested", { outer: { inner: "not-a-number" } })),
     ).toThrow('Validation failed for tool "nested"');
   });
 

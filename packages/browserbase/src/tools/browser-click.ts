@@ -67,16 +67,14 @@ export function createBrowserClickTool(
         }
 
         // Resolve node to get the remote object
-        const nodeResult = await cdp.send<{ object: { objectId: string } }>(
-          "DOM.resolveNode",
-          { backendNodeId: resolved.backendDOMNodeId },
-        );
+        const nodeResult = await cdp.send<{ object: { objectId: string } }>("DOM.resolveNode", {
+          backendNodeId: resolved.backendDOMNodeId,
+        });
 
         // Get the content quads (bounding rectangles)
-        const quadsResult = await cdp.send<{ quads: number[][] }>(
-          "DOM.getContentQuads",
-          { backendNodeId: resolved.backendDOMNodeId },
-        );
+        const quadsResult = await cdp.send<{ quads: number[][] }>("DOM.getContentQuads", {
+          backendNodeId: resolved.backendDOMNodeId,
+        });
 
         if (!quadsResult.quads?.length) {
           // Fallback: scroll into view and retry
@@ -84,14 +82,16 @@ export function createBrowserClickTool(
             await cdp.send("DOM.scrollIntoViewIfNeeded", {
               backendNodeId: resolved.backendDOMNodeId,
             });
-            const retryQuads = await cdp.send<{ quads: number[][] }>(
-              "DOM.getContentQuads",
-              { backendNodeId: resolved.backendDOMNodeId },
-            );
+            const retryQuads = await cdp.send<{ quads: number[][] }>("DOM.getContentQuads", {
+              backendNodeId: resolved.backendDOMNodeId,
+            });
             if (!retryQuads.quads?.length) {
               return {
                 content: [
-                  { type: "text" as const, text: `Element "${ref}" has no visible bounds. It may be hidden.` },
+                  {
+                    type: "text" as const,
+                    text: `Element "${ref}" has no visible bounds. It may be hidden.`,
+                  },
                 ],
                 details: null,
               };
@@ -99,9 +99,7 @@ export function createBrowserClickTool(
             return await clickAtQuad(cdp, retryQuads.quads[0], ref, resolved.name);
           }
           return {
-            content: [
-              { type: "text" as const, text: `Element "${ref}" has no visible bounds.` },
-            ],
+            content: [{ type: "text" as const, text: `Element "${ref}" has no visible bounds.` }],
             details: null,
           };
         }

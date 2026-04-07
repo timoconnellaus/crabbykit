@@ -221,7 +221,9 @@ function renderToolBody(
     const path = extractPath(args);
     return (
       <div data-agent-ui="action-confirm">
-        <span data-agent-ui="action-confirm-icon" data-danger={true}>{"\u2715"}</span>
+        <span data-agent-ui="action-confirm-icon" data-danger={true}>
+          {"\u2715"}
+        </span>
         <span data-agent-ui="action-confirm-text">{path ?? "File deleted"}</span>
       </div>
     );
@@ -284,7 +286,9 @@ function renderToolBody(
   if (toolName === "delete_app" && outputText && !isError) {
     return (
       <div data-agent-ui="action-confirm">
-        <span data-agent-ui="action-confirm-icon" data-danger={true}>{"\u2715"}</span>
+        <span data-agent-ui="action-confirm-icon" data-danger={true}>
+          {"\u2715"}
+        </span>
         <span data-agent-ui="action-confirm-text">{outputText.split("\n")[0]}</span>
       </div>
     );
@@ -360,7 +364,13 @@ function renderElevateBody(args: unknown, _outputText: string | null) {
     <div data-agent-ui="elevation-card">
       <span data-agent-ui="elevation-icon">{"\u26A1"}</span>
       <span data-agent-ui="elevation-text">
-        Shell access granted{reason ? <> &mdash; <strong>{reason}</strong></> : null}
+        Shell access granted
+        {reason ? (
+          <>
+            {" "}
+            &mdash; <strong>{reason}</strong>
+          </>
+        ) : null}
       </span>
       {timeout && (
         <span data-agent-ui="elevation-timeout">auto-off in {formatTimeout(timeout)}</span>
@@ -513,18 +523,18 @@ function renderWebSearchBody(args: unknown, outputText: string) {
           {query}
         </div>
       )}
-      {results.length > 0
-        ? results.map((r, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: Search results have no stable ID
-            <div key={i} data-agent-ui="search-result">
-              <div data-agent-ui="search-result-title">{r.title}</div>
-              <div data-agent-ui="search-result-url">{r.url}</div>
-              {r.snippet && <div data-agent-ui="search-result-snippet">{r.snippet}</div>}
-            </div>
-          ))
-        : (
-          <pre data-agent-ui="tool-entry-output">{outputText}</pre>
-        )}
+      {results.length > 0 ? (
+        results.map((r, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: Search results have no stable ID
+          <div key={i} data-agent-ui="search-result">
+            <div data-agent-ui="search-result-title">{r.title}</div>
+            <div data-agent-ui="search-result-url">{r.url}</div>
+            {r.snippet && <div data-agent-ui="search-result-snippet">{r.snippet}</div>}
+          </div>
+        ))
+      ) : (
+        <pre data-agent-ui="tool-entry-output">{outputText}</pre>
+      )}
     </div>
   );
 }
@@ -590,8 +600,16 @@ function renderDeployBody(args: unknown, outputText: string) {
     <div data-agent-ui="deploy-card">
       <div data-agent-ui="deploy-card-header">
         <span data-agent-ui="deploy-app-name">{name ?? slug ?? "App"}</span>
-        {versionMatch && <span data-agent-ui="deploy-badge" data-badge-type="version">v{versionMatch[1]}</span>}
-        {hasBackend && <span data-agent-ui="deploy-badge" data-badge-type="backend">full-stack</span>}
+        {versionMatch && (
+          <span data-agent-ui="deploy-badge" data-badge-type="version">
+            v{versionMatch[1]}
+          </span>
+        )}
+        {hasBackend && (
+          <span data-agent-ui="deploy-badge" data-badge-type="backend">
+            full-stack
+          </span>
+        )}
       </div>
       <div data-agent-ui="deploy-meta">
         {commitMatch && (
@@ -602,12 +620,7 @@ function renderDeployBody(args: unknown, outputText: string) {
         {filesMatch && <span data-agent-ui="deploy-meta-item">{filesMatch[1]} assets</span>}
       </div>
       {urlMatch && (
-        <a
-          href={urlMatch[1]}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-agent-ui="deploy-url"
-        >
+        <a href={urlMatch[1]} target="_blank" rel="noopener noreferrer" data-agent-ui="deploy-url">
           <span>{"\u2197"}</span> {urlMatch[1]}
         </a>
       )}
@@ -676,10 +689,15 @@ function renderFileFindBody(args: unknown, outputText: string) {
         </div>
       )}
       <pre data-agent-ui="file-find-results">
-        {outputText.split("\n").filter((l) => l.length > 0).map((line, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Match lines have no stable ID
-          <div key={i} data-agent-ui="file-find-match">{line}</div>
-        ))}
+        {outputText
+          .split("\n")
+          .filter((l) => l.length > 0)
+          .map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: Match lines have no stable ID
+            <div key={i} data-agent-ui="file-find-match">
+              {line}
+            </div>
+          ))}
       </pre>
     </>
   );
@@ -715,16 +733,16 @@ function renderMemoryReadBody(args: unknown, outputText: string) {
 function renderSimpleConfirm(icon: string, text: string, danger?: boolean) {
   return (
     <div data-agent-ui="action-confirm">
-      <span data-agent-ui="action-confirm-icon" data-danger={danger || undefined}>{icon}</span>
+      <span data-agent-ui="action-confirm-icon" data-danger={danger || undefined}>
+        {icon}
+      </span>
       <span data-agent-ui="action-confirm-text">{text}</span>
     </div>
   );
 }
 
 function renderOutputAsMonospace(outputText: string) {
-  return (
-    <pre data-agent-ui="exec-output">{outputText}</pre>
-  );
+  return <pre data-agent-ui="exec-output">{outputText}</pre>;
 }
 
 // ─── PROCESS ────────────────────────────────────────────────────────────────
@@ -760,9 +778,7 @@ function renderDefaultBody(args: unknown, outputText: string | null, isError: bo
         </>
       )}
 
-      {isError && !outputText && (
-        <div data-agent-ui="tool-entry-error">Error</div>
-      )}
+      {isError && !outputText && <div data-agent-ui="tool-entry-error">Error</div>}
     </>
   );
 }

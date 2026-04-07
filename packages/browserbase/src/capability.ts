@@ -113,21 +113,23 @@ export function browserbase(options: BrowserbaseOptions): Capability {
 
       // Recover orphaned sessions (from DO hibernation/restart)
       // Fire-and-forget — don't block tool resolution
-      sm.recoverOrphans().then((recovered) => {
-        for (const { sessionId, durationMinutes } of recovered) {
-          const rate = options.perMinuteCostUsd ?? 0.002;
-          context.emitCost({
-            capabilityId: "browserbase",
-            toolName: "browser_orphan_recovery",
-            amount: durationMinutes * rate,
-            currency: "USD",
-            detail: `Orphaned browser session recovered: ${durationMinutes} min`,
-          });
-          context.broadcast("browser_close", {});
-        }
-      }).catch(() => {
-        // Best-effort orphan recovery
-      });
+      sm.recoverOrphans()
+        .then((recovered) => {
+          for (const { sessionId, durationMinutes } of recovered) {
+            const rate = options.perMinuteCostUsd ?? 0.002;
+            context.emitCost({
+              capabilityId: "browserbase",
+              toolName: "browser_orphan_recovery",
+              amount: durationMinutes * rate,
+              currency: "USD",
+              detail: `Orphaned browser session recovered: ${durationMinutes} min`,
+            });
+            context.broadcast("browser_close", {});
+          }
+        })
+        .catch(() => {
+          // Best-effort orphan recovery
+        });
 
       // Timer integration callbacks
       const broadcastTimeout = () => {

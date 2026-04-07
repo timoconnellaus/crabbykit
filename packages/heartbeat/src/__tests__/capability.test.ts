@@ -18,9 +18,7 @@ describe("heartbeat capability", () => {
       const cap = heartbeat({ every: "30m" });
       expect(cap.id).toBe("heartbeat");
       expect(cap.name).toBe("Heartbeat");
-      expect(cap.description).toBe(
-        "Recurring autonomous check-ins on a configurable schedule.",
-      );
+      expect(cap.description).toBe("Recurring autonomous check-ins on a configurable schedule.");
     });
   });
 
@@ -93,14 +91,16 @@ describe("heartbeat capability", () => {
     });
 
     it("applies all options together", () => {
-      const s = getSchedule(heartbeat({
-        every: "0 */6 * * *",
-        timezone: "Europe/London",
-        sessionPrefix: "Cron",
-        retention: 5,
-        prompt: "Custom check",
-        enabled: true,
-      }));
+      const s = getSchedule(
+        heartbeat({
+          every: "0 */6 * * *",
+          timezone: "Europe/London",
+          sessionPrefix: "Cron",
+          retention: 5,
+          prompt: "Custom check",
+          enabled: true,
+        }),
+      );
       expect(s).toMatchObject({
         id: "heartbeat",
         name: "Heartbeat",

@@ -140,9 +140,7 @@ describe("configNamespaces", () => {
         prompt: "Check status",
       });
 
-      expect(mgr.create).toHaveBeenCalledWith(
-        expect.objectContaining({ cron: "30m" }),
-      );
+      expect(mgr.create).toHaveBeenCalledWith(expect.objectContaining({ cron: "30m" }));
     });
 
     it("set passes optional fields (timezone, maxDuration)", async () => {
@@ -344,9 +342,9 @@ describe("configNamespaces", () => {
       const cap = promptScheduler();
       const ns = cap.configNamespaces!(mockContext(mgr))[1];
 
-      await expect(
-        ns.set("schedule:some-id", { cron: "not-valid" }),
-      ).rejects.toThrow("Invalid cron expression");
+      await expect(ns.set("schedule:some-id", { cron: "not-valid" })).rejects.toThrow(
+        "Invalid cron expression",
+      );
 
       expect(mgr.update).not.toHaveBeenCalled();
     });
@@ -356,9 +354,9 @@ describe("configNamespaces", () => {
       const cap = promptScheduler();
       const ns = cap.configNamespaces!(mockContext(mgr))[1];
 
-      await expect(
-        ns.set("schedule:missing", { name: "New Name" }),
-      ).rejects.toThrow("Schedule not found");
+      await expect(ns.set("schedule:missing", { name: "New Name" })).rejects.toThrow(
+        "Schedule not found",
+      );
     });
 
     it("set throws on non-matching namespace format", async () => {

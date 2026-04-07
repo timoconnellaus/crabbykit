@@ -39,15 +39,11 @@ import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { aiProxy, AiService } from "@claw-for-cloudflare/ai-proxy";
 import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
 import { skills } from "@claw-for-cloudflare/skills";
-import {
-  BackendStorage,
-  DbService,
-  vibeCoder,
-} from "@claw-for-cloudflare/vibe-coder";
+import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
 import { debugInspector } from "./debug-capability";
-import vibeWebappSkillMd from "../../skills/vibe-webapp/SKILL.md?raw";
-import codeReviewSkillMd from "../../skills/code-review/SKILL.md?raw";
-import debugSystematicSkillMd from "../../skills/debug-systematic/SKILL.md?raw";
+import vibeWebappSkillMd from "../skills/vibe-webapp/SKILL.md?raw";
+import codeReviewSkillMd from "../skills/code-review/SKILL.md?raw";
+import debugSystematicSkillMd from "../skills/debug-systematic/SKILL.md?raw";
 
 export interface Env {
   AGENT: DurableObjectNamespace;

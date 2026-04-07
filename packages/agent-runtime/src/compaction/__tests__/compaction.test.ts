@@ -70,7 +70,7 @@ describe("Token Estimation", () => {
     });
 
     it("uses JSON heuristic for array-like text", () => {
-      const msg = userMsg('[1, 2, 3, 4, 5]');
+      const msg = userMsg("[1, 2, 3, 4, 5]");
       const estimate = estimateTokens(msg);
       // 15 chars, JSON (starts with [): ceil(15/2.5)=6 + 5 overhead = 11, * 1.15 = ceil(12.65) = 13
       expect(estimate).toBe(13);

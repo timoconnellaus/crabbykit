@@ -360,5 +360,4 @@ export type AgentEvent =
       toolName: string;
       result: any;
       isError: boolean;
-    }
-;
+    };

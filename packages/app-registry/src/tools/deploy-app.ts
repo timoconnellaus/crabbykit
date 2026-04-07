@@ -28,8 +28,7 @@ export function createDeployAppTool(
       }),
       slug: Type.Optional(
         Type.String({
-          description:
-            "URL-safe slug (e.g. 'todo-app'). Auto-derived from name if not provided.",
+          description: "URL-safe slug (e.g. 'todo-app'). Auto-derived from name if not provided.",
         }),
       ),
       buildDir: Type.String({
@@ -53,9 +52,7 @@ export function createDeployAppTool(
         cwd: buildDir.split("/dist")[0], // Navigate to project root
       });
       if (gitStatusResult.exitCode !== 0) {
-        return errorResult(
-          `Failed to check git status: ${gitStatusResult.stderr}`,
-        );
+        return errorResult(`Failed to check git status: ${gitStatusResult.stderr}`);
       }
       if (gitStatusResult.stdout.trim().length > 0) {
         return errorResult(
@@ -65,10 +62,10 @@ export function createDeployAppTool(
       }
 
       // Read HEAD commit hash and message
-      const headResult = await provider.exec(
-        'git rev-parse HEAD && git log -1 --format="%s"',
-        { timeout: 10_000, cwd: buildDir.split("/dist")[0] },
-      );
+      const headResult = await provider.exec('git rev-parse HEAD && git log -1 --format="%s"', {
+        timeout: 10_000,
+        cwd: buildDir.split("/dist")[0],
+      });
       if (headResult.exitCode !== 0) {
         return errorResult(`Failed to read git HEAD: ${headResult.stderr}`);
       }
@@ -80,9 +77,7 @@ export function createDeployAppTool(
         timeout: 10_000,
       });
       if (!checkResult.stdout.includes("OK")) {
-        return errorResult(
-          `Build directory "${buildDir}" does not exist. Build the app first.`,
-        );
+        return errorResult(`Build directory "${buildDir}" does not exist. Build the app first.`);
       }
 
       // List all files in build directory

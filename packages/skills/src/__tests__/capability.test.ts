@@ -30,9 +30,14 @@ function createMockR2Bucket(): R2Bucket & { _store: Map<string, string> } {
       }
     },
     head: async () => null,
-    list: async () => ({ objects: [], delimitedPrefixes: [], truncated: false }) as unknown as R2Objects,
-    createMultipartUpload: () => { throw new Error("Not implemented"); },
-    resumeMultipartUpload: () => { throw new Error("Not implemented"); },
+    list: async () =>
+      ({ objects: [], delimitedPrefixes: [], truncated: false }) as unknown as R2Objects,
+    createMultipartUpload: () => {
+      throw new Error("Not implemented");
+    },
+    resumeMultipartUpload: () => {
+      throw new Error("Not implemented");
+    },
   } as unknown as R2Bucket & { _store: Map<string, string> };
 }
 
@@ -176,9 +181,11 @@ describe("promptSections", () => {
   });
 
   it("excludes disabled skills", async () => {
-    const cap = skills(createOptions({
-      skills: [{ id: "code-review", enabled: false }],
-    }));
+    const cap = skills(
+      createOptions({
+        skills: [{ id: "code-review", enabled: false }],
+      }),
+    );
 
     await cap.hooks!.onConnect!({
       agentId: "test-agent",
@@ -215,10 +222,7 @@ describe("skill_load tool", () => {
     const tools = cap.tools!(mockContext());
     const loadTool = tools[0];
 
-    const result = await loadTool.execute(
-      { name: "code-review" },
-      { toolCallId: "test" },
-    );
+    const result = await loadTool.execute({ name: "code-review" }, { toolCallId: "test" });
 
     const text = textOf(result);
     expect(text).toContain("# Code Review");
@@ -239,18 +243,17 @@ describe("skill_load tool", () => {
     });
 
     const tools = cap.tools!(mockContext());
-    const result = await tools[0].execute(
-      { name: "nonexistent" },
-      { toolCallId: "test" },
-    );
+    const result = await tools[0].execute({ name: "nonexistent" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("not found");
   });
 
   it("returns error for disabled skill", async () => {
-    const cap = skills(createOptions({
-      skills: [{ id: "code-review", enabled: false }],
-    }));
+    const cap = skills(
+      createOptions({
+        skills: [{ id: "code-review", enabled: false }],
+      }),
+    );
 
     await cap.hooks!.onConnect!({
       agentId: "test-agent",
@@ -262,10 +265,7 @@ describe("skill_load tool", () => {
     });
 
     const tools = cap.tools!(mockContext());
-    const result = await tools[0].execute(
-      { name: "code-review" },
-      { toolCallId: "test" },
-    );
+    const result = await tools[0].execute({ name: "code-review" }, { toolCallId: "test" });
 
     expect(textOf(result)).toContain("not enabled");
   });
@@ -298,11 +298,21 @@ describe("onConnect sync", () => {
 
   it("handles registry failure gracefully", async () => {
     const failingRegistry: SkillRegistry = {
-      list: async () => { throw new Error("D1 is down"); },
-      get: async () => { throw new Error("D1 is down"); },
-      getVersion: async () => { throw new Error("D1 is down"); },
-      upsert: async () => { throw new Error("D1 is down"); },
-      delete: async () => { throw new Error("D1 is down"); },
+      list: async () => {
+        throw new Error("D1 is down");
+      },
+      get: async () => {
+        throw new Error("D1 is down");
+      },
+      getVersion: async () => {
+        throw new Error("D1 is down");
+      },
+      upsert: async () => {
+        throw new Error("D1 is down");
+      },
+      delete: async () => {
+        throw new Error("D1 is down");
+      },
     };
 
     const cap = skills(createOptions({ registry: failingRegistry }));
@@ -325,13 +335,15 @@ describe("onConnect sync", () => {
       requiresCapabilities: ["vibe-coder", "sandbox"],
     };
 
-    const cap = skills(createOptions({
-      registry: createMockRegistry([SAMPLE_RECORD, recordWithCaps]),
-      skills: [
-        { id: "code-review", enabled: true },
-        { id: "vibe-webapp", enabled: true },
-      ],
-    }));
+    const cap = skills(
+      createOptions({
+        registry: createMockRegistry([SAMPLE_RECORD, recordWithCaps]),
+        skills: [
+          { id: "code-review", enabled: true },
+          { id: "vibe-webapp", enabled: true },
+        ],
+      }),
+    );
 
     await cap.hooks!.onConnect!({
       agentId: "test-agent",
@@ -431,8 +443,9 @@ describe("storage helpers", () => {
   });
 
   it("round-trips skill conflict through storage", async () => {
-    const { setSkillConflict, getSkillConflicts, clearSkillConflict } =
-      await import("../storage.js");
+    const { setSkillConflict, getSkillConflicts, clearSkillConflict } = await import(
+      "../storage.js"
+    );
 
     await setSkillConflict(capStorage, {
       skillId: "test",
@@ -523,10 +536,12 @@ describe("httpHandlers", () => {
 
   describe("GET /skills/registry", () => {
     it("lists registry skills not already installed", async () => {
-      const cap = skills(createOptions({
-        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
-        skills: [{ id: "code-review", enabled: true }],
-      }));
+      const cap = skills(
+        createOptions({
+          registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+          skills: [{ id: "code-review", enabled: true }],
+        }),
+      );
       await syncCap(cap);
 
       const handlers = cap.httpHandlers!(mockContext());
@@ -537,17 +552,19 @@ describe("httpHandlers", () => {
         new Request("http://test/skills/registry"),
         mockHttpContext(),
       );
-      const body = await response.json() as Array<{ id: string }>;
+      const body = (await response.json()) as Array<{ id: string }>;
       expect(response.status).toBe(200);
       expect(body).toHaveLength(1);
       expect(body[0].id).toBe("debug-helper");
     });
 
     it("returns empty array when all registry skills are installed", async () => {
-      const cap = skills(createOptions({
-        registry: createMockRegistry([SAMPLE_RECORD]),
-        skills: [{ id: "code-review", enabled: true }],
-      }));
+      const cap = skills(
+        createOptions({
+          registry: createMockRegistry([SAMPLE_RECORD]),
+          skills: [{ id: "code-review", enabled: true }],
+        }),
+      );
       await syncCap(cap);
 
       const handlers = cap.httpHandlers!(mockContext());
@@ -556,17 +573,19 @@ describe("httpHandlers", () => {
         new Request("http://test/skills/registry"),
         mockHttpContext(),
       );
-      const body = await response.json() as Array<unknown>;
+      const body = (await response.json()) as Array<unknown>;
       expect(body).toHaveLength(0);
     });
   });
 
   describe("POST /skills/install", () => {
     it("installs a skill from the registry with origin registry", async () => {
-      const cap = skills(createOptions({
-        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
-        skills: [{ id: "code-review", enabled: true }],
-      }));
+      const cap = skills(
+        createOptions({
+          registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+          skills: [{ id: "code-review", enabled: true }],
+        }),
+      );
       await syncCap(cap);
 
       const handlers = cap.httpHandlers!(mockContext());
@@ -580,7 +599,10 @@ describe("httpHandlers", () => {
         }),
         mockHttpContext(),
       );
-      const body = await response.json() as { ok: boolean; skill: { id: string; origin: string } };
+      const body = (await response.json()) as {
+        ok: boolean;
+        skill: { id: string; origin: string };
+      };
       expect(response.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(body.skill.origin).toBe("registry");
@@ -652,10 +674,12 @@ describe("httpHandlers", () => {
 
   describe("POST /skills/uninstall", () => {
     it("uninstalls a runtime-added skill", async () => {
-      const cap = skills(createOptions({
-        registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
-        skills: [{ id: "code-review", enabled: true }],
-      }));
+      const cap = skills(
+        createOptions({
+          registry: createMockRegistry([SAMPLE_RECORD, EXTRA_RECORD]),
+          skills: [{ id: "code-review", enabled: true }],
+        }),
+      );
       await syncCap(cap);
 
       const handlers = cap.httpHandlers!(mockContext());
@@ -681,7 +705,7 @@ describe("httpHandlers", () => {
         }),
         mockHttpContext(),
       );
-      const body = await response.json() as { ok: boolean };
+      const body = (await response.json()) as { ok: boolean };
       expect(response.status).toBe(200);
       expect(body.ok).toBe(true);
 
@@ -709,7 +733,7 @@ describe("httpHandlers", () => {
         mockHttpContext(),
       );
       expect(response.status).toBe(403);
-      const body = await response.json() as { error: string };
+      const body = (await response.json()) as { error: string };
       expect(body.error).toContain("built-in");
     });
 
@@ -787,10 +811,12 @@ IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
 
     // First sync with v1.0.0
     const v1Registry = createMockRegistry([v1Record]);
-    const cap1 = skills(createOptions({
-      registry: v1Registry,
-      skills: [{ id: "vibe-webapp", enabled: true }],
-    }));
+    const cap1 = skills(
+      createOptions({
+        registry: v1Registry,
+        skills: [{ id: "vibe-webapp", enabled: true }],
+      }),
+    );
 
     await cap1.hooks!.onConnect!({
       agentId: "test-agent",
@@ -823,10 +849,12 @@ IMPORTANT: container-db is pre-installed. Do NOT add to package.json.
 
     // New capability instance (simulates app restart) with same storage + bucket
     const v2Registry = createMockRegistry([v2Record]);
-    const cap2 = skills(createOptions({
-      registry: v2Registry,
-      skills: [{ id: "vibe-webapp", enabled: true }],
-    }));
+    const cap2 = skills(
+      createOptions({
+        registry: v2Registry,
+        skills: [{ id: "vibe-webapp", enabled: true }],
+      }),
+    );
 
     // Re-sync (simulates new client connecting after restart)
     await cap2.hooks!.onConnect!({

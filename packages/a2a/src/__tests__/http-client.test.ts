@@ -54,9 +54,11 @@ describe("A2AHttpClient", () => {
     });
 
     it("handles URL that already ends with /a2a", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
-      );
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
+        );
 
       const client = new A2AHttpClient("https://agent.example.com/a2a", mockFetch as R);
       await client.sendMessage({
@@ -68,9 +70,7 @@ describe("A2AHttpClient", () => {
     });
 
     it("throws A2AClientError on JSON-RPC error", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        jsonResponse(rpcError(-32001, "Task not found")),
-      );
+      const mockFetch = vi.fn().mockResolvedValue(jsonResponse(rpcError(-32001, "Task not found")));
 
       const client = new A2AHttpClient("https://agent.example.com", mockFetch as R);
 
@@ -82,9 +82,7 @@ describe("A2AHttpClient", () => {
     });
 
     it("throws A2AClientError on HTTP error", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response("Server Error", { status: 500 }),
-      );
+      const mockFetch = vi.fn().mockResolvedValue(new Response("Server Error", { status: 500 }));
 
       const client = new A2AHttpClient("https://agent.example.com", mockFetch as R);
 
@@ -96,9 +94,11 @@ describe("A2AHttpClient", () => {
     });
 
     it("includes auth headers when provided", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
-      );
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
+        );
 
       const authHeaders = vi.fn().mockResolvedValue({ Authorization: "Bearer my-token" });
       const client = new A2AHttpClient("https://agent.example.com", mockFetch as R, authHeaders);
@@ -129,9 +129,11 @@ describe("A2AHttpClient", () => {
     });
 
     it("includes historyLength when provided", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
-      );
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(rpcSuccess({ id: "t1", contextId: "c1", status: { state: "completed" } })),
+        );
 
       const client = new A2AHttpClient("https://agent.example.com", mockFetch as R);
       await client.getTask("t1", 10);
@@ -213,9 +215,7 @@ describe("A2AHttpClient", () => {
     });
 
     it("throws on non-ok response", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response("Server Error", { status: 500 }),
-      );
+      const mockFetch = vi.fn().mockResolvedValue(new Response("Server Error", { status: 500 }));
 
       const client = new A2AHttpClient("https://agent.example.com", mockFetch as R);
 

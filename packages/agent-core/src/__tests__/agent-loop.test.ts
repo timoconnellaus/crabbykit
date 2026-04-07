@@ -16,7 +16,6 @@ import type {
   StreamFn,
 } from "../types.js";
 
-
 const ZERO_USAGE = {
   input: 0,
   output: 0,
@@ -39,9 +38,7 @@ const TEST_MODEL: Model<any> = {
   contextWindow: 8192,
 };
 
-function makeAssistantMessage(
-  overrides: Partial<AssistantMessage> = {},
-): AssistantMessage {
+function makeAssistantMessage(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
   return {
     role: "assistant",
     content: [{ type: "text", text: "hello" }],
@@ -67,15 +64,17 @@ function makeUserMessage(text = "hi"): AgentMessage {
  * Creates a mock StreamFn that returns a pre-built AssistantMessage.
  * Optionally accepts a sequence of messages for multi-turn scenarios.
  */
-function createMockStreamFn(
-  ...responses: AssistantMessage[]
-): StreamFn {
+function createMockStreamFn(...responses: AssistantMessage[]): StreamFn {
   let callIndex = 0;
   return (() => {
     const msg = responses[Math.min(callIndex++, responses.length - 1)];
     const stream = createAssistantMessageEventStream();
     stream.push({ type: "start", partial: msg });
-    stream.push({ type: "done", reason: msg.stopReason === "stop" ? "stop" : "stop", message: msg } as AssistantMessageEvent);
+    stream.push({
+      type: "done",
+      reason: msg.stopReason === "stop" ? "stop" : "stop",
+      message: msg,
+    } as AssistantMessageEvent);
     return stream;
   }) as StreamFn;
 }
@@ -83,9 +82,8 @@ function createMockStreamFn(
 function makeConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopConfig {
   return {
     model: TEST_MODEL,
-    convertToLlm: (msgs) => msgs.filter(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "toolResult",
-    ),
+    convertToLlm: (msgs) =>
+      msgs.filter((m) => m.role === "user" || m.role === "assistant" || m.role === "toolResult"),
     ...overrides,
   };
 }
@@ -100,9 +98,10 @@ function makeContext(overrides: Partial<AgentContext> = {}): AgentContext {
 }
 
 function collectEvents(emit: AgentEvent[]): (e: AgentEvent) => void {
-  return (e) => { emit.push(e); };
+  return (e) => {
+    emit.push(e);
+  };
 }
-
 
 describe("defaultConvertToLlm (via config.convertToLlm)", () => {
   const convert = makeConfig().convertToLlm;
@@ -137,7 +136,6 @@ describe("defaultConvertToLlm (via config.convertToLlm)", () => {
     expect(result).toHaveLength(1);
   });
 });
-
 
 describe("isTransientError (via retry behavior)", () => {
   const transientMessages = [
@@ -180,9 +178,16 @@ describe("isTransientError (via retry behavior)", () => {
       const { streamFn, getCallCount } = createRetryStreamFn(errorMsg);
       const events: AgentEvent[] = [];
       await runAgentLoop(
-        [makeUserMessage()], makeContext(),
-        makeConfig({ maxStreamRetries: 2, baseRetryDelayMs: 1, getSteeringMessages: async () => [] }),
-        collectEvents(events), undefined, streamFn,
+        [makeUserMessage()],
+        makeContext(),
+        makeConfig({
+          maxStreamRetries: 2,
+          baseRetryDelayMs: 1,
+          getSteeringMessages: async () => [],
+        }),
+        collectEvents(events),
+        undefined,
+        streamFn,
       );
       expect(getCallCount()).toBe(2);
       expect(events.find((e) => e.type === "agent_end")).toBeDefined();
@@ -200,7 +205,11 @@ describe("isTransientError (via retry behavior)", () => {
       callCount++;
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: errorResponse });
-      stream.push({ type: "error", reason: "error", error: errorResponse } as AssistantMessageEvent);
+      stream.push({
+        type: "error",
+        reason: "error",
+        error: errorResponse,
+      } as AssistantMessageEvent);
       return stream;
     }) as StreamFn;
 
@@ -228,7 +237,11 @@ describe("isTransientError (via retry behavior)", () => {
       callCount++;
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: errorResponse });
-      stream.push({ type: "error", reason: "error", error: errorResponse } as AssistantMessageEvent);
+      stream.push({
+        type: "error",
+        reason: "error",
+        error: errorResponse,
+      } as AssistantMessageEvent);
       return stream;
     }) as StreamFn;
 
@@ -258,7 +271,11 @@ describe("isTransientError (via retry behavior)", () => {
       if (callCount === 1) controller.abort();
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: errorResponse });
-      stream.push({ type: "error", reason: "error", error: errorResponse } as AssistantMessageEvent);
+      stream.push({
+        type: "error",
+        reason: "error",
+        error: errorResponse,
+      } as AssistantMessageEvent);
       return stream;
     }) as StreamFn;
 
@@ -274,7 +291,6 @@ describe("isTransientError (via retry behavior)", () => {
     expect(callCount).toBe(1);
   });
 });
-
 
 describe("tool preparation", () => {
   function makeToolCallResponse(toolName: string, args: Record<string, unknown>): AssistantMessage {
@@ -345,9 +361,7 @@ describe("tool preparation", () => {
       streamFn,
     );
 
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect(toolEnd).toBeDefined();
     expect((toolEnd as any).isError).toBe(true);
     expect((toolEnd as any).result.content[0].text).toBe("Not allowed");
@@ -384,9 +398,7 @@ describe("tool preparation", () => {
       streamFn,
     );
 
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect((toolEnd as any).result.content[0].text).toBe("Tool execution was blocked");
   });
 
@@ -421,13 +433,10 @@ describe("tool preparation", () => {
     );
 
     expect(tool.execute).toHaveBeenCalledOnce();
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect((toolEnd as any).isError).toBe(false);
   });
 });
-
 
 describe("afterToolCall hook", () => {
   function makeToolCallResponse(toolName: string, args: Record<string, unknown>): AssistantMessage {
@@ -476,9 +485,7 @@ describe("afterToolCall hook", () => {
       streamFn,
     );
 
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect((toolEnd as any).result.content[0].text).toBe("modified");
   });
 
@@ -512,9 +519,7 @@ describe("afterToolCall hook", () => {
       streamFn,
     );
 
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect((toolEnd as any).isError).toBe(true);
   });
 
@@ -548,14 +553,11 @@ describe("afterToolCall hook", () => {
       streamFn,
     );
 
-    const toolEnd = events.find(
-      (e) => e.type === "tool_execution_end" && e.toolName === "my_tool",
-    );
+    const toolEnd = events.find((e) => e.type === "tool_execution_end" && e.toolName === "my_tool");
     expect((toolEnd as any).result.content[0].text).toBe("original");
     expect((toolEnd as any).isError).toBe(false);
   });
 });
-
 
 describe("tool execution errors", () => {
   function makeToolCallResponse(toolName: string): AssistantMessage {
@@ -639,15 +641,10 @@ describe("tool execution errors", () => {
   });
 });
 
-
 describe("runAgentLoopContinue", () => {
   it("throws on empty context", async () => {
     await expect(
-      runAgentLoopContinue(
-        makeContext({ messages: [] }),
-        makeConfig(),
-        () => {},
-      ),
+      runAgentLoopContinue(makeContext({ messages: [] }), makeConfig(), () => {}),
     ).rejects.toThrow("Cannot continue: no messages in context");
   });
 
@@ -674,7 +671,13 @@ describe("runAgentLoopContinue", () => {
     const streamFn = createMockStreamFn(makeAssistantMessage());
     const events: AgentEvent[] = [];
     await runAgentLoopContinue(
-      makeContext({ messages: [makeUserMessage(), makeAssistantMessage({ stopReason: "toolUse" } as any), toolResult] }),
+      makeContext({
+        messages: [
+          makeUserMessage(),
+          makeAssistantMessage({ stopReason: "toolUse" } as any),
+          toolResult,
+        ],
+      }),
       makeConfig({ getSteeringMessages: async () => [] }),
       collectEvents(events),
       undefined,
@@ -685,17 +688,18 @@ describe("runAgentLoopContinue", () => {
   });
 });
 
-
 describe("max iterations", () => {
   it("terminates after maxIterations and emits error", async () => {
     // Create a stream that always returns tool calls (never stops)
     const toolCallMsg = makeAssistantMessage({
-      content: [{
-        type: "toolCall",
-        id: "tc-loop",
-        name: "always_call",
-        arguments: {},
-      } as any],
+      content: [
+        {
+          type: "toolCall",
+          id: "tc-loop",
+          name: "always_call",
+          arguments: {},
+        } as any,
+      ],
       stopReason: "toolUse",
     });
 
@@ -715,7 +719,11 @@ describe("max iterations", () => {
       callCount++;
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: toolCallMsg });
-      stream.push({ type: "done", reason: "toolUse" as any, message: toolCallMsg } as AssistantMessageEvent);
+      stream.push({
+        type: "done",
+        reason: "toolUse" as any,
+        message: toolCallMsg,
+      } as AssistantMessageEvent);
       return stream;
     }) as StreamFn;
 
@@ -739,17 +747,18 @@ describe("max iterations", () => {
   });
 });
 
-
 describe("steering messages", () => {
   it("injects steering messages between turns", async () => {
     let turnCount = 0;
     const toolCallMsg = makeAssistantMessage({
-      content: [{
-        type: "toolCall",
-        id: "tc-1",
-        name: "my_tool",
-        arguments: {},
-      } as any],
+      content: [
+        {
+          type: "toolCall",
+          id: "tc-1",
+          name: "my_tool",
+          arguments: {},
+        } as any,
+      ],
       stopReason: "toolUse",
     });
 
@@ -800,7 +809,9 @@ describe("steering messages", () => {
 
     // The steering message should appear in events
     const steerEvents = events.filter(
-      (e) => e.type === "message_end" && (e.message as any)?.role === "user" &&
+      (e) =>
+        e.type === "message_end" &&
+        (e.message as any)?.role === "user" &&
         (e.message as any)?.content?.[0]?.text === "steer!",
     );
     expect(steerEvents.length).toBeGreaterThanOrEqual(1);
@@ -844,7 +855,6 @@ describe("follow-up messages", () => {
     expect(turnCount).toBe(2);
   });
 });
-
 
 describe("sequential tool execution", () => {
   it("executes tools one at a time in order", async () => {
@@ -897,7 +907,6 @@ describe("sequential tool execution", () => {
     expect(executionOrder).toEqual(["a", "b"]);
   });
 });
-
 
 describe("event lifecycle", () => {
   it("emits agent_start, turn_start, message events, agent_end in order", async () => {
@@ -959,14 +968,17 @@ describe("event lifecycle", () => {
   });
 });
 
-
 describe("transformContext", () => {
   it("transforms context before convertToLlm", async () => {
     const transformContext = vi.fn(async (msgs: AgentMessage[]) => {
       // Add a synthetic system note
       return [
         ...msgs,
-        { role: "user", content: [{ type: "text", text: "injected" }], timestamp: Date.now() } as AgentMessage,
+        {
+          role: "user",
+          content: [{ type: "text", text: "injected" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
       ];
     });
 
@@ -987,7 +999,6 @@ describe("transformContext", () => {
     expect(transformContext).toHaveBeenCalledOnce();
   });
 });
-
 
 describe("getApiKey resolution", () => {
   it("calls getApiKey with provider before each stream call", async () => {

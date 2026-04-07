@@ -149,10 +149,7 @@ async function handleWrite(
   }
 }
 
-async function handleDelete(
-  storage: CapabilityStorage,
-  skillId: string,
-): Promise<void> {
+async function handleDelete(storage: CapabilityStorage, skillId: string): Promise<void> {
   const existing = await getInstalledSkill(storage, skillId);
   if (!existing) return;
 

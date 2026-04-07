@@ -64,7 +64,10 @@ export class D1SkillRegistry implements SkillRegistry {
   private initialized = false;
   private seeds: SkillSeed[];
 
-  constructor(private db: D1Database, options?: D1SkillRegistryOptions) {
+  constructor(
+    private db: D1Database,
+    options?: D1SkillRegistryOptions,
+  ) {
     this.seeds = options?.seeds ?? [];
   }
 
@@ -100,7 +103,9 @@ export class D1SkillRegistry implements SkillRegistry {
       if (existingHash === newHash && existingVersion !== seed.version) {
         // Content unchanged but version differs — update metadata only
         await this.db
-          .prepare("UPDATE skills SET version = ?, name = ?, description = ?, updated_at = ? WHERE id = ?")
+          .prepare(
+            "UPDATE skills SET version = ?, name = ?, description = ?, updated_at = ? WHERE id = ?",
+          )
           .bind(seed.version, seed.name, seed.description, new Date().toISOString(), seed.id)
           .run();
         continue;
@@ -113,7 +118,17 @@ export class D1SkillRegistry implements SkillRegistry {
         .prepare(
           "INSERT INTO skills (id, name, description, version, content_hash, requires_capabilities, skill_md, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, version = excluded.version, content_hash = excluded.content_hash, requires_capabilities = excluded.requires_capabilities, skill_md = excluded.skill_md, updated_at = excluded.updated_at",
         )
-        .bind(seed.id, seed.name, seed.description, seed.version, newHash, requiresCaps, seed.skillMd, now, now)
+        .bind(
+          seed.id,
+          seed.name,
+          seed.description,
+          seed.version,
+          newHash,
+          requiresCaps,
+          seed.skillMd,
+          now,
+          now,
+        )
         .run();
     }
   }
@@ -161,9 +176,7 @@ export class D1SkillRegistry implements SkillRegistry {
     return { version: row.version as string, contentHash: row.content_hash as string };
   }
 
-  async upsert(
-    skill: Omit<SkillRecord, "contentHash" | "createdAt" | "updatedAt">,
-  ): Promise<void> {
+  async upsert(skill: Omit<SkillRecord, "contentHash" | "createdAt" | "updatedAt">): Promise<void> {
     if (skill.description.length > MAX_DESCRIPTION_LENGTH) {
       throw new Error(
         `Skill description exceeds ${MAX_DESCRIPTION_LENGTH} character limit (${skill.description.length} chars)`,

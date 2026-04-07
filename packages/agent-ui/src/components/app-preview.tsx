@@ -55,9 +55,7 @@ export function AppPreview({
     <div data-agent-ui="app-preview">
       <div data-agent-ui="app-preview-iframe-container">
         {!loaded && <div data-agent-ui="app-preview-loading">Loading preview...</div>}
-        {!connected && (
-          <div data-agent-ui="app-preview-disconnected">Lost Connection</div>
-        )}
+        {!connected && <div data-agent-ui="app-preview-disconnected">Lost Connection</div>}
         {onClose && (
           <button
             type="button"

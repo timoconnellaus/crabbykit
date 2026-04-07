@@ -51,7 +51,9 @@ export function createDB(options?: CreateDBOptions): DB {
       return body as SqlResult;
     },
 
-    async batch(statements: { sql: string; params?: unknown[] }[]): Promise<{ results: SqlResult[] }> {
+    async batch(
+      statements: { sql: string; params?: unknown[] }[],
+    ): Promise<{ results: SqlResult[] }> {
       const response = await fetch(`${DB_INTERNAL_URL}/batch`, {
         method: "POST",
         headers: { "content-type": "application/json" },

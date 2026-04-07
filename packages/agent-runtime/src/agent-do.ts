@@ -2509,6 +2509,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         } as ServerMessage);
         return;
       }
+      if (name === "task_event") {
+        this.broadcastToSession(sessionId, {
+          type: "task_event",
+          event: data,
+        } as ServerMessage);
+        return;
+      }
       this.broadcastToSession(sessionId, {
         type: "custom_event",
         sessionId,
@@ -2521,6 +2528,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     // Convert well-known custom events into their typed transport messages
     if (name === "skill_list_update" && Array.isArray(data.skills)) {
       const msg: ServerMessage = { type: "skill_list", skills: data.skills };
+      this.transport.broadcast(msg);
+      return;
+    }
+    if (name === "task_event") {
+      const msg: ServerMessage = { type: "task_event", event: data } as ServerMessage;
       this.transport.broadcast(msg);
       return;
     }

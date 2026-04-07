@@ -27,9 +27,7 @@ function createMockExecutor(): AgentExecutor {
   };
 }
 
-function createMockHandler(
-  response: unknown = { jsonrpc: "2.0", id: 1, result: {} },
-): A2AHandler {
+function createMockHandler(response: unknown = { jsonrpc: "2.0", id: 1, result: {} }): A2AHandler {
   return {
     handleRequest: vi.fn().mockResolvedValue(response),
   } as unknown as A2AHandler;
@@ -133,9 +131,7 @@ describe("createA2AServerHandlers", () => {
     });
 
     it("runs auth middleware when provided", async () => {
-      const authenticate = vi.fn().mockResolvedValue(
-        new Response("Unauthorized", { status: 401 }),
-      );
+      const authenticate = vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 }));
 
       const handlers = createA2AServerHandlers({
         handler: createMockHandler(),

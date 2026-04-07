@@ -170,11 +170,9 @@ describe("compactionSummary", () => {
   it("returns original messages when compaction throws", async () => {
     // Override the mock to throw
     const { createLlmSummarizer } = await import("../summarize.js");
-    vi.mocked(createLlmSummarizer).mockReturnValueOnce(
-      async () => {
-        throw new Error("LLM API down");
-      },
-    );
+    vi.mocked(createLlmSummarizer).mockReturnValueOnce(async () => {
+      throw new Error("LLM API down");
+    });
 
     const cap = compactionSummary({
       provider: "openrouter",

@@ -15,10 +15,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  clearMockResponses,
-  setMockResponses,
-} from "../../src/test-helpers/test-agent-do.js";
+import { clearMockResponses, setMockResponses } from "../../src/test-helpers/test-agent-do.js";
 import type { ServerMessage } from "../../src/transport/types.js";
 import {
   connectAndGetSession,
@@ -264,9 +261,7 @@ describe("Hibernation Recovery", () => {
       await clientB.waitForMessage((m) => m.type === "session_sync");
       clientB.send({ type: "new_session" });
       const newSessionSync = await clientB.waitForMessage(
-        (m) =>
-          m.type === "session_sync" &&
-          (m as SessionSyncMsg).sessionId !== sessionIdA,
+        (m) => m.type === "session_sync" && (m as SessionSyncMsg).sessionId !== sessionIdA,
       );
       const sessionIdB = (newSessionSync as SessionSyncMsg).sessionId;
 
@@ -331,11 +326,7 @@ describe("Hibernation Recovery", () => {
     it("context after recovery includes pre-hibernation messages", async () => {
       const stub = getStub("hib-infer-2");
 
-      setMockResponses([
-        { text: "Reply 1" },
-        { text: "Reply 2" },
-        { text: "Reply 3" },
-      ]);
+      setMockResponses([{ text: "Reply 1" }, { text: "Reply 2" }, { text: "Reply 3" }]);
       await prompt(stub, "Message 1");
       await prompt(stub, "Message 2");
       await prompt(stub, "Message 3");

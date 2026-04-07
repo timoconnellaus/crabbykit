@@ -1,8 +1,4 @@
-import type {
-  BrowserbaseDebugUrls,
-  BrowserbaseSession,
-  CreateSessionParams,
-} from "./types.js";
+import type { BrowserbaseDebugUrls, BrowserbaseSession, CreateSessionParams } from "./types.js";
 
 const BROWSERBASE_API_URL = "https://api.browserbase.com";
 

@@ -2,6 +2,7 @@ import type { Capability, SqlStore } from "@claw-for-cloudflare/agent-runtime";
 import type { AuthChecker } from "./task-store.js";
 import { TaskStore } from "./task-store.js";
 import {
+  createTaskClearTool,
   createTaskCloseTool,
   createTaskCreateTool,
   createTaskDepAddTool,
@@ -54,7 +55,21 @@ export function taskTracker(options: TaskTrackerOptions): Capability {
         createTaskReadyTool(deps),
         createTaskTreeTool(deps),
         createTaskDepAddTool(deps),
+        createTaskClearTool(deps),
       ];
+    },
+
+    hooks: {
+      onConnect: async (ctx) => {
+        if (!ctx.broadcast) return;
+        const tasks = store.list(ctx.sessionId);
+        for (const task of tasks) {
+          ctx.broadcast("task_event", {
+            changeType: "created",
+            task: task as unknown as Record<string, unknown>,
+          });
+        }
+      },
     },
 
     promptSections: () => [
@@ -63,7 +78,8 @@ export function taskTracker(options: TaskTrackerOptions): Capability {
         "Use task_dep_add to sequence work (type 'blocks' for ordering). " +
         "Use task_ready to find what's available to work on next. " +
         "Use task_tree to visualize the hierarchy. " +
-        "Close tasks with task_close when done.",
+        "Close tasks with task_close when done. " +
+        "Use task_clear to remove all tasks when switching to new work.",
     ],
   };
 }

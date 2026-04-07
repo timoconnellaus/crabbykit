@@ -9,12 +9,7 @@ import {
 } from "@claw-for-cloudflare/agent-runtime";
 import { Type } from "@sinclair/typebox";
 import { createAfterToolExecutionHook } from "./dirty-tracking.js";
-import {
-  deleteSkillFromR2,
-  readSkillFromR2,
-  skillIdFromR2Path,
-  writeSkillToR2,
-} from "./r2.js";
+import { deleteSkillFromR2, readSkillFromR2, skillIdFromR2Path, writeSkillToR2 } from "./r2.js";
 import {
   deleteInstalledSkill,
   getInstalledSkill,
@@ -69,7 +64,7 @@ function createSkillLoadTool(
   agentStorage: SkillsOptions["storage"],
   cachedSkills: Map<string, InstalledSkill> | null,
   context: AgentContext,
-// biome-ignore lint/suspicious/noExplicitAny: AgentTool generic contravariance requires widening at the defineTool boundary
+  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic contravariance requires widening at the defineTool boundary
 ): AgentTool<any> {
   return defineTool({
     name: "skill_load",
@@ -121,7 +116,9 @@ export function skills(options: SkillsOptions): Capability {
     agentStorage,
     declarations,
     () => cachedSkills,
-    (cache) => { cachedSkills = cache; },
+    (cache) => {
+      cachedSkills = cache;
+    },
   );
 
   return {
@@ -129,9 +126,7 @@ export function skills(options: SkillsOptions): Capability {
     name: "Skills",
     description: "On-demand procedural knowledge loaded by the agent when relevant",
 
-    tools: (context) => [
-      createSkillLoadTool(agentStorage, cachedSkills, context),
-    ],
+    tools: (context) => [createSkillLoadTool(agentStorage, cachedSkills, context)],
 
     promptSections: () => {
       if (!cachedSkills) return [];
@@ -179,10 +174,7 @@ export function skills(options: SkillsOptions): Capability {
             capabilityIds,
           });
         } catch (err) {
-          console.warn(
-            "[skills] Sync failed:",
-            err instanceof Error ? err.message : String(err),
-          );
+          console.warn("[skills] Sync failed:", err instanceof Error ? err.message : String(err));
         }
 
         const installed = await refreshCache(capStorage);
@@ -205,7 +197,7 @@ export function skills(options: SkillsOptions): Capability {
               `[SKILL UPDATE] The skill "${skillId}" has a new version (${conflict.upstreamVersion}) available.`,
               "Your current version has been customized. Please merge the changes:",
               "",
-              "Load your current version with: skill_load({ name: \"" + skillId + "\" })",
+              'Load your current version with: skill_load({ name: "' + skillId + '" })',
               "",
               "NEW VERSION (upstream):",
               "```",
@@ -269,7 +261,7 @@ export function skills(options: SkillsOptions): Capability {
         handler: async (_request: Request, ctx) => {
           try {
             const allRegistry = await registry.list();
-            const installed = cachedSkills ?? await listInstalledSkills(ctx.storage);
+            const installed = cachedSkills ?? (await listInstalledSkills(ctx.storage));
             const installedIds = new Set<string>();
             for (const key of installed.keys()) {
               installedIds.add(storageKeyToId(key));
@@ -346,9 +338,12 @@ export function skills(options: SkillsOptions): Capability {
             const skillList = buildSkillList(cachedSkills, declarationIds);
             ctx.broadcastToAll("skill_list_update", { skills: skillList });
 
-            return new Response(JSON.stringify({ ok: true, skill: { id: body.id, ...installed } }), {
-              headers: { "content-type": "application/json" },
-            });
+            return new Response(
+              JSON.stringify({ ok: true, skill: { id: body.id, ...installed } }),
+              {
+                headers: { "content-type": "application/json" },
+              },
+            );
           } catch (err) {
             return new Response(
               JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
@@ -423,7 +418,7 @@ export function skills(options: SkillsOptions): Capability {
           ),
         }),
         get: async () => {
-          const installed = cachedSkills ?? await listInstalledSkills(context.storage!);
+          const installed = cachedSkills ?? (await listInstalledSkills(context.storage!));
           const result: Array<{ id: string; enabled: boolean }> = [];
           for (const [key, skill] of installed) {
             const id = key.startsWith("installed:") ? key.slice("installed:".length) : key;

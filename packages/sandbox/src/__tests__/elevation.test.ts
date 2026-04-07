@@ -155,8 +155,8 @@ describe("checkElevation", () => {
   });
 
   it("throws when storage is undefined", async () => {
-    await expect(
-      checkElevation(undefined, "s1"),
-    ).rejects.toThrow("Sandbox capability requires storage");
+    await expect(checkElevation(undefined, "s1")).rejects.toThrow(
+      "Sandbox capability requires storage",
+    );
   });
 });

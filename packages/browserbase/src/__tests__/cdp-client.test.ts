@@ -73,25 +73,31 @@ describe("CDPClient", () => {
 
     it("rejects on connection error before open", async () => {
       // Create a mock that emits error instead of open
-      vi.stubGlobal("WebSocket", class {
-        private handlers = new Map<string, Array<(event: unknown) => void>>();
-        url: string;
-        constructor(url: string) {
-          this.url = url;
-          // Emit error, not open
-          queueMicrotask(() => {
-            const list = this.handlers.get("error") ?? [];
-            for (const h of list) h({});
-          });
-        }
-        addEventListener(type: string, handler: (event: unknown) => void) {
-          let list = this.handlers.get(type);
-          if (!list) { list = []; this.handlers.set(type, list); }
-          list.push(handler);
-        }
-        send = vi.fn();
-        close = vi.fn();
-      });
+      vi.stubGlobal(
+        "WebSocket",
+        class {
+          private handlers = new Map<string, Array<(event: unknown) => void>>();
+          url: string;
+          constructor(url: string) {
+            this.url = url;
+            // Emit error, not open
+            queueMicrotask(() => {
+              const list = this.handlers.get("error") ?? [];
+              for (const h of list) h({});
+            });
+          }
+          addEventListener(type: string, handler: (event: unknown) => void) {
+            let list = this.handlers.get(type);
+            if (!list) {
+              list = [];
+              this.handlers.set(type, list);
+            }
+            list.push(handler);
+          }
+          send = vi.fn();
+          close = vi.fn();
+        },
+      );
 
       const errorClient = new CDPClient();
       await expect(errorClient.connect("wss://bad-url")).rejects.toThrow("connection failed");

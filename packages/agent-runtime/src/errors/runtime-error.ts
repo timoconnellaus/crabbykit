@@ -51,11 +51,7 @@ export class RuntimeError extends Error {
   readonly errorCode: ErrorCode;
   readonly details: Record<string, unknown>;
 
-  constructor(
-    type: RuntimeErrorType,
-    message: string,
-    details: Record<string, unknown> = {},
-  ) {
+  constructor(type: RuntimeErrorType, message: string, details: Record<string, unknown> = {}) {
     super(message);
     this.name = "RuntimeError";
     this.type = type;

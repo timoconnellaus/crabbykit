@@ -221,6 +221,18 @@ export class TaskStore {
     return this.get(taskId)!;
   }
 
+  /** Delete all tasks and their dependencies for a session. Returns count of deleted tasks. */
+  deleteBySession(callerSession: string): number {
+    const tasks = this.list(callerSession);
+    if (tasks.length === 0) return 0;
+    this.sql.exec(
+      "DELETE FROM task_deps WHERE source_id IN (SELECT id FROM tasks WHERE owner_session = ?)",
+      callerSession,
+    );
+    this.sql.exec("DELETE FROM tasks WHERE owner_session = ?", callerSession);
+    return tasks.length;
+  }
+
   // --- Dependencies ---
 
   addDep(callerSession: string, sourceId: string, targetId: string, depType: DepType): TaskDep {

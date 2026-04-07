@@ -112,7 +112,6 @@ export function agentPeering(options: PeeringOptions): {
         handshakeCallbackHandler(options),
       ];
     },
-
   };
 
   return { capability, service };

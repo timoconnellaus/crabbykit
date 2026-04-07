@@ -267,7 +267,6 @@
   margin: 0.25rem 0;
 }
 
-
 [data-agent-ui="message-content"] {
   word-break: break-word;
   line-height: 1.55;
@@ -468,6 +467,165 @@
   50% {
     opacity: 1;
   }
+}
+
+/* --- Compact task list --- */
+
+[data-agent-ui="task-list"] {
+  display: flex;
+  flex-direction: column;
+  padding: 0.375rem 1rem;
+  gap: 0;
+  font-family: var(--agent-ui-font-mono);
+  font-size: 0.75rem;
+  border-top: 1px solid var(--agent-ui-border);
+  background: var(--agent-ui-bg);
+}
+
+[data-agent-ui="task-list-header"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.25rem 0.25rem;
+}
+
+[data-agent-ui="task-list-label"] {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--agent-ui-text-muted);
+}
+
+[data-agent-ui="task-list-count"] {
+  font-size: 0.625rem;
+  color: var(--agent-ui-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-agent-ui="task-list-items"] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+[data-agent-ui="task-list-row"] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+  min-height: 24px;
+  color: var(--agent-ui-text-dim);
+  transition: background 0.1s ease;
+}
+
+[data-agent-ui="task-list-row"]:hover {
+  background: var(--agent-ui-bg-hover);
+}
+
+[data-agent-ui="task-list-row"][data-active] {
+  background: var(--agent-ui-primary-highlight);
+}
+
+/* Status indicator dot */
+[data-agent-ui="task-list-indicator"] {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-ui-text-muted);
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* Open: hollow ring */
+[data-agent-ui="task-list-row"][data-status="open"] [data-agent-ui="task-list-indicator"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--agent-ui-text-muted);
+}
+
+/* In progress: pulsing accent dot */
+[data-agent-ui="task-list-row"][data-status="in_progress"] [data-agent-ui="task-list-indicator"] {
+  background: var(--agent-ui-primary);
+  box-shadow: 0 0 0 2px rgba(91, 163, 230, 0.2);
+  animation: task-pulse 2s ease-in-out infinite;
+}
+
+[data-agent-ui="task-list-row"][data-status="in_progress"] {
+  color: var(--agent-ui-text);
+}
+
+/* Blocked: red dot */
+[data-agent-ui="task-list-row"][data-status="blocked"] [data-agent-ui="task-list-indicator"] {
+  background: var(--agent-ui-error-accent);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+[data-agent-ui="task-list-row"][data-status="blocked"] [data-agent-ui="task-list-title"] {
+  opacity: 0.6;
+}
+
+/* Closed: green check-like dot, faded row */
+[data-agent-ui="task-list-row"][data-status="closed"] [data-agent-ui="task-list-indicator"] {
+  background: var(--agent-ui-success);
+}
+
+[data-agent-ui="task-list-row"][data-status="closed"] {
+  color: var(--agent-ui-text-muted);
+}
+
+[data-agent-ui="task-list-row"][data-status="closed"] [data-agent-ui="task-list-title"] {
+  text-decoration: line-through;
+  text-decoration-color: var(--agent-ui-text-muted);
+  opacity: 0.5;
+}
+
+@keyframes task-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(91, 163, 230, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(91, 163, 230, 0.08);
+  }
+}
+
+[data-agent-ui="task-list-title"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+[data-agent-ui="task-list-priority"] {
+  flex-shrink: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 2px;
+  letter-spacing: 0.02em;
+  color: var(--agent-ui-text-muted);
+  background: var(--agent-ui-bg-hover);
+}
+
+[data-agent-ui="task-list-priority"][data-priority="0"] {
+  color: var(--agent-ui-error-accent);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+[data-agent-ui="task-list-priority"][data-priority="1"] {
+  color: var(--agent-ui-tool-color-preview);
+  background: rgba(217, 119, 6, 0.1);
+}
+
+[data-agent-ui="task-list-overflow"] {
+  padding: 0.125rem 0.25rem;
+  color: var(--agent-ui-text-muted);
+  font-size: 0.625rem;
 }
 
 /* --- Error banner --- */
@@ -1599,8 +1757,13 @@
 }
 
 @keyframes status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* ── Shared badge base (sandbox + browser) ── */
@@ -2301,29 +2464,83 @@
 }
 
 /* Section color-coding */
-[data-agent-ui="system-prompt-section"][data-section-key="identity"] [data-agent-ui="system-prompt-section-dot"] { background: #60a5fa; }
-[data-agent-ui="system-prompt-section"][data-section-key="identity"] [data-agent-ui="system-prompt-section-name"] { color: #60a5fa; }
-[data-agent-ui="system-prompt-section"][data-section-key="identity"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(96, 165, 250, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key="identity"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #60a5fa;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="identity"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #60a5fa;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="identity"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(96, 165, 250, 0.3);
+}
 
-[data-agent-ui="system-prompt-section"][data-section-key="safety"] [data-agent-ui="system-prompt-section-dot"] { background: #f87171; }
-[data-agent-ui="system-prompt-section"][data-section-key="safety"] [data-agent-ui="system-prompt-section-name"] { color: #f87171; }
-[data-agent-ui="system-prompt-section"][data-section-key="safety"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(248, 113, 113, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key="safety"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #f87171;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="safety"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #f87171;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="safety"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(248, 113, 113, 0.3);
+}
 
-[data-agent-ui="system-prompt-section"][data-section-key="runtime"] [data-agent-ui="system-prompt-section-dot"] { background: #6b7280; }
-[data-agent-ui="system-prompt-section"][data-section-key="runtime"] [data-agent-ui="system-prompt-section-name"] { color: #6b7280; }
-[data-agent-ui="system-prompt-section"][data-section-key="runtime"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(107, 114, 128, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key="runtime"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #6b7280;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="runtime"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #6b7280;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="runtime"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(107, 114, 128, 0.3);
+}
 
-[data-agent-ui="system-prompt-section"][data-section-key^="cap-"] [data-agent-ui="system-prompt-section-dot"] { background: #f97316; }
-[data-agent-ui="system-prompt-section"][data-section-key^="cap-"] [data-agent-ui="system-prompt-section-name"] { color: #f97316; }
-[data-agent-ui="system-prompt-section"][data-section-key^="cap-"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(249, 115, 22, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key^="cap-"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #f97316;
+}
+[data-agent-ui="system-prompt-section"][data-section-key^="cap-"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #f97316;
+}
+[data-agent-ui="system-prompt-section"][data-section-key^="cap-"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(249, 115, 22, 0.3);
+}
 
-[data-agent-ui="system-prompt-section"][data-section-key^="additional"] [data-agent-ui="system-prompt-section-dot"] { background: #a78bfa; }
-[data-agent-ui="system-prompt-section"][data-section-key^="additional"] [data-agent-ui="system-prompt-section-name"] { color: #a78bfa; }
-[data-agent-ui="system-prompt-section"][data-section-key^="additional"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(167, 139, 250, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key^="additional"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #a78bfa;
+}
+[data-agent-ui="system-prompt-section"][data-section-key^="additional"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #a78bfa;
+}
+[data-agent-ui="system-prompt-section"][data-section-key^="additional"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(167, 139, 250, 0.3);
+}
 
-[data-agent-ui="system-prompt-section"][data-section-key="custom"] [data-agent-ui="system-prompt-section-dot"] { background: #34d399; }
-[data-agent-ui="system-prompt-section"][data-section-key="custom"] [data-agent-ui="system-prompt-section-name"] { color: #34d399; }
-[data-agent-ui="system-prompt-section"][data-section-key="custom"] [data-agent-ui="system-prompt-section-content"] { border-left-color: rgba(52, 211, 153, 0.3); }
+[data-agent-ui="system-prompt-section"][data-section-key="custom"]
+  [data-agent-ui="system-prompt-section-dot"] {
+  background: #34d399;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="custom"]
+  [data-agent-ui="system-prompt-section-name"] {
+  color: #34d399;
+}
+[data-agent-ui="system-prompt-section"][data-section-key="custom"]
+  [data-agent-ui="system-prompt-section-content"] {
+  border-left-color: rgba(52, 211, 153, 0.3);
+}
 
 /* ── Browser Panel ─────────────────────────────────────────────────── */
 
@@ -2366,7 +2583,14 @@
 }
 
 [data-agent-ui="browser-panel-url-text"] {
-  font-family: var(--agent-ui-font, "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace);
+  font-family: var(
+    --agent-ui-font,
+    "SF Mono",
+    "Fira Code",
+    "JetBrains Mono",
+    ui-monospace,
+    monospace
+  );
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.55);
   white-space: nowrap;
@@ -2389,7 +2613,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 [data-agent-ui="browser-panel-close-btn"]:hover {
@@ -2419,7 +2645,14 @@
   justify-content: center;
   background: #0c0c0e;
   color: rgba(255, 255, 255, 0.3);
-  font-family: var(--agent-ui-font, "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace);
+  font-family: var(
+    --agent-ui-font,
+    "SF Mono",
+    "Fira Code",
+    "JetBrains Mono",
+    ui-monospace,
+    monospace
+  );
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   z-index: 1;
@@ -2448,7 +2681,14 @@
   justify-content: center;
   background: rgba(12, 12, 14, 0.92);
   color: rgba(255, 255, 255, 0.6);
-  font-family: var(--agent-ui-font, "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace);
+  font-family: var(
+    --agent-ui-font,
+    "SF Mono",
+    "Fira Code",
+    "JetBrains Mono",
+    ui-monospace,
+    monospace
+  );
   font-size: 0.8rem;
   font-weight: 500;
   letter-spacing: 0.03em;

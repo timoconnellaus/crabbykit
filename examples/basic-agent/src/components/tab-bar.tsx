@@ -8,13 +8,7 @@ const TABS = [
   { id: "skills", label: "Skills" },
 ] as const;
 
-export function TabBar({
-  agentId,
-  activeTab,
-}: {
-  agentId: string;
-  activeTab: string;
-}) {
+export function TabBar({ agentId, activeTab }: { agentId: string; activeTab: string }) {
   return (
     <>
       <style>{layoutStyles}</style>

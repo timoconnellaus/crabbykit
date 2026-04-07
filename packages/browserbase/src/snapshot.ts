@@ -71,7 +71,10 @@ export interface SnapshotOptions {
  * Ported from agent-browser's snapshot engine, adapted for raw CDP AX nodes
  * instead of Playwright's ariaSnapshot format.
  */
-export function formatAXTree(nodes: AXNode[], options: SnapshotOptions = {}): {
+export function formatAXTree(
+  nodes: AXNode[],
+  options: SnapshotOptions = {},
+): {
   tree: string;
   refs: RefMap;
 } {
@@ -151,7 +154,14 @@ export function formatAXTree(nodes: AXNode[], options: SnapshotOptions = {}): {
     // Add properties (e.g., level for headings, checked for checkboxes)
     if (node.properties) {
       for (const prop of node.properties) {
-        if (prop.name === "level" || prop.name === "checked" || prop.name === "expanded" || prop.name === "selected" || prop.name === "disabled" || prop.name === "required") {
+        if (
+          prop.name === "level" ||
+          prop.name === "checked" ||
+          prop.name === "expanded" ||
+          prop.name === "selected" ||
+          prop.name === "disabled" ||
+          prop.name === "required"
+        ) {
           line += ` [${prop.name}=${prop.value.value}]`;
         }
       }

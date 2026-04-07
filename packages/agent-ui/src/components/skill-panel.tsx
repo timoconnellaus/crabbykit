@@ -32,9 +32,7 @@ export function SkillPanel(props: SkillPanelProps) {
               <span data-agent-ui="skill-item-status">
                 {skill.enabled ? "Enabled" : "Disabled"}
               </span>
-              {skill.autoUpdate && (
-                <span data-agent-ui="skill-item-auto-update">Auto-update</span>
-              )}
+              {skill.autoUpdate && <span data-agent-ui="skill-item-auto-update">Auto-update</span>}
               <button
                 type="button"
                 data-agent-ui="skill-item-view"
@@ -46,9 +44,7 @@ export function SkillPanel(props: SkillPanelProps) {
           </div>
         ))}
       </div>
-      {viewingSkill && (
-        <SkillViewer skillId={viewingSkill} onClose={() => setViewingSkill(null)} />
-      )}
+      {viewingSkill && <SkillViewer skillId={viewingSkill} onClose={() => setViewingSkill(null)} />}
     </div>
   );
 }

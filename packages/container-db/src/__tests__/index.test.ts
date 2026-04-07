@@ -53,9 +53,9 @@ describe("exec", () => {
 
   it("sends POST to db.internal/exec and returns result", async () => {
     const mockResult = { columns: ["id", "name"], rows: [[1, "Item A"]] };
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(mockResult), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
     globalThis.fetch = mockFetch;
 
     const db = createDB();
@@ -66,16 +66,20 @@ describe("exec", () => {
       "http://db.internal/exec",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ sql: "SELECT * FROM items", params: [], backendId: "agent-1:default" }),
+        body: JSON.stringify({
+          sql: "SELECT * FROM items",
+          params: [],
+          backendId: "agent-1:default",
+        }),
       }),
     );
   });
 
   it("sends params in the request", async () => {
     const mockResult = { columns: ["id"], rows: [] };
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(mockResult), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
     globalThis.fetch = mockFetch;
 
     const db = createDB();
@@ -94,9 +98,11 @@ describe("exec", () => {
   });
 
   it("throws on server error", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Table not found" }), { status: 500 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: "Table not found" }), { status: 500 }),
+      );
     globalThis.fetch = mockFetch;
 
     const db = createDB();
@@ -105,9 +111,9 @@ describe("exec", () => {
 
   it("uses explicit backendId in requests", async () => {
     const mockResult = { columns: [], rows: [] };
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(mockResult), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
     globalThis.fetch = mockFetch;
 
     const db = createDB({ backendId: "custom-id" });
@@ -139,10 +145,15 @@ describe("batch", () => {
   });
 
   it("sends POST to db.internal/batch and returns results", async () => {
-    const mockResult = { results: [{ columns: [], rows: [] }, { columns: [], rows: [] }] };
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(mockResult), { status: 200 }),
-    );
+    const mockResult = {
+      results: [
+        { columns: [], rows: [] },
+        { columns: [], rows: [] },
+      ],
+    };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
     globalThis.fetch = mockFetch;
 
     const db = createDB();
@@ -163,14 +174,12 @@ describe("batch", () => {
   });
 
   it("throws on server error", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Batch failed" }), { status: 500 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ error: "Batch failed" }), { status: 500 }));
     globalThis.fetch = mockFetch;
 
     const db = createDB();
-    await expect(
-      db.batch([{ sql: "INVALID SQL" }]),
-    ).rejects.toThrow("Batch failed");
+    await expect(db.batch([{ sql: "INVALID SQL" }])).rejects.toThrow("Batch failed");
   });
 });

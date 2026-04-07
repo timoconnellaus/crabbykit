@@ -40,9 +40,9 @@ function createMockStorage(): CapabilityStorage {
 
 describe("fetchAgentCard", () => {
   it("fetches agent card from well-known URL", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_CARD), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(MOCK_CARD), { status: 200 }));
 
     const card = await fetchAgentCard("https://remote.example.com", mockFetch as R);
 
@@ -55,9 +55,9 @@ describe("fetchAgentCard", () => {
   });
 
   it("handles URL with trailing slash", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_CARD), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(MOCK_CARD), { status: 200 }));
 
     await fetchAgentCard("https://remote.example.com/", mockFetch as R);
 
@@ -66,21 +66,19 @@ describe("fetchAgentCard", () => {
   });
 
   it("throws on non-ok response", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response("Not Found", { status: 404 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValue(new Response("Not Found", { status: 404 }));
 
-    await expect(
-      fetchAgentCard("https://remote.example.com", mockFetch as R),
-    ).rejects.toThrow("Failed to fetch agent card");
+    await expect(fetchAgentCard("https://remote.example.com", mockFetch as R)).rejects.toThrow(
+      "Failed to fetch agent card",
+    );
   });
 });
 
 describe("getAgentCard", () => {
   it("fetches and caches agent card", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_CARD), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(MOCK_CARD), { status: 200 }));
     const storage = createMockStorage();
 
     const card = await getAgentCard("https://remote.example.com", mockFetch as R, storage);
@@ -95,9 +93,9 @@ describe("getAgentCard", () => {
   });
 
   it("refetches when cache is expired", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_CARD), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(MOCK_CARD), { status: 200 }));
     const storage = createMockStorage();
 
     // Pre-populate with an expired cache entry
@@ -131,9 +129,9 @@ describe("getAgentCard", () => {
   });
 
   it("respects custom TTL", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_CARD), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(MOCK_CARD), { status: 200 }));
     const storage = createMockStorage();
 
     // Pre-populate with a cache entry 2 seconds old
@@ -143,12 +141,7 @@ describe("getAgentCard", () => {
     });
 
     // Use TTL of 1 second — cache should be expired
-    const card = await getAgentCard(
-      "https://remote.example.com",
-      mockFetch as R,
-      storage,
-      1,
-    );
+    const card = await getAgentCard("https://remote.example.com", mockFetch as R, storage, 1);
 
     expect(card.name).toBe("Remote Agent");
     expect(mockFetch).toHaveBeenCalledOnce();

@@ -442,11 +442,7 @@ describe("SessionStore", () => {
       // After GC: 3 entries remain
       const remaining = store.getEntries(session.id);
       expect(remaining).toHaveLength(3);
-      expect(remaining.map((e) => (e.data as any).content)).toEqual([
-        "msg1",
-        "msg2",
-        "msg3-new",
-      ]);
+      expect(remaining.map((e) => (e.data as any).content)).toEqual(["msg1", "msg2", "msg3-new"]);
     });
 
     it("removes multiple orphaned branches", () => {

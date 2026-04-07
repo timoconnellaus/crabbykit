@@ -139,10 +139,13 @@ describe("tavilyWebSearch", () => {
 
   it("passes searchDefaults to the search tool", async () => {
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ results: [{ title: "R", url: "https://r.com", content: "C" }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ results: [{ title: "R", url: "https://r.com", content: "C" }] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
 
     const cap = tavilyWebSearch({

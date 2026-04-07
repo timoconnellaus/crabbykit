@@ -51,16 +51,16 @@ export function createMockSqlStore(): SqlStore {
                 defaults[colName] = () => new Date().toISOString();
               } else {
                 const numMatch = p.match(/DEFAULT\s+(-?\d+)/);
-              if (numMatch) {
-                const val = Number(numMatch[1]);
-                defaults[colName] = () => val;
-              } else {
-                const strMatch = p.match(/DEFAULT\s+'([^']+)'/);
-                if (strMatch) {
-                  const val = strMatch[1];
+                if (numMatch) {
+                  const val = Number(numMatch[1]);
                   defaults[colName] = () => val;
+                } else {
+                  const strMatch = p.match(/DEFAULT\s+'([^']+)'/);
+                  if (strMatch) {
+                    const val = strMatch[1];
+                    defaults[colName] = () => val;
+                  }
                 }
-              }
               }
             }
           }

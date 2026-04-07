@@ -134,9 +134,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
       }
 
       // Wait for client1's rate limit error
-      await client1.waitForMessage(
-        (m) => m.type === "error" && (m as any).code === "RATE_LIMITED",
-      );
+      await client1.waitForMessage((m) => m.type === "error" && (m as any).code === "RATE_LIMITED");
 
       // client2 should still be able to send — its limit is independent
       setMockResponses([{ text: "Client2 OK" }]);

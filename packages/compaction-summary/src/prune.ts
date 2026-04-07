@@ -69,10 +69,7 @@ function pruneMessage(message: AgentMessage): AgentMessage {
  *
  * @returns The pruned message array (new array, original not mutated).
  */
-export function pruneToolOutputs(
-  messages: AgentMessage[],
-  budgetTokens: number,
-): AgentMessage[] {
+export function pruneToolOutputs(messages: AgentMessage[], budgetTokens: number): AgentMessage[] {
   // First, find all tool result indices and their token counts (newest first)
   const toolIndices: Array<{ index: number; tokens: number }> = [];
   for (let i = messages.length - 1; i >= 0; i--) {

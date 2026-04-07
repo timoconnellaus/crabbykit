@@ -1,7 +1,10 @@
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { doomLoopDetection } from "../capability.js";
-import type { CapabilityHookContext, BeforeToolExecutionEvent } from "@claw-for-cloudflare/agent-runtime";
+import type {
+  CapabilityHookContext,
+  BeforeToolExecutionEvent,
+} from "@claw-for-cloudflare/agent-runtime";
 
 function makeEvent(toolName: string, args: unknown = {}): BeforeToolExecutionEvent {
   return { toolName, args, toolCallId: `call-${Date.now()}` };
@@ -223,10 +226,10 @@ describe("doomLoopDetection", () => {
       await hook(event, ctx);
       await hook(event, ctx);
 
-      expect(broadcast).toHaveBeenCalledWith(
-        "doom_loop_detected",
-        { toolName: "search", count: 2 },
-      );
+      expect(broadcast).toHaveBeenCalledWith("doom_loop_detected", {
+        toolName: "search",
+        count: 2,
+      });
     });
 
     it("does not broadcast when calls are within threshold", async () => {

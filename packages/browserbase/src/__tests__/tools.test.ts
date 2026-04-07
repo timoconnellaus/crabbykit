@@ -31,7 +31,10 @@ function mockCDP() {
     }),
     on(method: string, handler: (p: Record<string, unknown>) => void) {
       let set = eventHandlers.get(method);
-      if (!set) { set = new Set(); eventHandlers.set(method, set); }
+      if (!set) {
+        set = new Set();
+        eventHandlers.set(method, set);
+      }
       set.add(handler);
       // Auto-fire Page.loadEventFired for navigation tests
       if (method === "Page.loadEventFired") {
@@ -42,7 +45,9 @@ function mockCDP() {
       eventHandlers.get(method)?.delete(handler);
     },
     close: vi.fn(),
-    setResponse(method: string, val: unknown) { responses.set(method, val); },
+    setResponse(method: string, val: unknown) {
+      responses.set(method, val);
+    },
   };
 }
 

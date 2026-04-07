@@ -144,10 +144,9 @@ export class SessionManager {
     if (cdp?.isConnected) {
       try {
         const cookieResult = await cdp.send<{ cookies: Cookie[] }>("Network.getCookies");
-        const currentUrl = await cdp.send<{ result: { value: string } }>(
-          "Runtime.evaluate",
-          { expression: "window.location.href" },
-        );
+        const currentUrl = await cdp.send<{ result: { value: string } }>("Runtime.evaluate", {
+          expression: "window.location.href",
+        });
 
         const stored = (await this.storage.get<BrowserState>(BROWSER_STATE_KEY)) ?? {
           cookies: [],

@@ -1023,9 +1023,7 @@ describe("custom request/response", () => {
     // Flush the promise chain
     await act(async () => {});
 
-    const responses = harness.ws.sentMessages.filter(
-      (m) => m.type === "custom_response",
-    );
+    const responses = harness.ws.sentMessages.filter((m) => m.type === "custom_response");
     expect(responses).toHaveLength(1);
     expect((responses[0] as { requestId: string }).requestId).toBe("req_1");
     expect((responses[0] as { data: unknown }).data).toEqual({ logs: ["line1"] });
@@ -1036,9 +1034,7 @@ describe("custom request/response", () => {
     harness = createHarness({ onCustomRequest: handler });
     await harness.establish();
 
-    await harness.serverSend(
-      customEvent("get_logs", { _requestId: "req_2", key: "value" }),
-    );
+    await harness.serverSend(customEvent("get_logs", { _requestId: "req_2", key: "value" }));
     await act(async () => {});
 
     expect(handler).toHaveBeenCalledWith("get_logs", { key: "value" });
@@ -1049,14 +1045,10 @@ describe("custom request/response", () => {
     harness = createHarness({ onCustomRequest: handler });
     await harness.establish();
 
-    await harness.serverSend(
-      customEvent("get_logs", { _requestId: "req_3" }),
-    );
+    await harness.serverSend(customEvent("get_logs", { _requestId: "req_3" }));
     await act(async () => {});
 
-    const responses = harness.ws.sentMessages.filter(
-      (m) => m.type === "custom_response",
-    );
+    const responses = harness.ws.sentMessages.filter((m) => m.type === "custom_response");
     expect(responses).toHaveLength(1);
     const data = (responses[0] as { data: Record<string, unknown> }).data;
     expect(data._error).toBe(true);
@@ -1067,14 +1059,10 @@ describe("custom request/response", () => {
     harness = createHarness();
     await harness.establish();
 
-    await harness.serverSend(
-      customEvent("get_logs", { _requestId: "req_4" }),
-    );
+    await harness.serverSend(customEvent("get_logs", { _requestId: "req_4" }));
     await act(async () => {});
 
-    const responses = harness.ws.sentMessages.filter(
-      (m) => m.type === "custom_response",
-    );
+    const responses = harness.ws.sentMessages.filter((m) => m.type === "custom_response");
     expect(responses).toHaveLength(1);
     const data = (responses[0] as { data: Record<string, unknown> }).data;
     expect(data._error).toBe(true);

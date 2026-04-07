@@ -69,7 +69,6 @@ describe("handleDeployRequest with backend", () => {
   });
 
   it("routes /deploy/:agentId/:deployId/api/* to the backend worker", async () => {
-
     const loader = createMockLoader();
     const bucket = createMockBucket({
       "hex-agent1/deploys/deploy1/.backend/bundle.json": {
@@ -166,7 +165,6 @@ describe("handleDeployRequest with backend", () => {
   });
 
   it("passes dbService to the backend worker factory", async () => {
-
     const loader = createMockLoader();
     const bucket = createMockBucket();
 

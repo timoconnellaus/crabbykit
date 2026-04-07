@@ -1,5 +1,12 @@
 import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
-import type { BrowserState, ConsoleLogEntry, SandboxBadgeProps, SubagentInfo, TaskNode } from "@claw-for-cloudflare/agent-ui";
+import type {
+  BrowserState,
+  ConsoleLogEntry,
+  SandboxBadgeProps,
+  SubagentInfo,
+  TaskItem,
+  TaskNode,
+} from "@claw-for-cloudflare/agent-ui";
 import { createContext, useContext } from "react";
 import type { PendingA2ATask } from "../components/pending-tasks";
 
@@ -28,6 +35,8 @@ export interface ChatContextValue {
   logFilter: "all" | "error" | "warn" | "info" | "log";
   onLogFilterChange: (filter: "all" | "error" | "warn" | "info" | "log") => void;
   taskTree: TaskNode | null;
+  displayTasks: TaskItem[];
+  overflowCount: number;
   activeTaskId: string | undefined;
   onTaskClick: (taskId: string) => void;
   subagents: SubagentInfo[];

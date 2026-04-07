@@ -189,8 +189,10 @@ describe("toolOutputTruncation", () => {
       const second = await hook(first, {} as never);
       const third = await hook(second, {} as never);
 
-      const secondText = (second[0] as unknown as { content: Array<{ text: string }> }).content[0].text;
-      const thirdText = (third[0] as unknown as { content: Array<{ text: string }> }).content[0].text;
+      const secondText = (second[0] as unknown as { content: Array<{ text: string }> }).content[0]
+        .text;
+      const thirdText = (third[0] as unknown as { content: Array<{ text: string }> }).content[0]
+        .text;
       // After 2 passes, it must stabilize
       expect(thirdText).toBe(secondText);
     });
@@ -202,7 +204,8 @@ describe("toolOutputTruncation", () => {
       const messages = [makeToolResult([bigText])];
 
       const result = await hook(messages, {} as never);
-      const resultText = (result[0] as unknown as { content: Array<{ text: string }> }).content[0].text;
+      const resultText = (result[0] as unknown as { content: Array<{ text: string }> }).content[0]
+        .text;
       expect(resultText.length).toBeLessThan(bigText.length / 2);
     });
   });

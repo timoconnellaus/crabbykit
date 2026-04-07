@@ -166,7 +166,9 @@ describe("AgentDO Integration", () => {
       client.send({ type: "steer", sessionId, text: "Actually, change direction" });
 
       // Wait for agent_end
-      await client.waitForMessage((m) => m.type === "agent_event" && (m as any).event?.type === "agent_end");
+      await client.waitForMessage(
+        (m) => m.type === "agent_event" && (m as any).event?.type === "agent_end",
+      );
 
       // Verify the steer was persisted to the session store.
       // We can't check MockPiAgent.steeredMessages because the agent is
@@ -203,7 +205,9 @@ describe("AgentDO Integration", () => {
       client.send({ type: "abort", sessionId });
 
       // Wait for agent_end
-      await client.waitForMessage((m) => m.type === "agent_event" && (m as any).event?.type === "agent_end");
+      await client.waitForMessage(
+        (m) => m.type === "agent_event" && (m as any).event?.type === "agent_end",
+      );
 
       // Check that entries were persisted (at least user message)
       const { entries } = await getEntries(stub);

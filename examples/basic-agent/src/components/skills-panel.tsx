@@ -123,9 +123,7 @@ export function SkillsPanel({ skills, agentId }: SkillsPanelProps) {
           )}
         </div>
 
-        {api.error && (
-          <div data-agent-ui="skills-error">{api.error}</div>
-        )}
+        {api.error && <div data-agent-ui="skills-error">{api.error}</div>}
 
         {skills.length === 0 ? (
           <div data-agent-ui="skills-empty">

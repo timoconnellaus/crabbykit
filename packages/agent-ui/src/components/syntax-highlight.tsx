@@ -5,7 +5,9 @@ import type { BundledLanguage } from "shiki";
  * Lazy-loaded Shiki highlighter singleton.
  * Languages are loaded on demand — only the grammars actually used are fetched.
  */
-let highlighterPromise: Promise<Awaited<ReturnType<typeof import("shiki")["createHighlighter"]>>> | null = null;
+let highlighterPromise: Promise<
+  Awaited<ReturnType<typeof import("shiki")["createHighlighter"]>>
+> | null = null;
 
 async function getHighlighter() {
   if (!highlighterPromise) {
@@ -132,16 +134,11 @@ export const HighlightedCode = memo(function HighlightedCode({
     tokens ?? code.split("\n").map((line) => [{ content: line }]);
 
   return (
-    <pre
-      data-agent-ui="highlighted-code"
-      style={{ maxHeight, overflowY: "auto", margin: 0 }}
-    >
+    <pre data-agent-ui="highlighted-code" style={{ maxHeight, overflowY: "auto", margin: 0 }}>
       {lines.map((line, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: Code lines have no stable ID
         <div key={i} data-agent-ui="code-line">
-          {lineNumbers && (
-            <span data-agent-ui="code-line-num">{startLine + i}</span>
-          )}
+          {lineNumbers && <span data-agent-ui="code-line-num">{startLine + i}</span>}
           <span data-agent-ui="code-line-text">
             {line.map((token, j) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: Tokens have no stable ID
@@ -211,10 +208,7 @@ export const HighlightedDiff = memo(function HighlightedDiff({
   }, [lines, lang]);
 
   return (
-    <pre
-      data-agent-ui="highlighted-diff"
-      style={{ maxHeight, overflowY: "auto", margin: 0 }}
-    >
+    <pre data-agent-ui="highlighted-diff" style={{ maxHeight, overflowY: "auto", margin: 0 }}>
       {lines.map((line, i) => {
         const tokens: Token[] = tokenizedLines?.[i] ?? [{ content: line.content }];
         const gutter = line.type === "add" ? "+" : line.type === "remove" ? "-" : " ";

@@ -40,14 +40,12 @@ export function createBrowserSnapshotTool(
         const result = await cdp.send<{ nodes: AXNode[] }>("Accessibility.getFullAXTree");
 
         // Get current URL and title
-        const urlResult = await cdp.send<{ result: { value: string } }>(
-          "Runtime.evaluate",
-          { expression: "window.location.href" },
-        );
-        const titleResult = await cdp.send<{ result: { value: string } }>(
-          "Runtime.evaluate",
-          { expression: "document.title" },
-        );
+        const urlResult = await cdp.send<{ result: { value: string } }>("Runtime.evaluate", {
+          expression: "window.location.href",
+        });
+        const titleResult = await cdp.send<{ result: { value: string } }>("Runtime.evaluate", {
+          expression: "document.title",
+        });
 
         const url = urlResult?.result?.value ?? "unknown";
         const title = titleResult?.result?.value ?? "unknown";

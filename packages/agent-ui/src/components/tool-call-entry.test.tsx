@@ -24,9 +24,7 @@ describe("ToolCallEntry — basic", () => {
   });
 
   it("shows detail from args", () => {
-    render(
-      <ToolCallEntry toolName="bash" toolCallId="tc1" args={{ command: "ls -la" }} />,
-    );
+    render(<ToolCallEntry toolName="bash" toolCallId="tc1" args={{ command: "ls -la" }} />);
     // summarizeToolInput finds first string value
     expect(q("tool-entry-detail")?.textContent).toBe("ls -la");
   });
@@ -247,7 +245,12 @@ describe("ToolCallEntry — expanded body", () => {
       <ToolCallEntry
         toolName="some_tool"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "some_tool", content: "the output", isError: false }}
+        result={{
+          status: "complete",
+          toolName: "some_tool",
+          content: "the output",
+          isError: false,
+        }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -261,7 +264,12 @@ describe("ToolCallEntry — expanded body", () => {
         toolName="exec"
         toolCallId="tc1"
         args={{ command: "bun install" }}
-        result={{ status: "complete", toolName: "exec", content: "42 packages installed", isError: false }}
+        result={{
+          status: "complete",
+          toolName: "exec",
+          content: "42 packages installed",
+          isError: false,
+        }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -290,7 +298,12 @@ describe("ToolCallEntry — expanded body", () => {
         toolName="file_write"
         toolCallId="tc1"
         args={{ path: "src/app.ts", content: fileContent }}
-        result={{ status: "complete", toolName: "file_write", content: "Successfully wrote 30 bytes to src/app.ts", isError: false }}
+        result={{
+          status: "complete",
+          toolName: "file_write",
+          content: "Successfully wrote 30 bytes to src/app.ts",
+          isError: false,
+        }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -305,8 +318,17 @@ describe("ToolCallEntry — expanded body", () => {
       <ToolCallEntry
         toolName="file_edit"
         toolCallId="tc1"
-        args={{ path: "src/app.ts", old_string: "const x = 1;", new_string: "const x = 2;\nconst y = 3;" }}
-        result={{ status: "complete", toolName: "file_edit", content: "Successfully replaced 1 occurrence in src/app.ts", isError: false }}
+        args={{
+          path: "src/app.ts",
+          old_string: "const x = 1;",
+          new_string: "const x = 2;\nconst y = 3;",
+        }}
+        result={{
+          status: "complete",
+          toolName: "file_edit",
+          content: "Successfully replaced 1 occurrence in src/app.ts",
+          isError: false,
+        }}
       />,
     );
     fireEvent.click(q("tool-entry")!);
@@ -333,7 +355,12 @@ describe("ToolCallEntry — expanded body", () => {
       <ToolCallEntry
         toolName="some_tool"
         toolCallId="tc1"
-        result={{ status: "complete", toolName: "some_tool", content: "error details", isError: true }}
+        result={{
+          status: "complete",
+          toolName: "some_tool",
+          content: "error details",
+          isError: true,
+        }}
       />,
     );
     fireEvent.click(q("tool-entry")!);

@@ -25,7 +25,12 @@ describe("extractResultText", () => {
 
   it("extracts text from content array", () => {
     expect(
-      extractResultText({ content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] }),
+      extractResultText({
+        content: [
+          { type: "text", text: "a" },
+          { type: "text", text: "b" },
+        ],
+      }),
     ).toBe("ab");
   });
 
@@ -144,10 +149,15 @@ describe("Message — assistant", () => {
   it("renders text from content array", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "text", text: "part1" }, { type: "text", text: "part2" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [
+              { type: "text", text: "part1" },
+              { type: "text", text: "part2" },
+            ],
+          } as any
+        }
       />,
     );
     // Adjacent text parts are merged
@@ -158,12 +168,14 @@ describe("Message — assistant", () => {
   it("renders tool call entries from content array", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [
-            { type: "toolCall", toolCallId: "tc1", toolName: "bash", args: { cmd: "ls" } },
-          ],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [
+              { type: "toolCall", toolCallId: "tc1", toolName: "bash", args: { cmd: "ls" } },
+            ],
+          } as any
+        }
       />,
     );
     expect(q("tool-entry")).not.toBeNull();
@@ -173,15 +185,17 @@ describe("Message — assistant", () => {
   it("renders images from base64 source", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: "image/jpeg", data: "abc123" },
-            },
-          ],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "image",
+                source: { type: "base64", media_type: "image/jpeg", data: "abc123" },
+              },
+            ],
+          } as any
+        }
       />,
     );
     const img = document.querySelector('[data-agent-ui="message-image"]') as HTMLImageElement;
@@ -192,10 +206,12 @@ describe("Message — assistant", () => {
   it("renders images from URL", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "image", url: "https://example.com/img.png" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "image", url: "https://example.com/img.png" }],
+          } as any
+        }
       />,
     );
     const img = document.querySelector('[data-agent-ui="message-image"]') as HTMLImageElement;
@@ -205,10 +221,12 @@ describe("Message — assistant", () => {
   it("defaults media_type to image/png for base64", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "image", source: { type: "base64", data: "x" } }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "image", source: { type: "base64", data: "x" } }],
+          } as any
+        }
       />,
     );
     const img = document.querySelector('[data-agent-ui="message-image"]') as HTMLImageElement;
@@ -218,14 +236,16 @@ describe("Message — assistant", () => {
   it("renders mixed content in order (text + toolCall + text)", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [
-            { type: "text", text: "before" },
-            { type: "toolCall", toolCallId: "tc1", toolName: "bash" },
-            { type: "text", text: "after" },
-          ],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [
+              { type: "text", text: "before" },
+              { type: "toolCall", toolCallId: "tc1", toolName: "bash" },
+              { type: "text", text: "after" },
+            ],
+          } as any
+        }
       />,
     );
     expect(q("tool-entry")).not.toBeNull();
@@ -234,10 +254,12 @@ describe("Message — assistant", () => {
   it("skips null/invalid content blocks", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [null, "not-object", { type: "text", text: "ok" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [null, "not-object", { type: "text", text: "ok" }],
+          } as any
+        }
       />,
     );
     const el = q("message");
@@ -263,9 +285,7 @@ describe("Message — assistant", () => {
 describe("Message — thinking", () => {
   it("renders thinking fold when _thinking is set", () => {
     render(
-      <Message
-        message={{ role: "assistant", content: "hi", _thinking: "pondering..." } as any}
-      />,
+      <Message message={{ role: "assistant", content: "hi", _thinking: "pondering..." } as any} />,
     );
     expect(q("thinking-fold")).not.toBeNull();
     expect(q("thinking-fold-content")?.textContent).toBe("pondering...");
@@ -287,10 +307,12 @@ describe("Message — toolResultMap", () => {
     ]);
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "toolCall", toolCallId: "tc1", toolName: "bash" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "toolCall", toolCallId: "tc1", toolName: "bash" }],
+          } as any
+        }
         toolResultMap={toolResultMap}
       />,
     );
@@ -334,11 +356,7 @@ describe("Message — A2A notes", () => {
   });
 
   it("does not render A2A note for assistant role", () => {
-    render(
-      <Message
-        message={{ role: "assistant", content: "[A2A Task Complete] nope" } as any}
-      />,
-    );
+    render(<Message message={{ role: "assistant", content: "[A2A Task Complete] nope" } as any} />);
     expect(q("a2a-note")).toBeNull();
   });
 });
@@ -350,12 +368,14 @@ describe("Message — command results", () => {
   it("renders command result with name and content", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: "result text",
-          _commandResult: true,
-          _commandName: "help",
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: "result text",
+            _commandResult: true,
+            _commandName: "help",
+          } as any
+        }
       />,
     );
     expect(q("command-result")).not.toBeNull();
@@ -367,13 +387,15 @@ describe("Message — command results", () => {
   it("sets data-error when _isError is true", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: "failed",
-          _commandResult: true,
-          _commandName: "foo",
-          _isError: true,
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: "failed",
+            _commandResult: true,
+            _commandName: "foo",
+            _isError: true,
+          } as any
+        }
       />,
     );
     expect(q("command-result")?.getAttribute("data-error")).toBe("true");
@@ -387,10 +409,12 @@ describe("Message — toolCall ID fallbacks", () => {
   it("uses id field when toolCallId is missing", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "toolCall", id: "alt-id", name: "bash" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "alt-id", name: "bash" }],
+          } as any
+        }
       />,
     );
     expect(q("tool-entry")).not.toBeNull();
@@ -399,10 +423,12 @@ describe("Message — toolCall ID fallbacks", () => {
   it("uses name field when toolName is missing", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [{ type: "toolCall", id: "tc1", name: "web_search" }],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "tc1", name: "web_search" }],
+          } as any
+        }
       />,
     );
     expect(q("tool-entry-name")?.textContent).toBe("web_search");
@@ -411,12 +437,12 @@ describe("Message — toolCall ID fallbacks", () => {
   it("uses arguments field when args is missing", () => {
     render(
       <Message
-        message={{
-          role: "assistant",
-          content: [
-            { type: "toolCall", id: "tc1", name: "bash", arguments: { cmd: "ls" } },
-          ],
-        } as any}
+        message={
+          {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "tc1", name: "bash", arguments: { cmd: "ls" } }],
+          } as any
+        }
       />,
     );
     expect(q("tool-entry")).not.toBeNull();

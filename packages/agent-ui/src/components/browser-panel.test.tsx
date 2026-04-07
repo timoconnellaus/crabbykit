@@ -8,9 +8,7 @@ afterEach(() => {
 
 describe("BrowserPanel", () => {
   it("renders iframe with correct src", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const iframe = document.querySelector(
       '[data-agent-ui="browser-panel-iframe"]',
     ) as HTMLIFrameElement;
@@ -19,18 +17,14 @@ describe("BrowserPanel", () => {
   });
 
   it("shows loading overlay initially", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const loading = document.querySelector('[data-agent-ui="browser-panel-loading"]');
     expect(loading).not.toBeNull();
     expect(loading?.textContent).toContain("Loading");
   });
 
   it("hides loading overlay after iframe loads", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const iframe = document.querySelector(
       '[data-agent-ui="browser-panel-iframe"]',
     ) as HTMLIFrameElement;
@@ -51,9 +45,7 @@ describe("BrowserPanel", () => {
   });
 
   it("shows about:blank when no pageUrl", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const urlText = document.querySelector('[data-agent-ui="browser-panel-url-text"]');
     expect(urlText?.textContent).toBe("about:blank");
   });
@@ -61,10 +53,7 @@ describe("BrowserPanel", () => {
   it("calls onClose when close button is clicked", () => {
     const onClose = vi.fn();
     render(
-      <BrowserPanel
-        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
-        onClose={onClose}
-      />,
+      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" onClose={onClose} />,
     );
     const closeBtn = document.querySelector('[data-agent-ui="browser-panel-close-btn"]');
     expect(closeBtn).not.toBeNull();
@@ -73,46 +62,31 @@ describe("BrowserPanel", () => {
   });
 
   it("does not render close button when onClose is not provided", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const closeBtn = document.querySelector('[data-agent-ui="browser-panel-close-btn"]');
     expect(closeBtn).toBeNull();
   });
 
   it("shows disconnected overlay when not connected", () => {
     render(
-      <BrowserPanel
-        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
-        connected={false}
-      />,
+      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" connected={false} />,
     );
-    const disconnected = document.querySelector(
-      '[data-agent-ui="browser-panel-disconnected"]',
-    );
+    const disconnected = document.querySelector('[data-agent-ui="browser-panel-disconnected"]');
     expect(disconnected).not.toBeNull();
     expect(disconnected?.textContent).toContain("Lost Connection");
   });
 
   it("does not show disconnected overlay when connected", () => {
     render(
-      <BrowserPanel
-        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
-        connected={true}
-      />,
+      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" connected={true} />,
     );
-    const disconnected = document.querySelector(
-      '[data-agent-ui="browser-panel-disconnected"]',
-    );
+    const disconnected = document.querySelector('[data-agent-ui="browser-panel-disconnected"]');
     expect(disconnected).toBeNull();
   });
 
   it("shows timeout overlay with idle reason", () => {
     render(
-      <BrowserPanel
-        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
-        timeoutReason="idle"
-      />,
+      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" timeoutReason="idle" />,
     );
     const overlay = document.querySelector('[data-agent-ui="browser-panel-timeout"]');
     expect(overlay).not.toBeNull();
@@ -132,9 +106,7 @@ describe("BrowserPanel", () => {
   });
 
   it("does not show timeout overlay when no reason", () => {
-    render(
-      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
-    );
+    render(<BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />);
     const overlay = document.querySelector('[data-agent-ui="browser-panel-timeout"]');
     expect(overlay).toBeNull();
   });

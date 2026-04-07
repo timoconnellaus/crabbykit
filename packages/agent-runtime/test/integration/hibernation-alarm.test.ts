@@ -13,7 +13,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Capability } from "../../src/capabilities/types.js";
-import type { CallbackScheduleConfig, ScheduleCallbackContext } from "../../src/scheduling/types.js";
+import type {
+  CallbackScheduleConfig,
+  ScheduleCallbackContext,
+} from "../../src/scheduling/types.js";
 import {
   clearCompactionOverrides,
   clearExtraCapabilities,

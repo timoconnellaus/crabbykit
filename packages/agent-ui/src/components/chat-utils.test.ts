@@ -56,15 +56,15 @@ describe("summarizeToolInput", () => {
 
   // agent_message pattern
   it("shows agentName + message preview for agent messages", () => {
-    expect(
-      summarizeToolInput({ agentId: "a1", agentName: "Bot", message: "hello" }),
-    ).toBe("Bot \u00b7 hello");
+    expect(summarizeToolInput({ agentId: "a1", agentName: "Bot", message: "hello" })).toBe(
+      "Bot \u00b7 hello",
+    );
   });
 
   it("falls back to agentId when agentName is missing", () => {
-    expect(
-      summarizeToolInput({ agentId: "agent-42", message: "hello" }),
-    ).toBe("agent-42 \u00b7 hello");
+    expect(summarizeToolInput({ agentId: "agent-42", message: "hello" })).toBe(
+      "agent-42 \u00b7 hello",
+    );
   });
 
   it("truncates long agent messages at 50 chars", () => {
@@ -75,9 +75,7 @@ describe("summarizeToolInput", () => {
 
   // start_process pattern
   it("shows name + command for process tools", () => {
-    expect(
-      summarizeToolInput({ name: "dev", command: "bun dev" }),
-    ).toBe("dev \u00b7 bun dev");
+    expect(summarizeToolInput({ name: "dev", command: "bun dev" })).toBe("dev \u00b7 bun dev");
   });
 
   it("truncates long commands at 50 chars", () => {
@@ -88,15 +86,13 @@ describe("summarizeToolInput", () => {
 
   // namespace pattern
   it("shows namespace + value for config objects", () => {
-    expect(
-      summarizeToolInput({ namespace: "theme", value: "dark" }),
-    ).toBe("theme \u00b7 dark");
+    expect(summarizeToolInput({ namespace: "theme", value: "dark" })).toBe("theme \u00b7 dark");
   });
 
   it("stringifies non-string values", () => {
-    expect(
-      summarizeToolInput({ namespace: "limits", value: { max: 100 } }),
-    ).toBe('limits \u00b7 {"max":100}');
+    expect(summarizeToolInput({ namespace: "limits", value: { max: 100 } })).toBe(
+      'limits \u00b7 {"max":100}',
+    );
   });
 
   it("truncates long values at 40 chars", () => {
@@ -462,9 +458,7 @@ describe("summarizeResult", () => {
     });
 
     it("parses JSON string with results array", () => {
-      expect(
-        summarizeResult("web_search", JSON.stringify({ results: [1] }), false),
-      ).toEqual({
+      expect(summarizeResult("web_search", JSON.stringify({ results: [1] }), false)).toEqual({
         text: "1 results",
         variant: "muted",
       });

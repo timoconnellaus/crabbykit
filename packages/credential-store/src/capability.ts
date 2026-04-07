@@ -27,6 +27,5 @@ export function credentialStore(): Capability {
       ];
       return tools;
     },
-
   };
 }

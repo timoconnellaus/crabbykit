@@ -89,9 +89,9 @@ describe("upsert", () => {
 
   it("throws when description exceeds 250 characters", async () => {
     const longDesc = "x".repeat(251);
-    await expect(
-      registry.upsert(sampleSkill({ description: longDesc })),
-    ).rejects.toThrow("exceeds 250 character limit");
+    await expect(registry.upsert(sampleSkill({ description: longDesc }))).rejects.toThrow(
+      "exceeds 250 character limit",
+    );
   });
 
   it("allows description exactly 250 characters", async () => {
@@ -284,7 +284,10 @@ describe("integration", () => {
 describe("seeding", () => {
   it("seeds skills on first operation", async () => {
     const seeded = new D1SkillRegistry(env.SKILL_DB, {
-      seeds: [sampleSkill(), sampleSkill({ id: "debug", name: "Debug", description: "Debug skills" })],
+      seeds: [
+        sampleSkill(),
+        sampleSkill({ id: "debug", name: "Debug", description: "Debug skills" }),
+      ],
     });
 
     const result = await seeded.list();

@@ -42,11 +42,21 @@ describe("CommandPicker — visibility", () => {
   it("calls onVisibilityChange when visibility changes", () => {
     const onVisChange = vi.fn();
     const { rerender } = render(
-      <CommandPicker input="" commands={COMMANDS} onPick={vi.fn()} onVisibilityChange={onVisChange} />,
+      <CommandPicker
+        input=""
+        commands={COMMANDS}
+        onPick={vi.fn()}
+        onVisibilityChange={onVisChange}
+      />,
     );
     expect(onVisChange).toHaveBeenCalledWith(false);
     rerender(
-      <CommandPicker input="/" commands={COMMANDS} onPick={vi.fn()} onVisibilityChange={onVisChange} />,
+      <CommandPicker
+        input="/"
+        commands={COMMANDS}
+        onPick={vi.fn()}
+        onVisibilityChange={onVisChange}
+      />,
     );
     expect(onVisChange).toHaveBeenCalledWith(true);
   });
@@ -65,7 +75,9 @@ describe("CommandPicker — filtering", () => {
     render(<CommandPicker input="/he" commands={COMMANDS} onPick={vi.fn()} />);
     const items = qAll("command-picker-item");
     expect(items).toHaveLength(1);
-    expect(items[0].querySelector('[data-agent-ui="command-picker-name"]')?.textContent).toContain("help");
+    expect(items[0].querySelector('[data-agent-ui="command-picker-name"]')?.textContent).toContain(
+      "help",
+    );
   });
 
   it("filters case-insensitively", () => {
@@ -104,9 +116,7 @@ describe("CommandPicker — selection", () => {
   });
 
   it("resets selection when filter changes", () => {
-    const { rerender } = render(
-      <CommandPicker input="/h" commands={COMMANDS} onPick={vi.fn()} />,
-    );
+    const { rerender } = render(<CommandPicker input="/h" commands={COMMANDS} onPick={vi.fn()} />);
     // Two matches: help, history
     const items = qAll("command-picker-item");
     expect(items).toHaveLength(2);
@@ -178,9 +188,7 @@ describe("CommandPicker — keyboard", () => {
 
   it("Escape calls onDismiss", () => {
     const onDismiss = vi.fn();
-    render(
-      <CommandPicker input="/" commands={COMMANDS} onPick={vi.fn()} onDismiss={onDismiss} />,
-    );
+    render(<CommandPicker input="/" commands={COMMANDS} onPick={vi.fn()} onDismiss={onDismiss} />);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onDismiss).toHaveBeenCalled();
   });

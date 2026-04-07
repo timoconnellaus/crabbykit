@@ -162,7 +162,10 @@ describe("afterToolExecution hook", () => {
     await hook(
       {
         toolName: "file_write",
-        args: { path: "MEMORY.md", content: "New memory content with enough text to produce a chunk" },
+        args: {
+          path: "MEMORY.md",
+          content: "New memory content with enough text to produce a chunk",
+        },
         isError: false,
       },
       ctx,
@@ -401,8 +404,7 @@ describe("afterToolExecution hook", () => {
   it("uses custom isMemoryPath when provided", async () => {
     const bucket = createMockR2Bucket();
     const vectorize = createMockVectorize();
-    const embed = async (texts: string[]) =>
-      texts.map(() => [0.1, 0.2, 0.3]);
+    const embed = async (texts: string[]) => texts.map(() => [0.1, 0.2, 0.3]);
 
     const cap = vectorMemory({
       storage: mockStorage(bucket),

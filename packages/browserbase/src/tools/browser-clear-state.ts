@@ -14,8 +14,7 @@ export function createBrowserClearStateTool(
     parameters: Type.Object({
       domain: Type.Optional(
         Type.String({
-          description:
-            'Domain to clear cookies for (e.g. "github.com"). Omit to clear all.',
+          description: 'Domain to clear cookies for (e.g. "github.com"). Omit to clear all.',
         }),
       ),
     }),
