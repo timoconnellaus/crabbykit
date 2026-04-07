@@ -363,12 +363,20 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const steerQueuedMessage = useCallback(
     (queueId: string) => {
       if (!state.currentSessionId) return;
+      const item = state.queuedMessages.find((m) => m.id === queueId);
       send({ type: "queue_steer", sessionId: state.currentSessionId, queueId } as ClientMessage);
       // Optimistically remove from local queue
       dispatch({
         type: "SET_QUEUE",
-        items: state.queuedMessages.filter((item) => item.id !== queueId),
+        items: state.queuedMessages.filter((m) => m.id !== queueId),
       });
+      // Optimistically add the steered message to chat (server won't broadcast for human steers)
+      if (item) {
+        dispatch({
+          type: "ADD_MESSAGE",
+          message: { role: "user", content: item.text, timestamp: Date.now() } as AgentMessage,
+        });
+      }
     },
     [state.currentSessionId, state.queuedMessages, send],
   );

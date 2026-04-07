@@ -80,7 +80,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   { renderMessage, dir: _dir, ...props },
   ref,
 ) {
-  const { messages, toolStates, agentStatus, error } = useChat();
+  const { messages, toolStates, agentStatus, thinking, error } = useChat();
   const endRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.length;
@@ -137,9 +137,6 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const idx = virtualRow.index;
-              const prevRole = idx > 0 ? getRole(displayMessages[idx - 1]) : null;
-              const currRole = getRole(displayMessages[idx]);
-              const showSep = idx > 0 && prevRole !== currRole;
               return (
                 <div
                   key={idx}
@@ -153,22 +150,38 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {showSep && currRole !== "user" && <div data-agent-ui="turn-separator" />}
-                  <Message message={displayMessages[idx]} toolResultMap={toolResultMap} />
+                  <Message
+                    message={displayMessages[idx]}
+                    toolResultMap={toolResultMap}
+                    liveThinking={
+                      idx === displayMessages.length - 1 &&
+                      getRole(displayMessages[idx]) === "assistant" &&
+                      agentStatus !== "idle"
+                        ? thinking
+                        : undefined
+                    }
+                  />
                 </div>
               );
             })}
           </div>
         ) : (
           displayMessages.map((msg, i) => {
-            const prevRole = i > 0 ? getRole(displayMessages[i - 1]) : null;
             const currRole = getRole(msg);
-            const showSep = i > 0 && prevRole !== currRole;
             return (
               // biome-ignore lint/suspicious/noArrayIndexKey: Messages don't have stable IDs during streaming
               <Fragment key={i}>
-                {showSep && currRole !== "user" && <div data-agent-ui="turn-separator" />}
-                <Message message={msg} toolResultMap={toolResultMap} />
+                <Message
+                  message={msg}
+                  toolResultMap={toolResultMap}
+                  liveThinking={
+                    i === displayMessages.length - 1 &&
+                    currRole === "assistant" &&
+                    agentStatus !== "idle"
+                      ? thinking
+                      : undefined
+                  }
+                />
               </Fragment>
             );
           })

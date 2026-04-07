@@ -89,6 +89,10 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         if (msg.sessionId !== refs.currentSessionIdRef.current) break;
         const agentEvent = msg.event;
 
+        if (agentEvent.type === "agent_start") {
+          dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
+        }
+
         if (agentEvent.type === "message_start") {
           const msg = agentEvent.message;
           const isAssistant = msg && "role" in msg && msg.role === "assistant";

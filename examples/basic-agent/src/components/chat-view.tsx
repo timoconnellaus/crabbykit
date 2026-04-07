@@ -4,6 +4,7 @@ import {
   ChatInput,
   ChatPanel,
   MessageList,
+  QueuedMessages,
   SessionList,
   StatusBar,
   SubagentList,
@@ -84,6 +85,7 @@ export function ChatView() {
             </button>
           </StatusBar>
           <MessageList />
+          <QueuedMessages />
           <ThinkingIndicator />
           {subagents && subagents.length > 0 && <SubagentList subagents={subagents} />}
           <PendingTasksBanner tasks={pendingTasks} />

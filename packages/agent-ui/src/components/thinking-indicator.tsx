@@ -2,11 +2,15 @@ import { useChat } from "./chat-provider";
 
 export function ThinkingIndicator() {
   const { agentStatus } = useChat();
-  if (agentStatus === "idle") return null;
+  const active = agentStatus !== "idle";
   return (
-    <div data-agent-ui="thinking">
-      <span data-agent-ui="thinking-indicator" />
-      Thinking...
+    <div data-agent-ui="thinking" data-active={active || undefined}>
+      {active && (
+        <>
+          <span data-agent-ui="thinking-indicator" />
+          Thinking...
+        </>
+      )}
     </div>
   );
 }

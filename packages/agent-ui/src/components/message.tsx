@@ -30,6 +30,8 @@ export interface MessageProps extends ComponentPropsWithoutRef<"div"> {
   message: StreamableMessage;
   /** Map from toolCallId to result info. When provided, results render inline beneath tool calls. */
   toolResultMap?: Map<string, ToolResultInfo>;
+  /** Live reasoning text currently being streamed. When set, renders an active reasoning block instead of the completed fold. */
+  liveThinking?: string | null;
 }
 
 // --- Content part types for ordered rendering ---
@@ -203,6 +205,19 @@ function parseA2ANote(text: string): {
   return { status, agentName, summary, body };
 }
 
+/** Live reasoning block shown while the LLM is streaming reasoning tokens. */
+function ReasoningBlock({ text }: { text: string }) {
+  return (
+    <div data-agent-ui="reasoning-live">
+      <div data-agent-ui="reasoning-live-header">
+        <span data-agent-ui="reasoning-live-indicator" />
+        Reasoning
+      </div>
+      <div data-agent-ui="reasoning-live-content">{text}</div>
+    </div>
+  );
+}
+
 /** Collapsible A2A task note, styled to match tool-entry rows. */
 function A2ANote({ text, ...props }: { text: string } & ComponentPropsWithoutRef<"div">) {
   const [open, setOpen] = useState(false);
@@ -251,7 +266,7 @@ function A2ANote({ text, ...props }: { text: string } & ComponentPropsWithoutRef
   );
 }
 
-export function Message({ message, toolResultMap, ...props }: MessageProps) {
+export function Message({ message, toolResultMap, liveThinking, ...props }: MessageProps) {
   const role = ("role" in message ? message.role : "unknown") ?? "unknown";
   const text = getTextContent(message);
   const isStreaming = !!message._streaming;
@@ -288,12 +303,14 @@ export function Message({ message, toolResultMap, ...props }: MessageProps) {
         data-streaming={isStreaming || undefined}
         {...props}
       >
-        {thinkingText && (
+        {liveThinking != null ? (
+          <ReasoningBlock text={liveThinking} />
+        ) : thinkingText ? (
           <details data-agent-ui="thinking-fold">
-            <summary>Thinking</summary>
+            <summary>Reasoning</summary>
             <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
           </details>
-        )}
+        ) : null}
 
         {contentParts.map((part, i) => {
           if (part.kind === "text") {

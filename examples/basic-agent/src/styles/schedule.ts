@@ -27,8 +27,7 @@ export const scheduleStyles = `
 }
 
 [data-agent-ui="schedule-panel-add"] {
-  height: 1.25rem;
-  padding: 0 0.5rem;
+  padding: 0.125rem 0.5rem;
   border: 1px solid var(--agent-ui-border);
   border-radius: 4px;
   background: transparent;
@@ -38,6 +37,8 @@ export const scheduleStyles = `
   font-size: 0.625rem;
   line-height: 1;
   box-sizing: border-box;
+  align-self: center;
+  margin: -1px 0;
   transition: all 0.15s ease;
 }
 [data-agent-ui="schedule-panel-add"]:hover {

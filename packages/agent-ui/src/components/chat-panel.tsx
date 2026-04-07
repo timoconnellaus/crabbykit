@@ -30,8 +30,8 @@ export const ChatPanel = forwardRef<HTMLDivElement, ChatPanelProps>(function Cha
           <>
             <StatusBar />
             <MessageList />
-            <ThinkingIndicator />
             <QueuedMessages />
+            <ThinkingIndicator />
             <ChatInput />
           </>
         )}

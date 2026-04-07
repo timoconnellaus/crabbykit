@@ -2494,6 +2494,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     const next = this.queueStore.dequeue(sessionId);
     if (!next) return;
     this.broadcastQueueState(sessionId);
+    // Broadcast the dequeued message so it appears in the UI immediately —
+    // handlePrompt persists it but doesn't broadcast (normally the client
+    // optimistically adds it, but here the dequeue is server-initiated).
+    this.broadcastToSession(sessionId, {
+      type: "inject_message",
+      sessionId,
+      message: { role: "user", content: next.text, timestamp: Date.now() } as AgentMessage,
+    });
     await this.handlePrompt(sessionId, next.text);
   }
 

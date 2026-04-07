@@ -280,19 +280,44 @@ describe("Message — assistant", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Thinking fold
+// Reasoning (live + completed fold)
 // ---------------------------------------------------------------------------
-describe("Message — thinking", () => {
-  it("renders thinking fold when _thinking is set", () => {
+describe("Message — reasoning", () => {
+  it("renders live reasoning block when liveThinking is set", () => {
+    render(
+      <Message
+        message={{ role: "assistant", content: "hi" } as any}
+        liveThinking="working on it..."
+      />,
+    );
+    expect(q("reasoning-live")).not.toBeNull();
+    expect(q("reasoning-live-content")?.textContent).toBe("working on it...");
+    expect(q("thinking-fold")).toBeNull();
+  });
+
+  it("renders completed reasoning fold when _thinking is set and liveThinking is absent", () => {
     render(
       <Message message={{ role: "assistant", content: "hi", _thinking: "pondering..." } as any} />,
     );
     expect(q("thinking-fold")).not.toBeNull();
     expect(q("thinking-fold-content")?.textContent).toBe("pondering...");
+    expect(q("reasoning-live")).toBeNull();
   });
 
-  it("omits thinking fold when _thinking is not set", () => {
+  it("prefers live reasoning over completed fold when both present", () => {
+    render(
+      <Message
+        message={{ role: "assistant", content: "hi", _thinking: "old" } as any}
+        liveThinking="new"
+      />,
+    );
+    expect(q("reasoning-live")).not.toBeNull();
+    expect(q("thinking-fold")).toBeNull();
+  });
+
+  it("renders neither when both are absent", () => {
     render(<Message message={{ role: "assistant", content: "hi" } as any} />);
+    expect(q("reasoning-live")).toBeNull();
     expect(q("thinking-fold")).toBeNull();
   });
 });
