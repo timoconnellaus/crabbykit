@@ -11,8 +11,8 @@ import type {
   RefMap,
 } from "./types.js";
 
-const BROWSER_STATE_KEY = "browser:state";
-const ACTIVE_PREFIX = "browser:active:";
+export const BROWSER_STATE_KEY = "browser:state";
+export const ACTIVE_PREFIX = "browser:active:";
 
 /** Result of opening a browser session. */
 export interface OpenResult {
@@ -30,24 +30,38 @@ export interface OpenResult {
  * - Saves/restores cookies to/from capability KV storage
  * - Merges cookies on close for parallel session support
  */
+/**
+ * Holds in-memory CDP connections and ref maps that must survive
+ * capability cache clearing (agent_end). These are outbound WebSockets
+ * to Browserbase — not DO-scoped I/O — so they're safe to cache at
+ * module level across capability recreations.
+ */
+export interface SessionManagerState {
+  cdpClients: Map<string, CDPClient>;
+  refMaps: Map<string, RefMap>;
+}
+
 export class SessionManager {
   private readonly bbClient: BrowserbaseClient;
   private readonly storage: CapabilityStorage;
   private readonly options: BrowserbaseOptions;
 
   /** In-memory map of active CDP clients per chat session. */
-  private cdpClients = new Map<string, CDPClient>();
+  private cdpClients: Map<string, CDPClient>;
   /** In-memory ref maps per chat session (from latest snapshot). */
-  private refMaps = new Map<string, RefMap>();
+  private refMaps: Map<string, RefMap>;
 
   constructor(
     bbClient: BrowserbaseClient,
     storage: CapabilityStorage,
     options: BrowserbaseOptions,
+    sharedState?: SessionManagerState,
   ) {
     this.bbClient = bbClient;
     this.storage = storage;
     this.options = options;
+    this.cdpClients = sharedState?.cdpClients ?? new Map();
+    this.refMaps = sharedState?.refMaps ?? new Map();
   }
 
   /** Open a browser session for the given chat session. */
@@ -100,9 +114,10 @@ export class SessionManager {
     // Get live view URLs
     const debugUrls = await this.bbClient.getDebugUrls(bbSession.id);
 
-    // Track as active
+    // Track as active (include connectUrl for reconnection after capability cache clear)
     const active: ActiveSession = {
       browserbaseId: bbSession.id,
+      connectUrl: bbSession.connectUrl,
       usedContext: useContext,
       startedAt: new Date().toISOString(),
     };
@@ -177,6 +192,37 @@ export class SessionManager {
     return this.cdpClients.get(sessionId);
   }
 
+  /**
+   * Get the CDP client, reconnecting if needed.
+   *
+   * The capability cache is cleared between turns (on agent_end), which
+   * destroys the in-memory CDP client. But the Browserbase session is still
+   * running. This method checks KV for an active session and reconnects.
+   */
+  async ensureCDP(sessionId: string): Promise<CDPClient | undefined> {
+    const existing = this.cdpClients.get(sessionId);
+    if (existing?.isConnected) return existing;
+
+    // Check KV for an active session we can reconnect to
+    const active = await this.storage.get<ActiveSession>(`${ACTIVE_PREFIX}${sessionId}`);
+    if (!active?.connectUrl) return undefined;
+
+    try {
+      const cdp = new CDPClient();
+      await cdp.connect(active.connectUrl);
+      await cdp.attachToPage();
+      await cdp.send("Page.enable");
+      await cdp.send("Network.enable");
+      await cdp.send("DOM.enable");
+      await cdp.send("Accessibility.enable");
+      this.cdpClients.set(sessionId, cdp);
+      return cdp;
+    } catch {
+      // Connection failed — session may have expired
+      return undefined;
+    }
+  }
+
   /** Store the latest snapshot ref map for a chat session. */
   setRefs(sessionId: string, refs: RefMap): void {
     this.refMaps.set(sessionId, refs);
@@ -214,6 +260,52 @@ export class SessionManager {
       cookies: filtered,
       savedAt: new Date().toISOString(),
     });
+  }
+
+  /**
+   * List all active browser sessions from KV storage.
+   * Returns entries as [chatSessionId, ActiveSession] pairs.
+   */
+  async listActiveSessions(): Promise<[string, ActiveSession][]> {
+    const entries = await this.storage.list(ACTIVE_PREFIX);
+    const result: [string, ActiveSession][] = [];
+    for (const [key, value] of entries) {
+      const chatSessionId = key.slice(ACTIVE_PREFIX.length);
+      result.push([chatSessionId, value as ActiveSession]);
+    }
+    return result;
+  }
+
+  /**
+   * Recover orphaned browser sessions — sessions tracked in KV but with no
+   * in-memory CDP client. This happens after DO hibernation or crash.
+   *
+   * Returns the list of recovered (closed) session IDs with their durations.
+   */
+  async recoverOrphans(): Promise<{ sessionId: string; durationMinutes: number }[]> {
+    const actives = await this.listActiveSessions();
+    const recovered: { sessionId: string; durationMinutes: number }[] = [];
+
+    for (const [chatSessionId, active] of actives) {
+      // If we have a live CDP client, this session is fine
+      if (this.cdpClients.has(chatSessionId)) continue;
+
+      // Orphaned — release the Browserbase session and clean up
+      try {
+        await this.bbClient.releaseSession(active.browserbaseId);
+      } catch {
+        // Best-effort — session might have already expired on Browserbase's side
+      }
+
+      await this.storage.delete(`${ACTIVE_PREFIX}${chatSessionId}`);
+      this.refMaps.delete(chatSessionId);
+
+      const startMs = new Date(active.startedAt).getTime();
+      const durationMinutes = Math.ceil((Date.now() - startMs) / 60_000);
+      recovered.push({ sessionId: chatSessionId, durationMinutes });
+    }
+
+    return recovered;
   }
 
   private async getLastUrl(): Promise<string | undefined> {

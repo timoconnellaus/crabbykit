@@ -6,6 +6,7 @@ import type { BrowserbaseClient } from "../browserbase-client.js";
 export function createBrowserOpenTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onOpen?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -22,6 +23,11 @@ export function createBrowserOpenTool(
     execute: async ({ url }) => {
       try {
         const result = await sessionManager.open(context.sessionId, url);
+
+        // Set idle + max duration timers
+        if (onOpen) {
+          await onOpen();
+        }
 
         // Broadcast to UI
         const pageUrl = result.debugUrls.pages[0]?.url ?? url ?? "about:blank";

@@ -333,6 +333,112 @@ describe("browser_close", () => {
     );
     expect(ctx.broadcast).toHaveBeenCalledWith("browser_close", {});
   });
+
+  it("calls onClose callback to cancel timers", async () => {
+    const sm = {
+      close: vi.fn().mockResolvedValue({ durationMinutes: 2 }),
+    } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onClose = vi.fn();
+
+    const tool = createBrowserCloseTool(sm, ctx, undefined, onClose);
+    await tool.execute({}, {} as never);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("browser_open callbacks", () => {
+  it("calls onOpen callback after successful open", async () => {
+    const sm = {
+      open: vi.fn().mockResolvedValue({
+        browserbaseId: "bb-1",
+        connectUrl: "wss://...",
+        debugUrls: {
+          debuggerFullscreenUrl: "https://debug.bb.com/fullscreen",
+          pages: [{ url: "https://example.com" }],
+        },
+        cdp: mockCDP(),
+      }),
+    } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onOpen = vi.fn();
+
+    const tool = createBrowserOpenTool(sm, ctx, onOpen);
+    await tool.execute({ url: "https://example.com" }, {} as never);
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onOpen on failure", async () => {
+    const sm = {
+      open: vi.fn().mockRejectedValue(new Error("fail")),
+    } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onOpen = vi.fn();
+
+    const tool = createBrowserOpenTool(sm, ctx, onOpen);
+    await tool.execute({}, {} as never);
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("onActivity callbacks", () => {
+  it("browser_navigate calls onActivity", async () => {
+    const cdp = mockCDP();
+    const sm = { getCDP: vi.fn().mockReturnValue(cdp) } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onActivity = vi.fn();
+
+    const tool = createBrowserNavigateTool(sm, ctx, onActivity);
+    await tool.execute({ url: "https://example.com" }, {} as never);
+
+    expect(onActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("browser_snapshot calls onActivity", async () => {
+    const cdp = mockCDP();
+    cdp.setResponse("Accessibility.getFullAXTree", {
+      nodes: [{ nodeId: "1", ignored: false, role: { type: "role", value: "RootWebArea" } }],
+    });
+    cdp.setResponse("Runtime.evaluate", { result: { value: "https://example.com" } });
+    const sm = {
+      getCDP: vi.fn().mockReturnValue(cdp),
+      setRefs: vi.fn(),
+    } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onActivity = vi.fn();
+
+    const tool = createBrowserSnapshotTool(sm, ctx, onActivity);
+    await tool.execute({}, {} as never);
+
+    expect(onActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("browser_screenshot calls onActivity", async () => {
+    const cdp = mockCDP();
+    cdp.setResponse("Page.captureScreenshot", { data: "base64data" });
+    const sm = { getCDP: vi.fn().mockReturnValue(cdp) } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onActivity = vi.fn();
+
+    const tool = createBrowserScreenshotTool(sm, ctx, onActivity);
+    await tool.execute({}, {} as never);
+
+    expect(onActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onActivity when no CDP client", async () => {
+    const sm = { getCDP: vi.fn().mockReturnValue(undefined) } as unknown as SessionManager;
+    const ctx = mockContext();
+    const onActivity = vi.fn();
+
+    const tool = createBrowserNavigateTool(sm, ctx, onActivity);
+    await tool.execute({ url: "https://example.com" }, {} as never);
+
+    expect(onActivity).not.toHaveBeenCalled();
+  });
 });
 
 describe("browser_clear_state", () => {

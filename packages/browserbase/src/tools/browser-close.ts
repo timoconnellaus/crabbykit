@@ -9,6 +9,7 @@ export function createBrowserCloseTool(
   sessionManager: SessionManager,
   context: AgentContext,
   perMinuteCostUsd?: number,
+  onClose?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -18,6 +19,11 @@ export function createBrowserCloseTool(
     execute: async () => {
       try {
         const { durationMinutes } = await sessionManager.close(context.sessionId);
+
+        // Cancel timers
+        if (onClose) {
+          await onClose();
+        }
 
         // Emit cost
         const rate = perMinuteCostUsd ?? DEFAULT_PER_MINUTE_COST_USD;

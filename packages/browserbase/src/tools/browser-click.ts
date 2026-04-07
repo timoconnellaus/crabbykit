@@ -6,6 +6,7 @@ import { resolveRef } from "../snapshot.js";
 export function createBrowserClickTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onActivity?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -52,6 +53,9 @@ export function createBrowserClickTool(
       }
 
       try {
+        // Reset idle timer on activity
+        if (onActivity) await onActivity();
+
         // Resolve the backend DOM node to get coordinates
         if (resolved.backendDOMNodeId === undefined) {
           return {

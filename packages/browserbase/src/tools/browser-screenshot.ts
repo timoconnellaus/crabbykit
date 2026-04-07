@@ -5,6 +5,7 @@ import type { SessionManager } from "../session-manager.js";
 export function createBrowserScreenshotTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onActivity?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -25,6 +26,9 @@ export function createBrowserScreenshotTool(
       }
 
       try {
+        // Reset idle timer on activity
+        if (onActivity) await onActivity();
+
         const params: Record<string, unknown> = { format: "png" };
         if (fullPage) {
           // Get full page dimensions

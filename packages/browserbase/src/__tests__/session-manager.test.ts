@@ -136,6 +136,7 @@ describe("SessionManager", () => {
     it("throws if session already has active browser", async () => {
       await storage.put("browser:active:session-1", {
         browserbaseId: "bb-old",
+        connectUrl: "wss://connect.browserbase.com/bb-old",
         usedContext: false,
         startedAt: new Date().toISOString(),
       } satisfies ActiveSession);
@@ -183,11 +184,84 @@ describe("SessionManager", () => {
     it("returns true when active session exists", async () => {
       await storage.put("browser:active:session-1", {
         browserbaseId: "bb-1",
+        connectUrl: "wss://connect.browserbase.com/bb-1",
         usedContext: false,
         startedAt: new Date().toISOString(),
       } satisfies ActiveSession);
 
       expect(await sm.isActive("session-1")).toBe(true);
+    });
+  });
+
+  describe("recoverOrphans", () => {
+    it("returns empty when no active sessions", async () => {
+      const recovered = await sm.recoverOrphans();
+      expect(recovered).toEqual([]);
+    });
+
+    it("releases orphaned sessions with no CDP client", async () => {
+      // Simulate orphan: KV entry exists but no in-memory CDP
+      const startedAt = new Date(Date.now() - 5 * 60_000).toISOString();
+      await storage.put("browser:active:orphan-1", {
+        browserbaseId: "bb-orphan-1",
+        connectUrl: "wss://connect.browserbase.com/bb-orphan-1",
+        usedContext: false,
+        startedAt,
+      } satisfies ActiveSession);
+
+      const recovered = await sm.recoverOrphans();
+
+      expect(recovered).toHaveLength(1);
+      expect(recovered[0].sessionId).toBe("orphan-1");
+      expect(recovered[0].durationMinutes).toBeGreaterThanOrEqual(5);
+      expect(bbClient.releaseSession).toHaveBeenCalledWith("bb-orphan-1");
+
+      // KV entry should be cleaned up
+      const active = await storage.get("browser:active:orphan-1");
+      expect(active).toBeUndefined();
+    });
+
+    it("recovers multiple orphaned sessions", async () => {
+      const startedAt = new Date(Date.now() - 10 * 60_000).toISOString();
+      await storage.put("browser:active:orphan-a", {
+        browserbaseId: "bb-a",
+        connectUrl: "wss://connect.browserbase.com/bb-a",
+        usedContext: false,
+        startedAt,
+      } satisfies ActiveSession);
+      await storage.put("browser:active:orphan-b", {
+        browserbaseId: "bb-b",
+        connectUrl: "wss://connect.browserbase.com/bb-b",
+        usedContext: false,
+        startedAt,
+      } satisfies ActiveSession);
+
+      const recovered = await sm.recoverOrphans();
+
+      expect(recovered).toHaveLength(2);
+      expect(bbClient.releaseSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("handles Browserbase API failure gracefully", async () => {
+      await storage.put("browser:active:orphan-fail", {
+        browserbaseId: "bb-fail",
+        connectUrl: "wss://connect.browserbase.com/bb-fail",
+        usedContext: false,
+        startedAt: new Date().toISOString(),
+      } satisfies ActiveSession);
+
+      // Make releaseSession fail
+      (bbClient.releaseSession as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error("API error"),
+      );
+
+      // Should not throw — best-effort
+      const recovered = await sm.recoverOrphans();
+      expect(recovered).toHaveLength(1);
+
+      // KV should still be cleaned up
+      const active = await storage.get("browser:active:orphan-fail");
+      expect(active).toBeUndefined();
     });
   });
 

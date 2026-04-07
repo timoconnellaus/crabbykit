@@ -5,6 +5,7 @@ import type { SessionManager } from "../session-manager.js";
 export function createBrowserNavigateTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onActivity?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -23,6 +24,9 @@ export function createBrowserNavigateTool(
       }
 
       try {
+        // Reset idle timer on activity
+        if (onActivity) await onActivity();
+
         await cdp.send("Page.navigate", { url });
         // Wait for page load
         await new Promise<void>((resolve) => {

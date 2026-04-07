@@ -92,7 +92,8 @@ describe("browserbase capability", () => {
   });
 
   it("throws if no storage available", () => {
-    const cap = browserbase(options);
+    // Use unique keys so the module-level cache doesn't satisfy the lookup
+    const cap = browserbase({ apiKey: "no-storage-key", projectId: "no-storage-proj" });
     const ctx = mockContext({ storage: undefined });
 
     expect(() => cap.tools!(ctx)).toThrow("requires capability storage");

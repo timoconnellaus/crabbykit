@@ -1556,29 +1556,123 @@
 
 /* --- Status bar --- */
 
+/* ── Status Bar ─────────────────────────────────────────────────────── */
+
 [data-agent-ui="status-bar"] {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.4rem 1rem;
-  font-size: 0.7rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
   color: var(--agent-ui-text-muted);
   border-bottom: 1px solid var(--agent-ui-border);
   background: var(--agent-ui-bg-surface);
+  min-height: 28px;
 }
 
-[data-agent-ui="status-bar"][data-connection="connected"] [data-agent-ui="status-connection"] {
-  color: var(--agent-ui-success);
+/* ── Connection dot ── */
+
+[data-agent-ui="status-dot"] {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-ui-text-muted);
+  flex-shrink: 0;
+  transition: background 0.3s ease;
 }
 
-[data-agent-ui="status-bar"][data-connection="disconnected"] [data-agent-ui="status-connection"],
-[data-agent-ui="status-bar"][data-connection="reconnecting"] [data-agent-ui="status-connection"] {
-  color: var(--agent-ui-danger);
+[data-agent-ui="status-bar"][data-connection="connected"] [data-agent-ui="status-dot"] {
+  background: var(--agent-ui-success);
+  box-shadow: 0 0 4px rgba(22, 163, 74, 0.4);
+}
+
+[data-agent-ui="status-bar"][data-connection="disconnected"] [data-agent-ui="status-dot"],
+[data-agent-ui="status-bar"][data-connection="reconnecting"] [data-agent-ui="status-dot"] {
+  background: var(--agent-ui-danger);
+  box-shadow: 0 0 4px rgba(220, 38, 38, 0.4);
+}
+
+[data-agent-ui="status-bar"][data-connection="reconnecting"] [data-agent-ui="status-dot"] {
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Shared badge base (sandbox + browser) ── */
+
+[data-agent-ui="sandbox-badge"],
+[data-agent-ui="browser-badge"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition: background 0.3s ease;
+}
+
+[data-agent-ui="sandbox-badge-dot"],
+[data-agent-ui="browser-badge-dot"] {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+[data-agent-ui="sandbox-badge-timer"],
+[data-agent-ui="browser-badge-timer"] {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Sandbox badge (emerald) ── */
+
+[data-agent-ui="sandbox-badge"] {
+  color: #10b981;
+}
+
+[data-agent-ui="sandbox-badge-dot"] {
+  background: #10b981;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+}
+
+[data-agent-ui="sandbox-badge-label"] {
+  font-weight: 600;
+}
+
+/* ── Browser badge (cyan) ── */
+
+[data-agent-ui="browser-badge"] {
+  color: #06b6d4;
+}
+
+[data-agent-ui="browser-badge-dot"] {
+  background: #06b6d4;
+  box-shadow: 0 0 4px rgba(6, 182, 212, 0.5);
+}
+
+[data-agent-ui="browser-badge-label"] {
+  font-weight: 600;
+}
+
+/* ── Spacer + Cost ── */
+
+[data-agent-ui="status-spacer"] {
+  flex: 1;
 }
 
 [data-agent-ui="status-cost"] {
-  margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
   color: var(--agent-ui-accent);
+  opacity: 0.85;
 }
 
 /* --- Sidebar --- */
@@ -2340,6 +2434,22 @@
   background: rgba(12, 12, 14, 0.9);
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+}
+
+[data-agent-ui="browser-panel-timeout"] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 12, 14, 0.92);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--agent-ui-font, "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.8rem;
   font-weight: 500;
   letter-spacing: 0.03em;
   z-index: 5;

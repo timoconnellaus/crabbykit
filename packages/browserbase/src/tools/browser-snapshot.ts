@@ -7,6 +7,7 @@ import type { AXNode } from "../types.js";
 export function createBrowserSnapshotTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onActivity?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -32,6 +33,9 @@ export function createBrowserSnapshotTool(
       }
 
       try {
+        // Reset idle timer on activity
+        if (onActivity) await onActivity();
+
         // Get accessibility tree
         const result = await cdp.send<{ nodes: AXNode[] }>("Accessibility.getFullAXTree");
 

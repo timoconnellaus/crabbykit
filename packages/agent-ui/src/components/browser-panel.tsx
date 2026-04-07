@@ -9,6 +9,15 @@ export interface BrowserPanelProps {
   onClose?: () => void;
   /** Whether the client is connected to the server. */
   connected?: boolean;
+  /** If set, the browser was auto-closed due to a timeout. */
+  timeoutReason?: "idle" | "max_duration";
+}
+
+/** Human-readable label for a timeout reason. */
+function timeoutLabel(reason: "idle" | "max_duration"): string {
+  return reason === "idle"
+    ? "Browser closed due to inactivity"
+    : "Browser closed — maximum session duration reached";
 }
 
 /**
@@ -21,6 +30,7 @@ export function BrowserPanel({
   pageUrl,
   onClose,
   connected = true,
+  timeoutReason,
 }: BrowserPanelProps) {
   const [loaded, setLoaded] = useState(false);
 
@@ -48,8 +58,9 @@ export function BrowserPanel({
       </div>
       <div data-agent-ui="browser-panel-iframe-container">
         {!loaded && <div data-agent-ui="browser-panel-loading">Loading browser...</div>}
-        {!connected && (
-          <div data-agent-ui="browser-panel-disconnected">Lost Connection</div>
+        {!connected && <div data-agent-ui="browser-panel-disconnected">Lost Connection</div>}
+        {timeoutReason && (
+          <div data-agent-ui="browser-panel-timeout">{timeoutLabel(timeoutReason)}</div>
         )}
         <iframe
           data-agent-ui="browser-panel-iframe"

@@ -63,7 +63,7 @@ export function ChatView() {
           }}
         >
           <TaskBreadcrumb tree={taskTree ?? null} activeTaskId={activeTaskId} />
-          <StatusBar sandboxState={sandboxState}>
+          <StatusBar sandboxState={sandboxState} browserState={browserState}>
             <button
               type="button"
               data-agent-ui="system-prompt-button"

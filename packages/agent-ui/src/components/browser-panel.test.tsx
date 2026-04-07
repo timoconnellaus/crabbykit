@@ -106,4 +106,36 @@ describe("BrowserPanel", () => {
     );
     expect(disconnected).toBeNull();
   });
+
+  it("shows timeout overlay with idle reason", () => {
+    render(
+      <BrowserPanel
+        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
+        timeoutReason="idle"
+      />,
+    );
+    const overlay = document.querySelector('[data-agent-ui="browser-panel-timeout"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.textContent).toContain("inactivity");
+  });
+
+  it("shows timeout overlay with max_duration reason", () => {
+    render(
+      <BrowserPanel
+        debuggerFullscreenUrl="https://debug.bb.com/fullscreen"
+        timeoutReason="max_duration"
+      />,
+    );
+    const overlay = document.querySelector('[data-agent-ui="browser-panel-timeout"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.textContent).toContain("maximum session duration");
+  });
+
+  it("does not show timeout overlay when no reason", () => {
+    render(
+      <BrowserPanel debuggerFullscreenUrl="https://debug.bb.com/fullscreen" />,
+    );
+    const overlay = document.querySelector('[data-agent-ui="browser-panel-timeout"]');
+    expect(overlay).toBeNull();
+  });
 });

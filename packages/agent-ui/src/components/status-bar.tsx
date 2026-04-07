@@ -1,4 +1,6 @@
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
+import type { BrowserState } from "../hooks/use-browser";
+import { BrowserBadge } from "./browser-badge";
 import { useChat } from "./chat-provider";
 import type { SandboxBadgeProps } from "./sandbox-badge";
 import { SandboxBadge } from "./sandbox-badge";
@@ -6,11 +8,13 @@ import { SandboxBadge } from "./sandbox-badge";
 export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {
   /** Sandbox state. Renders SandboxBadge when provided and elevated. */
   sandboxState?: SandboxBadgeProps;
+  /** Browser state. Renders BrowserBadge when provided and open. */
+  browserState?: BrowserState;
   /** Extra elements rendered after the default status indicators. */
   children?: ReactNode;
 }
 
-export function StatusBar({ sandboxState, children, ...props }: StatusBarProps) {
+export function StatusBar({ sandboxState, browserState, children, ...props }: StatusBarProps) {
   const { connectionStatus, agentStatus, thinking, costs } = useChat();
 
   const totalCost = useMemo(() => {
@@ -31,17 +35,15 @@ export function StatusBar({ sandboxState, children, ...props }: StatusBarProps) 
       data-agent-status={agentStatus}
       {...props}
     >
-      <span data-agent-ui="status-connection">{connectionStatus}</span>
-
-      {agentStatus !== "idle" && (
-        <span data-agent-ui="status-agent">{agentStatus.replace("_", " ")}</span>
-      )}
-
-      {thinking && <span data-agent-ui="status-thinking">Thinking...</span>}
-
-      {totalCost && <span data-agent-ui="status-cost">{totalCost}</span>}
+      <span data-agent-ui="status-dot" title={connectionStatus} />
 
       {sandboxState && <SandboxBadge {...sandboxState} />}
+
+      {browserState && <BrowserBadge browserState={browserState} />}
+
+      <span data-agent-ui="status-spacer" />
+
+      {totalCost && <span data-agent-ui="status-cost">{totalCost}</span>}
 
       {children}
     </div>

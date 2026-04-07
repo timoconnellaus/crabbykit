@@ -6,6 +6,7 @@ import { resolveRef } from "../snapshot.js";
 export function createBrowserTypeTool(
   sessionManager: SessionManager,
   context: AgentContext,
+  onActivity?: () => Promise<void>,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
 ): AgentTool<any> {
   return defineTool({
@@ -53,6 +54,9 @@ export function createBrowserTypeTool(
       }
 
       try {
+        // Reset idle timer on activity
+        if (onActivity) await onActivity();
+
         // Focus the element by clicking it
         if (resolved.backendDOMNodeId !== undefined) {
           await cdp.send("DOM.focus", { backendNodeId: resolved.backendDOMNodeId });

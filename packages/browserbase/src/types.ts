@@ -8,6 +8,10 @@ export interface BrowserbaseOptions {
   contextId?: string;
   /** Per-minute cost in USD for Browserbase sessions. Defaults to 0.002 ($0.12/hr). */
   perMinuteCostUsd?: number;
+  /** Seconds of inactivity before auto-closing the browser session. Defaults to 300 (5 min). */
+  idleTimeout?: number;
+  /** Maximum session duration in seconds. Defaults to 1800 (30 min). */
+  maxDuration?: number;
 }
 
 /** A cookie from the browser, matching CDP Network.Cookie shape. */
@@ -39,6 +43,8 @@ export interface BrowserState {
 /** Tracks an active browser session for a chat session. */
 export interface ActiveSession {
   browserbaseId: string;
+  /** CDP WebSocket connect URL for reconnecting after capability cache clear. */
+  connectUrl: string;
   /** Whether this session used Browserbase Context with persist=true. */
   usedContext: boolean;
   startedAt: string;
