@@ -1,12 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AppsPanel } from "../../components/apps-panel";
-import { useChatContext } from "../../context/chat-context";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/$agentId/apps")({
-  component: AppsRoute,
+  ssr: false,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$agentId/$sessionId/apps",
+      params: { agentId: params.agentId, sessionId: "latest" },
+    });
+  },
 });
-
-function AppsRoute() {
-  const { deployedApps } = useChatContext();
-  return <AppsPanel apps={deployedApps} />;
-}

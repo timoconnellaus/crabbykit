@@ -37,8 +37,8 @@ export function AgentRail({
           {agents.map((a) => (
             <Link
               key={a.id}
-              to="/$agentId/chat"
-              params={{ agentId: a.id }}
+              to="/$agentId/$sessionId/chat"
+              params={{ agentId: a.id, sessionId: "latest" }}
               data-agent-ui="agent-rail-item"
               data-active={a.id === selectedId || undefined}
               style={{ textDecoration: "none", color: "inherit" }}

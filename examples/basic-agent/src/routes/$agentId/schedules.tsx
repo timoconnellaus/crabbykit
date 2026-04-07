@@ -1,18 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SchedulePanel } from "../../components/schedule-panel";
-import { useChatContext } from "../../context/chat-context";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/$agentId/schedules")({
-  component: SchedulesRoute,
+  ssr: false,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$agentId/$sessionId/schedules",
+      params: { agentId: params.agentId, sessionId: "latest" },
+    });
+  },
 });
-
-function SchedulesRoute() {
-  const { agentId, chat } = useChatContext();
-  return (
-    <SchedulePanel
-      agentId={agentId}
-      schedules={chat.schedules}
-      toggleSchedule={chat.toggleSchedule}
-    />
-  );
-}

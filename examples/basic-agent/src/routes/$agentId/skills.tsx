@@ -1,12 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SkillsPanel } from "../../components/skills-panel";
-import { useChatContext } from "../../context/chat-context";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/$agentId/skills")({
-  component: SkillsRoute,
+  ssr: false,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$agentId/$sessionId/skills",
+      params: { agentId: params.agentId, sessionId: "latest" },
+    });
+  },
 });
-
-function SkillsRoute() {
-  const { chat, agentId } = useChatContext();
-  return <SkillsPanel skills={chat.skills} agentId={agentId} />;
-}
