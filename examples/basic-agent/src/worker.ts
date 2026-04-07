@@ -1,4 +1,4 @@
-import { appRegistry, handleAppRequest } from "@claw-for-cloudflare/app-registry";
+import { appRegistry } from "@claw-for-cloudflare/app-registry";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
@@ -22,7 +22,6 @@ import { taskTracker } from "@claw-for-cloudflare/task-tracker";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
-  handlePreviewRequest,
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { batchTool } from "@claw-for-cloudflare/batch-tool";
@@ -44,12 +43,11 @@ import { skills } from "@claw-for-cloudflare/skills";
 import {
   BackendStorage,
   DbService,
-  handleDeployRequest,
   vibeCoder,
 } from "@claw-for-cloudflare/vibe-coder";
 import { debugInspector } from "./debug-capability";
 
-interface Env {
+export interface Env {
   AGENT: DurableObjectNamespace;
   SANDBOX_CONTAINER: DurableObjectNamespace;
   BACKEND_STORAGE: DurableObjectNamespace;
@@ -651,74 +649,3 @@ export class BasicAgent extends AgentDO<Env> {
 
 // Re-export DOs and entrypoints for wrangler to bind
 export { AiService, BackendStorage, DbService, SandboxContainer };
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const jsonHeaders = { "content-type": "application/json" };
-
-    // GET /agents — list all agents from registry
-    if (url.pathname === "/agents" && request.method === "GET") {
-      const registry = new D1AgentRegistry(env.AGENT_DB);
-      const agents = await registry.list("default");
-      return new Response(JSON.stringify(agents), { headers: jsonHeaders });
-    }
-
-    // POST /agents — create a new root agent
-    if (url.pathname === "/agents" && request.method === "POST") {
-      const body = (await request.json()) as { name: string };
-      const registry = new D1AgentRegistry(env.AGENT_DB);
-      const agent = await registry.create({
-        id: crypto.randomUUID(),
-        name: body.name,
-        ownerId: "default",
-        parentAgentId: null,
-      });
-      return new Response(JSON.stringify(agent), { headers: jsonHeaders, status: 201 });
-    }
-
-    // /deploy/:agentId/:deployId[/...] — serve deployed apps via worker loader (legacy)
-    const deployRes = handleDeployRequest({
-      request,
-      agentNamespace: env.AGENT,
-      storageBucket: env.STORAGE_BUCKET,
-      loader: env.LOADER,
-      dbService: env.DB_SERVICE,
-      aiService: env.AI_SERVICE,
-    });
-    if (deployRes) return deployRes;
-
-    // /apps/:slug[/...] — serve named apps via app-registry
-    const appRes = handleAppRequest({
-      request,
-      agentNamespace: env.AGENT,
-      storageBucket: env.STORAGE_BUCKET,
-      loader: env.LOADER,
-      dbService: env.DB_SERVICE,
-    });
-    if (appRes) return appRes;
-
-    // /preview/:id[/...] — proxy to sandbox container for dev server preview
-    // With Bun fullstack, the container handles both HTML and API routes
-    const previewRes = handlePreviewRequest({
-      request,
-      agentNamespace: env.AGENT,
-      containerNamespace: env.SANDBOX_CONTAINER,
-    });
-    if (previewRes) return previewRes;
-
-    // /agent/:agentId[/...] — route to agent DO by ID
-    const agentMatch = url.pathname.match(/^\/agent\/([^/]+)(\/.*)?$/);
-    if (agentMatch) {
-      const agentId = agentMatch[1];
-      const id = env.AGENT.idFromName(agentId);
-      const stub = env.AGENT.get(id);
-      // Strip the /agent/:agentId prefix so the DO sees clean paths
-      const doUrl = new URL(request.url);
-      doUrl.pathname = agentMatch[2] || "/";
-      return stub.fetch(new Request(doUrl.toString(), request));
-    }
-
-    return new Response("Basic Agent Example", { status: 200 });
-  },
-};

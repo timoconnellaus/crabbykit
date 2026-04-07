@@ -9,7 +9,7 @@ export interface RegistrySkill {
 }
 
 function baseUrl(agentId: string) {
-  return `/agent/${agentId}`;
+  return `/api/agent/${agentId}`;
 }
 
 export function useSkillsApi(agentId: string | null) {

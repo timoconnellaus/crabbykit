@@ -49,7 +49,7 @@ async function post(path: string, body: unknown) {
 
 function agentPath(sub: string) {
   if (!agentId) throw new Error("No agent selected. Run 'agents' then 'use <id>'.");
-  return `/agent/${agentId}${sub}`;
+  return `/api/agent/${agentId}${sub}`;
 }
 
 // --- Output helpers ---
@@ -101,9 +101,9 @@ function extractText(content: unknown): string {
 // --- Commands ---
 
 async function cmdAgents() {
-  const agents = (await get("/agents")) as Array<{ id: string; name: string }>;
+  const agents = (await get("/api/agents")) as Array<{ id: string; name: string }>;
   if (agents.length === 0) {
-    console.log(`${c.dim}No agents found. Create one with POST /agents.${c.reset}`);
+    console.log(`${c.dim}No agents found. Create one with POST /api/agents.${c.reset}`);
     return;
   }
   console.log(`${c.bold}Agents:${c.reset}`);
@@ -429,7 +429,7 @@ async function handleLine(line: string) {
 
 async function autoSelectAgent() {
   try {
-    const agents = (await get("/agents")) as Array<{ id: string; name: string }>;
+    const agents = (await get("/api/agents")) as Array<{ id: string; name: string }>;
     if (agents.length === 1) {
       agentId = agents[0].id;
       console.log(

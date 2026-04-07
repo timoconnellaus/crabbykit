@@ -40,7 +40,7 @@ export interface FullSchedule {
 }
 
 function baseUrl(agentId: string) {
-  return `/agent/${agentId}/schedules`;
+  return `/api/agent/${agentId}/schedules`;
 }
 
 export function useScheduleApi(agentId: string | null) {

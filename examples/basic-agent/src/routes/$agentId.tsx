@@ -1,42 +1,30 @@
 import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
 import type { SandboxBadgeProps, SubagentInfo, TaskNode } from "@claw-for-cloudflare/agent-ui";
 import { useBrowser, usePreview } from "@claw-for-cloudflare/agent-ui";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentRecord } from "./components/agent-rail";
-import { AgentRail } from "./components/agent-rail";
-import { ChatView } from "./components/chat-view";
-import { AppsPanel } from "./components/apps-panel";
-import type { PendingA2ATask } from "./components/pending-tasks";
-import { SchedulePanel } from "./components/schedule-panel";
-import { SkillsPanel } from "./components/skills-panel";
-import { TabBar } from "./components/tab-bar";
+import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AgentRecord } from "../components/agent-rail";
+import { AgentRail } from "../components/agent-rail";
+import { ChatView } from "../components/chat-view";
+import type { PendingA2ATask } from "../components/pending-tasks";
+import { TabBar } from "../components/tab-bar";
+import type { AppSummary } from "../context/chat-context";
+import { ChatContextProvider } from "../context/chat-context";
 
-const TABS = [
-  { id: "chat", label: "Chat" },
-  { id: "apps", label: "Apps" },
-  { id: "schedules", label: "Schedules" },
-  { id: "skills", label: "Skills" },
-] as const;
+export const Route = createFileRoute("/$agentId")({
+  ssr: false,
+  component: AgentLayout,
+});
 
-export default function App() {
+function AgentLayout() {
+  const { agentId } = Route.useParams();
+  const navigate = useNavigate();
+  const routerState = useRouterState();
+
   const [agents, setAgents] = useState<AgentRecord[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("chat");
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
-  const [deployedApps, setDeployedApps] = useState<
-    Array<{
-      id: string;
-      name: string;
-      slug: string;
-      currentVersion: number;
-      hasBackend: boolean;
-      lastDeployedAt: string;
-      commitHash: string;
-      commitMessage: string | null;
-    }>
-  >([]);
-
+  const [deployedApps, setDeployedApps] = useState<AppSummary[]>([]);
   const [taskTree, setTaskTree] = useState<TaskNode | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | undefined>();
   const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
@@ -44,15 +32,18 @@ export default function App() {
   const preview = usePreview();
   const browser = useBrowser();
 
-  // Reset tab when switching agents
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedAgentId is the intentional trigger
-  useEffect(() => {
-    setActiveTab("chat");
-  }, [selectedAgentId]);
+  // Detect which tab is active from the URL
+  const activeTab = useMemo(() => {
+    const pathname = routerState.location.pathname;
+    if (pathname.endsWith("/apps")) return "apps";
+    if (pathname.endsWith("/schedules")) return "schedules";
+    if (pathname.endsWith("/skills")) return "skills";
+    return "chat";
+  }, [routerState.location.pathname]);
 
   // Fetch agent list from registry
   const fetchAgents = useCallback(async () => {
-    let list = (await (await fetch("/agents")).json()) as AgentRecord[];
+    let list = (await (await fetch("/api/agents")).json()) as AgentRecord[];
     if (list.length === 0) {
       const res = await fetch("/agents", {
         method: "POST",
@@ -71,14 +62,10 @@ export default function App() {
   useEffect(() => {
     if (bootstrapRef.current) return;
     bootstrapRef.current = true;
-    fetchAgents().then((list) => {
-      if (!selectedAgentId && list.length > 0) {
-        setSelectedAgentId(list[0].id);
-      }
-    });
+    fetchAgents();
     const interval = setInterval(fetchAgents, 5000);
     return () => clearInterval(interval);
-  }, [fetchAgents, selectedAgentId]);
+  }, [fetchAgents]);
 
   const onCustomEvent = useCallback(
     (name: string, data: Record<string, unknown>) => {
@@ -87,14 +74,13 @@ export default function App() {
       if (browser.handleCustomEvent(name, data)) return;
 
       if (name === "app_list") {
-        const apps = data.apps as typeof deployedApps;
+        const apps = data.apps as AppSummary[];
         setDeployedApps(apps);
         return;
       }
 
       if (name === "sandbox_elevation") {
         setSandboxState((prev) => ({ ...prev, elevated: data.elevated as boolean }));
-        // Close preview when sandbox de-elevates -- the container is going down
         if (!data.elevated) {
           preview.closePreview();
         }
@@ -150,11 +136,8 @@ export default function App() {
 
   const onTaskEvent = useCallback(
     (event: { changeType: string; task: Record<string, unknown> }) => {
-      // For simplicity, store the latest task tree root when we see task events.
-      // A full implementation would maintain a task map and rebuild the tree.
       const task = event.task;
       if (event.changeType === "created" && !task.parentId) {
-        // New root task — set as tree root
         setTaskTree({
           id: task.id as string,
           title: task.title as string,
@@ -217,9 +200,13 @@ export default function App() {
     [],
   );
 
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  // Build WebSocket URL — only on the client
+  const wsUrl = typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/agent/${agentId}`
+    : "";
+
   const chat = useAgentChat({
-    url: selectedAgentId ? `${wsProtocol}//${window.location.host}/agent/${selectedAgentId}` : "",
+    url: wsUrl,
     onCustomEvent,
     onCustomRequest,
     onTaskEvent,
@@ -241,75 +228,73 @@ export default function App() {
     });
     const agent = (await res.json()) as AgentRecord;
     setAgents((prev) => [...prev, agent]);
-    setSelectedAgentId(agent.id);
-  }, []);
+    navigate({ to: "/$agentId/chat", params: { agentId: agent.id } });
+  }, [navigate]);
+
+  const contextValue = useMemo(
+    () => ({
+      chat,
+      agentId,
+      sandboxState,
+      pendingTasks,
+      deployedApps,
+      previewState: preview.previewState,
+      consoleLogs: preview.consoleLogs,
+      onClearLogs: preview.clearLogs,
+      onClosePreview: handleClosePreview,
+      logFilter: preview.logFilter,
+      onLogFilterChange: preview.setLogFilter,
+      taskTree,
+      activeTaskId,
+      onTaskClick: setActiveTaskId,
+      subagents,
+      browserState: browser.browserState,
+      onCloseBrowser: browser.closeBrowser,
+    }),
+    [
+      chat,
+      agentId,
+      sandboxState,
+      pendingTasks,
+      deployedApps,
+      preview.previewState,
+      preview.consoleLogs,
+      preview.clearLogs,
+      handleClosePreview,
+      preview.logFilter,
+      preview.setLogFilter,
+      taskTree,
+      activeTaskId,
+      subagents,
+      browser.browserState,
+      browser.closeBrowser,
+    ],
+  );
 
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
+    <ChatContextProvider value={contextValue}>
       <AgentRail
         agents={agents}
-        selectedId={selectedAgentId}
-        onSelect={setSelectedAgentId}
+        selectedId={agentId}
         onCreateAgent={handleCreateAgent}
       />
-      {selectedAgentId ? (
-        <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-          <TabBar tabs={[...TABS]} activeTab={activeTab} onTabChange={setActiveTab} />
-          {/* Chat stays mounted (hidden) to keep WebSocket alive */}
-          <div
-            style={{
-              display: activeTab === "chat" ? "flex" : "none",
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-            }}
-          >
-            <ChatView
-              chat={chat}
-              sandboxState={sandboxState}
-              pendingTasks={pendingTasks}
-              previewState={preview.previewState}
-              agentId={selectedAgentId}
-              consoleLogs={preview.consoleLogs}
-              onClearLogs={preview.clearLogs}
-              onClosePreview={handleClosePreview}
-              logFilter={preview.logFilter}
-              onLogFilterChange={preview.setLogFilter}
-              taskTree={taskTree}
-              activeTaskId={activeTaskId}
-              onTaskClick={setActiveTaskId}
-              subagents={subagents}
-              browserState={browser.browserState}
-              onCloseBrowser={browser.closeBrowser}
-            />
-          </div>
-          {activeTab === "apps" && <AppsPanel apps={deployedApps} />}
-          {activeTab === "schedules" && (
-            <SchedulePanel
-              agentId={selectedAgentId}
-              schedules={chat.schedules}
-              toggleSchedule={chat.toggleSchedule}
-            />
-          )}
-          {activeTab === "skills" && (
-            <SkillsPanel skills={chat.skills} agentId={selectedAgentId} />
-          )}
-        </div>
-      ) : (
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+        <TabBar agentId={agentId} activeTab={activeTab} />
+        {/* Chat stays mounted (hidden) to keep WebSocket alive */}
         <div
           style={{
+            display: activeTab === "chat" ? "flex" : "none",
             flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--agent-ui-text-muted)",
-            fontFamily: "SF Mono, Fira Code, JetBrains Mono, ui-monospace, monospace",
-            fontSize: "0.8rem",
+            minWidth: 0,
+            overflow: "hidden",
           }}
         >
-          Select an agent to start
+          <ChatView />
         </div>
-      )}
-    </div>
+        {activeTab !== "chat" && (
+          <Outlet />
+        )}
+      </div>
+    </ChatContextProvider>
   );
 }

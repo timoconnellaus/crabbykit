@@ -1,11 +1,3 @@
-import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
-import type {
-  BrowserState,
-  ConsoleLogEntry,
-  SandboxBadgeProps,
-  SubagentInfo,
-  TaskNode,
-} from "@claw-for-cloudflare/agent-ui";
 import {
   AppPreview,
   BrowserPanel,
@@ -21,44 +13,29 @@ import {
   ThinkingIndicator,
 } from "@claw-for-cloudflare/agent-ui";
 import { useState } from "react";
-import type { PendingA2ATask } from "./pending-tasks";
+import { useChatContext } from "../context/chat-context";
 import { PendingTasksBanner } from "./pending-tasks";
 
-export function ChatView({
-  chat,
-  sandboxState,
-  pendingTasks,
-  previewState,
-  agentId,
-  consoleLogs,
-  onClearLogs,
-  onClosePreview,
-  logFilter,
-  onLogFilterChange,
-  taskTree,
-  activeTaskId,
-  onTaskClick,
-  subagents,
-  browserState,
-  onCloseBrowser,
-}: {
-  chat: UseAgentChatReturn;
-  sandboxState: SandboxBadgeProps;
-  pendingTasks: PendingA2ATask[];
-  previewState: { open: boolean; port?: number; previewBasePath?: string };
-  agentId: string;
-  consoleLogs: ConsoleLogEntry[];
-  onClearLogs: () => void;
-  onClosePreview: () => void;
-  logFilter: "all" | "error" | "warn" | "info" | "log";
-  onLogFilterChange: (filter: "all" | "error" | "warn" | "info" | "log") => void;
-  taskTree?: TaskNode | null;
-  activeTaskId?: string;
-  onTaskClick?: (taskId: string) => void;
-  subagents?: SubagentInfo[];
-  browserState?: BrowserState;
-  onCloseBrowser?: () => void;
-}) {
+export function ChatView() {
+  const {
+    chat,
+    sandboxState,
+    pendingTasks,
+    previewState,
+    agentId,
+    consoleLogs,
+    onClearLogs,
+    onClosePreview,
+    logFilter,
+    onLogFilterChange,
+    taskTree,
+    activeTaskId,
+    onTaskClick,
+    subagents,
+    browserState,
+    onCloseBrowser,
+  } = useChatContext();
+
   const [promptOpen, setPromptOpen] = useState(false);
 
   return (
@@ -121,7 +98,7 @@ export function ChatView({
         {previewState.open && (
           <div style={{ flex: 7, minWidth: 0 }}>
             <AppPreview
-              previewUrl={previewState.previewBasePath || `/preview/${agentId}/`}
+              previewUrl={previewState.previewBasePath || `/api/preview/${agentId}/`}
               logs={consoleLogs}
               onClearLogs={onClearLogs}
               onClose={onClosePreview}

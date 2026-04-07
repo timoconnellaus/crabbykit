@@ -1,33 +1,35 @@
+import { Link } from "@tanstack/react-router";
 import { layoutStyles } from "../styles/layout";
 
-export interface Tab {
-  id: string;
-  label: string;
-}
+const TABS = [
+  { id: "chat", label: "Chat" },
+  { id: "apps", label: "Apps" },
+  { id: "schedules", label: "Schedules" },
+  { id: "skills", label: "Skills" },
+] as const;
 
 export function TabBar({
-  tabs,
+  agentId,
   activeTab,
-  onTabChange,
 }: {
-  tabs: Tab[];
+  agentId: string;
   activeTab: string;
-  onTabChange: (tab: string) => void;
 }) {
   return (
     <>
       <style>{layoutStyles}</style>
       <div data-agent-ui="tab-bar">
-        {tabs.map((tab) => (
-          <button
+        {TABS.map((tab) => (
+          <Link
             key={tab.id}
-            type="button"
+            to={`/$agentId/${tab.id}`}
+            params={{ agentId }}
             data-agent-ui="tab-item"
             data-active={tab.id === activeTab || undefined}
-            onClick={() => onTabChange(tab.id)}
+            style={{ textDecoration: "none", color: "inherit" }}
           >
             {tab.label}
-          </button>
+          </Link>
         ))}
       </div>
     </>

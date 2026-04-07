@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { agentRailStyles } from "../styles/agent-rail";
 
 export interface AgentRecord {
@@ -10,12 +11,10 @@ export interface AgentRecord {
 export function AgentRail({
   agents,
   selectedId,
-  onSelect,
   onCreateAgent,
 }: {
   agents: AgentRecord[];
   selectedId: string | null;
-  onSelect: (id: string) => void;
   onCreateAgent: () => void;
 }) {
   return (
@@ -36,16 +35,17 @@ export function AgentRail({
         <div data-agent-ui="agent-rail-list">
           {agents.length === 0 && <div data-agent-ui="agent-rail-empty">No agents</div>}
           {agents.map((a) => (
-            <button
+            <Link
               key={a.id}
-              type="button"
+              to="/$agentId/chat"
+              params={{ agentId: a.id }}
               data-agent-ui="agent-rail-item"
               data-active={a.id === selectedId || undefined}
-              onClick={() => onSelect(a.id)}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
               <span data-agent-ui="agent-rail-dot" />
               <span data-agent-ui="agent-rail-name">{a.name}</span>
-            </button>
+            </Link>
           ))}
         </div>
       </div>

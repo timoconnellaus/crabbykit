@@ -25,7 +25,7 @@ function relativeTime(iso: string | null): string {
 }
 
 function AppCard({ app }: { app: AppSummary }) {
-  const appUrl = `/apps/${app.slug}/`;
+  const appUrl = `/api/apps/${app.slug}/`;
 
   return (
     <div data-agent-ui="app-card">
