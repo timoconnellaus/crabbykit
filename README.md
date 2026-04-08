@@ -37,29 +37,113 @@ Internal (not published): `agent-core` (LLM agent loop), `ai` (model provider ab
 ## Quick Start
 
 ```ts
-import { AgentDO, defineTool } from "@claw-for-cloudflare/agent-runtime";
+import { defineAgent, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 
-export class MyAgent extends AgentDO {
-  getConfig() {
-    return { provider: "openrouter", model: "anthropic/claude-sonnet-4" };
-  }
+interface Env {
+  OPENROUTER_API_KEY: string;
+}
 
-  buildSystemPrompt() {
-    return "You are a helpful assistant.";
-  }
-
-  getTools() {
-    return [
-      defineTool({
-        name: "greet",
-        description: "Greet a user",
-        parameters: Type.Object({ name: Type.String() }),
-        execute: async ({ name }) => ({ content: `Hello, ${name}!` }),
+export const MyAgent = defineAgent<Env>({
+  model: (env) => ({
+    provider: "openrouter",
+    modelId: "anthropic/claude-sonnet-4",
+    apiKey: env.OPENROUTER_API_KEY,
+  }),
+  prompt: "You are a helpful assistant.",
+  tools: () => [
+    defineTool({
+      name: "greet",
+      description: "Greet a user",
+      parameters: Type.Object({ name: Type.String() }),
+      execute: async ({ name }) => ({
+        content: [{ type: "text", text: `Hello, ${name}!` }],
+        details: null,
       }),
-    ];
+    }),
+  ],
+});
+```
+
+Then bind `MyAgent` as a Durable Object in your `wrangler.toml` — it is
+itself the DO class, no subclassing required.
+
+### Customizing your agent
+
+`defineAgent()` accepts a single flat configuration object. Every field is
+optional except `model`:
+
+```ts
+defineAgent<Env>({
+  // LLM configuration. Literal or function of env.
+  model: (env) => ({ provider, modelId, apiKey: env.KEY }),
+
+  // Literal string → override the full system prompt (no capability
+  // sections appended). PromptOptions object → customize default sections.
+  prompt: { agentName: "My Agent", agentDescription: "...", timezone: "UTC" },
+
+  // Tools — receives the per-session AgentContext.
+  tools: (ctx) => [/* defineTool(...) */],
+
+  // Capabilities — receives AgentSetup with env, agentId, sqlStore,
+  // sessionStore, transport, resolveToolsForSession.
+  capabilities: ({ env, agentId, sqlStore }) => [
+    compactionSummary({ /* ... */ }),
+    r2Storage({ /* ... */ }),
+  ],
+
+  // Subagent profiles, slash commands, A2A client wiring.
+  subagentProfiles: ({ env }) => [/* ... */],
+  commands: (ctx) => [/* defineCommand(...) */],
+  a2a: ({ env }) => ({ getAgentStub: (id) => env.AGENT.get(env.AGENT.idFromName(id)) }),
+
+  // Lifecycle hooks. Factory called once at construction with setup.
+  hooks: ({ env }) => ({
+    onTurnEnd: async (messages) => { /* ... */ },
+    onAgentEnd: async (messages) => { /* ... */ },
+  }),
+
+  // Observability.
+  logger: myLogger,
+  onError: (err, info) => console.error(`[${info.source}]`, err),
+
+  // Custom HTTP pre-routing. Return null to fall through.
+  fetch: async (request, { sessionStore, transport }) => {
+    // return Response or null
+    return null;
+  },
+});
+```
+
+### Advanced Usage: `extends AgentDO`
+
+If you need direct `this.ctx` / `this.env` access, custom constructor
+logic, or more elaborate fetch routing, fall back to the class-based
+escape hatch:
+
+```ts
+import { AgentDO, type AgentConfig, type AgentContext } from "@claw-for-cloudflare/agent-runtime";
+
+export class MyAgent extends AgentDO<Env> {
+  getConfig(): AgentConfig {
+    return {
+      provider: "openrouter",
+      modelId: "anthropic/claude-sonnet-4",
+      apiKey: this.env.OPENROUTER_API_KEY,
+    };
   }
+
+  getTools(_context: AgentContext) {
+    return [/* ... */];
+  }
+
+  // Override any of buildSystemPrompt, getPromptOptions, getCapabilities,
+  // getCommands, getA2AClientOptions, validateAuth, onTurnEnd, etc.
 }
 ```
+
+Both paths run the same underlying `AgentRuntime` — the factory is a thin
+wrapper. See `examples/basic-agent` for a full-featured sample using
+`defineAgent`.
 
 ## Tech Stack
 

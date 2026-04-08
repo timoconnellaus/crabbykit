@@ -36,14 +36,34 @@ export type { Model } from "@claw-for-cloudflare/ai";
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export { Value } from "@sinclair/typebox/value";
 export type {
+  A2AClientOptions,
   A2AConfig,
   AgentConfig,
   AgentContext,
+  AgentRuntimeOptions,
+  ErrorInfo,
+  ErrorSource,
+  Logger,
   ScheduleManager,
   SubagentProfile,
-} from "./agent-do.js";
-// Agent DO
+} from "./agent-runtime.js";
+// Platform-agnostic runtime
+export { AgentRuntime } from "./agent-runtime.js";
+// Agent DO (Cloudflare shell)
 export { AgentDO } from "./agent-do.js";
+// defineAgent factory
+export {
+  defineAgent,
+  type AgentDefinition,
+  type AgentSetup,
+} from "./define-agent.js";
+// Runtime context abstractions
+export type { RuntimeContext } from "./runtime-context.js";
+export { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
+export {
+  type AgentDelegate,
+  createDelegatingRuntime,
+} from "./runtime-delegating.js";
 export type {
   BeforeToolExecutionEvent,
   BeforeToolExecutionResult,

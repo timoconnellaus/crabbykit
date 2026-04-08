@@ -1,49 +1,36 @@
-import { appRegistry } from "@claw-for-cloudflare/app-registry";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
-import type {
-  AgentConfig,
-  AgentContext,
-  AgentTool,
-  Capability,
-  PromptOptions,
-} from "@claw-for-cloudflare/agent-runtime";
-import {
-  AgentDO,
-  createCfSqlStore,
-  defineTool,
-  Type,
-  Value,
-} from "@claw-for-cloudflare/agent-runtime";
-import type { SubagentProfile } from "@claw-for-cloudflare/agent-runtime";
-import { explorer } from "@claw-for-cloudflare/subagent-explorer";
-import { taskTracker } from "@claw-for-cloudflare/task-tracker";
+import type { AgentTool } from "@claw-for-cloudflare/agent-runtime";
+import { defineAgent, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
+import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
+import { appRegistry } from "@claw-for-cloudflare/app-registry";
+import { batchTool } from "@claw-for-cloudflare/batch-tool";
+import { browserbase } from "@claw-for-cloudflare/browserbase";
 import {
   CloudflareSandboxProvider,
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
-import { batchTool } from "@claw-for-cloudflare/batch-tool";
-import { browserbase } from "@claw-for-cloudflare/browserbase";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
-import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
-import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
+import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
 import { heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
-import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
-import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
-import { aiProxy, AiService } from "@claw-for-cloudflare/ai-proxy";
 import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
 import { skills } from "@claw-for-cloudflare/skills";
+import { explorer } from "@claw-for-cloudflare/subagent-explorer";
+import { taskTracker } from "@claw-for-cloudflare/task-tracker";
+import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
+import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
+import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
-import { debugInspector } from "./debug-capability";
-import vibeWebappSkillMd from "../skills/vibe-webapp/SKILL.md?raw";
 import codeReviewSkillMd from "../skills/code-review/SKILL.md?raw";
 import debugSystematicSkillMd from "../skills/debug-systematic/SKILL.md?raw";
+import vibeWebappSkillMd from "../skills/vibe-webapp/SKILL.md?raw";
+import { debugInspector } from "./debug-capability";
 
 export interface Env {
   AGENT: DurableObjectNamespace;
@@ -78,232 +65,197 @@ const EXAMPLE_SKILL_SEEDS = [
 ];
 
 /**
- * A minimal agent that can tell the time and do basic math.
- * Demonstrates extending AgentDO with custom tools.
+ * Minimal agent built with the declarative `defineAgent` factory.
+ *
+ * Demonstrates how consumers can wire up capabilities, tools, A2A, hooks,
+ * and custom HTTP routes without subclassing {@link AgentDO}. For cases that
+ * need direct `this.ctx` access or bespoke constructor logic, consumers can
+ * still `class MyAgent extends AgentDO { ... }` as the escape hatch.
  */
-export class BasicAgent extends AgentDO<Env> {
-  getConfig(): AgentConfig {
-    return {
-      provider: "openrouter",
-      modelId: "minimax/minimax-m2.7",
-      apiKey: this.env.OPENROUTER_API_KEY,
-      a2a: { discoverable: true },
-    };
-  }
+export const BasicAgent = defineAgent<Env>({
+  model: (env) => ({
+    provider: "openrouter",
+    modelId: "minimax/minimax-m2.7",
+    apiKey: env.OPENROUTER_API_KEY,
+    a2a: { discoverable: true },
+  }),
 
-  protected getCapabilities(): Capability[] {
+  prompt: {
+    agentName: "Basic Agent",
+    agentDescription: "A helpful agent that can search, compute, and manage files.",
+    timezone: "UTC",
+  },
+
+  tools: () => [
+    defineTool({
+      name: "get_current_time",
+      description: "Get the current date and time in ISO format.",
+      parameters: Type.Object({}),
+      execute: async () => ({
+        content: [{ type: "text" as const, text: new Date().toISOString() }],
+        details: null,
+      }),
+    }),
+    defineTool({
+      name: "calculate",
+      description: "Evaluate a math expression.",
+      parameters: Type.Object({
+        expression: Type.String({ description: "The math expression to evaluate" }),
+      }),
+      execute: async ({ expression }) => {
+        try {
+          const result = Function(`"use strict"; return (${expression})`)();
+          return {
+            content: [{ type: "text" as const, text: String(result) }],
+            details: { expression, result },
+          };
+        } catch (e: unknown) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          return {
+            content: [{ type: "text" as const, text: `Error: ${errorMessage}` }],
+            details: { expression, error: errorMessage },
+          };
+        }
+      },
+    }),
+  ],
+
+  capabilities: ({ env, agentId, sqlStore, sessionStore, resolveToolsForSession }) => {
     const storage = agentStorage({
-      bucket: () => this.env.STORAGE_BUCKET,
-      namespace: this.ctx.id.toString(),
+      bucket: () => env.STORAGE_BUCKET,
+      namespace: agentId,
     });
 
     // Share a single sandbox provider across capabilities so env var
     // injection (e.g. AI proxy token) reaches the same container.
     const sandboxProvider = new CloudflareSandboxProvider({
       storage,
-      getStub: () => {
-        const id = this.env.SANDBOX_CONTAINER.idFromName(this.ctx.id.toString());
-        return this.env.SANDBOX_CONTAINER.get(id);
-      },
+      getStub: () => env.SANDBOX_CONTAINER.get(env.SANDBOX_CONTAINER.idFromName(agentId)),
       containerMode: "dev",
     });
 
-    return [
-      compactionSummary({
-        provider: "openrouter",
-        modelId: "google/gemini-2.0-flash-001",
-        getApiKey: () => this.env.OPENROUTER_API_KEY,
-        pruneBudget: 40_000,
-      }),
-      tavilyWebSearch({
-        tavilyApiKey: () => this.env.TAVILY_API_KEY,
-      }),
-      r2Storage({ storage }),
-      vectorMemory({
-        storage,
-        vectorizeIndex: () => this.env.MEMORY_INDEX,
-        ai: () => this.env.AI,
-      }),
-      promptScheduler(),
-      credentialStore(),
-      heartbeat({ every: "30m", enabled: false }),
-      ...this.buildAgentOpsCapabilities(),
-      sandboxCapability({ provider: sandboxProvider }),
-      doomLoopDetection(),
-      toolOutputTruncation(),
-      batchTool({
-        getTools: () => this.resolveToolsForSession(this.sessionStore.list()[0]?.id ?? "").tools,
-      }),
-      taskTracker({ sql: createCfSqlStore(this.ctx.storage.sql) }),
-      browserbase({
-        apiKey: this.env.BROWSERBASE_API_KEY,
-        projectId: this.env.BROWSERBASE_PROJECT_ID,
-      }),
-      debugInspector(),
-      vibeCoder({
-        provider: sandboxProvider,
-        backend: {
-          loader: this.env.LOADER,
-          dbService: this.env.DB_SERVICE,
-          aiService: this.env.AI_SERVICE,
-        },
-      }),
-      appRegistry({
-        provider: sandboxProvider,
-        sql: createCfSqlStore(this.ctx.storage.sql),
-        storage,
-        backend: {
-          loader: this.env.LOADER,
-          dbService: this.env.DB_SERVICE,
-        },
-      }),
-      aiProxy({
-        apiKey: () => this.env.OPENROUTER_API_KEY,
-      }),
-      skills({
-        storage,
-        registry: new D1SkillRegistry(this.env.SKILL_DB, {
-          seeds: EXAMPLE_SKILL_SEEDS,
-        }),
-        skills: [
-          { id: "vibe-webapp", enabled: true },
-          { id: "code-review", enabled: true },
-        ],
-      }),
-    ];
-  }
-
-  private buildAgentOpsCapabilities(): Capability[] {
-    const agentId = this.ctx.id.toString();
-    const getAgentStub = (id: string) => this.env.AGENT.get(this.env.AGENT.idFromName(id));
-    // resolveDoId converts registry UUIDs to DO hex IDs for HMAC token signing,
-    // ensuring the token target matches the receiving DO's this.ctx.id.toString().
-    const resolveDoId = (id: string) => this.env.AGENT.idFromName(id).toString();
-    const registry = new D1AgentRegistry(this.env.AGENT_DB);
-
+    // Agent-ops: fleet + peering wiring with shared identity.
+    const getAgentStub = (id: string) => env.AGENT.get(env.AGENT.idFromName(id));
+    const resolveDoId = (id: string) => env.AGENT.idFromName(id).toString();
+    const agentRegistry = new D1AgentRegistry(env.AGENT_DB);
     const peering = agentPeering({
-      secret: this.env.AGENT_SECRET,
+      secret: env.AGENT_SECRET,
       getAgentStub,
       resolveDoId,
       agentId,
     });
 
     return [
+      compactionSummary({
+        provider: "openrouter",
+        modelId: "google/gemini-2.0-flash-001",
+        getApiKey: () => env.OPENROUTER_API_KEY,
+        pruneBudget: 40_000,
+      }),
+      tavilyWebSearch({ tavilyApiKey: () => env.TAVILY_API_KEY }),
+      r2Storage({ storage }),
+      vectorMemory({
+        storage,
+        vectorizeIndex: () => env.MEMORY_INDEX,
+        ai: () => env.AI,
+      }),
+      promptScheduler(),
+      credentialStore(),
+      heartbeat({ every: "30m", enabled: false }),
       peering.capability,
       agentFleet({
-        registry,
-        secret: this.env.AGENT_SECRET,
+        registry: agentRegistry,
+        secret: env.AGENT_SECRET,
         getAgentStub,
         resolveDoId,
         agentId,
         ownerId: "default",
       }),
-    ];
-  }
-
-  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires explicit any
-  getTools(_context: AgentContext): AgentTool<any>[] {
-    return [
-      defineTool({
-        name: "get_current_time",
-        description: "Get the current date and time in ISO format.",
-        parameters: Type.Object({}),
-        execute: async () => ({
-          content: [{ type: "text" as const, text: new Date().toISOString() }],
-          details: null,
-        }),
+      sandboxCapability({ provider: sandboxProvider }),
+      doomLoopDetection(),
+      toolOutputTruncation(),
+      batchTool({
+        getTools: () => resolveToolsForSession(sessionStore.list()[0]?.id ?? "").tools,
       }),
-      defineTool({
-        name: "calculate",
-        description: "Evaluate a math expression.",
-        parameters: Type.Object({
-          expression: Type.String({ description: "The math expression to evaluate" }),
-        }),
-        execute: async ({ expression }) => {
-          try {
-            const result = Function(`"use strict"; return (${expression})`)();
-            return {
-              content: [{ type: "text" as const, text: String(result) }],
-              details: { expression, result },
-            };
-          } catch (e: unknown) {
-            const errorMessage = e instanceof Error ? e.message : String(e);
-            return {
-              content: [{ type: "text" as const, text: `Error: ${errorMessage}` }],
-              details: { expression, error: errorMessage },
-            };
-          }
+      taskTracker({ sql: sqlStore }),
+      browserbase({
+        apiKey: env.BROWSERBASE_API_KEY,
+        projectId: env.BROWSERBASE_PROJECT_ID,
+      }),
+      debugInspector(),
+      vibeCoder({
+        provider: sandboxProvider,
+        backend: {
+          loader: env.LOADER,
+          dbService: env.DB_SERVICE,
+          aiService: env.AI_SERVICE,
         },
       }),
+      appRegistry({
+        provider: sandboxProvider,
+        sql: sqlStore,
+        storage,
+        backend: {
+          loader: env.LOADER,
+          dbService: env.DB_SERVICE,
+        },
+      }),
+      aiProxy({ apiKey: () => env.OPENROUTER_API_KEY }),
+      skills({
+        storage,
+        registry: new D1SkillRegistry(env.SKILL_DB, { seeds: EXAMPLE_SKILL_SEEDS }),
+        skills: [
+          { id: "vibe-webapp", enabled: true },
+          { id: "code-review", enabled: true },
+        ],
+      }),
     ];
-  }
+  },
 
-  protected getA2AClientOptions() {
-    return {
-      getAgentStub: (id: string) => {
-        // Support both DO names ("bob") and hex IDs ("fcc50dec...")
-        const doId = /^[0-9a-f]{64}$/i.test(id)
-          ? this.env.AGENT.idFromString(id)
-          : this.env.AGENT.idFromName(id);
-        return this.env.AGENT.get(doId);
-      },
-      resolveDoId: (id: string) => this.env.AGENT.idFromName(id).toString(),
-      callbackBaseUrl: "https://agent",
-    };
-  }
+  subagentProfiles: () => [explorer({ model: "google/gemini-2.5-flash" })],
 
-  protected getSubagentProfiles(): SubagentProfile[] {
-    return [explorer({ model: "google/gemini-2.5-flash" })];
-  }
+  a2a: ({ env }) => ({
+    getAgentStub: (id: string) => {
+      // Support both DO names ("bob") and hex IDs ("fcc50dec...")
+      const doId = /^[0-9a-f]{64}$/i.test(id)
+        ? env.AGENT.idFromString(id)
+        : env.AGENT.idFromName(id);
+      return env.AGENT.get(doId);
+    },
+    resolveDoId: (id: string) => env.AGENT.idFromName(id).toString(),
+    callbackBaseUrl: "https://agent",
+  }),
 
-  protected getPromptOptions(): PromptOptions {
-    return {
-      agentName: "Basic Agent",
-      agentDescription: "A helpful agent that can search, compute, and manage files.",
-      timezone: "UTC",
-    };
-  }
-
-  async fetch(request: Request): Promise<Response> {
+  // Custom debug route: execute a tool out-of-band from the normal
+  // inference loop. Returns null for non-debug paths so AgentRuntime's
+  // default routing can take over.
+  fetch: async (request, { sessionStore, transport, resolveToolsForSession }) => {
     const url = new URL(request.url);
-
-    if (request.method === "POST" && url.pathname === "/debug/execute-tool") {
-      return this.handleDebugToolExecution(request);
+    if (request.method !== "POST" || url.pathname !== "/debug/execute-tool") {
+      return null;
     }
-    return super.fetch(request);
-  }
 
-  private async handleDebugToolExecution(request: Request): Promise<Response> {
     const body = (await request.json()) as {
       sessionId?: string;
       toolName: string;
       args?: Record<string, unknown>;
     };
-
     const { toolName, args = {} } = body;
-    const sessionId =
-      body.sessionId ?? this.sessionStore.list()[0]?.id ?? this.sessionStore.create().id;
+    const sessionId = body.sessionId ?? sessionStore.list()[0]?.id ?? sessionStore.create().id;
 
-    // Resolve all tools (base + capabilities) using proper context
-    const { tools: allTools } = this.resolveToolsForSession(sessionId);
-
+    const { tools: allTools } = resolveToolsForSession(sessionId);
     const tool = allTools.find((t) => t.name === toolName);
     if (!tool) {
       const available = allTools.map((t) => t.name);
       return Response.json({ error: `Tool "${toolName}" not found`, available }, { status: 404 });
     }
 
-    // Validate args against the tool's TypeBox schema
     if (tool.parameters) {
       const errors = [...Value.Errors(tool.parameters, args)];
       if (errors.length > 0) {
         const issues = errors.map((e) => `${e.path || "/"}: ${e.message}`);
         return Response.json(
-          {
-            error: "Invalid tool arguments",
-            issues,
-            schema: tool.parameters,
-          },
+          { error: "Invalid tool arguments", issues, schema: tool.parameters },
           { status: 400 },
         );
       }
@@ -311,8 +263,7 @@ export class BasicAgent extends AgentDO<Env> {
 
     const toolCallId = crypto.randomUUID();
 
-    // Persist assistant message with tool_use block
-    this.sessionStore.appendEntry(sessionId, {
+    sessionStore.appendEntry(sessionId, {
       type: "message",
       data: {
         role: "assistant",
@@ -321,14 +272,12 @@ export class BasicAgent extends AgentDO<Env> {
       },
     });
 
-    // Broadcast tool_execution_start
-    this.transport.broadcastToSession(sessionId, {
+    transport.broadcastToSession(sessionId, {
       type: "tool_event",
       sessionId,
       event: { type: "tool_execution_start", toolCallId, toolName, args },
     });
 
-    // Execute the tool
     let result: { content: unknown[]; details: unknown };
     let isError = false;
     try {
@@ -346,8 +295,7 @@ export class BasicAgent extends AgentDO<Env> {
       };
     }
 
-    // Persist tool result
-    this.sessionStore.appendEntry(sessionId, {
+    sessionStore.appendEntry(sessionId, {
       type: "message",
       data: {
         role: "toolResult",
@@ -360,16 +308,15 @@ export class BasicAgent extends AgentDO<Env> {
       },
     });
 
-    // Broadcast tool_execution_end
-    this.transport.broadcastToSession(sessionId, {
+    transport.broadcastToSession(sessionId, {
       type: "tool_event",
       sessionId,
       event: { type: "tool_execution_end", toolCallId, toolName, result, isError },
     });
 
     return Response.json({ sessionId, toolCallId, toolName, result, isError });
-  }
-}
+  },
+});
 
 // Re-export DOs and entrypoints for wrangler to bind
 export { AiService, BackendStorage, DbService, SandboxContainer };

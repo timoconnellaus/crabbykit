@@ -215,21 +215,70 @@ Never mutate existing entries. The tree structure (parent_id) supports branching
 
 All messages (both `ServerMessage` and `ClientMessage`) discriminate on the `type` field. Server messages include `sessionId` except for global broadcasts. Protocol types use snake_case for `type` values (e.g., `agent_event`, `tool_event`) — this is intentional and matches the underlying event types from pi-agent-core.
 
-### AgentDO is the base class consumers extend
+### `defineAgent()` is the primary consumer API
 
-Consumers implement `getConfig()`, `getTools()`, `buildSystemPrompt()`, and optionally `getCapabilities()`. Lifecycle hooks use `on{Event}` naming: `onTurnEnd`, `onAgentEnd`, `onSessionCreated`.
+`defineAgent({ model, prompt, tools, capabilities, ... })` returns a
+Durable Object class directly. All fields are flat and optional except
+`model`. Fields that need env access accept either a literal or a
+function of `env` / `setup` — see `README.md` for the full field reference.
+This is the blessed path for new agents.
 
-#### Protected API for subclassing and testing
+### Three-layer architecture: `defineAgent` → `AgentDO` → `AgentRuntime`
 
-These members are `protected` for test agents and advanced subclasses:
-- `sessionAgents` — Map of active per-session agent instances
-- `sessionStore`, `kvStore`, `transport`, `scheduler` — core infrastructure
-- `resolveToolsForSession(sessionId)` — resolves all tools (base + capability) with a proper AgentContext. Use this for debug/test tool execution endpoints instead of manually constructing contexts.
-- `getCachedCapabilities()` — returns cached `getCapabilities()` result (cleared on `agent_end`)
-- `buildScheduleManager()` — creates a ScheduleManager that delegates to protected schedule methods
-- `ensureAgent(sessionId)` — override to inject mock LLM agents for testing
-- `handleAgentEvent()`, `handleCostEvent()`, `transformContext()`, `syncCapabilitySchedules()` — agent lifecycle infrastructure
-- `broadcastToSession()`, `broadcastCustomToAll()` — message broadcasting
+- **`AgentRuntime<TEnv>`** (`src/agent-runtime.ts`): platform-agnostic
+  business logic — session management, LLM loop, capabilities,
+  scheduling, A2A, HTTP routing. Zero imports from `cloudflare:workers`.
+  Takes abstract `SqlStore` / `KvStore` / `Scheduler` / `Transport` /
+  `RuntimeContext` adapters via its constructor.
+- **`AgentDO<TEnv>`** (`src/agent-do.ts`): thin Cloudflare shell. Extends
+  `DurableObject`, constructs CF adapters, holds `cfTransport` directly,
+  and delegates `fetch` / `alarm` / `webSocketMessage` / `webSocketClose`
+  to the composed runtime via `createDelegatingRuntime`. Remains
+  available as the escape hatch for advanced consumers.
+- **`defineAgent<TEnv>()`** (`src/define-agent.ts`): returns an anonymous
+  class extending `AgentDO` that forwards each delegate method to the
+  flat definition. Builds the `AgentSetup` once at construction time.
+
+`createDelegatingRuntime(host, adapters)` (`src/runtime-delegating.ts`)
+is the shared helper that wires a host object implementing
+`AgentDelegate` into an anonymous `AgentRuntime` subclass.
+
+### Subclassing AgentDO (escape hatch)
+
+Consumers who need direct `this.ctx` / `this.env` access or bespoke
+constructor logic can still `class MyAgent extends AgentDO<Env>`. The
+public override surface:
+- Abstract: `getConfig()`, `getTools(ctx)`
+- Optional overrides: `buildSystemPrompt(ctx)`, `getPromptOptions()`,
+  `getCapabilities()`, `getSubagentProfiles()`, `getConfigNamespaces()`,
+  `getA2AClientOptions()`, `getCommands(ctx)`, `getAgentOptions()`
+- Lifecycle hooks: `validateAuth?`, `onTurnEnd?`, `onAgentEnd?`,
+  `onSessionCreated?`, `onScheduleFire?`
+
+The override methods are **public** on `AgentDO` (not `protected`) so
+that `createDelegatingRuntime` can see them structurally through the
+`AgentDelegate` interface. When upgrading existing subclasses, drop
+the `protected` modifier.
+
+#### Protected members for subclasses and test helpers
+
+AgentDO exposes the runtime's state via protected getters/setters so
+legacy access patterns like `this.sessionStore` still work:
+- Field getters: `sessionStore`, `scheduleStore`, `configStore`,
+  `mcpManager`, `taskStore`, `queueStore`, `kvStore`, `scheduler`,
+  `transport`, `sessionAgents`, `pendingAsyncOps`, `beforeInferenceHooks`
+  (get/set), `beforeToolExecutionHooks` (get/set),
+  `afterToolExecutionHooks` (get/set), `resolvedCapabilitiesCache`
+  (get/set), `capabilitiesCache` (get/set), `connectionRateLimits`,
+  `scheduleCallbacks`, `timerOwners`, `capabilityDisposers` (get/set)
+- Method delegators: `buildScheduleManager()`, `handlePrompt()`,
+  `handleSteer()`, `handleCostEvent()`, `handleAgentEvent()`,
+  `transformContext()`, `syncCapabilitySchedules()`,
+  `handleAgentPrompt()`, `resolveToolsForSession()`,
+  `getCachedCapabilities()`
+- For test subclasses that override the LLM loop, define
+  `ensureAgent(sessionId)` as a method on your subclass — the
+  delegating runtime will pick it up via duck typing.
 
 ## TypeScript Rules
 
@@ -303,7 +352,7 @@ context.emitCost({
 ### Coverage thresholds (agent-runtime)
 
 - Statements: 98%, Branches: 90%, Functions: 100%, Lines: 99%
-- Coverage excludes: index.ts barrel files, type-only files, test helpers, agent-do.ts (DO lifecycle), mcp-manager.ts (external SDK)
+- Coverage excludes: index.ts barrel files, type-only files, test helpers, agent-do.ts (DO lifecycle), agent-runtime.ts (extracted runtime — unit backfill is tech debt), runtime-delegating.ts, define-agent.ts, runtime-context-cloudflare.ts, mcp-manager.ts (external SDK)
 
 ### Test patterns
 

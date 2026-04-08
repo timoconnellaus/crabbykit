@@ -1,6 +1,6 @@
 import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { TObject } from "@sinclair/typebox";
-import type { AgentContext } from "../agent-do.js";
+import type { AgentContext } from "../agent-runtime.js";
 import type { Command } from "../commands/define-command.js";
 import type { ConfigNamespace } from "../config/config-namespace.js";
 import type { CostEvent } from "../costs/types.js";

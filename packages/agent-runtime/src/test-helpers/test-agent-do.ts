@@ -388,7 +388,7 @@ export class TestAgentDO extends AgentDO {
     };
   }
 
-  protected getCapabilities(): Capability[] {
+  getCapabilities(): Capability[] {
     const override = Object.values(compactionOverrides)[0];
     const compactionConfig: CompactionConfig = {
       threshold: override?.threshold ?? DEFAULT_COMPACTION_THRESHOLD,
@@ -417,7 +417,7 @@ export class TestAgentDO extends AgentDO {
     return "You are a test agent. Respond concisely.";
   }
 
-  protected override async onScheduleFire(
+  override async onScheduleFire(
     schedule: Schedule,
   ): Promise<{ skip?: boolean; prompt?: string } | undefined> {
     if (schedulFireHook) {
@@ -426,7 +426,7 @@ export class TestAgentDO extends AgentDO {
     return undefined;
   }
 
-  protected getA2AClientOptions() {
+  getA2AClientOptions() {
     // biome-ignore lint/suspicious/noExplicitAny: Test environment — env is Record<string, unknown>
     const agentNs = (this.env as any).AGENT as DurableObjectNamespace;
     return {

@@ -36,6 +36,10 @@ export default defineWorkersConfig({
         "src/capabilities/types.ts", // Pure type exports
         "src/capabilities/index.ts", // Barrel export
         "src/agent-do.ts", // Integration - tested via DO integration tests
+        "src/agent-runtime.ts", // Extracted runtime - tested via DO integration tests (unit backfill is tech debt)
+        "src/runtime-delegating.ts", // Thin wiring helper - tested via integration
+        "src/define-agent.ts", // Thin wiring helper - tested via integration
+        "src/runtime-context-cloudflare.ts", // 3-line adapter - tested via AgentDO
         "src/mcp/mcp-manager.ts", // Protocol code needs live MCP servers - tested via integration
       ],
       thresholds: {
