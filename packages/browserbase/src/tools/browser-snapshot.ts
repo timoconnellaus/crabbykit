@@ -26,10 +26,7 @@ export function createBrowserSnapshotTool(
     execute: async ({ interactive }) => {
       const cdp = sessionManager.getCDP(context.sessionId);
       if (!cdp) {
-        return {
-          content: [{ type: "text" as const, text: "No browser is open. Use browser_open first." }],
-          details: null,
-        };
+        return "No browser is open. Use browser_open first.";
       }
 
       try {
@@ -63,15 +60,7 @@ export function createBrowserSnapshotTool(
           details: { url, title, refCount: Object.keys(refs).length },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error taking snapshot: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error taking snapshot: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

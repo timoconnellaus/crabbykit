@@ -10,7 +10,7 @@ import {
   PendingTaskStore,
   TaskStore,
 } from "@claw-for-cloudflare/a2a";
-import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
@@ -55,7 +55,12 @@ import { applyDefaultTimeout } from "./tools/define-tool.js";
 import { CfWebSocketTransport } from "./transport/cloudflare.js";
 import { ErrorCodes } from "./transport/error-codes.js";
 import type { Transport, TransportConnection } from "./transport/transport.js";
-import type { ClientMessage, ServerMessage } from "./transport/types.js";
+import type {
+  CapabilityActionMessage,
+  CapabilityStateMessage,
+  ClientMessage,
+  ServerMessage,
+} from "./transport/types.js";
 
 // Lazy-loaded pi-* SDK (pi-agent-core imports pi-ai which has partial-json CJS issue in Workers test pool)
 // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
@@ -170,8 +175,16 @@ export interface AgentContext {
     eventData: Record<string, unknown>,
     timeoutMs?: number,
   ) => Promise<Record<string, unknown>>;
-  /** Persistent key-value storage scoped to a capability. Only set for capability-contributed tools. */
-  storage?: CapabilityStorage;
+  /** Persistent key-value storage scoped to this capability. */
+  storage: CapabilityStorage;
+  /**
+   * Broadcast capability state to connected clients.
+   * Emits a `capability_state` message with this capability's ID.
+   * @param event Event name (e.g., "sync", "update", "remove")
+   * @param data Payload
+   * @param scope "session" (default) or "global"
+   */
+  broadcastState: (event: string, data: unknown, scope?: "session" | "global") => void;
   /** Manage prompt-based schedules and one-shot timers. */
   schedules: ScheduleManager;
 }
@@ -246,7 +259,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   // --- Abstract methods (consumers implement these) ---
 
   abstract getConfig(): AgentConfig;
-  abstract getTools(context: AgentContext): AgentTool[];
+  abstract getTools(context: AgentContext): AnyAgentTool[];
 
   /**
    * Build the system prompt for this agent. Default implementation composes
@@ -801,12 +814,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     "delete_session",
     "command",
     "request_sync",
-    "toggle_schedule",
     "custom_response",
     "request_system_prompt",
-    "queue_message",
-    "queue_delete",
-    "queue_steer",
+    "capability_action",
     "ping",
   ]);
 
@@ -832,21 +842,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     }
 
     if (
-      obj.type === "toggle_schedule" &&
-      (typeof obj.scheduleId !== "string" || typeof obj.enabled !== "boolean")
+      obj.type === "capability_action" &&
+      (typeof obj.capabilityId !== "string" ||
+        typeof obj.action !== "string" ||
+        typeof obj.sessionId !== "string")
     ) {
-      return '"toggle_schedule" message requires a "scheduleId" string and "enabled" boolean field';
-    }
-
-    if (obj.type === "queue_message" && typeof obj.text !== "string") {
-      return '"queue_message" message requires a "text" string field';
-    }
-
-    if (
-      (obj.type === "queue_delete" || obj.type === "queue_steer") &&
-      typeof obj.queueId !== "string"
-    ) {
-      return `"${obj.type}" message requires a "queueId" string field`;
+      return '"capability_action" message requires "capabilityId", "action", and "sessionId" string fields';
     }
 
     return null;
@@ -998,11 +999,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
       }
 
-      case "toggle_schedule": {
-        await this.updateSchedule(msg.scheduleId, { enabled: msg.enabled });
-        break;
-      }
-
       case "custom_response": {
         const pending = this.pendingClientRequests.get(msg.requestId);
         if (pending) {
@@ -1020,31 +1016,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         break;
       }
 
-      case "queue_message": {
-        // If agent idle on this session → treat as normal prompt
-        const queueAgent = this.sessionAgents.get(msg.sessionId);
-        if (!queueAgent?.state.isStreaming) {
-          await this.handlePrompt(msg.sessionId, msg.text);
-        } else {
-          this.queueStore.enqueue(msg.sessionId, msg.text);
-          this.broadcastQueueState(msg.sessionId);
-        }
-        break;
-      }
-
-      case "queue_delete": {
-        this.queueStore.delete(msg.queueId);
-        this.broadcastQueueState(msg.sessionId);
-        break;
-      }
-
-      case "queue_steer": {
-        const queueItem = this.queueStore.get(msg.queueId);
-        if (queueItem) {
-          this.queueStore.delete(msg.queueId);
-          this.handleSteer(msg.sessionId, queueItem.text);
-          this.broadcastQueueState(msg.sessionId);
-        }
+      case "capability_action": {
+        await this.handleCapabilityAction(msg);
         break;
       }
 
@@ -1099,8 +1072,70 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       broadcast: () => {},
       broadcastToAll: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available during inspection")),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
     };
+  }
+
+  // --- Capability action routing ---
+
+  private async handleCapabilityAction(msg: CapabilityActionMessage): Promise<void> {
+    const { capabilityId, action, data, sessionId } = msg;
+
+    // Check capability onAction handlers first
+    const resolved = this.resolvedCapabilitiesCache;
+    if (resolved?.onActionHandlers.has(capabilityId)) {
+      const handler = resolved.onActionHandlers.get(capabilityId)!;
+      const hookCtx: CapabilityHookContext = {
+        agentId: this.ctx.id.toString(),
+        sessionId,
+        sessionStore: this.sessionStore,
+        storage: createNoopStorage(), // handler wraps with scoped storage
+        capabilityIds: this.getCachedCapabilities().map((c) => c.id),
+      };
+      await handler(action, data, hookCtx);
+      return;
+    }
+
+    // Fall back to core handlers for well-known capability IDs
+    switch (capabilityId) {
+      case "schedules": {
+        if (action === "toggle") {
+          const { scheduleId, enabled } = data as { scheduleId: string; enabled: boolean };
+          await this.updateSchedule(scheduleId, { enabled });
+        }
+        break;
+      }
+      case "queue": {
+        if (action === "message") {
+          const { text } = data as { text: string };
+          const queueAgent = this.sessionAgents.get(sessionId);
+          if (!queueAgent?.state.isStreaming) {
+            await this.handlePrompt(sessionId, text);
+          } else {
+            this.queueStore.enqueue(sessionId, text);
+            this.broadcastQueueState(sessionId);
+          }
+        } else if (action === "delete") {
+          const { queueId } = data as { queueId: string };
+          this.queueStore.delete(queueId);
+          this.broadcastQueueState(sessionId);
+        } else if (action === "steer") {
+          const { queueId } = data as { queueId: string };
+          const queueItem = this.queueStore.get(queueId);
+          if (queueItem) {
+            this.queueStore.delete(queueId);
+            this.handleSteer(sessionId, queueItem.text);
+            this.broadcastQueueState(sessionId);
+          }
+        }
+        break;
+      }
+      default: {
+        console.warn(`[agent-do] No handler for capability_action capabilityId="${capabilityId}"`);
+      }
+    }
   }
 
   // --- Agent loop ---
@@ -1206,6 +1241,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcast: () => {},
           broadcastToAll: () => {},
           requestFromClient: () => Promise.reject(new Error("Not available")),
+          storage: createNoopStorage(),
+      broadcastState: () => {},
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1335,6 +1372,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       requestFromClient: (eventName, eventData, timeoutMs) =>
         this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
@@ -1346,8 +1385,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
     // Resolve capabilities with scoped storage per capability (and cache the result)
     const capabilities = this.getCachedCapabilities();
-    const resolved = resolveCapabilities(capabilities, context, (capId) =>
-      createCapabilityStorage(this.kvStore, capId),
+    const resolved = resolveCapabilities(
+      capabilities,
+      context,
+      (capId) => createCapabilityStorage(this.kvStore, capId),
+      (capId) => this.createCapabilityBroadcastState(capId, sessionId),
     );
     this.resolvedCapabilitiesCache = resolved;
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
@@ -1440,6 +1482,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
+      broadcastState: () => {},
           capabilityIds: this.getCapabilityIds(),
         };
         const event = {
@@ -1470,6 +1513,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
+      broadcastState: () => {},
           capabilityIds: this.getCapabilityIds(),
         };
         const event = {
@@ -1496,9 +1540,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
    * Useful for subclasses that need to execute tools outside the normal inference loop
    * (e.g., debug tool execution, test harnesses).
    */
-  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires explicit any
   protected resolveToolsForSession(sessionId: string): {
-    tools: AgentTool<any>[];
+    tools: AnyAgentTool[];
     context: AgentContext;
     resolved: ResolvedCapabilities;
   } {
@@ -1510,11 +1553,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       broadcast: this.createSessionBroadcast(sessionId),
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
     };
 
-    const resolved = resolveCapabilities(this.getCachedCapabilities(), context, (capId) =>
-      createCapabilityStorage(this.kvStore, capId),
+    const resolved = resolveCapabilities(
+      this.getCachedCapabilities(),
+      context,
+      (capId) => createCapabilityStorage(this.kvStore, capId),
+      (capId) => this.createCapabilityBroadcastState(capId, sessionId),
     );
 
     const baseTools = this.getTools(context);
@@ -1533,7 +1581,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       agentId: this.ctx.id.toString(),
       sessionId,
       sessionStore: this.sessionStore,
-      storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+      storage: createNoopStorage(),
+      broadcastState: () => {}, // Each wrapped hook overrides with its scoped storage
       capabilityIds: this.getCapabilityIds(),
     };
 
@@ -1582,6 +1631,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
           requestFromClient: (eventName, eventData, timeoutMs) =>
             this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
+          storage: createNoopStorage(),
+      broadcastState: () => {},
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1595,7 +1646,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           agentId: this.ctx.id.toString(),
           sessionId,
           sessionStore: this.sessionStore,
-          storage: createNoopStorage(), // Each wrapped hook overrides with its scoped storage
+          storage: createNoopStorage(),
+      broadcastState: () => {}, // Each wrapped hook overrides with its scoped storage
           capabilityIds: this.getCapabilityIds(),
           broadcast: broadcastFn,
         };
@@ -1862,6 +1914,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           broadcast: () => {},
           broadcastToAll: () => {},
           requestFromClient: () => Promise.reject(new Error("Not available")),
+          storage: createNoopStorage(),
+      broadcastState: () => {},
           schedules: this.buildScheduleManager(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
@@ -1979,6 +2033,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
       broadcast: () => {},
       broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
     };
 
@@ -2003,6 +2059,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
           sessionStore: this.sessionStore,
           storage: h.storage,
           broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          broadcastState: (event, data, scope) =>
+            this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),
           sendPrompt: (opts) => this.handleAgentPrompt(opts),
         };
         return { handler: h.handler, ctx };
@@ -2090,8 +2148,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   // --- A2A Protocol ---
 
-  // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
-  private createA2AClientTools(sessionId: string): AgentTool<any>[] {
+  private createA2AClientTools(sessionId: string): AnyAgentTool[] {
     const clientOpts = this.getA2AClientOptions();
     if (!clientOpts) return [];
 
@@ -2481,13 +2538,58 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     this.transport.broadcastToSession(sessionId, msg);
   }
 
+  /**
+   * Broadcast core-owned state via the capability_state envelope.
+   * Used for state that AgentDO owns directly (schedules, queue, MCP, commands).
+   * @param target If provided, send to this connection only (e.g. command_list on connect).
+   */
+  private broadcastCoreState(
+    capabilityId: string,
+    event: string,
+    data: unknown,
+    scope: "session" | "global",
+    target?: { sessionId?: string; connection?: TransportConnection },
+  ): void {
+    const msg: CapabilityStateMessage = {
+      type: "capability_state",
+      capabilityId,
+      scope,
+      event,
+      data,
+      ...(target?.sessionId ? { sessionId: target.sessionId } : {}),
+    };
+    if (target?.connection) {
+      target.connection.send(msg);
+    } else if (scope === "session" && target?.sessionId) {
+      this.broadcastToSession(target.sessionId, msg);
+    } else {
+      this.transport.broadcast(msg);
+    }
+  }
+
+  /**
+   * Create a `broadcastState` function for a capability context.
+   * The returned function captures the capability ID and session ID.
+   */
+  private createCapabilityBroadcastState(
+    capabilityId: string,
+    sessionId: string,
+  ): AgentContext["broadcastState"] {
+    return (event: string, data: unknown, scope?: "session" | "global") => {
+      const effectiveScope = scope ?? "session";
+      this.broadcastCoreState(capabilityId, event, data, effectiveScope, {
+        sessionId: effectiveScope === "session" ? sessionId : undefined,
+      });
+    };
+  }
+
   private broadcastQueueState(sessionId: string): void {
     const items = this.queueStore.list(sessionId).map(({ id, text, createdAt }) => ({
       id,
       text,
       createdAt,
     }));
-    this.broadcastToSession(sessionId, { type: "queue_state", sessionId, items });
+    this.broadcastCoreState("queue", "sync", { items }, "session", { sessionId });
   }
 
   private async processQueue(sessionId: string): Promise<void> {
@@ -2505,25 +2607,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
     await this.handlePrompt(sessionId, next.text);
   }
 
-  /** Create a session-scoped broadcast function that converts well-known events to typed messages. */
+  /** Create a session-scoped broadcast function for custom events. */
   private createSessionBroadcast(
     sessionId: string,
   ): (name: string, data: Record<string, unknown>) => void {
     return (name, data) => {
-      if (name === "skill_list_update" && Array.isArray(data.skills)) {
-        this.broadcastToSession(sessionId, {
-          type: "skill_list",
-          skills: data.skills,
-        } as ServerMessage);
-        return;
-      }
-      if (name === "task_event") {
-        this.broadcastToSession(sessionId, {
-          type: "task_event",
-          event: data,
-        } as ServerMessage);
-        return;
-      }
       this.broadcastToSession(sessionId, {
         type: "custom_event",
         sessionId,
@@ -2533,17 +2621,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
   }
 
   protected broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
-    // Convert well-known custom events into their typed transport messages
-    if (name === "skill_list_update" && Array.isArray(data.skills)) {
-      const msg: ServerMessage = { type: "skill_list", skills: data.skills };
-      this.transport.broadcast(msg);
-      return;
-    }
-    if (name === "task_event") {
-      const msg: ServerMessage = { type: "task_event", event: data } as ServerMessage;
-      this.transport.broadcast(msg);
-      return;
-    }
     for (const connection of this.transport.getConnections()) {
       connection.send({
         type: "custom_event",
@@ -2555,8 +2632,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   private broadcastScheduleList(): void {
     const schedules = this.scheduleStore.list().filter((s) => s.ownerId === null);
-    const msg: ServerMessage = {
-      type: "schedule_list",
+    this.broadcastCoreState("schedules", "sync", {
       schedules: schedules.map((s) => ({
         id: s.id,
         name: s.name,
@@ -2567,14 +2643,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         expiresAt: s.expiresAt,
         lastFiredAt: s.lastFiredAt,
       })),
-    };
-    this.transport.broadcast(msg);
+    }, "global");
   }
 
   private broadcastMcpStatus(): void {
     const servers = this.mcpManager.listServers();
-    const msg: ServerMessage = {
-      type: "mcp_status",
+    this.broadcastCoreState("mcp", "sync", {
       servers: servers.map((s) => ({
         id: s.id,
         name: s.name,
@@ -2582,8 +2656,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
         toolCount: s.toolCount,
         error: s.error,
       })),
-    };
-    this.transport.broadcast(msg);
+    }, "global");
   }
 
   private broadcastSessionList(): void {
@@ -2602,13 +2675,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>> extends DurableObj
 
   private sendCommandList(connection: TransportConnection, sessionId: string): void {
     const commands = this.resolveCommands(sessionId);
-    connection.send({
-      type: "command_list",
+    this.broadcastCoreState("commands", "sync", {
       commands: Array.from(commands.values()).map((cmd) => ({
         name: cmd.name,
         description: cmd.description,
       })),
-    });
+    }, "global", { connection });
   }
 
   private sendSessionList(connection: TransportConnection): void {

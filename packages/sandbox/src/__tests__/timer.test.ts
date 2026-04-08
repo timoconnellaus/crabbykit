@@ -1,3 +1,4 @@
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { cancelDeElevationTimer, resetDeElevationTimer, TIMER_ID } from "../timer.js";
 import type { SandboxConfig } from "../types.js";
@@ -10,6 +11,7 @@ function mockContext() {
     emitCost: () => {},
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn().mockResolvedValue({}),
     schedules: {
       create: vi.fn().mockResolvedValue({}),
@@ -20,7 +22,7 @@ function mockContext() {
       setTimer: vi.fn().mockResolvedValue(undefined),
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
-    storage: undefined,
+    storage: createNoopStorage(),
   };
 }
 

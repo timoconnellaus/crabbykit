@@ -1,7 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
 import type { PromptSection } from "../prompt/types.js";
-import type { SkillListEntry } from "../transport/types.js";
 import type { AgentStatus, ConnectionStatus } from "./types.js";
 
 /** AgentMessage with an optional streaming flag added during live updates. */
@@ -40,21 +39,10 @@ export interface ChatState {
   thinking: string | null;
   completedThinking: string | null;
   toolStates: Map<string, ToolState>;
-  queuedMessages: QueuedItem[];
   costs: CostEvent[];
-  schedules: Array<{
-    id: string;
-    name: string;
-    cron: string;
-    enabled: boolean;
-    status: string;
-    nextFireAt: string | null;
-    expiresAt: string | null;
-    lastFiredAt: string | null;
-  }>;
-  availableCommands: CommandInfo[];
-  skills: SkillListEntry[];
   systemPrompt: { sections: PromptSection[]; raw: string } | null;
+  /** Generic capability state keyed by capability ID. Populated by capability_state sync events. */
+  capabilityState: Record<string, unknown>;
   error: string | null;
 }
 
@@ -70,12 +58,8 @@ export type ChatAction =
   | { type: "SET_TOOL_STATES"; toolStates: Map<string, ToolState> }
   | { type: "SET_COSTS"; costs: CostEvent[] }
   | { type: "ADD_COST"; cost: CostEvent }
-  | { type: "SET_SCHEDULES"; schedules: ChatState["schedules"] }
-  | { type: "SET_AVAILABLE_COMMANDS"; availableCommands: CommandInfo[] }
-  | { type: "SET_SKILLS"; skills: SkillListEntry[] }
   | { type: "SET_SYSTEM_PROMPT"; sections: PromptSection[]; raw: string }
   | { type: "SET_ERROR"; error: string | null }
-  | { type: "SET_QUEUE"; items: QueuedItem[] }
   | {
       type: "SESSION_SYNC";
       messages: AgentMessage[];
@@ -107,6 +91,7 @@ export type ChatAction =
       isError: boolean;
       toolResultMessage: AgentMessage;
     }
+  | { type: "SET_CAPABILITY_STATE"; capabilityId: string; data: unknown }
   | { type: "ERROR_RECEIVED"; message: string };
 
 export function createInitialState(sessionId: string | undefined): ChatState {
@@ -119,12 +104,9 @@ export function createInitialState(sessionId: string | undefined): ChatState {
     thinking: null,
     completedThinking: null,
     toolStates: new Map(),
-    queuedMessages: [],
     costs: [],
-    schedules: [],
-    availableCommands: [],
-    skills: [],
     systemPrompt: null,
+    capabilityState: {},
     error: null,
   };
 }
@@ -153,12 +135,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, costs: action.costs };
     case "ADD_COST":
       return { ...state, costs: [...state.costs, action.cost] };
-    case "SET_SCHEDULES":
-      return { ...state, schedules: action.schedules };
-    case "SET_AVAILABLE_COMMANDS":
-      return { ...state, availableCommands: action.availableCommands };
-    case "SET_SKILLS":
-      return { ...state, skills: action.skills };
     case "SET_SYSTEM_PROMPT":
       return {
         ...state,
@@ -166,8 +142,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     case "SET_ERROR":
       return { ...state, error: action.error };
-    case "SET_QUEUE":
-      return { ...state, queuedMessages: action.items };
+    case "SET_CAPABILITY_STATE":
+      return {
+        ...state,
+        capabilityState: {
+          ...state.capabilityState,
+          [action.capabilityId]: action.data,
+        },
+      };
     case "SESSION_SYNC":
       return {
         ...state,
@@ -175,10 +157,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         currentSessionId: action.currentSessionId,
         agentStatus: action.agentStatus,
         toolStates: new Map(),
-        queuedMessages: [],
         costs: [],
         thinking: null,
         completedThinking: null,
+        capabilityState: {},
         error: null,
       };
     case "AGENT_END":

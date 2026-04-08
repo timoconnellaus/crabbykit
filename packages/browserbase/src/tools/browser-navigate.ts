@@ -17,10 +17,7 @@ export function createBrowserNavigateTool(
     execute: async ({ url }) => {
       const cdp = sessionManager.getCDP(context.sessionId);
       if (!cdp) {
-        return {
-          content: [{ type: "text" as const, text: "No browser is open. Use browser_open first." }],
-          details: null,
-        };
+        return "No browser is open. Use browser_open first.";
       }
 
       try {
@@ -52,15 +49,7 @@ export function createBrowserNavigateTool(
           details: { url },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error navigating: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error navigating: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

@@ -29,15 +29,7 @@ export function createGetConsoleLogsTool(
         });
 
         if (response._error) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Could not retrieve logs: ${response.message ?? "Unknown error"}`,
-              },
-            ],
-            details: null,
-          };
+          return `Could not retrieve logs: ${response.message ?? "Unknown error"}`;
         }
 
         const logs = response.logs as
@@ -45,10 +37,7 @@ export function createGetConsoleLogsTool(
           | undefined;
 
         if (!logs || logs.length === 0) {
-          return {
-            content: [{ type: "text" as const, text: "No console logs captured." }],
-            details: null,
-          };
+          return "No console logs captured.";
         }
 
         const formatted = logs
@@ -61,15 +50,7 @@ export function createGetConsoleLogsTool(
         };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to retrieve console logs: ${message}`,
-            },
-          ],
-          details: null,
-        };
+        return `Failed to retrieve console logs: ${message}`;
       }
     },
   });

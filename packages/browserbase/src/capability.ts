@@ -1,4 +1,4 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
 import { BrowserbaseClient } from "./browserbase-client.js";
 import type { SessionManagerState } from "./session-manager.js";
@@ -161,8 +161,7 @@ export function browserbase(options: BrowserbaseOptions): Capability {
         }
       };
 
-      // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
-      const tools: any[] = [
+      const tools: AnyAgentTool[] = [
         createBrowserOpenTool(sm, context, onOpen),
         createBrowserNavigateTool(sm, context, onActivity),
         createBrowserSnapshotTool(sm, context, onActivity),

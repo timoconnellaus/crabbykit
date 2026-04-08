@@ -25,6 +25,7 @@ export type {
   AgentState,
   AgentTool,
   AgentToolResult,
+  AnyAgentTool,
   BeforeToolCallContext,
   BeforeToolCallResult,
   ThinkingLevel,
@@ -147,6 +148,7 @@ export {
   mcpToolToAgentTool,
   toolResult,
 } from "./tools/define-tool.js";
+export type { ToolExecuteReturn } from "./tools/define-tool.js";
 // Transport interfaces
 export { CfWebSocketTransport } from "./transport/cloudflare.js";
 export type { ErrorCode } from "./transport/error-codes.js";
@@ -156,8 +158,9 @@ export type { Transport, TransportConnection } from "./transport/transport.js";
 export type {
   AbortMessage,
   AgentEventMessage,
+  CapabilityActionMessage,
+  CapabilityStateMessage,
   ClientMessage,
-  CommandListMessage,
   CommandMessage,
   CommandResultMessage,
   CostEventMessage,
@@ -165,28 +168,18 @@ export type {
   CustomResponseMessage,
   ErrorMessage,
   InjectMessageMessage,
-  McpStatusMessage,
   NewSessionMessage,
   PingMessage,
   PongMessage,
   PromptMessage,
-  QueueDeleteMessage,
-  QueueMessageMessage,
-  QueueStateMessage,
-  QueueSteerMessage,
   RequestSyncMessage,
   RequestSystemPromptMessage,
-  ScheduleListMessage,
   ServerMessage,
   SessionListMessage,
   SessionSyncMessage,
   SkillListEntry,
-  SkillListMessage,
   SteerMessage,
-  SubagentEventMessage,
   SwitchSessionMessage,
   SystemPromptMessage,
-  TaskEventMessage,
-  ToggleScheduleMessage,
   ToolEventMessage,
 } from "./transport/types.js";

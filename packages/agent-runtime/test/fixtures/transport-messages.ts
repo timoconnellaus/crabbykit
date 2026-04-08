@@ -51,14 +51,6 @@ export const toolEventMessage: ServerMessage = {
   },
 };
 
-export const mcpStatusMessage: ServerMessage = {
-  type: "mcp_status",
-  servers: [
-    { id: "mcp_1", name: "github", status: "connected", toolCount: 5 },
-    { id: "mcp_2", name: "slack", status: "error", toolCount: 0, error: "Auth failed" },
-  ],
-};
-
 export const errorMessage: ServerMessage = {
   type: "error",
   code: ErrorCodes.AGENT_INIT_ERROR,

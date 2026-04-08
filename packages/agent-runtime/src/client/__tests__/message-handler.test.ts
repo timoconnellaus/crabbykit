@@ -13,6 +13,7 @@ function makeRefs(overrides?: Partial<MessageHandlerRefs>): MessageHandlerRefs {
     onCustomRequestRef: { current: undefined },
     lastPongAtRef: { current: 0 },
     pongTimeoutRef: { current: null },
+    capabilitySubscribersRef: { current: new Map() },
     ...overrides,
   };
 }

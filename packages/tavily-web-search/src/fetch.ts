@@ -1,5 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import { type AgentContext, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { type AgentContext, type AnyAgentTool, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 
 const DEFAULT_MAX_FETCH_SIZE = 50_000;
 const DEFAULT_USER_AGENT = "ClawAgent/1.0";
@@ -34,7 +33,7 @@ export function createFetchTool(
   userAgent: string = DEFAULT_USER_AGENT,
   maxSize: number = DEFAULT_MAX_FETCH_SIZE,
   _context: AgentContext,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "web_fetch",
     description: "Fetch the content of a URL. Returns the page text (HTML stripped) or JSON.",
@@ -107,5 +106,5 @@ export function createFetchTool(
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }

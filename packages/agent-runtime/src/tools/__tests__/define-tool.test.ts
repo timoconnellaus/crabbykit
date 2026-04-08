@@ -1,5 +1,8 @@
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
+import type { AgentContext } from "../../agent-do.js";
+import type { Capability } from "../../capabilities/types.js";
 import { textOf } from "../../test-utils.js";
 import { defineTool, mcpToolToAgentTool, toolResult } from "../define-tool.js";
 
@@ -169,7 +172,7 @@ describe("mcpToolToAgentTool", () => {
 
     expect(mockCallTool).toHaveBeenCalledWith("query", { sql: "SELECT 1" });
     expect(result.content[0].type).toBe("text");
-    expect(result.details.content).toEqual({ results: [1, 2, 3] });
+    expect((result.details as { content: unknown }).content).toEqual({ results: [1, 2, 3] });
   });
 
   it("handles string content from MCP", async () => {
@@ -228,6 +231,61 @@ describe("mcpToolToAgentTool", () => {
       { name: "s", callTool: vi.fn() },
     );
     expect(t3.parameters).toBeTruthy();
+  });
+});
+
+describe("defineTool return type ergonomics", () => {
+  it("returns AnyAgentTool assignable to Capability.tools()", () => {
+    const capability: Capability = {
+      id: "test-cap",
+      name: "Test",
+      description: "Test capability",
+      tools: (_context: AgentContext): AnyAgentTool[] => [
+        defineTool({
+          name: "cap_tool",
+          description: "A capability tool",
+          parameters: Type.Object({ input: Type.String() }),
+          execute: async (args) => `echo: ${args.input}`,
+        }),
+      ],
+    };
+
+    const tools = capability.tools!({} as AgentContext);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("cap_tool");
+  });
+
+  it("wraps string return into content array", async () => {
+    const tool = defineTool({
+      name: "string_tool",
+      description: "Returns a string",
+      parameters: Type.Object({}),
+      execute: async () => "the string",
+    });
+
+    const result = await tool.execute({}, { toolCallId: "call_1" });
+    expect(result).toEqual({
+      content: [{ type: "text", text: "the string" }],
+      details: null,
+    });
+  });
+
+  it("passes full AgentToolResult through unchanged", async () => {
+    const tool = defineTool({
+      name: "full_result_tool",
+      description: "Returns full result",
+      parameters: Type.Object({}),
+      execute: async () => ({
+        content: [{ type: "text" as const, text: "hello" }],
+        details: { foo: 1 },
+      }),
+    });
+
+    const result = await tool.execute({}, { toolCallId: "call_1" });
+    expect(result).toEqual({
+      content: [{ type: "text", text: "hello" }],
+      details: { foo: 1 },
+    });
   });
 });
 

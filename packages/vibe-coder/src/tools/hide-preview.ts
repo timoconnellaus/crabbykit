@@ -19,10 +19,7 @@ export function createHidePreviewTool(
       if (context.storage) {
         const preview = await context.storage.get<{ port: number; sessionId: string }>("preview");
         if (!preview || preview.sessionId !== context.sessionId) {
-          return {
-            content: [{ type: "text" as const, text: "No active preview for this session." }],
-            details: null,
-          };
+          return "No active preview for this session.";
         }
       }
 
@@ -38,15 +35,7 @@ export function createHidePreviewTool(
       // Broadcast preview_close event to connected clients
       context.broadcast("preview_close", {});
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: "Preview closed.",
-          },
-        ],
-        details: null,
-      };
+      return "Preview closed.";
     },
   });
 }

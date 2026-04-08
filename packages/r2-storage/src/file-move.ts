@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { toR2Key, validatePath } from "./paths.js";
 
@@ -6,7 +6,7 @@ import { toR2Key, validatePath } from "./paths.js";
  * Create a file_move tool backed by an R2 bucket.
  * Implemented as copy + delete (R2 has no native move/rename).
  */
-export function createFileMoveTool(getBucket: () => R2Bucket, getPrefix: () => string): AgentTool {
+export function createFileMoveTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
   return defineTool({
     name: "file_move",
     description:
@@ -81,5 +81,5 @@ export function createFileMoveTool(getBucket: () => R2Bucket, getPrefix: () => s
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }

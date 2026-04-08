@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { toR2Key, validatePath } from "./paths.js";
 
@@ -8,7 +8,7 @@ import { toR2Key, validatePath } from "./paths.js";
 export function createFileDeleteTool(
   getBucket: () => R2Bucket,
   getPrefix: () => string,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "file_delete",
     description: "Delete a file from storage. Idempotent — no error if the file does not exist.",
@@ -45,5 +45,5 @@ export function createFileDeleteTool(
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }

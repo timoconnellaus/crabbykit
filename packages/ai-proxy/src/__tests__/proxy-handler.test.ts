@@ -20,6 +20,7 @@ function createMockCtx(storage = createMapStorage()) {
     sessionStore: {} as never,
     storage,
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     sendPrompt: vi.fn(),
   };
 }

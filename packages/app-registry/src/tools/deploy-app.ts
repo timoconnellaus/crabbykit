@@ -131,15 +131,7 @@ export function createDeployAppTool(
       if (backendEntry && backend) {
         const backendResult = await bundleAndStoreBackend(provider, backendEntry, deployPath);
         if (backendResult.error) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Frontend deployed but backend failed: ${backendResult.error}`,
-              },
-            ],
-            details: null,
-          };
+          return `Frontend deployed but backend failed: ${backendResult.error}`;
         }
         hasBackend = true;
       }
@@ -201,10 +193,7 @@ export function createDeployAppTool(
 }
 
 function errorResult(text: string) {
-  return {
-    content: [{ type: "text" as const, text: `Error: ${text}` }],
-    details: null,
-  };
+  return `Error: ${text}`;
 }
 
 /**

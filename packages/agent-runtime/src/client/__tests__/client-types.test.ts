@@ -29,22 +29,16 @@ describe("Client Types", () => {
         tool_event: true,
         session_sync: true,
         session_list: true,
-        schedule_list: true,
-        mcp_status: true,
         cost_event: true,
         error: true,
         command_result: true,
-        command_list: true,
         custom_event: true,
         inject_message: true,
-        skill_list: true,
         system_prompt: true,
-        task_event: true,
-        subagent_event: true,
-        queue_state: true,
+        capability_state: true,
         pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(18);
+      expect(Object.keys(handlers)).toHaveLength(12);
     });
 
     it("discriminates client messages by type", () => {
@@ -58,14 +52,11 @@ describe("Client Types", () => {
         command: true,
         ping: true,
         request_sync: true,
-        toggle_schedule: true,
         custom_response: true,
         request_system_prompt: true,
-        queue_message: true,
-        queue_delete: true,
-        queue_steer: true,
+        capability_action: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(15);
+      expect(Object.keys(handlers)).toHaveLength(12);
     });
   });
 

@@ -53,6 +53,7 @@ function makeHttpContext(storage: CapabilityStorage): CapabilityHttpContext {
     storage,
     sessionStore: {} as CapabilityHttpContext["sessionStore"],
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     sendPrompt: vi.fn(),
   };
 }
@@ -686,6 +687,7 @@ describe("agentPeering", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     });
@@ -708,6 +710,7 @@ describe("agentPeering", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
     });
@@ -734,6 +737,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -754,6 +758,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -772,6 +777,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -791,6 +797,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -813,6 +820,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -848,6 +856,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -884,6 +893,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -911,6 +921,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -939,6 +950,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -959,6 +971,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });
@@ -982,6 +995,7 @@ describe("agentPeering", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
       });

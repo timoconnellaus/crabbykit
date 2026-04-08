@@ -53,6 +53,7 @@ function mockContext(sessionId = "test-session", storage?: CapabilityStorage): A
     emitCost: () => {},
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn().mockResolvedValue({}),
     schedules: {
       create: vi.fn().mockResolvedValue({}),
@@ -281,7 +282,7 @@ describe("exec tool — background mode", () => {
     expect(text).toContain("bg-2");
     expect(text).toContain("PID 99");
     // No tail output since poll not available
-    expect(result.details.tail).toBe("");
+    expect((result.details as { tail: string }).tail).toBe("");
   });
 });
 

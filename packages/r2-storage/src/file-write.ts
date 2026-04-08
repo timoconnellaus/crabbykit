@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { toR2Key, validatePath } from "./paths.js";
 
@@ -7,7 +7,7 @@ const MAX_CONTENT_BYTES = 1_048_576; // 1MB
 /**
  * Create a file_write tool backed by an R2 bucket.
  */
-export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => string): AgentTool {
+export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
   return defineTool({
     name: "file_write",
     description:
@@ -76,5 +76,5 @@ export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => 
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }

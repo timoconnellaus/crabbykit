@@ -1,3 +1,4 @@
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 
 // Mock cloudflare:workers
@@ -27,7 +28,9 @@ describe("taskTracker capability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll: vi.fn(),
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
 
@@ -52,7 +55,9 @@ describe("taskTracker capability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll: vi.fn(),
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
 

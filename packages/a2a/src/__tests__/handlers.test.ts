@@ -33,6 +33,7 @@ function createMockContext(overrides?: Partial<CapabilityHttpContext>): Capabili
   return {
     sendPrompt: vi.fn().mockResolvedValue({ sessionId: "s1", response: "ok" }),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     sessionStore: {} as R,
     ...overrides,
   } as unknown as CapabilityHttpContext;

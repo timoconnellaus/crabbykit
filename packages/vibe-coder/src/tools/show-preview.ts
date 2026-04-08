@@ -22,15 +22,7 @@ export function createShowPreviewTool(
     }),
     execute: async ({ port }) => {
       if (!provider.setDevPort) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Error: Sandbox provider does not support dev server proxying.",
-            },
-          ],
-          details: null,
-        };
+        return "Error: Sandbox provider does not support dev server proxying.";
       }
 
       await provider.setDevPort(port, previewBasePath);

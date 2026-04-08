@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
 import type { McpServerConfig } from "../mcp/types.js";
@@ -16,7 +16,7 @@ import type {
 } from "./types.js";
 
 export interface ResolvedCapabilities {
-  tools: AgentTool[];
+  tools: AnyAgentTool[];
   commands: Command[];
   promptSections: PromptSection[];
   mcpServers: McpServerConfig[];
@@ -41,6 +41,10 @@ export interface ResolvedCapabilities {
     capabilityId: string;
     storage: CapabilityStorage;
   }>;
+  onActionHandlers: Map<
+    string,
+    (action: string, data: unknown, ctx: CapabilityHookContext) => Promise<void>
+  >;
   disposers: Array<{ capabilityId: string; dispose: () => Promise<void> }>;
 }
 
@@ -58,8 +62,9 @@ export function resolveCapabilities(
   capabilities: Capability[],
   context: AgentContext,
   createStorage?: (capabilityId: string) => CapabilityStorage,
+  createBroadcastState?: (capabilityId: string) => AgentContext["broadcastState"],
 ): ResolvedCapabilities {
-  const tools: AgentTool[] = [];
+  const tools: AnyAgentTool[] = [];
   const toolNames = new Set<string>();
   const commands: Command[] = [];
   const commandNames = new Set<string>();
@@ -72,12 +77,16 @@ export function resolveCapabilities(
   const schedules: ResolvedScheduleDeclaration[] = [];
   const httpHandlers: ResolvedCapabilities["httpHandlers"] = [];
   const httpHandlerKeys = new Set<string>();
+  const onActionHandlers: ResolvedCapabilities["onActionHandlers"] = new Map();
   const disposers: ResolvedCapabilities["disposers"] = [];
   const getStorage = createStorage ?? (() => createNoopStorage());
 
+  const getBroadcastState = createBroadcastState ?? (() => context.broadcastState);
+
   for (const cap of capabilities) {
     const capStorage = getStorage(cap.id);
-    const capContext: AgentContext = { ...context, storage: capStorage };
+    const capBroadcastState = getBroadcastState(cap.id);
+    const capContext: AgentContext = { ...context, storage: capStorage, broadcastState: capBroadcastState };
 
     if (cap.tools) {
       for (const tool of cap.tools(capContext)) {
@@ -150,6 +159,13 @@ export function resolveCapabilities(
       onConnectHooks.push(async (ctx) => rawHook({ ...ctx, storage: capStorage }));
     }
 
+    if (cap.onAction) {
+      const rawHandler = cap.onAction;
+      onActionHandlers.set(cap.id, async (action, data, ctx) =>
+        rawHandler(action, data, { ...ctx, storage: capStorage }),
+      );
+    }
+
     if (cap.dispose) {
       disposers.push({ capabilityId: cap.id, dispose: cap.dispose });
     }
@@ -185,6 +201,7 @@ export function resolveCapabilities(
     onConnectHooks,
     schedules,
     httpHandlers,
+    onActionHandlers,
     disposers,
   };
 }

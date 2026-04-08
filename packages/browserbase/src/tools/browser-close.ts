@@ -49,15 +49,7 @@ export function createBrowserCloseTool(
           details: { durationMinutes, cost: amount },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error closing browser: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error closing browser: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

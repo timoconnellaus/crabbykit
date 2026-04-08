@@ -1,4 +1,5 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { cancelTimers, idleTimerId, maxTimerId, resetIdleTimer, setMaxTimer } from "../timer.js";
 
@@ -10,6 +11,7 @@ function mockContext(): AgentContext {
     emitCost: vi.fn(),
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn(),
     schedules: {
       create: vi.fn(),
@@ -20,6 +22,7 @@ function mockContext(): AgentContext {
       setTimer: vi.fn(),
       cancelTimer: vi.fn(),
     },
+    storage: createNoopStorage(),
   };
 }
 

@@ -1,4 +1,4 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
 import { createGetConsoleLogsTool } from "./tools/get-console-logs.js";
 import { createHidePreviewTool } from "./tools/hide-preview.js";
@@ -21,8 +21,7 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
 
     tools: (context: AgentContext) => {
       const basePath = options.previewBasePath ?? `/preview/${context.agentId}/`;
-      // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
-      const tools: any[] = [
+      const tools: AnyAgentTool[] = [
         createShowPreviewTool(options.provider, context, basePath),
         createHidePreviewTool(options.provider, context),
         createGetConsoleLogsTool(context),

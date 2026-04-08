@@ -1,4 +1,8 @@
-import type { Capability, CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
+import type {
+  AnyAgentTool,
+  Capability,
+  CapabilityHookContext,
+} from "@claw-for-cloudflare/agent-runtime";
 import { AppStore } from "./app-store.js";
 import { createDeleteAppTool } from "./tools/delete-app.js";
 import { createDeployAppTool } from "./tools/deploy-app.js";
@@ -54,8 +58,7 @@ export function appRegistry(options: AppRegistryOptions): Capability {
         context.broadcastToAll("app_list", buildAppListPayload(appStore));
       };
 
-      // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
-      const tools: any[] = [
+      const tools: AnyAgentTool[] = [
         createDeployAppTool(options.provider, context, appStore, broadcastList, options.backend),
         createListAppsTool(appStore),
         createGetAppHistoryTool(appStore),

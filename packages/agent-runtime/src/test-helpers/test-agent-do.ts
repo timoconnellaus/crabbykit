@@ -8,7 +8,7 @@ import { Type } from "@sinclair/typebox";
 import type { AgentConfig, AgentContext } from "../agent-do.js";
 import { AgentDO } from "../agent-do.js";
 import { resolveCapabilities } from "../capabilities/resolve.js";
-import { createCapabilityStorage } from "../capabilities/storage.js";
+import { createCapabilityStorage, createNoopStorage } from "../capabilities/storage.js";
 import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
 import { compactSession, estimateMessagesTokens } from "../compaction/compaction.js";
 import type { CompactionConfig, SummarizeFn } from "../compaction/types.js";
@@ -630,6 +630,8 @@ export class TestAgentDO extends AgentDO {
       broadcast: () => {},
       broadcastToAll: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
     };
 
@@ -637,6 +639,7 @@ export class TestAgentDO extends AgentDO {
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>
       createCapabilityStorage(this.kvStore, capId),
     );
+    this.resolvedCapabilitiesCache = resolved;
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
     // biome-ignore lint/suspicious/noExplicitAny: Test helper — accessing private fields for hook wiring
     (this as any).beforeToolExecutionHooks = resolved.beforeToolExecutionHooks;

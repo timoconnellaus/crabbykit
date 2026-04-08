@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentContext, Schedule, ScheduleManager } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { promptScheduler } from "../capability.js";
 
 /** Creates a mock Schedule object with sensible defaults. */
@@ -49,7 +50,9 @@ function mockContext(schedules?: ScheduleManager): AgentContext {
     emitCost: () => {},
     broadcast: () => {},
     broadcastToAll: () => {},
+    broadcastState: () => {},
     requestFromClient: () => Promise.reject(new Error("Not available")),
+    storage: createNoopStorage(),
     schedules: schedules ?? mockScheduleManager(),
   };
 }

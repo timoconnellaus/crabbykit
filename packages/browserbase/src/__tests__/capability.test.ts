@@ -35,6 +35,7 @@ function mockContext(overrides: Partial<AgentContext> = {}): AgentContext {
     emitCost: vi.fn(),
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn(),
     schedules: {} as AgentContext["schedules"],
     storage: createMockStorage(),

@@ -322,6 +322,25 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any
   ) => Promise<AgentToolResult<TDetails>>;
 }
 
+/**
+ * Type-erased AgentTool that accepts any parameter schema.
+ * Use this in collections (e.g. `Capability.tools()` return type) where
+ * tools with different parameter types must coexist in the same array.
+ * `defineTool<T>()` returns `AgentTool<T>` which is assignable to `AnyAgentTool`
+ * because widening `args` from `Static<T>` to `unknown` is safe (contravariance).
+ */
+export interface AnyAgentTool {
+  name: string;
+  description: string;
+  parameters: TSchema;
+  label: string;
+  guidance?: string;
+  execute: (
+    args: unknown,
+    context: ToolExecuteContext,
+  ) => Promise<AgentToolResult<unknown>>;
+}
+
 // AgentContext is like Context but uses AgentTool
 export interface AgentContext {
   systemPrompt: string;

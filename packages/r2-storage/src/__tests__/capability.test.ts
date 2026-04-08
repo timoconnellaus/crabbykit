@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { r2Storage } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";
 
@@ -30,7 +31,9 @@ describe("r2Storage", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -58,7 +61,9 @@ describe("r2Storage", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     });
     expect(sections).toHaveLength(1);

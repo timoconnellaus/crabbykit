@@ -24,33 +24,17 @@ export function createBrowserTypeTool(
     execute: async ({ ref, text, pressEnter }) => {
       const cdp = sessionManager.getCDP(context.sessionId);
       if (!cdp) {
-        return {
-          content: [{ type: "text" as const, text: "No browser is open. Use browser_open first." }],
-          details: null,
-        };
+        return "No browser is open. Use browser_open first.";
       }
 
       const refs = sessionManager.getRefs(context.sessionId);
       if (!refs) {
-        return {
-          content: [
-            { type: "text" as const, text: "No snapshot available. Use browser_snapshot first." },
-          ],
-          details: null,
-        };
+        return "No snapshot available. Use browser_snapshot first.";
       }
 
       const resolved = resolveRef(refs, ref);
       if (!resolved) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Unknown ref "${ref}". Available refs: ${Object.keys(refs).join(", ")}.`,
-            },
-          ],
-          details: null,
-        };
+        return `Unknown ref "${ref}". Available refs: ${Object.keys(refs).join(", ")}.`;
       }
 
       try {
@@ -94,15 +78,7 @@ export function createBrowserTypeTool(
           details: { ref, text, pressEnter: pressEnter ?? false },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error typing into "${ref}": ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error typing into "${ref}": ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

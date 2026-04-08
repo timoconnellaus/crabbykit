@@ -47,35 +47,10 @@ export interface SessionListMessage {
   }>;
 }
 
-export interface McpStatusMessage {
-  type: "mcp_status";
-  servers: Array<{
-    id: string;
-    name: string;
-    status: "connected" | "disconnected" | "error";
-    toolCount: number;
-    error?: string;
-  }>;
-}
-
 export interface CostEventMessage {
   type: "cost_event";
   sessionId: string;
   event: CostEvent;
-}
-
-export interface ScheduleListMessage {
-  type: "schedule_list";
-  schedules: Array<{
-    id: string;
-    name: string;
-    cron: string;
-    enabled: boolean;
-    status: string;
-    nextFireAt: string | null;
-    expiresAt: string | null;
-    lastFiredAt: string | null;
-  }>;
 }
 
 export interface ErrorMessage {
@@ -90,11 +65,6 @@ export interface CommandResultMessage {
   name: string;
   result: { text?: string; data?: unknown };
   isError: boolean;
-}
-
-export interface CommandListMessage {
-  type: "command_list";
-  commands: Array<{ name: string; description: string }>;
 }
 
 export interface CustomEventMessage {
@@ -112,6 +82,10 @@ export interface InjectMessageMessage {
   message: AgentMessage;
 }
 
+/**
+ * Entry in a skill list broadcast (payload of `capability_state` for `capabilityId: "skills"`).
+ * Kept as a public type for consumers that need to type the skills data.
+ */
 export interface SkillListEntry {
   id: string;
   name: string;
@@ -124,11 +98,6 @@ export interface SkillListEntry {
   builtIn?: boolean;
 }
 
-export interface SkillListMessage {
-  type: "skill_list";
-  skills: SkillListEntry[];
-}
-
 export interface SystemPromptMessage {
   type: "system_prompt";
   sections: Array<{ name: string; key: string; content: string; lines: number }>;
@@ -139,29 +108,20 @@ export interface PongMessage {
   type: "pong";
 }
 
-export interface TaskEventMessage {
-  type: "task_event";
-  event: {
-    changeType: "created" | "updated" | "closed" | "dep_added" | "dep_removed";
-    task: Record<string, unknown>;
-    dep?: Record<string, unknown>;
-  };
-}
-
-export interface SubagentEventMessage {
-  type: "subagent_event";
-  sessionId: string;
-  subagentId: string;
-  profileId: string;
-  childSessionId: string;
-  taskId?: string;
-  event: AgentEvent;
-}
-
-export interface QueueStateMessage {
-  type: "queue_state";
-  sessionId: string;
-  items: Array<{ id: string; text: string; createdAt: string }>;
+/**
+ * Generic capability state envelope. All capability-specific state pushes
+ * (schedules, skills, tasks, subagent events, MCP status, commands, queue)
+ * are sent as `capability_state` messages with the appropriate `capabilityId`.
+ * Capabilities broadcast via `context.broadcastState()`.
+ * AgentDO broadcasts core-owned state via `this.broadcastCoreState()`.
+ */
+export interface CapabilityStateMessage {
+  type: "capability_state";
+  capabilityId: string;
+  scope: "session" | "global";
+  event: string;
+  data: unknown;
+  sessionId?: string;
 }
 
 export type ServerMessage =
@@ -169,19 +129,13 @@ export type ServerMessage =
   | ToolEventMessage
   | SessionSyncMessage
   | SessionListMessage
-  | ScheduleListMessage
-  | McpStatusMessage
   | CostEventMessage
   | ErrorMessage
   | CommandResultMessage
-  | CommandListMessage
   | CustomEventMessage
   | InjectMessageMessage
-  | SkillListMessage
   | SystemPromptMessage
-  | TaskEventMessage
-  | SubagentEventMessage
-  | QueueStateMessage
+  | CapabilityStateMessage
   | PongMessage;
 
 // --- Client → Server messages ---
@@ -234,12 +188,6 @@ export interface RequestSyncMessage {
   afterSeq?: number;
 }
 
-export interface ToggleScheduleMessage {
-  type: "toggle_schedule";
-  scheduleId: string;
-  enabled: boolean;
-}
-
 export interface CustomResponseMessage {
   type: "custom_response";
   sessionId: string;
@@ -251,26 +199,22 @@ export interface RequestSystemPromptMessage {
   type: "request_system_prompt";
 }
 
-export interface QueueMessageMessage {
-  type: "queue_message";
-  sessionId: string;
-  text: string;
-}
-
-export interface QueueDeleteMessage {
-  type: "queue_delete";
-  sessionId: string;
-  queueId: string;
-}
-
-export interface QueueSteerMessage {
-  type: "queue_steer";
-  sessionId: string;
-  queueId: string;
-}
-
 export interface PingMessage {
   type: "ping";
+}
+
+/**
+ * Generic capability action envelope. All capability-specific client actions
+ * (schedule toggle, queue message/delete/steer, etc.) are sent as
+ * `capability_action` messages. Routed to the matching capability's `onAction`
+ * handler or AgentDO's core handler for well-known capability IDs.
+ */
+export interface CapabilityActionMessage {
+  type: "capability_action";
+  capabilityId: string;
+  action: string;
+  data: unknown;
+  sessionId: string;
 }
 
 export type ClientMessage =
@@ -282,10 +226,7 @@ export type ClientMessage =
   | DeleteSessionMessage
   | CommandMessage
   | RequestSyncMessage
-  | ToggleScheduleMessage
   | CustomResponseMessage
   | RequestSystemPromptMessage
-  | QueueMessageMessage
-  | QueueDeleteMessage
-  | QueueSteerMessage
+  | CapabilityActionMessage
   | PingMessage;

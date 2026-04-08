@@ -1,4 +1,4 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import {
   clearAllElevation,
   clearAllProcessOwners,
@@ -57,8 +57,7 @@ export function sandboxCapability(options: SandboxCapabilityOptions): Capability
     description: "Provides elevated sandbox execution environment with shell access.",
 
     tools: (context: AgentContext) => {
-      // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
-      const tools: any[] = [
+      const tools: AnyAgentTool[] = [
         createElevateTool(options.provider, resolvedConfig, context),
         createDeElevateTool(options.provider, resolvedConfig, context),
         createExecTool(options.provider, resolvedConfig, context),

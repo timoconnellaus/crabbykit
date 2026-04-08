@@ -899,16 +899,22 @@ describe("pagination", () => {
 // ---------------------------------------------------------------------------
 
 describe("toggleSchedule", () => {
-  it("sends toggle_schedule message", async () => {
+  it("sends capability_action toggle for schedules", async () => {
     harness = createHarness();
     await harness.establish();
 
     await act(() => harness.current.toggleSchedule("sch_1", false));
 
-    const msg = harness.sent.find((m) => m.type === "toggle_schedule");
+    const msg = harness.sent.find(
+      (m) =>
+        m.type === "capability_action" &&
+        (m as { capabilityId?: string }).capabilityId === "schedules" &&
+        (m as { action?: string }).action === "toggle",
+    );
     expect(msg).toBeDefined();
-    expect((msg as { scheduleId: string }).scheduleId).toBe("sch_1");
-    expect((msg as { enabled: boolean }).enabled).toBe(false);
+    const data = (msg as { data: { scheduleId: string; enabled: boolean } }).data;
+    expect(data.scheduleId).toBe("sch_1");
+    expect(data.enabled).toBe(false);
   });
 });
 

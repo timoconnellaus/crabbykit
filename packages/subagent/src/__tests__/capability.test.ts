@@ -65,6 +65,7 @@ describe("subagentCapability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll: vi.fn(),
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
       storage: mockStorage,
@@ -133,7 +134,9 @@ describe("subagentCapability", () => {
       sessionId: "session-1",
       sessionStore: {} as any,
       storage: mockStorageApi,
+      capabilityIds: [],
       broadcast,
+      broadcastState: () => {},
     });
 
     expect(broadcast).toHaveBeenCalledWith(

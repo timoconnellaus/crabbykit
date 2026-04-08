@@ -53,7 +53,7 @@ describe("task_create tool", () => {
 
     expect(textContent(result)).toContain("Build auth");
     expect(broadcast).toHaveBeenCalledWith(
-      "task_event",
+      "update",
       expect.objectContaining({ changeType: "created" }),
     );
   });
@@ -113,7 +113,7 @@ describe("task_update tool", () => {
 
     expect(textContent(result)).toContain("in_progress");
     expect(broadcast).toHaveBeenCalledWith(
-      "task_event",
+      "update",
       expect.objectContaining({ changeType: "updated" }),
     );
   });
@@ -160,7 +160,7 @@ describe("task_close tool", () => {
     expect(textContent(result)).toContain("Closed");
     expect(textContent(result)).toContain("Complete");
     expect(broadcast).toHaveBeenCalledWith(
-      "task_event",
+      "update",
       expect.objectContaining({ changeType: "closed" }),
     );
   });
@@ -261,7 +261,7 @@ describe("task_dep_add tool", () => {
 
     expect(textContent(result)).toContain("blocks");
     expect(broadcast).toHaveBeenCalledWith(
-      "task_event",
+      "update",
       expect.objectContaining({ changeType: "dep_added" }),
     );
   });

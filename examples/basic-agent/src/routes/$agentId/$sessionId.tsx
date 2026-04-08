@@ -134,54 +134,6 @@ function SessionLayout() {
     [preview],
   );
 
-  const onTaskEvent = taskState.handleTaskEvent;
-
-  const onSubagentEvent = useCallback(
-    (event: {
-      subagentId: string;
-      profileId: string;
-      childSessionId: string;
-      taskId?: string;
-      event: unknown;
-    }) => {
-      setSubagents((prev) => {
-        const existing = prev.find((s) => s.subagentId === event.subagentId);
-        const agentEvent = event.event as { type: string; message?: { content?: string } };
-
-        if (!existing) {
-          return [
-            ...prev,
-            {
-              subagentId: event.subagentId,
-              profileId: event.profileId,
-              childSessionId: event.childSessionId,
-              state: "running",
-              prompt: "",
-              taskId: event.taskId,
-            },
-          ];
-        }
-
-        if (agentEvent.type === "agent_end") {
-          return prev.map((s) =>
-            s.subagentId === event.subagentId ? { ...s, state: "completed" as const } : s,
-          );
-        }
-
-        if (agentEvent.type === "message_update" && agentEvent.message?.content) {
-          const text =
-            typeof agentEvent.message.content === "string" ? agentEvent.message.content : "";
-          return prev.map((s) =>
-            s.subagentId === event.subagentId ? { ...s, latestText: text } : s,
-          );
-        }
-
-        return prev;
-      });
-    },
-    [],
-  );
-
   // Build WebSocket URL — only on the client
   const wsUrl =
     typeof window !== "undefined"
@@ -193,8 +145,6 @@ function SessionLayout() {
     sessionId: sessionId === "latest" ? undefined : sessionId,
     onCustomEvent,
     onCustomRequest,
-    onTaskEvent,
-    onSubagentEvent,
   });
 
   // Reset task state when session changes (e.g. /clear creates a new session)

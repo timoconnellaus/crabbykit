@@ -1,3 +1,4 @@
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyWebSearch } from "../capability.js";
@@ -33,7 +34,9 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -55,7 +58,9 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
     const sections = cap.promptSections!(context);
@@ -76,7 +81,9 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);
@@ -98,7 +105,9 @@ describe("tavilyWebSearch", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     });
     expect(tools).toHaveLength(2);
@@ -125,7 +134,9 @@ describe("tavilyWebSearch", () => {
       emitCost: vi.fn(),
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);
@@ -159,7 +170,9 @@ describe("tavilyWebSearch", () => {
       emitCost: vi.fn(),
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
     const tools = cap.tools!(context);

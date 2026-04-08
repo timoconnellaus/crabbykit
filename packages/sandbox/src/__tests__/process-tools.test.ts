@@ -62,6 +62,7 @@ function mockContext(sessionId: string, storage: CapabilityStorage): AgentContex
     emitCost: () => {},
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn().mockResolvedValue({}),
     schedules: {
       create: vi.fn().mockResolvedValue({}),

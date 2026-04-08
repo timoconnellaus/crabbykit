@@ -223,8 +223,9 @@ describe("save_secret tool", () => {
     const result = await tool.execute({ name: "MY_KEY", value: "super-secret" }, toolCtx);
 
     expect(textOf(result)).toBe("Secret saved: MY_KEY");
-    expect(result.details.name).toBe("MY_KEY");
-    expect(result.details.savedAt).toBeTruthy();
+    const details = result.details as { name: string; savedAt: string };
+    expect(details.name).toBe("MY_KEY");
+    expect(details.savedAt).toBeTruthy();
 
     // Verify it was actually encrypted and stored
     const secrets = await getSecrets(storage);
@@ -246,7 +247,7 @@ describe("save_secret tool", () => {
     const result = await tool.execute({ name: "BIG", value: bigValue }, toolCtx);
 
     expect(textOf(result)).toContain("too large");
-    expect(result.details.error).toBe("value_too_large");
+    expect((result.details as { error: string }).error).toBe("value_too_large");
 
     // Should not have stored anything
     const secrets = await getSecrets(storage);
@@ -264,7 +265,7 @@ describe("save_secret tool", () => {
   });
 
   it("throws when storage is not available", async () => {
-    const tool = createSaveSecretTool({ storage: undefined } as AgentContext);
+    const tool = createSaveSecretTool({ storage: undefined } as unknown as AgentContext);
     await expect(tool.execute({ name: "X", value: "Y" }, toolCtx)).rejects.toThrow(
       "Credential store requires capability storage",
     );
@@ -298,7 +299,7 @@ describe("list_secrets tool", () => {
     const result = await tool.execute({}, toolCtx);
 
     expect(textOf(result)).toBe("No saved secrets.");
-    expect(result.details.secrets).toEqual([]);
+    expect((result.details as { secrets: unknown[] }).secrets).toEqual([]);
   });
 
   it("lists secret names and timestamps without values", async () => {
@@ -309,8 +310,9 @@ describe("list_secrets tool", () => {
     const listTool = createListSecretsTool(makeContext(storage));
     const result = await listTool.execute({}, toolCtx);
 
-    expect(result.details.secrets).toHaveLength(2);
-    const names = result.details.secrets.map((s: { name: string }) => s.name);
+    const details = result.details as { secrets: { name: string; savedAt: string }[] };
+    expect(details.secrets).toHaveLength(2);
+    const names = details.secrets.map((s) => s.name);
     expect(names).toContain("TOKEN_A");
     expect(names).toContain("TOKEN_B");
 
@@ -322,7 +324,7 @@ describe("list_secrets tool", () => {
   });
 
   it("throws when storage is not available", async () => {
-    const tool = createListSecretsTool({ storage: undefined } as AgentContext);
+    const tool = createListSecretsTool({ storage: undefined } as unknown as AgentContext);
     await expect(tool.execute({}, toolCtx)).rejects.toThrow(
       "Credential store requires capability storage",
     );
@@ -348,7 +350,7 @@ describe("delete_secret tool", () => {
     const result = await deleteTool.execute({ name: "TO_DELETE" }, toolCtx);
 
     expect(textOf(result)).toBe("Secret deleted: TO_DELETE");
-    expect(result.details.deleted).toBe(true);
+    expect((result.details as { deleted: boolean }).deleted).toBe(true);
 
     // Verify it's gone
     const secrets = await getSecrets(storage);
@@ -360,7 +362,7 @@ describe("delete_secret tool", () => {
     const result = await tool.execute({ name: "NOPE" }, toolCtx);
 
     expect(textOf(result)).toBe("Secret not found: NOPE");
-    expect(result.details.deleted).toBe(false);
+    expect((result.details as { deleted: boolean }).deleted).toBe(false);
   });
 
   it("does not affect other secrets", async () => {
@@ -378,7 +380,7 @@ describe("delete_secret tool", () => {
   });
 
   it("throws when storage is not available", async () => {
-    const tool = createDeleteSecretTool({ storage: undefined } as AgentContext);
+    const tool = createDeleteSecretTool({ storage: undefined } as unknown as AgentContext);
     await expect(tool.execute({ name: "X" }, toolCtx)).rejects.toThrow(
       "Credential store requires capability storage",
     );

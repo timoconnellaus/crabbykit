@@ -40,6 +40,7 @@ describe("appRegistry capability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll: vi.fn(),
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
     } as unknown as AgentContext;
@@ -64,6 +65,7 @@ describe("appRegistry capability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll: vi.fn(),
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
     } as unknown as AgentContext;
@@ -195,6 +197,7 @@ describe("appRegistry capability", () => {
       emitCost: vi.fn(),
       broadcast: vi.fn(),
       broadcastToAll,
+      broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
     } as unknown as AgentContext;

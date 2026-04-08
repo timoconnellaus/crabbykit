@@ -21,10 +21,7 @@ export function createDeleteAppTool(
     execute: async ({ slug }) => {
       const app = appStore.getBySlug(slug);
       if (!app) {
-        return {
-          content: [{ type: "text" as const, text: `Error: App "${slug}" not found.` }],
-          details: null,
-        };
+        return `Error: App "${slug}" not found.`;
       }
 
       // Clean up R2 artifacts

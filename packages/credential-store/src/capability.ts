@@ -1,4 +1,4 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { createDeleteSecretTool, createListSecretsTool, createSaveSecretTool } from "./tools.js";
 
 /**
@@ -19,8 +19,7 @@ export function credentialStore(): Capability {
     description: "Encrypted storage for API keys, tokens, and other secrets.",
 
     tools: (context: AgentContext) => {
-      // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires cast when building heterogeneous arrays
-      const tools: any[] = [
+      const tools: AnyAgentTool[] = [
         createSaveSecretTool(context),
         createListSecretsTool(context),
         createDeleteSecretTool(context),

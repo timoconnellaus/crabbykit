@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { toR2Key, validatePath } from "./paths.js";
 
@@ -11,7 +11,7 @@ export function createFileReadTool(
   getBucket: () => R2Bucket,
   getPrefix: () => string,
   maxReadBytes: number = DEFAULT_MAX_READ_BYTES,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "file_read",
     description:
@@ -76,7 +76,7 @@ export function createFileReadTool(
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 function applyOffsetLimitAndTruncate(

@@ -19,10 +19,7 @@ export function createBrowserScreenshotTool(
     execute: async ({ fullPage }) => {
       const cdp = sessionManager.getCDP(context.sessionId);
       if (!cdp) {
-        return {
-          content: [{ type: "text" as const, text: "No browser is open. Use browser_open first." }],
-          details: null,
-        };
+        return "No browser is open. Use browser_open first.";
       }
 
       try {
@@ -61,15 +58,7 @@ export function createBrowserScreenshotTool(
           details: { fullPage: fullPage ?? false },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error taking screenshot: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error taking screenshot: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

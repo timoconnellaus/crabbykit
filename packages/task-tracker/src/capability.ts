@@ -45,7 +45,7 @@ export function taskTracker(options: TaskTrackerOptions): Capability {
       const deps = {
         getStore: () => store,
         getSessionId: () => context.sessionId,
-        getBroadcast: () => context.broadcastToAll,
+        getBroadcast: () => context.broadcastState,
       };
 
       return [
@@ -61,10 +61,10 @@ export function taskTracker(options: TaskTrackerOptions): Capability {
 
     hooks: {
       onConnect: async (ctx) => {
-        if (!ctx.broadcast) return;
+        if (!ctx.broadcastState) return;
         const tasks = store.list(ctx.sessionId);
         for (const task of tasks) {
-          ctx.broadcast("task_event", {
+          ctx.broadcastState("update", {
             changeType: "created",
             task: task as unknown as Record<string, unknown>,
           });

@@ -17,24 +17,13 @@ export function createGetAppHistoryTool(
     execute: async ({ slug }) => {
       const app = appStore.getBySlug(slug);
       if (!app) {
-        return {
-          content: [{ type: "text" as const, text: `Error: App "${slug}" not found.` }],
-          details: null,
-        };
+        return `Error: App "${slug}" not found.`;
       }
 
       const versions = appStore.getVersions(app.id);
 
       if (versions.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `${app.name} (${app.slug}) — no versions deployed yet.`,
-            },
-          ],
-          details: null,
-        };
+        return `${app.name} (${app.slug}) — no versions deployed yet.`;
       }
 
       const lines = versions.map((v) => {

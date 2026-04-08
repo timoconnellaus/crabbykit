@@ -46,15 +46,7 @@ export function createBrowserOpenTool(
           details: { browserbaseId: result.browserbaseId, pageUrl },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error opening browser: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error opening browser: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

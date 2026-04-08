@@ -109,6 +109,7 @@ function mockContext(storage?: CapabilityStorage) {
     emitCost: () => {},
     broadcast: () => {},
     broadcastToAll: () => {},
+    broadcastState: () => {},
     requestFromClient: () => Promise.reject(new Error("Not available")),
     schedules: {} as any,
     storage: storage ?? capStorage,
@@ -519,6 +520,7 @@ describe("httpHandlers", () => {
       sessionStore: {} as any,
       storage: storage ?? capStorage,
       broadcastToAll: () => {},
+      broadcastState: () => {},
       sendPrompt: async () => ({ sessionId: "s1", response: "" }),
     };
   }

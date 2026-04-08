@@ -1,11 +1,11 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { ClientMessage } from "../transport/types.js";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import type { ClientMessage, SkillListEntry } from "../transport/types.js";
 import { chatReducer, createInitialState } from "./chat-reducer.js";
 import { createMessageHandler } from "./message-handler.js";
 
 // Re-export public types so barrel imports don't need to change
-export type { CommandInfo, CommandResultTag, ToolState } from "./chat-reducer.js";
+export type { CommandInfo, CommandResultTag, QueuedItem, ToolState } from "./chat-reducer.js";
 
 const DEFAULT_MAX_RECONNECT_DELAY = 30_000;
 const RECONNECT_BACKOFF_BASE = 2;
@@ -25,20 +25,6 @@ export interface UseAgentChatConfig {
   maxReconnectDelay?: number;
   /** Called when a custom event is received from a capability. */
   onCustomEvent?: (name: string, data: Record<string, unknown>) => void;
-  /** Called when a task_event is received (task created, updated, closed, dep changed). */
-  onTaskEvent?: (event: {
-    changeType: string;
-    task: Record<string, unknown>;
-    dep?: Record<string, unknown>;
-  }) => void;
-  /** Called when a subagent_event is received (child agent activity). */
-  onSubagentEvent?: (event: {
-    subagentId: string;
-    profileId: string;
-    childSessionId: string;
-    taskId?: string;
-    event: unknown;
-  }) => void;
   /**
    * Called when the server requests data from the client (via requestFromClient).
    * The handler receives the event name and data, and should return the response data.
@@ -48,6 +34,18 @@ export interface UseAgentChatConfig {
     name: string,
     data: Record<string, unknown>,
   ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+}
+
+/** Schedule info used by useAgentChat return, derived from capability_state. */
+export interface ScheduleInfo {
+  id: string;
+  name: string;
+  cron: string;
+  enabled: boolean;
+  status: string;
+  nextFireAt: string | null;
+  expiresAt: string | null;
+  lastFiredAt: string | null;
 }
 
 export interface UseAgentChatReturn {
@@ -63,27 +61,20 @@ export interface UseAgentChatReturn {
   toolStates: Map<string, import("./chat-reducer.js").ToolState>;
   /** Accumulated cost events for the current session. */
   costs: import("../costs/types.js").CostEvent[];
-  /** Active schedules. Updated when schedules change. */
-  schedules: Array<{
-    id: string;
-    name: string;
-    cron: string;
-    enabled: boolean;
-    status: string;
-    nextFireAt: string | null;
-    expiresAt: string | null;
-    lastFiredAt: string | null;
-  }>;
-  /** Available slash commands registered on the server. */
+  /** Active schedules. Derived from capability_state ("schedules"). */
+  schedules: ScheduleInfo[];
+  /** Available slash commands. Derived from capability_state ("commands"). */
   availableCommands: import("./chat-reducer.js").CommandInfo[];
-  /** Installed skills. Updated when skill state changes. */
-  skills: import("../transport/types.js").SkillListEntry[];
+  /** Generic capability state keyed by capability ID. Updated on capability_state events. */
+  capabilityState: Record<string, unknown>;
+  /** Installed skills. Derived from capability_state ("skills"). */
+  skills: SkillListEntry[];
   /** Structured system prompt sections. Populated after calling requestSystemPrompt(). */
   systemPrompt: {
     sections: import("../prompt/types.js").PromptSection[];
     raw: string;
   } | null;
-  /** Queued messages waiting to be processed after the current agent turn. */
+  /** Queued messages waiting to be processed. Derived from capability_state ("queue"). */
   queuedMessages: import("./chat-reducer.js").QueuedItem[];
   /** Last error received from the server. Cleared on next prompt. */
   error: string | null;
@@ -123,13 +114,12 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   onCustomEventRef.current = config.onCustomEvent;
   const onCustomRequestRef = useRef(config.onCustomRequest);
   onCustomRequestRef.current = config.onCustomRequest;
-  const onTaskEventRef = useRef(config.onTaskEvent);
-  onTaskEventRef.current = config.onTaskEvent;
-  const onSubagentEventRef = useRef(config.onSubagentEvent);
-  onSubagentEventRef.current = config.onSubagentEvent;
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPongAtRef = useRef<number>(0);
+  const capabilitySubscribersRef = useRef(
+    new Map<string, Set<(event: string, data: unknown) => void>>(),
+  );
 
   const send = useCallback((msg: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -144,10 +134,9 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       streamMessageRef,
       onCustomEventRef,
       onCustomRequestRef,
-      onTaskEventRef,
-      onSubagentEventRef,
       lastPongAtRef,
       pongTimeoutRef,
+      capabilitySubscribersRef,
     }),
     [],
   );
@@ -275,6 +264,31 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     };
   }, [connect, config.url]);
 
+  // Derive legacy fields from capabilityState for backward compatibility
+  const schedules = useMemo<ScheduleInfo[]>(() => {
+    const data = state.capabilityState.schedules as { schedules?: ScheduleInfo[] } | undefined;
+    return data?.schedules ?? [];
+  }, [state.capabilityState.schedules]);
+
+  const skills = useMemo<SkillListEntry[]>(() => {
+    const data = state.capabilityState.skills as { skills?: SkillListEntry[] } | undefined;
+    return data?.skills ?? [];
+  }, [state.capabilityState.skills]);
+
+  const availableCommands = useMemo<import("./chat-reducer.js").CommandInfo[]>(() => {
+    const data = state.capabilityState.commands as
+      | { commands?: import("./chat-reducer.js").CommandInfo[] }
+      | undefined;
+    return data?.commands ?? [];
+  }, [state.capabilityState.commands]);
+
+  const queuedMessages = useMemo<import("./chat-reducer.js").QueuedItem[]>(() => {
+    const data = state.capabilityState.queue as
+      | { items?: import("./chat-reducer.js").QueuedItem[] }
+      | undefined;
+    return data?.items ?? [];
+  }, [state.capabilityState.queue]);
+
   const sendMessage = useCallback(
     (text: string) => {
       if (!state.currentSessionId) return;
@@ -285,14 +299,14 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       const commandMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
       if (commandMatch) {
         const [, name, args] = commandMatch;
-        const isKnownCommand = state.availableCommands.some((cmd) => cmd.name === name);
+        const isKnownCommand = availableCommands.some((cmd) => cmd.name === name);
         if (isKnownCommand) {
           send({
             type: "command",
             sessionId: state.currentSessionId,
             name,
             args: args?.trim(),
-          } as ClientMessage);
+          });
 
           // Optimistically add user message and set agent as streaming
           dispatch({
@@ -305,7 +319,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
       }
 
       if (state.agentStatus === "idle") {
-        send({ type: "prompt", sessionId: state.currentSessionId, text } as ClientMessage);
+        send({ type: "prompt", sessionId: state.currentSessionId, text });
         // Optimistically add user message and set agent as streaming
         dispatch({
           type: "ADD_MESSAGE",
@@ -313,31 +327,24 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         });
         dispatch({ type: "SET_AGENT_STATUS", agentStatus: "streaming" });
       } else {
-        send({ type: "queue_message", sessionId: state.currentSessionId, text } as ClientMessage);
-        // Optimistically add to queued messages
-        dispatch({
-          type: "SET_QUEUE",
-          items: [
-            ...state.queuedMessages,
-            { id: `optimistic-${Date.now()}`, text, createdAt: new Date().toISOString() },
-          ],
+        // Agent busy — queue the message via capability_action
+        send({
+          type: "capability_action",
+          capabilityId: "queue",
+          action: "message",
+          data: { text },
+          sessionId: state.currentSessionId,
         });
       }
     },
-    [
-      state.currentSessionId,
-      state.agentStatus,
-      state.queuedMessages,
-      state.availableCommands,
-      send,
-    ],
+    [state.currentSessionId, state.agentStatus, availableCommands, send],
   );
 
   const steerMessage = useCallback(
     (text: string) => {
       if (!state.currentSessionId) return;
       dispatch({ type: "SET_ERROR", error: null });
-      send({ type: "steer", sessionId: state.currentSessionId, text } as ClientMessage);
+      send({ type: "steer", sessionId: state.currentSessionId, text });
       dispatch({
         type: "ADD_MESSAGE",
         message: { role: "user", content: text, timestamp: Date.now() } as AgentMessage,
@@ -350,25 +357,27 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
   const deleteQueuedMessage = useCallback(
     (queueId: string) => {
       if (!state.currentSessionId) return;
-      send({ type: "queue_delete", sessionId: state.currentSessionId, queueId } as ClientMessage);
-      // Optimistically remove from local queue
-      dispatch({
-        type: "SET_QUEUE",
-        items: state.queuedMessages.filter((item) => item.id !== queueId),
+      send({
+        type: "capability_action",
+        capabilityId: "queue",
+        action: "delete",
+        data: { queueId },
+        sessionId: state.currentSessionId,
       });
     },
-    [state.currentSessionId, state.queuedMessages, send],
+    [state.currentSessionId, send],
   );
 
   const steerQueuedMessage = useCallback(
     (queueId: string) => {
       if (!state.currentSessionId) return;
-      const item = state.queuedMessages.find((m) => m.id === queueId);
-      send({ type: "queue_steer", sessionId: state.currentSessionId, queueId } as ClientMessage);
-      // Optimistically remove from local queue
-      dispatch({
-        type: "SET_QUEUE",
-        items: state.queuedMessages.filter((m) => m.id !== queueId),
+      const item = queuedMessages.find((m) => m.id === queueId);
+      send({
+        type: "capability_action",
+        capabilityId: "queue",
+        action: "steer",
+        data: { queueId },
+        sessionId: state.currentSessionId,
       });
       // Optimistically add the steered message to chat (server won't broadcast for human steers)
       if (item) {
@@ -378,7 +387,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         });
       }
     },
-    [state.currentSessionId, state.queuedMessages, send],
+    [state.currentSessionId, queuedMessages, send],
   );
 
   const abort = useCallback(() => {
@@ -410,9 +419,16 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
 
   const toggleSchedule = useCallback(
     (scheduleId: string, enabled: boolean) => {
-      send({ type: "toggle_schedule", scheduleId, enabled } as ClientMessage);
+      if (!state.currentSessionId) return;
+      send({
+        type: "capability_action",
+        capabilityId: "schedules",
+        action: "toggle",
+        data: { scheduleId, enabled },
+        sessionId: state.currentSessionId,
+      });
     },
-    [send],
+    [state.currentSessionId, send],
   );
 
   const sendCommand = useCallback(
@@ -424,7 +440,7 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
         sessionId: state.currentSessionId,
         name,
         args: args?.trim(),
-      } as ClientMessage);
+      });
 
       // Optimistically add user message
       const text = args ? `/${name} ${args}` : `/${name}`;
@@ -435,6 +451,10 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     },
     [state.currentSessionId, send],
   );
+
+  const requestSystemPrompt = useCallback(() => {
+    send({ type: "request_system_prompt" });
+  }, [send]);
 
   return {
     messages: state.messages.filter((m) => {
@@ -463,15 +483,14 @@ export function useAgentChat(config: UseAgentChatConfig): UseAgentChatReturn {
     completedThinking: state.completedThinking,
     toolStates: state.toolStates,
     costs: state.costs,
-    schedules: state.schedules,
-    availableCommands: state.availableCommands,
-    skills: state.skills,
+    schedules,
+    availableCommands,
+    capabilityState: state.capabilityState,
+    skills,
     systemPrompt: state.systemPrompt,
-    queuedMessages: state.queuedMessages,
+    queuedMessages,
     error: state.error,
-    requestSystemPrompt: useCallback(() => {
-      send({ type: "request_system_prompt" });
-    }, [send]),
+    requestSystemPrompt,
     sendMessage,
     steerMessage,
     deleteQueuedMessage,

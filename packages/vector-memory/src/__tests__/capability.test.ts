@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { vectorMemory } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";
@@ -57,7 +58,9 @@ describe("vectorMemory", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
 
@@ -80,7 +83,9 @@ describe("vectorMemory", () => {
       emitCost: () => {},
       broadcast: () => {},
       broadcastToAll: () => {},
+      broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      storage: createNoopStorage(),
       schedules: {} as any,
     };
 

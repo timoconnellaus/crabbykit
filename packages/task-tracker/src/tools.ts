@@ -9,21 +9,21 @@ import {
 } from "./task-store.js";
 import type { Task, TaskTreeNode } from "./types.js";
 
-type BroadcastFn = (name: string, data: Record<string, unknown>) => void;
+type BroadcastStateFn = (event: string, data: unknown, scope?: "session" | "global") => void;
 
 interface ToolDeps {
   getStore: () => TaskStore;
   getSessionId: () => string;
-  getBroadcast: () => BroadcastFn;
+  getBroadcast: () => BroadcastStateFn;
 }
 
 function emitTaskEvent(
-  broadcast: BroadcastFn,
+  broadcast: BroadcastStateFn,
   changeType: string,
   task: Task,
   extra?: Record<string, unknown>,
 ): void {
-  broadcast("task_event", { changeType, task, ...extra });
+  broadcast("update", { changeType, task, ...extra });
 }
 
 function handleError(err: unknown): ReturnType<typeof toolResult.error> {
@@ -172,7 +172,7 @@ export function createTaskClearTool(deps: ToolDeps): AgentTool<any> {
         return toolResult.text("No tasks to clear.");
       }
       const broadcast = deps.getBroadcast();
-      broadcast("task_event", { changeType: "cleared" });
+      broadcast("update", { changeType: "cleared" });
       return toolResult.text(`Cleared ${count} task(s).`);
     },
   });

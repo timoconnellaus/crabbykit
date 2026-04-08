@@ -58,6 +58,7 @@ function mockContext(sessionId = "test-session", storage?: CapabilityStorage): A
     emitCost: () => {},
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn().mockResolvedValue({}),
     schedules: {
       create: vi.fn().mockResolvedValue({}),
@@ -246,7 +247,7 @@ describe("list_file_credentials", () => {
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("/home/sandbox/.npmrc");
     expect(text).toContain("/home/sandbox/.config/gh/hosts.yml");
-    expect(result.details.credentials).toHaveLength(2);
+    expect((result.details as { credentials: unknown[] }).credentials).toHaveLength(2);
   });
 });
 

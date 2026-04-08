@@ -20,36 +20,17 @@ export function createBrowserClickTool(
     execute: async ({ ref }) => {
       const cdp = sessionManager.getCDP(context.sessionId);
       if (!cdp) {
-        return {
-          content: [{ type: "text" as const, text: "No browser is open. Use browser_open first." }],
-          details: null,
-        };
+        return "No browser is open. Use browser_open first.";
       }
 
       const refs = sessionManager.getRefs(context.sessionId);
       if (!refs) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "No snapshot available. Use browser_snapshot first to get element refs.",
-            },
-          ],
-          details: null,
-        };
+        return "No snapshot available. Use browser_snapshot first to get element refs.";
       }
 
       const resolved = resolveRef(refs, ref);
       if (!resolved) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Unknown ref "${ref}". Available refs: ${Object.keys(refs).join(", ")}. Take a new snapshot if the page has changed.`,
-            },
-          ],
-          details: null,
-        };
+        return `Unknown ref "${ref}". Available refs: ${Object.keys(refs).join(", ")}. Take a new snapshot if the page has changed.`;
       }
 
       try {
@@ -58,12 +39,7 @@ export function createBrowserClickTool(
 
         // Resolve the backend DOM node to get coordinates
         if (resolved.backendDOMNodeId === undefined) {
-          return {
-            content: [
-              { type: "text" as const, text: `Element "${ref}" has no DOM backing. Cannot click.` },
-            ],
-            details: null,
-          };
+          return `Element "${ref}" has no DOM backing. Cannot click.`;
         }
 
         // Resolve node to get the remote object
@@ -86,35 +62,16 @@ export function createBrowserClickTool(
               backendNodeId: resolved.backendDOMNodeId,
             });
             if (!retryQuads.quads?.length) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: `Element "${ref}" has no visible bounds. It may be hidden.`,
-                  },
-                ],
-                details: null,
-              };
+              return `Element "${ref}" has no visible bounds. It may be hidden.`;
             }
             return await clickAtQuad(cdp, retryQuads.quads[0], ref, resolved.name);
           }
-          return {
-            content: [{ type: "text" as const, text: `Element "${ref}" has no visible bounds.` }],
-            details: null,
-          };
+          return `Element "${ref}" has no visible bounds.`;
         }
 
         return await clickAtQuad(cdp, quadsResult.quads[0], ref, resolved.name);
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error clicking "${ref}": ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error clicking "${ref}": ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

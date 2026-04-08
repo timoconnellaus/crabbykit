@@ -1,4 +1,5 @@
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSearchTool } from "../search.js";
@@ -22,7 +23,9 @@ function mockContext(): AgentContext {
     emitCost: vi.fn(),
     broadcast: () => {},
     broadcastToAll: () => {},
+    broadcastState: () => {},
     requestFromClient: () => Promise.reject(new Error("Not available")),
+    storage: createNoopStorage(),
     schedules: {} as any,
   };
 }

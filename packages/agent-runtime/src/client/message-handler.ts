@@ -15,26 +15,12 @@ export interface MessageHandlerRefs {
       ) => Promise<Record<string, unknown>> | Record<string, unknown>)
     | undefined
   >;
-  onTaskEventRef: RefObject<
-    | ((event: {
-        changeType: string;
-        task: Record<string, unknown>;
-        dep?: Record<string, unknown>;
-      }) => void)
-    | undefined
-  >;
-  onSubagentEventRef: RefObject<
-    | ((event: {
-        subagentId: string;
-        profileId: string;
-        childSessionId: string;
-        taskId?: string;
-        event: unknown;
-      }) => void)
-    | undefined
-  >;
   lastPongAtRef: MutableRefObject<number>;
   pongTimeoutRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  /** Subscribers for capability_state messages, keyed by capabilityId. */
+  capabilitySubscribersRef: MutableRefObject<
+    Map<string, Set<(event: string, data: unknown) => void>>
+  >;
 }
 
 export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: MessageHandlerRefs) {
@@ -230,18 +216,6 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         dispatch({ type: "ADD_COST", cost: msg.event });
         break;
 
-      case "schedule_list":
-        dispatch({ type: "SET_SCHEDULES", schedules: msg.schedules });
-        break;
-
-      case "command_list":
-        dispatch({ type: "SET_AVAILABLE_COMMANDS", availableCommands: msg.commands });
-        break;
-
-      case "skill_list":
-        dispatch({ type: "SET_SKILLS", skills: msg.skills });
-        break;
-
       case "command_result": {
         if (msg.sessionId !== refs.currentSessionIdRef.current) break;
         const resultText =
@@ -326,23 +300,26 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         }
         break;
 
-      case "task_event":
-        refs.onTaskEventRef.current?.(msg.event);
+      case "capability_state": {
+        // Session-scoped messages must match current session
+        if (msg.scope === "session" && msg.sessionId !== refs.currentSessionIdRef.current) break;
+        // Route to subscribers
+        const subs = refs.capabilitySubscribersRef.current.get(msg.capabilityId);
+        if (subs) {
+          for (const handler of subs) {
+            handler(msg.event, msg.data);
+          }
+        }
+        // For "sync" events, update reducer state snapshot
+        if (msg.event === "sync") {
+          dispatch({
+            type: "SET_CAPABILITY_STATE",
+            capabilityId: msg.capabilityId,
+            data: msg.data,
+          });
+        }
         break;
-
-      case "subagent_event":
-        if (msg.sessionId !== refs.currentSessionIdRef.current) break;
-        refs.onSubagentEventRef.current?.(msg);
-        break;
-
-      case "queue_state":
-        if (msg.sessionId !== refs.currentSessionIdRef.current) break;
-        dispatch({ type: "SET_QUEUE", items: msg.items });
-        break;
-
-      case "mcp_status":
-        // Could expose this, keeping it simple for now
-        break;
+      }
 
       case "error":
         console.error(`[agent-runtime] ${msg.code}: ${msg.message}`);

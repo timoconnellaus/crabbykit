@@ -16,10 +16,7 @@ export function createListAppsTool(
       const apps = appStore.list();
 
       if (apps.length === 0) {
-        return {
-          content: [{ type: "text" as const, text: "No apps deployed yet." }],
-          details: null,
-        };
+        return "No apps deployed yet.";
       }
 
       const lines = apps.map((app) => {

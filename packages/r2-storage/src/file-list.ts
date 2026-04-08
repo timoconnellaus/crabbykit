@@ -1,11 +1,11 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { resolveListPrefix } from "./paths.js";
 
 /**
  * Create a file_list tool backed by an R2 bucket.
  */
-export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => string): AgentTool {
+export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
   return defineTool({
     name: "file_list",
     description:
@@ -83,5 +83,5 @@ export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => s
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }

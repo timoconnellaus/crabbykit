@@ -144,15 +144,7 @@ export function createStartBackendTool(
         timeout: 10_000,
       });
       if (!checkResult.stdout.includes("OK")) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: Entry point "${entryPoint}" does not exist.`,
-            },
-          ],
-          details: null,
-        };
+        return `Error: Entry point "${entryPoint}" does not exist.`;
       }
 
       // Collect source files from the container
@@ -161,27 +153,11 @@ export function createStartBackendTool(
         files = await collectFiles(provider, sourceDir);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error collecting backend source files: ${message}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error collecting backend source files: ${message}`;
       }
 
       if (!files[entryRelative]) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: Entry point "${entryRelative}" not found in collected files. Found: ${Object.keys(files).join(", ")}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error: Entry point "${entryRelative}" not found in collected files. Found: ${Object.keys(files).join(", ")}`;
       }
 
       // Bundle the user's app code
@@ -196,15 +172,7 @@ export function createStartBackendTool(
         modules = result.modules;
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error bundling backend: ${message}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error bundling backend: ${message}`;
       }
 
       // Generate a wrapper module that injects the backend ID into DB calls

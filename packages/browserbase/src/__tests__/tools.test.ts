@@ -9,6 +9,7 @@ import { createBrowserClearStateTool } from "../tools/browser-clear-state.js";
 import { createBrowserScreenshotTool } from "../tools/browser-screenshot.js";
 import type { SessionManager } from "../session-manager.js";
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import type { RefMap } from "../types.js";
 
 function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
@@ -59,8 +60,10 @@ function mockContext(overrides: Partial<AgentContext> = {}): AgentContext {
     emitCost: vi.fn(),
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn(),
     schedules: {} as AgentContext["schedules"],
+    storage: createNoopStorage(),
     ...overrides,
   };
 }

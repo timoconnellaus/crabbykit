@@ -49,15 +49,7 @@ export function createDeployAppTool(
         timeout: 10_000,
       });
       if (!checkResult.stdout.includes("OK")) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: Build directory "${buildDir}" does not exist. Build the app first (e.g. \`bun run build\`).`,
-            },
-          ],
-          details: null,
-        };
+        return `Error: Build directory "${buildDir}" does not exist. Build the app first (e.g. \`bun run build\`).`;
       }
 
       // List all files in the build directory
@@ -66,15 +58,7 @@ export function createDeployAppTool(
         { timeout: 30_000 },
       );
       if (listResult.exitCode !== 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing files in "${buildDir}": ${listResult.stderr}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error listing files in "${buildDir}": ${listResult.stderr}`;
       }
 
       const files = listResult.stdout
@@ -83,15 +67,7 @@ export function createDeployAppTool(
         .filter((f) => f.length > 0);
 
       if (files.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: Build directory "${buildDir}" contains no files.`,
-            },
-          ],
-          details: null,
-        };
+        return `Error: Build directory "${buildDir}" contains no files.`;
       }
 
       // Generate deploy ID
@@ -104,15 +80,7 @@ export function createDeployAppTool(
         { timeout: 60_000 },
       );
       if (copyResult.exitCode !== 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error copying build to deploy path: ${copyResult.stderr}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error copying build to deploy path: ${copyResult.stderr}`;
       }
 
       // Bundle and store backend if provided
@@ -120,15 +88,7 @@ export function createDeployAppTool(
       if (backendEntry) {
         const backendResult = await bundleAndStoreBackend(provider, backendEntry, deployPath);
         if (backendResult.error) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Frontend deployed but backend failed: ${backendResult.error}`,
-              },
-            ],
-            details: null,
-          };
+          return `Frontend deployed but backend failed: ${backendResult.error}`;
         }
         hasBackend = true;
       }

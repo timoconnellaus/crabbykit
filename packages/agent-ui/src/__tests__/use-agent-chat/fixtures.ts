@@ -325,9 +325,15 @@ export function costEvent(
   };
 }
 
-/** command_list message. */
+/** capability_state envelope for the "commands" capability. */
 export function commandList(commands: Array<{ name: string; description: string }>): ServerMessage {
-  return { type: "command_list", commands };
+  return {
+    type: "capability_state",
+    capabilityId: "commands",
+    scope: "global",
+    event: "sync",
+    data: { commands },
+  };
 }
 
 /** command_result message. */
@@ -345,7 +351,7 @@ export function commandResult(
   };
 }
 
-/** schedule_list message. */
+/** capability_state envelope for the "schedules" capability. */
 export function scheduleList(
   schedules: Array<{
     id: string;
@@ -355,17 +361,22 @@ export function scheduleList(
   }>,
 ): ServerMessage {
   return {
-    type: "schedule_list",
-    schedules: schedules.map((s) => ({
-      id: s.id,
-      name: s.name,
-      cron: s.cron,
-      enabled: s.enabled ?? true,
-      status: "active",
-      nextFireAt: null,
-      expiresAt: null,
-      lastFiredAt: null,
-    })),
+    type: "capability_state",
+    capabilityId: "schedules",
+    scope: "global",
+    event: "sync",
+    data: {
+      schedules: schedules.map((s) => ({
+        id: s.id,
+        name: s.name,
+        cron: s.cron,
+        enabled: s.enabled ?? true,
+        status: "active",
+        nextFireAt: null,
+        expiresAt: null,
+        lastFiredAt: null,
+      })),
+    },
   };
 }
 

@@ -30,6 +30,8 @@ const ctx: AgentContext = {
   broadcast: () => {},
   broadcastToAll: () => {},
   requestFromClient: () => Promise.reject(new Error("Not available")),
+  storage: createNoopStorage(),
+  broadcastState: () => {},
   schedules: mockSchedules,
 };
 

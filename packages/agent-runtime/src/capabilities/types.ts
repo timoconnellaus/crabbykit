@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { TObject } from "@sinclair/typebox";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
@@ -23,6 +23,8 @@ export interface CapabilityHookContext {
   capabilityIds: string[];
   /** Broadcast a custom event to the current session's clients. Only available in onConnect. */
   broadcast?: (name: string, data: Record<string, unknown>) => void;
+  /** Broadcast capability state. Wraps the transport state_event. */
+  broadcastState?: (event: string, data: unknown, scope?: "session" | "global") => void;
   /** Emit a cost event. Persisted to session and broadcast to clients. */
   emitCost?: (cost: CostEvent) => void;
 }
@@ -91,7 +93,7 @@ export interface Capability {
   configDefault?: Record<string, unknown>;
 
   /** Tools contributed by this capability. */
-  tools?: (context: AgentContext) => AgentTool[];
+  tools?: (context: AgentContext) => AnyAgentTool[];
 
   /** Slash commands contributed by this capability. */
   commands?: (context: AgentContext) => Command[];
@@ -126,6 +128,12 @@ export interface Capability {
    * Errors are caught per-capability and logged — they do not propagate.
    */
   dispose?: () => Promise<void>;
+
+  /**
+   * Handle a `capability_action` message from the client.
+   * Called when the client sends an action targeting this capability's ID.
+   */
+  onAction?: (action: string, data: unknown, ctx: CapabilityHookContext) => Promise<void>;
 
   /** Lifecycle hooks. */
   hooks?: {
@@ -197,6 +205,8 @@ export interface CapabilityHttpContext {
   storage: CapabilityStorage;
   /** Broadcast a custom event to ALL connected WebSocket clients. */
   broadcastToAll: (name: string, data: Record<string, unknown>) => void;
+  /** Broadcast capability state to connected clients. */
+  broadcastState: (event: string, data: unknown, scope?: "session" | "global") => void;
   /**
    * Inject a prompt and run agent inference. Returns when the agent completes.
    * Creates a new session if sessionId is not provided.

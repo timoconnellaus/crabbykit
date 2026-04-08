@@ -180,7 +180,7 @@ export function skills(options: SkillsOptions): Capability {
         const installed = await refreshCache(capStorage);
         const skillList = buildSkillList(installed, declarationIds);
 
-        ctx.broadcast?.("skill_list_update", { skills: skillList });
+        ctx.broadcastState?.("sync", { skills: skillList }, "global");
       },
 
       beforeInference: async (messages, ctx) => {
@@ -250,7 +250,7 @@ export function skills(options: SkillsOptions): Capability {
 
         cachedSkills = await listInstalledSkills(ctx.storage);
         const skillList = buildSkillList(cachedSkills, declarationIds);
-        ctx.broadcast?.("skill_list_update", { skills: skillList });
+        ctx.broadcastState?.("sync", { skills: skillList }, "global");
       },
     },
 
@@ -336,7 +336,7 @@ export function skills(options: SkillsOptions): Capability {
             await putInstalledSkill(ctx.storage, body.id, installed);
             cachedSkills = await listInstalledSkills(ctx.storage);
             const skillList = buildSkillList(cachedSkills, declarationIds);
-            ctx.broadcastToAll("skill_list_update", { skills: skillList });
+            ctx.broadcastState("sync", { skills: skillList }, "global");
 
             return new Response(
               JSON.stringify({ ok: true, skill: { id: body.id, ...installed } }),
@@ -390,7 +390,7 @@ export function skills(options: SkillsOptions): Capability {
             await deleteInstalledSkill(ctx.storage, body.id);
             cachedSkills = await listInstalledSkills(ctx.storage);
             const skillList = buildSkillList(cachedSkills, declarationIds);
-            ctx.broadcastToAll("skill_list_update", { skills: skillList });
+            ctx.broadcastState("sync", { skills: skillList }, "global");
 
             return new Response(JSON.stringify({ ok: true }), {
               headers: { "content-type": "application/json" },

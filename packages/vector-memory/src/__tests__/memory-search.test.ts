@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import type { EmbedFn } from "../embeddings.js";
 import { createMemorySearchTool } from "../memory-search.js";
 import { createMockR2Bucket } from "./mock-r2.js";
@@ -22,7 +23,9 @@ function mockContext(): AgentContext {
     emitCost: vi.fn(),
     broadcast: () => {},
     broadcastToAll: () => {},
+    broadcastState: () => {},
     requestFromClient: () => Promise.reject(new Error("Not available")),
+    storage: createNoopStorage(),
     schedules: {} as AgentContext["schedules"],
   };
 }
@@ -140,7 +143,7 @@ describe("memory_search tool", () => {
     );
 
     const result = await tool.execute({ query: "test", max_results: 2 }, TOOL_CTX);
-    expect(result.details.resultCount).toBeLessThanOrEqual(2);
+    expect((result.details as { resultCount: number }).resultCount).toBeLessThanOrEqual(2);
   });
 
   it("returns no-match message when no results found", async () => {

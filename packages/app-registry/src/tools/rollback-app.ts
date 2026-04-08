@@ -22,23 +22,12 @@ export function createRollbackAppTool(
     execute: async ({ slug, version }) => {
       const app = appStore.getBySlug(slug);
       if (!app) {
-        return {
-          content: [{ type: "text" as const, text: `Error: App "${slug}" not found.` }],
-          details: null,
-        };
+        return `Error: App "${slug}" not found.`;
       }
 
       const targetVersion = appStore.getVersion(app.id, version);
       if (!targetVersion) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: Version ${version} does not exist for app "${slug}".`,
-            },
-          ],
-          details: null,
-        };
+        return `Error: Version ${version} does not exist for app "${slug}".`;
       }
 
       // Update CURRENT file

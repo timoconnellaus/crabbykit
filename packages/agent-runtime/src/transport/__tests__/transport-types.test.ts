@@ -4,7 +4,6 @@ import {
   agentEventMessage,
   customResponseMessage,
   errorMessage,
-  mcpStatusMessage,
   newSessionMessage,
   promptMessage,
   sessionListMessage,
@@ -55,17 +54,6 @@ describe("Transport Message Types", () => {
       }
     });
 
-    it("mcp_status has server list", () => {
-      const msg: ServerMessage = mcpStatusMessage;
-      expect(msg.type).toBe("mcp_status");
-      if (msg.type === "mcp_status") {
-        expect(msg.servers.length).toBe(2);
-        expect(msg.servers[0].status).toBe("connected");
-        expect(msg.servers[1].status).toBe("error");
-        expect(msg.servers[1].error).toBeTruthy();
-      }
-    });
-
     it("error has code and message", () => {
       const msg: ServerMessage = errorMessage;
       expect(msg.type).toBe("error");
@@ -81,7 +69,6 @@ describe("Transport Message Types", () => {
         sessionListMessage,
         agentEventMessage,
         toolEventMessage,
-        mcpStatusMessage,
         errorMessage,
       ];
 

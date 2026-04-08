@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import { globToRegex, validatePath } from "./paths.js";
 
@@ -7,7 +7,7 @@ const MAX_RESULTS = 200;
 /**
  * Create a file_find tool backed by an R2 bucket.
  */
-export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => string): AgentTool {
+export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
   return defineTool({
     name: "file_find",
     description:
@@ -96,7 +96,7 @@ export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => s
         };
       }
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 function resolveFindPrefix(

@@ -1,4 +1,5 @@
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { batchTool } from "../capability.js";
@@ -30,7 +31,9 @@ function getCapTools(getTools: () => AgentTool[]) {
     emitCost: () => {},
     broadcast: () => {},
     broadcastToAll: () => {},
+    broadcastState: () => {},
     requestFromClient: () => Promise.reject(new Error("Not available")),
+    storage: createNoopStorage(),
     schedules: {} as never,
   };
   return cap.tools!(ctx);
@@ -257,8 +260,10 @@ describe("batchTool", () => {
         emitCost: () => {},
         broadcast: () => {},
         broadcastToAll: () => {},
+        broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
-        schedules: {} as never,
+        storage: createNoopStorage(),
+    schedules: {} as never,
       };
       const tools = cap.tools!(ctx);
 

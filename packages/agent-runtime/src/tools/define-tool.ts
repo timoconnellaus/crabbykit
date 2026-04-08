@@ -1,13 +1,29 @@
 import type {
   AgentTool,
   AgentToolResult,
+  AnyAgentTool,
   ToolExecuteContext,
 } from "@claw-for-cloudflare/agent-core";
 import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox";
 
+/** Return type accepted by `defineTool()` execute functions. */
+export type ToolExecuteReturn = string | AgentToolResult<unknown>;
+
+/** Wrap a string return into a full AgentToolResult. */
+function wrapStringResult(result: ToolExecuteReturn): AgentToolResult<unknown> {
+  if (typeof result === "string") {
+    return { content: [{ type: "text" as const, text: result }], details: null };
+  }
+  return result;
+}
+
 /**
  * Define an agent tool with TypeBox schema and type-safe execute function.
- * Returns a pi-agent-core AgentTool that can be passed directly to Agent.setTools().
+ * Returns an AnyAgentTool assignable to Capability.tools() without casts.
+ *
+ * The `execute` function can return either:
+ * - A plain string (auto-wrapped into `{ content: [{ type: "text", text }], details: null }`)
+ * - A full `AgentToolResult` for complex cases (images, structured details, isError)
  */
 export function defineTool<TParameters extends TObject>(opts: {
   name: string;
@@ -23,12 +39,17 @@ export function defineTool<TParameters extends TObject>(opts: {
   execute: (
     args: Static<TParameters>,
     context: ToolExecuteContext,
-    // biome-ignore lint/suspicious/noExplicitAny: AgentToolResult generic comes from pi-agent-core type boundary
-  ) => Promise<AgentToolResult<any>>;
-}): AgentTool<TParameters> {
+  ) => Promise<ToolExecuteReturn>;
+}): AnyAgentTool {
+  const userExecute = opts.execute;
+  const wrappedExecute = async (args: unknown, ctx: ToolExecuteContext) => {
+    const result = await userExecute(args as Static<TParameters>, ctx);
+    return wrapStringResult(result);
+  };
+
   const execute = opts.timeout
-    ? wrapWithTimeout(opts.execute, opts.timeout, opts.name)
-    : opts.execute;
+    ? wrapWithTimeout(wrappedExecute, opts.timeout, opts.name)
+    : wrappedExecute;
 
   return {
     name: opts.name,
@@ -44,14 +65,12 @@ export function defineTool<TParameters extends TObject>(opts: {
  * Wrap a tool execute function with a timeout.
  * On timeout, returns an error result instead of the tool's output.
  */
-function wrapWithTimeout<TArgs, TCtx>(
-  // biome-ignore lint/suspicious/noExplicitAny: AgentToolResult generic comes from pi-agent-core type boundary
-  fn: (args: TArgs, ctx: TCtx) => Promise<AgentToolResult<any>>,
+function wrapWithTimeout(
+  fn: (args: unknown, ctx: ToolExecuteContext) => Promise<AgentToolResult<unknown>>,
   timeoutMs: number,
   toolName: string,
-  // biome-ignore lint/suspicious/noExplicitAny: AgentToolResult generic comes from pi-agent-core type boundary
-): (args: TArgs, ctx: TCtx) => Promise<AgentToolResult<any>> {
-  return (args: TArgs, ctx: TCtx) => {
+): (args: unknown, ctx: ToolExecuteContext) => Promise<AgentToolResult<unknown>> {
+  return (args: unknown, ctx: ToolExecuteContext) => {
     const timeout = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new ToolTimeoutError(toolName, timeoutMs)), timeoutMs);
     });
@@ -82,8 +101,7 @@ class ToolTimeoutError extends Error {
  * If a tool already has a per-tool timeout (set via `defineTool({ timeout })`),
  * the per-tool timeout fires first (inner wrapper), making the outer timeout a safety net.
  */
-// biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance requires any
-export function applyDefaultTimeout(tools: AgentTool<any>[], timeoutMs: number): AgentTool<any>[] {
+export function applyDefaultTimeout(tools: AnyAgentTool[], timeoutMs: number): AnyAgentTool[] {
   return tools.map((tool) => ({
     ...tool,
     execute: wrapWithTimeout(tool.execute, timeoutMs, tool.name),
@@ -124,7 +142,7 @@ interface McpServer {
  * Convert an MCP tool definition to a pi-agent-core AgentTool.
  * Uses Type.Unsafe() to accept the MCP tool's JSON Schema as-is.
  */
-export function mcpToolToAgentTool(mcpTool: McpTool, server: McpServer): AgentTool {
+export function mcpToolToAgentTool(mcpTool: McpTool, server: McpServer): AnyAgentTool {
   const prefixedName = `mcp_${server.name}_${mcpTool.name}`;
 
   return {

@@ -50,6 +50,7 @@ function mockContext(sessionId = "test-session"): AgentContext {
     emitCost: () => {},
     broadcast: vi.fn(),
     broadcastToAll: vi.fn(),
+    broadcastState: vi.fn(),
     requestFromClient: vi.fn(),
     schedules: {
       create: vi.fn().mockResolvedValue({}),

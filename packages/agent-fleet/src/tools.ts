@@ -1,5 +1,5 @@
 import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { AgentTool, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AnyAgentTool, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type, toolResult } from "@claw-for-cloudflare/agent-runtime";
 import { clearAttachedAgentId, getAttachedAgentId, setAttachedAgentId } from "./attach.js";
 import type { FleetOptions } from "./types.js";
@@ -11,7 +11,7 @@ import type { FleetOptions } from "./types.js";
 export function createAgentListTool(
   options: FleetOptions,
   _getStorage: () => CapabilityStorage,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "agent_list",
     description:
@@ -34,7 +34,7 @@ export function createAgentListTool(
       );
       return toolResult.text(JSON.stringify(results, null, 2), { agents: results });
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 /**
@@ -45,7 +45,7 @@ export function createAgentCreateTool(
   options: FleetOptions,
   getStorage: () => CapabilityStorage,
   getSessionId: () => string,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "agent_create",
     description:
@@ -112,7 +112,7 @@ export function createAgentCreateTool(
         { agent: record, attached: true },
       );
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 /**
@@ -123,7 +123,7 @@ export function createAgentDeleteTool(
   options: FleetOptions,
   getStorage: () => CapabilityStorage,
   getSessionId: () => string,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "agent_delete",
     description: "Delete a child agent. Only agents where this agent is the parent can be deleted.",
@@ -158,7 +158,7 @@ export function createAgentDeleteTool(
 
       return toolResult.text(`Deleted agent ${agentId}.`, { agentId, deleted: true });
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 /**
@@ -169,7 +169,7 @@ export function createAgentAttachTool(
   options: FleetOptions,
   getStorage: () => CapabilityStorage,
   getSessionId: () => string,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "agent_attach",
     description:
@@ -202,7 +202,7 @@ export function createAgentAttachTool(
         { agentId, agentName: agent.name, attached: true },
       );
     },
-  }) as unknown as AgentTool;
+  });
 }
 
 /**
@@ -213,7 +213,7 @@ export function createAgentDetachTool(
   _options: FleetOptions,
   getStorage: () => CapabilityStorage,
   getSessionId: () => string,
-): AgentTool {
+): AnyAgentTool {
   return defineTool({
     name: "agent_detach",
     description: "Detach from the currently attached agent and return to your own context.",
@@ -238,5 +238,5 @@ export function createAgentDetachTool(
         detached: true,
       });
     },
-  }) as unknown as AgentTool;
+  });
 }

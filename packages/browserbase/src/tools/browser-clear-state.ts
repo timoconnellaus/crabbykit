@@ -33,15 +33,7 @@ export function createBrowserClearStateTool(
           details: { domain: domain ?? null },
         };
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error clearing state: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-          details: null,
-        };
+        return `Error clearing state: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

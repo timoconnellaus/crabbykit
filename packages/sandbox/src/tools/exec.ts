@@ -179,15 +179,7 @@ async function executeBackground(
   context: AgentContext,
 ) {
   if (!provider.sessionStart) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Background execution not supported by this sandbox provider.",
-        },
-      ],
-      details: {},
-    };
+    return "Background execution not supported by this sandbox provider.";
   }
 
   const { sessionId, pid, logFile } = await provider.sessionStart(command, {

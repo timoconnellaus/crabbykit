@@ -3,7 +3,7 @@ export { createSubagentAuthChecker, subagentCapability } from "./capability.js";
 export type { AgentDODelegate } from "./create-host.js";
 export { createSubagentHost } from "./create-host.js";
 export type { SubagentEventMeta } from "./event-forwarder.js";
-export { createEventForwarder, wrapSubagentEvent } from "./event-forwarder.js";
+export { createEventForwarder } from "./event-forwarder.js";
 export type {
   SubagentHost,
   SubagentRunOpts,
