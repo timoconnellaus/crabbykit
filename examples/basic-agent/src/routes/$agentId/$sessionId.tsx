@@ -234,7 +234,7 @@ function SessionLayout() {
     <ChatContextProvider value={contextValue}>
       <AgentRail agents={agents} selectedId={agentId} onCreateAgent={handleCreateAgent} />
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-        <TabBar agentId={agentId} sessionId={sessionId} activeTab={activeTab} />
+        <TabBar agentId={agentId} activeTab={activeTab} />
         {/* Chat stays mounted (hidden) to keep WebSocket alive */}
         <div
           style={{

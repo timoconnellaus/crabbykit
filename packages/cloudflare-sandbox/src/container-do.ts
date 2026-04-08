@@ -43,8 +43,8 @@ export class SandboxContainer extends Container<SandboxContainerEnv> {
 
   /** Intercept outbound HTTP from the container for virtual host bindings. */
   static outboundByHost = {
-    "db.internal": "handleDbRequest",
-    "ai.internal": "handleAiRequest",
+    "db.internal": (req: Request, env: SandboxContainerEnv) => dbHandlerImpl(req, env),
+    "ai.internal": (req: Request, env: SandboxContainerEnv) => aiHandlerImpl(req, env),
   };
 
   constructor(ctx: DurableObject["ctx"], env: SandboxContainerEnv) {
@@ -65,114 +65,19 @@ export class SandboxContainer extends Container<SandboxContainerEnv> {
   /**
    * Handle intercepted requests to db.internal.
    * Routes SQL operations to the DbService binding.
+   * Kept as an instance method so existing tests can call it directly.
    */
   async handleDbRequest(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    let body: Record<string, unknown>;
-    try {
-      body = (await request.json()) as Record<string, unknown>;
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
-
-    const backendId = body.backendId as string | undefined;
-    if (!backendId) {
-      return jsonResponse({ error: "backendId is required" }, 400);
-    }
-
-    if (path === "/exec") {
-      const sql = body.sql as string | undefined;
-      if (!sql) {
-        return jsonResponse({ error: "sql is required" }, 400);
-      }
-      const params = (body.params as unknown[]) ?? [];
-
-      try {
-        const result = await this.env.DB_SERVICE.exec(backendId, sql, params);
-        return jsonResponse(result, 200);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        return jsonResponse({ error: message }, 500);
-      }
-    }
-
-    if (path === "/batch") {
-      const statements = body.statements as { sql: string; params?: unknown[] }[] | undefined;
-      if (!statements || !Array.isArray(statements)) {
-        return jsonResponse({ error: "statements array is required" }, 400);
-      }
-
-      try {
-        const result = await this.env.DB_SERVICE.batch(backendId, statements);
-        return jsonResponse(result, 200);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        return jsonResponse({ error: message }, 500);
-      }
-    }
-
-    return jsonResponse({ error: `Unknown path: ${path}` }, 404);
+    return dbHandlerImpl(request, this.env);
   }
 
   /**
    * Handle intercepted requests to ai.internal.
    * Proxies to OpenRouter using the configured API key.
+   * Kept as an instance method so existing tests can call it directly.
    */
   async handleAiRequest(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const apiKey = this.env.OPENROUTER_API_KEY;
-
-    if (!apiKey) {
-      return jsonResponse({ error: "OPENROUTER_API_KEY not configured" }, 500);
-    }
-
-    // GET /v1/models — return a minimal models list
-    if (request.method === "GET" && path === "/v1/models") {
-      return jsonResponse({ object: "list", data: [] }, 200);
-    }
-
-    // POST /v1/chat/completions — proxy to OpenRouter
-    if (request.method === "POST" && path === "/v1/chat/completions") {
-      const upstreamUrl = `${DEFAULT_UPSTREAM_BASE_URL}/chat/completions`;
-
-      let body: string;
-      try {
-        body = await request.text();
-      } catch {
-        return jsonResponse({ error: "Invalid request body" }, 400);
-      }
-
-      try {
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${apiKey}`,
-          },
-          body,
-        });
-
-        // Pass through the response (including streaming)
-        return new Response(upstreamResponse.body, {
-          status: upstreamResponse.status,
-          headers: {
-            "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
-          },
-        });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        return jsonResponse({ error: `Upstream error: ${message}` }, 502);
-      }
-    }
-
-    return jsonResponse({ error: `Unknown AI endpoint: ${request.method} ${path}` }, 404);
+    return aiHandlerImpl(request, this.env);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -194,4 +99,125 @@ function jsonResponse(body: unknown, status: number): Response {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+/**
+ * Handle intercepted db.internal requests.
+ * Module-level so it can be invoked from both the static `outboundByHost`
+ * map (which receives `env` as a parameter) and the instance method
+ * `handleDbRequest` (which passes `this.env`).
+ */
+async function dbHandlerImpl(
+  request: Request,
+  env: SandboxContainerEnv,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname;
+
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
+  }
+
+  const backendId = body.backendId as string | undefined;
+  if (!backendId) {
+    return jsonResponse({ error: "backendId is required" }, 400);
+  }
+
+  if (path === "/exec") {
+    const sql = body.sql as string | undefined;
+    if (!sql) {
+      return jsonResponse({ error: "sql is required" }, 400);
+    }
+    const params = (body.params as unknown[]) ?? [];
+
+    try {
+      const result = await env.DB_SERVICE.exec(backendId, sql, params);
+      return jsonResponse(result, 200);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return jsonResponse({ error: message }, 500);
+    }
+  }
+
+  if (path === "/batch") {
+    const statements = body.statements as { sql: string; params?: unknown[] }[] | undefined;
+    if (!statements || !Array.isArray(statements)) {
+      return jsonResponse({ error: "statements array is required" }, 400);
+    }
+
+    try {
+      const result = await env.DB_SERVICE.batch(backendId, statements);
+      return jsonResponse(result, 200);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return jsonResponse({ error: message }, 500);
+    }
+  }
+
+  return jsonResponse({ error: `Unknown path: ${path}` }, 404);
+}
+
+/**
+ * Handle intercepted ai.internal requests.
+ * Module-level for the same reason as `dbHandlerImpl`.
+ */
+async function aiHandlerImpl(
+  request: Request,
+  env: SandboxContainerEnv,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const apiKey = env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    return jsonResponse({ error: "OPENROUTER_API_KEY not configured" }, 500);
+  }
+
+  // GET /v1/models — return a minimal models list
+  if (request.method === "GET" && path === "/v1/models") {
+    return jsonResponse({ object: "list", data: [] }, 200);
+  }
+
+  // POST /v1/chat/completions — proxy to OpenRouter
+  if (request.method === "POST" && path === "/v1/chat/completions") {
+    const upstreamUrl = `${DEFAULT_UPSTREAM_BASE_URL}/chat/completions`;
+
+    let body: string;
+    try {
+      body = await request.text();
+    } catch {
+      return jsonResponse({ error: "Invalid request body" }, 400);
+    }
+
+    try {
+      const upstreamResponse = await fetch(upstreamUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
+        body,
+      });
+
+      // Pass through the response (including streaming)
+      return new Response(upstreamResponse.body, {
+        status: upstreamResponse.status,
+        headers: {
+          "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
+        },
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return jsonResponse({ error: `Upstream error: ${message}` }, 502);
+    }
+  }
+
+  return jsonResponse({ error: `Unknown AI endpoint: ${request.method} ${path}` }, 404);
 }

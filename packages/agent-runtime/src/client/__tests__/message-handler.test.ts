@@ -25,7 +25,7 @@ function makeEvent(ws: object, data: unknown): MessageEvent {
 describe("createMessageHandler", () => {
   describe("system_prompt message", () => {
     it("dispatches SET_SYSTEM_PROMPT with sections and raw", () => {
-      const dispatch = vi.fn<[ChatAction]>();
+      const dispatch = vi.fn<(action: ChatAction) => void>();
       const refs = makeRefs();
       const handler = createMessageHandler(dispatch, refs);
 
@@ -45,7 +45,7 @@ describe("createMessageHandler", () => {
     });
 
     it("dispatches SET_SYSTEM_PROMPT with empty sections", () => {
-      const dispatch = vi.fn<[ChatAction]>();
+      const dispatch = vi.fn<(action: ChatAction) => void>();
       const refs = makeRefs();
       const handler = createMessageHandler(dispatch, refs);
 
@@ -59,7 +59,7 @@ describe("createMessageHandler", () => {
     });
 
     it("ignores system_prompt from stale WebSocket", () => {
-      const dispatch = vi.fn<[ChatAction]>();
+      const dispatch = vi.fn<(action: ChatAction) => void>();
       const refs = makeRefs();
       const handler = createMessageHandler(dispatch, refs);
 

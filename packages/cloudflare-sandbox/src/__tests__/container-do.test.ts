@@ -216,12 +216,12 @@ describe("SandboxContainer", () => {
   });
 
   describe("static outboundByHost", () => {
-    it("maps db.internal to handleDbRequest", () => {
-      expect(SandboxContainer.outboundByHost["db.internal"]).toBe("handleDbRequest");
+    it("registers a function handler for db.internal", () => {
+      expect(typeof SandboxContainer.outboundByHost["db.internal"]).toBe("function");
     });
 
-    it("maps ai.internal to handleAiRequest", () => {
-      expect(SandboxContainer.outboundByHost["ai.internal"]).toBe("handleAiRequest");
+    it("registers a function handler for ai.internal", () => {
+      expect(typeof SandboxContainer.outboundByHost["ai.internal"]).toBe("function");
     });
   });
 

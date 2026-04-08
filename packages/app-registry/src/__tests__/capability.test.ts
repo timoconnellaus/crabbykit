@@ -204,6 +204,7 @@ describe("appRegistry capability", () => {
 
     const tools = cap.tools!(context);
     const deleteTool = tools.find((t: any) => t.name === "delete_app");
+    if (!deleteTool) throw new Error("delete_app tool not registered");
 
     // Execute delete — this triggers broadcastList which calls broadcastToAll
     await deleteTool.execute({ slug: "delete-me" }, { toolCallId: "test" });
