@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.1.0",
+    "@cloudflare/containers": "^0.2.0",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
     "@claw-for-cloudflare/sandbox": "workspace:*"
   },

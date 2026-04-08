@@ -97,7 +97,8 @@ export class CloudflareSandboxProvider implements SandboxProvider {
     // The base fetch() applies a 30s timeout so this won't block forever.
     const healthRes = await this.fetch("/health");
     if (!healthRes.ok) {
-      throw new Error(`Container health check failed: ${healthRes.status}`);
+      const body = await healthRes.text().catch(() => "");
+      throw new Error(`Container health check failed: ${healthRes.status} ${body}`);
     }
 
     // If env vars provided, initialize the container
@@ -107,7 +108,8 @@ export class CloudflareSandboxProvider implements SandboxProvider {
         body: JSON.stringify({ envVars: options.envVars }),
       });
       if (!initRes.ok) {
-        throw new Error(`Container init failed: ${initRes.status}`);
+        const body = await initRes.text().catch(() => "");
+        throw new Error(`Container init failed: ${initRes.status} ${body}`);
       }
     }
   }
@@ -115,7 +117,8 @@ export class CloudflareSandboxProvider implements SandboxProvider {
   async stop(): Promise<void> {
     const res = await this.fetch("/stop", { method: "POST" });
     if (!res.ok) {
-      throw new Error(`Container stop failed: ${res.status}`);
+      const body = await res.text().catch(() => "");
+      throw new Error(`Container stop failed: ${res.status} ${body}`);
     }
   }
 

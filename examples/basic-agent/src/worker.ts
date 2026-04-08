@@ -10,6 +10,7 @@ import { batchTool } from "@claw-for-cloudflare/batch-tool";
 import { browserbase } from "@claw-for-cloudflare/browserbase";
 import {
   CloudflareSandboxProvider,
+  ContainerProxy,
   SandboxContainer,
 } from "@claw-for-cloudflare/cloudflare-sandbox";
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
@@ -318,5 +319,8 @@ export const BasicAgent = defineAgent<Env>({
   },
 });
 
-// Re-export DOs and entrypoints for wrangler to bind
-export { AiService, BackendStorage, DbService, SandboxContainer };
+// Re-export DOs and entrypoints for wrangler to bind. ContainerProxy is
+// required by @cloudflare/containers 0.2.x when SandboxContainer intercepts
+// outbound HTTP via `outboundByHost` — the container runtime reaches into
+// `ctx.exports.ContainerProxy` at startup and throws if it isn't bound.
+export { AiService, BackendStorage, ContainerProxy, DbService, SandboxContainer };

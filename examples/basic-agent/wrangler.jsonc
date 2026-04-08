@@ -1,7 +1,11 @@
 {
   "name": "basic-agent",
   "main": "src/server.ts",
-  "compatibility_date": "2025-03-01",
+  // 2025-12-01 enables DurableObjectState.exports (ctx.exports), which is
+  // required by @cloudflare/containers 0.2.x at container startup when
+  // outboundByHost is used. Without this, SandboxContainer throws
+  // "ctx.exports is undefined" on /health.
+  "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     // R2 bucket name — must match the r2_buckets bucket_name below.

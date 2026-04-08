@@ -728,9 +728,15 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       return new Response("Not found", { status: 404 });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
+      // Also log to console — the default logger is a noop, so without this
+      // the error vanishes entirely and callers see a bare 500 with no clue.
+      console.error("[AgentRuntime] handleRequest error:", error.stack ?? error.message);
       this.logger.error("[AgentRuntime] handleRequest error", { message: error.message });
       this.onError?.(error, { source: "http" });
-      return new Response("Internal Server Error", { status: 500 });
+      return new Response(JSON.stringify({ error: error.message, stack: error.stack }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
     }
   }
 

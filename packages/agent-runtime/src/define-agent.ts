@@ -124,6 +124,13 @@ export interface AgentDefinition<TEnv = Record<string, unknown>> {
   fetch?: (request: Request, setup: AgentSetup<TEnv>) => Promise<Response | null> | Response | null;
 }
 
+const CONSOLE_LOGGER: Logger = {
+  debug: (msg, ctx) => console.debug(msg, ctx ?? ""),
+  info: (msg, ctx) => console.info(msg, ctx ?? ""),
+  warn: (msg, ctx) => console.warn(msg, ctx ?? ""),
+  error: (msg, ctx) => console.error(msg, ctx ?? ""),
+};
+
 /**
  * Construct a Durable Object class from a flat {@link AgentDefinition}.
  *
@@ -154,7 +161,7 @@ export function defineAgent<TEnv = Record<string, unknown>>(
 
     constructor(ctx: DurableObjectState, env: TEnv) {
       super(ctx, env, {
-        logger: definition.logger,
+        logger: definition.logger ?? CONSOLE_LOGGER,
         onError: definition.onError,
       });
 
