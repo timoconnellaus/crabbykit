@@ -596,12 +596,10 @@ describe("agentFleet capability", () => {
     expect(names).toContain("agent_detach");
   });
 
-  it("returns prompt sections", () => {
+  // promptSections were intentionally removed — guidance available via tool descriptions.
+  it("does not contribute prompt sections", () => {
     const cap = agentFleet(makeOptions());
-    const storage = createMockStorage();
-    const sections = cap.promptSections!({ storage } as unknown as AgentContext);
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("agent_list");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   describe("httpHandlers — /agent-init", () => {

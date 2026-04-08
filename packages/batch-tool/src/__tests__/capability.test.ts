@@ -54,7 +54,8 @@ describe("batchTool", () => {
       const cap = batchTool({ getTools: () => [] });
       expect(cap.id).toBe("batch-tool");
       expect(cap.tools).toBeInstanceOf(Function);
-      expect(cap.promptSections).toBeInstanceOf(Function);
+      // promptSections were intentionally removed — the batch tool is self-explanatory.
+      expect(cap.promptSections).toBeUndefined();
     });
 
     it("provides a single 'batch' tool", () => {

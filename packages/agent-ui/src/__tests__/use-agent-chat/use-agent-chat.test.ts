@@ -181,16 +181,35 @@ describe("sendMessage", () => {
     expect(harness.current.agentStatus).toBe("streaming");
   });
 
-  it("sends steer when agent is streaming", async () => {
+  it("steerMessage sends a steer event (interrupts in-flight inference)", async () => {
     // Put agent into streaming state
     await harness.serverSend(messageStart());
     expect(harness.current.agentStatus).toBe("streaming");
 
-    await harness.sendMessage("no wait, do it differently");
+    await harness.steerMessage("no wait, do it differently");
 
     const steerMsg = harness.sent.find((m) => m.type === "steer");
     expect(steerMsg).toBeDefined();
     expect((steerMsg as { text: string }).text).toBe("no wait, do it differently");
+  });
+
+  it("sendMessage while streaming queues via capability_action (does not steer)", async () => {
+    // Put agent into streaming state
+    await harness.serverSend(messageStart());
+    expect(harness.current.agentStatus).toBe("streaming");
+
+    await harness.sendMessage("queued message");
+
+    // Should NOT have sent a steer
+    expect(harness.sent.find((m) => m.type === "steer")).toBeUndefined();
+    // Should have sent a queue capability_action
+    const queueAction = harness.sent.find(
+      (m) =>
+        m.type === "capability_action" &&
+        (m as { capabilityId: string }).capabilityId === "queue" &&
+        (m as { action: string }).action === "message",
+    );
+    expect(queueAction).toBeDefined();
   });
 
   it("detects known slash commands", async () => {
@@ -234,7 +253,7 @@ describe("steer mid-stream", () => {
     await harness.establish();
   });
 
-  it("steer message appears after streaming assistant message", async () => {
+  it("steerMessage appears after streaming assistant message", async () => {
     // Agent starts responding
     await harness.serverSend(messageStart());
     await harness.serverSend(
@@ -243,8 +262,8 @@ describe("steer mid-stream", () => {
       }),
     );
 
-    // User steers mid-stream
-    await harness.sendMessage("change direction");
+    // User steers mid-stream via the explicit steerMessage API
+    await harness.steerMessage("change direction");
 
     const messages = harness.current.messages;
     // Should be: [streaming assistant, user steer]
@@ -295,7 +314,7 @@ describe("steer mid-stream", () => {
     await harness.serverSendAll(textStreamSequence("Starting...", { skipAgentEnd: true }));
     await harness.serverSend(agentEnd());
 
-    // Turn 2: user sends, agent starts, user steers
+    // Turn 2: user sends, agent starts, user steers via the explicit steerMessage API
     await harness.sendMessage("Continue");
     await harness.serverSend(messageStart());
     await harness.serverSend(
@@ -303,7 +322,7 @@ describe("steer mid-stream", () => {
         assistantMessageEvent: { type: "text_delta", text: "Continuing..." },
       }),
     );
-    await harness.sendMessage("Actually stop");
+    await harness.steerMessage("Actually stop");
 
     const messages = harness.current.messages;
     // Verify the steer comes after the streaming response

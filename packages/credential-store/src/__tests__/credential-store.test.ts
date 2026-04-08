@@ -409,13 +409,10 @@ describe("credentialStore capability", () => {
     expect(names).toContain("delete_secret");
   });
 
-  it("returns prompt sections", () => {
+  // promptSections were intentionally removed — secret tools document their own usage.
+  it("does not contribute prompt sections", () => {
     const cap = credentialStore();
-    const sections = cap.promptSections!({} as AgentContext);
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("save_secret");
-    expect(sections[0]).toContain("list_secrets");
-    expect(sections[0]).toContain("delete_secret");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("does not define schedules, hooks, or httpHandlers", () => {

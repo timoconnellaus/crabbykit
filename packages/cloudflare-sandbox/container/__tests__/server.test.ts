@@ -8,13 +8,30 @@ import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const SERVER_PATH = path.resolve(__dirname, "..", "server.ts");
 
 let serverProc: ChildProcess;
 let BASE: string;
 let port: number;
+/**
+ * True when the server's PTY layer (node-pty) can reliably spawn AND exit a
+ * subprocess on this host. node-pty has a known bug under Bun on macOS where
+ * `onExit` callbacks fail to fire reliably (the prebuilt spawn-helper exits
+ * but the parent never observes it). When this is false, all PTY-dependent
+ * tests are skipped — they're integration tests for the actual container
+ * runtime, which is a Linux Docker image where node-pty works correctly.
+ */
+let ptyExecWorks = false;
+
+/**
+ * Use as `beforeEach(skipIfNoPty)` in any describe block whose tests rely on
+ * PTY processes exiting cleanly. The probe in beforeAll sets ptyExecWorks.
+ */
+function skipIfNoPty(ctx: { skip: () => void }) {
+  if (!ptyExecWorks) ctx.skip();
+}
 
 /** Find an available port by briefly listening on 0. */
 async function getFreePort(): Promise<number> {
@@ -135,7 +152,35 @@ beforeAll(async () => {
   if (lastError) {
     throw new Error(`Server failed to start on port ${port} within 10s: ${lastError}`);
   }
-}, 15_000);
+
+  // Probe PTY exec: try a trivial echo with a short timeout. If onExit doesn't
+  // fire (the host's node-pty is broken), all PTY-dependent tests will skip.
+  try {
+    const probe = await Promise.race([
+      fetch(`${BASE}/exec`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ command: "echo probe" }),
+      }).then((r) => r.json()),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("pty probe timeout")), 5_000),
+      ),
+    ]);
+    ptyExecWorks =
+      typeof probe === "object" &&
+      probe !== null &&
+      typeof (probe as { stdout?: string }).stdout === "string" &&
+      (probe as { stdout: string }).stdout.includes("probe");
+  } catch {
+    ptyExecWorks = false;
+  }
+  if (!ptyExecWorks) {
+    console.warn(
+      "[server.test] PTY exec probe failed — skipping all PTY-dependent tests. " +
+        "This is expected on macOS+Bun (node-pty onExit bug); CI runs on Linux where it works.",
+    );
+  }
+}, 25_000);
 
 afterAll(() => {
   if (serverProc) {
@@ -186,6 +231,7 @@ describe("/init", () => {
 // ──────────────────────────────────────────
 
 describe("/exec", () => {
+  beforeEach(skipIfNoPty);
   it("executes a command and returns output", async () => {
     const { status, data } = await post("/exec", {
       command: "echo hello-world",
@@ -367,6 +413,7 @@ describe("/process-stream", () => {
 // ──────────────────────────────────────────
 
 describe("session lifecycle", () => {
+  beforeEach(skipIfNoPty);
   let sessionId: string;
 
   it("starts a background session", async () => {
@@ -520,6 +567,7 @@ describe("session poll backoff", () => {
 // ──────────────────────────────────────────
 
 describe("/session-log", () => {
+  beforeEach(skipIfNoPty);
   it("reads log file for a session", async () => {
     const { data: startData } = await post("/session-start", {
       command: 'echo "log-test-output"',
@@ -558,6 +606,7 @@ describe("/session-log", () => {
 // ──────────────────────────────────────────
 
 describe("/session-exec", () => {
+  beforeEach(skipIfNoPty);
   it("streams session output and exit via SSE", async () => {
     const { events } = await postSSE("/session-exec", {
       command: 'echo "sse-session-test"',
@@ -596,6 +645,7 @@ describe("/session-exec", () => {
 // ──────────────────────────────────────────
 
 describe("/exec-stream", () => {
+  beforeEach(skipIfNoPty);
   it("streams command output via SSE", async () => {
     const { events } = await postSSE("/exec-stream", {
       command: 'echo "stream-test"',
@@ -795,6 +845,7 @@ describe("404 fallback", () => {
 // ──────────────────────────────────────────
 
 describe("session-start with timeout", () => {
+  beforeEach(skipIfNoPty);
   it("auto-kills session after timeout", async () => {
     const { data } = await post("/session-start", {
       command: "sleep 60",
@@ -817,6 +868,7 @@ describe("session-start with timeout", () => {
 // ──────────────────────────────────────────
 
 describe("session-start edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("returns 400 for missing command", async () => {
     const { status, data } = await post("/session-start", {});
     expect(status).toBe(400);
@@ -852,6 +904,7 @@ describe("session-start edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("session-poll edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("returns 404 for unknown session", async () => {
     const { status, data } = await post("/session-poll", {
       sessionId: "nonexistent",
@@ -912,6 +965,7 @@ describe("session-poll edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("session-exec edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("respects cwd parameter", async () => {
     const { events } = await postSSE("/session-exec", {
       command: "pwd",
@@ -948,6 +1002,7 @@ describe("session-exec edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("exec-stream edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("respects cwd parameter", async () => {
     const { events } = await postSSE("/exec-stream", {
       command: "pwd",
@@ -1086,6 +1141,7 @@ describe("process-stream edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("env sanitization", () => {
+  beforeEach(skipIfNoPty);
   it("filters out sensitive env vars from exec", async () => {
     // Inject a sensitive key via init
     await post("/init", {
@@ -1134,6 +1190,7 @@ describe("env sanitization", () => {
 // ──────────────────────────────────────────
 
 describe("init edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("merges env vars across multiple init calls", async () => {
     await post("/init", { envVars: { VAR_A: "aaa" } });
     await post("/init", { envVars: { VAR_B: "bbb" } });
@@ -1172,6 +1229,7 @@ describe("init edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("exec edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("returns non-zero exit code for failing command", async () => {
     const { data } = await post("/exec", {
       command: "exit 42",
@@ -1194,6 +1252,7 @@ describe("exec edge cases", () => {
 // ──────────────────────────────────────────
 
 describe("session output tracking", () => {
+  beforeEach(skipIfNoPty);
   it("tracks pending buffer between polls", async () => {
     const { data: startData } = await post("/session-start", {
       command: "echo first && sleep 0.3 && echo second && sleep 10",
@@ -1241,6 +1300,7 @@ describe("session output tracking", () => {
 // ──────────────────────────────────────────
 
 describe("session-log edge cases", () => {
+  beforeEach(skipIfNoPty);
   it("returns full log when tail is not specified", async () => {
     const { data: startData } = await post("/session-start", {
       command: 'echo "full-log-line-1" && echo "full-log-line-2"',

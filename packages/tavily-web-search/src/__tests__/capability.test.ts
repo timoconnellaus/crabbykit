@@ -19,7 +19,8 @@ describe("tavilyWebSearch", () => {
     expect(cap.name).toBe("Web Search (Tavily)");
     expect(cap.description).toBeTruthy();
     expect(cap.tools).toBeInstanceOf(Function);
-    expect(cap.promptSections).toBeInstanceOf(Function);
+    // promptSections were intentionally removed — tool descriptions are sufficient.
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("provides web_search and web_fetch tools", () => {
@@ -44,29 +45,6 @@ describe("tavilyWebSearch", () => {
     expect(tools).toHaveLength(2);
     expect(tools[0].name).toBe("web_search");
     expect(tools[1].name).toBe("web_fetch");
-  });
-
-  it("returns prompt sections", () => {
-    const cap = tavilyWebSearch({
-      tavilyApiKey: "test-key",
-    });
-
-    const context = {
-      agentId: "test-agent",
-      sessionId: "s1",
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: () => {},
-      broadcastToAll: () => {},
-      broadcastState: () => {},
-      requestFromClient: () => Promise.reject(new Error("Not available")),
-      storage: createNoopStorage(),
-      schedules: {} as any,
-    };
-    const sections = cap.promptSections!(context);
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("web search");
   });
 
   it("accepts API key as a function", () => {

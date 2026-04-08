@@ -699,23 +699,11 @@ describe("agentPeering", () => {
     expect(paths).toContain("/agent-handshake-callback");
   });
 
-  it("returns prompt sections", () => {
-    const storage = createMockStorage();
+  // promptSections were intentionally removed — peering trust state is shown
+  // via tools, not baked into every system prompt.
+  it("does not contribute prompt sections", () => {
     const { capability } = agentPeering(makeOptions());
-    const sections = capability.promptSections!({
-      storage,
-      agentId: AGENT_A,
-      sessionId: "",
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: () => {},
-      broadcastToAll: () => {},
-      broadcastState: () => {},
-      requestFromClient: () => Promise.reject(new Error("Not available")),
-      schedules: {} as any,
-    });
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("peering");
+    expect(capability.promptSections).toBeUndefined();
   });
 
   describe("service (lazy storage)", () => {
@@ -746,25 +734,9 @@ describe("agentPeering", () => {
       expect(await service.isPeerAuthorized("unknown")).toBe(false);
     });
 
-    it("service works after promptSections initializes storage", async () => {
-      const storage = createMockStorage();
-      const { capability, service } = agentPeering(makeOptions());
-
-      capability.promptSections!({
-        storage,
-        agentId: AGENT_A,
-        sessionId: "",
-        stepNumber: 0,
-        emitCost: () => {},
-        broadcast: () => {},
-        broadcastToAll: () => {},
-        broadcastState: () => {},
-        requestFromClient: () => Promise.reject(new Error("Not available")),
-        schedules: {} as any,
-      });
-
-      expect(await service.isPeerAuthorized("unknown")).toBe(false);
-    });
+    // (The "after promptSections initializes storage" test was removed: the
+    // capability no longer contributes prompt sections, and storage is now
+    // initialized exclusively from httpHandlers — covered by the test above.)
 
     it("isPeerAuthorized returns true for accepted inbound peer", async () => {
       const storage = createMockStorage();

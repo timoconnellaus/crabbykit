@@ -46,14 +46,10 @@ describe("a2aClient", () => {
     expect(cap.description).toBeDefined();
   });
 
-  it("provides prompt sections", () => {
+  // promptSections were intentionally removed — call_agent / start_task tools document themselves.
+  it("does not contribute prompt sections", () => {
     const cap = a2aClient(DEFAULT_OPTIONS);
-
-    const sections = cap.promptSections!({} as R);
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("delegate work");
-    expect(sections[0]).toContain("call_agent");
-    expect(sections[0]).toContain("start_task");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("registers 4 tools", () => {

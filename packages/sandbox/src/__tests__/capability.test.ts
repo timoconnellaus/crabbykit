@@ -87,11 +87,10 @@ describe("sandboxCapability", () => {
     expect(tools).toHaveLength(7);
   });
 
-  it("provides prompt sections", () => {
+  // promptSections were intentionally removed — elevation/exec flow is documented via tool descriptions.
+  it("does not contribute prompt sections", () => {
     const cap = sandboxCapability({ provider: mockProvider() });
-    const sections = cap.promptSections!(mockContext());
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("elevate");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("has beforeInference hook", () => {

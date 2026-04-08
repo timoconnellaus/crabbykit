@@ -46,6 +46,8 @@ export interface Harness {
   serverSendAll(msgs: ServerMessage[]): Promise<void>;
   /** Call sendMessage on the hook. */
   sendMessage(text: string): Promise<void>;
+  /** Call steerMessage on the hook (interrupts and injects mid-stream). */
+  steerMessage(text: string): Promise<void>;
   /** Call abort on the hook. */
   abort(): Promise<void>;
   /** Call switchSession on the hook. */
@@ -111,6 +113,10 @@ export function createHarness(options: HarnessOptions = {}): Harness {
 
     async sendMessage(text: string) {
       await act(() => hookResult.result.current.sendMessage(text));
+    },
+
+    async steerMessage(text: string) {
+      await act(() => hookResult.result.current.steerMessage(text));
     },
 
     async abort() {

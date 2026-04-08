@@ -67,12 +67,10 @@ describe("vibeCoder", () => {
     expect(tools).toHaveLength(3);
   });
 
-  it("provides prompt sections", () => {
+  // promptSections were intentionally removed (commit ce3aa1f) — content moved to vibe-webapp skill.
+  it("does not contribute prompt sections", () => {
     const cap = vibeCoder({ provider: mockProvider() });
-    const sections = cap.promptSections!(mockContext());
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("show_preview");
-    expect(sections[0]).toContain("get_console_logs");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("provides close_preview command", () => {

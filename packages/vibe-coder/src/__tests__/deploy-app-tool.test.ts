@@ -382,12 +382,8 @@ describe("vibeCoder tools (deploy removed)", () => {
     expect(tools).toHaveLength(3);
   });
 
-  it("does not include deploy instructions in prompt sections", () => {
+  it("does not contribute prompt sections (deploy_app guidance lives in vibe-webapp skill)", () => {
     const cap = vibeCoder({ provider: mockProvider() });
-    const sections = cap.promptSections!(mockContext());
-    expect(sections).toHaveLength(1);
-    for (const section of sections) {
-      expect(section).not.toContain("deploy_app");
-    }
+    expect(cap.promptSections).toBeUndefined();
   });
 });

@@ -81,98 +81,21 @@ describe("vibeCoder with backend option", () => {
     });
   });
 
+  // promptSections were intentionally removed (commit ce3aa1f) — fullstack Bun
+  // workflow guidance moved to the vibe-webapp skill so it's loaded on demand
+  // rather than baked into every system prompt.
   describe("prompt sections", () => {
-    it("includes fullstack Bun workflow when backend is configured", () => {
+    it("does not contribute prompt sections (content moved to vibe-webapp skill)", () => {
       const cap = vibeCoder({
         provider: mockProvider(),
         backend: mockBackendOptions(),
       });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections).toHaveLength(1);
-      expect(sections[0]).toContain("Bun");
-      expect(sections[0]).toContain("Bun.serve");
-      expect(sections[0]).toContain("bun:sqlite");
+      expect(cap.promptSections).toBeUndefined();
     });
 
-    it("includes frontend-only Bun workflow without backend", () => {
+    it("frontend-only configuration also contributes no prompt sections", () => {
       const cap = vibeCoder({ provider: mockProvider() });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections).toHaveLength(1);
-      expect(sections[0]).toContain("Bun");
-      expect(sections[0]).toContain("Bun.serve");
-      expect(sections[0]).not.toContain("bun:sqlite");
-    });
-
-    it("does not include deploy section (deploy moved to app-registry)", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections).toHaveLength(1);
-      for (const section of sections) {
-        expect(section).not.toContain("deploy_app");
-      }
-    });
-
-    it("fullstack prompt includes database example with bun:sqlite", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).toContain("Database");
-      expect(sections[0]).toContain("bun:sqlite");
-      expect(sections[0]).toContain("/api/items");
-    });
-
-    it("fullstack prompt includes HTML import pattern", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).toContain('import homepage from "./index.html"');
-      expect(sections[0]).toContain("routes");
-    });
-
-    it("fullstack prompt mentions HMR and development mode", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).toContain("HMR");
-      expect(sections[0]).toContain("development: true");
-    });
-
-    it("prompts mention show_preview", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).toContain("show_preview");
-    });
-
-    it("prompts include hostname binding for container networking", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).toContain("0.0.0.0");
-    });
-
-    it("does not mention Vite or clawForCloudflare plugin", () => {
-      const cap = vibeCoder({
-        provider: mockProvider(),
-        backend: mockBackendOptions(),
-      });
-      const sections = cap.promptSections!(mockContext());
-      expect(sections[0]).not.toContain("Vite");
-      expect(sections[0]).not.toContain("clawForCloudflare");
-      expect(sections[0]).not.toContain("vite");
+      expect(cap.promptSections).toBeUndefined();
     });
   });
 });

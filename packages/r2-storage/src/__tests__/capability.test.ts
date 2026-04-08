@@ -18,7 +18,8 @@ describe("r2Storage", () => {
     expect(cap.name).toBe("R2 File Storage");
     expect(cap.description).toBeTruthy();
     expect(cap.tools).toBeInstanceOf(Function);
-    expect(cap.promptSections).toBeInstanceOf(Function);
+    // promptSections were intentionally removed — tool descriptions are sufficient.
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("provides seven file tools", () => {
@@ -49,25 +50,6 @@ describe("r2Storage", () => {
     expect(names).toContain("file_list");
     expect(names).toContain("file_tree");
     expect(names).toContain("file_find");
-  });
-
-  it("returns prompt sections", () => {
-    const cap = r2Storage({ storage: mockStorage() });
-
-    const sections = cap.promptSections!({
-      agentId: "test-agent",
-      sessionId: "s1",
-      stepNumber: 0,
-      emitCost: () => {},
-      broadcast: () => {},
-      broadcastToAll: () => {},
-      broadcastState: () => {},
-      requestFromClient: () => Promise.reject(new Error("Not available")),
-      storage: createNoopStorage(),
-      schedules: {} as any,
-    });
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("file storage");
   });
 
   it("has no lifecycle hooks", () => {

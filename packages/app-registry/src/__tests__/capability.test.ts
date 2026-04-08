@@ -56,24 +56,10 @@ describe("appRegistry capability", () => {
     expect(names).toContain("delete_app");
   });
 
-  it("returns prompt sections", () => {
+  // promptSections were intentionally removed (commit ce3aa1f) — guidance moved to vibe-webapp skill.
+  it("does not contribute prompt sections", () => {
     const cap = appRegistry(createTestOptions());
-    const context = {
-      agentId: "agent-1",
-      sessionId: "session-1",
-      stepNumber: 0,
-      emitCost: vi.fn(),
-      broadcast: vi.fn(),
-      broadcastToAll: vi.fn(),
-      broadcastState: vi.fn(),
-      requestFromClient: vi.fn(),
-      schedules: {} as any,
-    } as unknown as AgentContext;
-    const sections = cap.promptSections!(context);
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("deploy_app");
-    expect(sections[0]).toContain("/apps/");
+    expect(cap.promptSections).toBeUndefined();
   });
 
   it("onConnect hook broadcasts app_list with empty apps", async () => {

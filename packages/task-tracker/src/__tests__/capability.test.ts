@@ -1,10 +1,11 @@
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 
-// Mock cloudflare:workers
-class MockDurableObject {}
+// Mock cloudflare:workers — vi.mock is hoisted, so the factory must define
+// the class inline rather than closing over a top-level binding (otherwise the
+// reference hits the temporal dead zone during hoist execution).
 // biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export name
-vi.mock("cloudflare:workers", () => ({ DurableObject: MockDurableObject }));
+vi.mock("cloudflare:workers", () => ({ DurableObject: class MockDurableObject {} }));
 
 const { taskTracker, createTaskStore } = await import("../capability.js");
 
@@ -35,7 +36,7 @@ describe("taskTracker capability", () => {
     };
 
     const tools = cap.tools!(context);
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
 
     const names = tools.map((t) => t.name);
     expect(names).toContain("task_create");
@@ -44,6 +45,7 @@ describe("taskTracker capability", () => {
     expect(names).toContain("task_ready");
     expect(names).toContain("task_tree");
     expect(names).toContain("task_dep_add");
+    expect(names).toContain("task_clear");
   });
 
   it("provides prompt sections", () => {
