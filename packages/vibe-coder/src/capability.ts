@@ -1,5 +1,4 @@
 import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
 import { createGetConsoleLogsTool } from "./tools/get-console-logs.js";
 import { createHidePreviewTool } from "./tools/hide-preview.js";
 import { createShowPreviewTool } from "./tools/show-preview.js";
@@ -28,47 +27,6 @@ export function vibeCoder(options: VibeCoderOptions): Capability {
       ];
       return tools;
     },
-
-    commands: (context: AgentContext) => [
-      defineCommand({
-        name: "close_preview",
-        description: "Close the live preview (triggered by the user via the UI close button).",
-        execute: async (_args, ctx) => {
-          // Verify this session owns the preview
-          if (context.storage) {
-            const preview = await context.storage.get<{ port: number; sessionId: string }>(
-              "preview",
-            );
-            if (!preview || preview.sessionId !== ctx.sessionId) {
-              return { text: "No active preview for this session." };
-            }
-          }
-
-          // Clean up server-side state (same as hide_preview tool)
-          if (options.provider.clearDevPort) {
-            await options.provider.clearDevPort();
-          }
-          if (context.storage) {
-            await context.storage.delete("preview");
-          }
-
-          // Broadcast to this session's clients
-          context.broadcast("preview_close", {});
-
-          // Append a session entry so the agent knows the user closed the preview
-          ctx.sessionStore.appendEntry(ctx.sessionId, {
-            type: "custom",
-            data: {
-              customType: "notification",
-              role: "user",
-              content: "[The user closed the live preview]",
-            },
-          });
-
-          return { text: "Preview closed." };
-        },
-      }),
-    ],
 
     hooks: {
       afterToolExecution: async (event, ctx) => {

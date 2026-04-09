@@ -1,5 +1,4 @@
 import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineCommand } from "@claw-for-cloudflare/agent-runtime";
 import { BrowserbaseClient } from "./browserbase-client.js";
 import type { SessionManagerState } from "./session-manager.js";
 import { SessionManager } from "./session-manager.js";
@@ -172,50 +171,6 @@ export function browserbase(options: BrowserbaseOptions): Capability {
         createBrowserClearStateTool(sm),
       ];
       return tools;
-    },
-
-    commands: (context: AgentContext) => {
-      const sm = getSessionManager(context);
-      return [
-        defineCommand({
-          name: "close_browser",
-          description: "Close the browser (triggered by the user via the UI close button).",
-          execute: async (_args, ctx) => {
-            try {
-              const { durationMinutes } = await sm.close(ctx.sessionId);
-
-              // Cancel timers
-              await cancelTimers(ctx.sessionId, context);
-
-              // Emit cost
-              const rate = options.perMinuteCostUsd ?? 0.002;
-              context.emitCost({
-                capabilityId: "browserbase",
-                toolName: "close_browser",
-                amount: durationMinutes * rate,
-                currency: "USD",
-                detail: `Browser session: ${durationMinutes} min`,
-              });
-
-              context.broadcast("browser_close", {});
-
-              // Append entry so agent knows user closed browser
-              ctx.sessionStore.appendEntry(ctx.sessionId, {
-                type: "custom",
-                data: {
-                  customType: "notification",
-                  role: "user",
-                  content: "[The user closed the browser panel]",
-                },
-              });
-
-              return { text: "Browser closed." };
-            } catch {
-              return { text: "No active browser to close." };
-            }
-          },
-        }),
-      ];
     },
 
     hooks: {

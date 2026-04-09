@@ -73,73 +73,9 @@ describe("vibeCoder", () => {
     expect(cap.promptSections).toBeUndefined();
   });
 
-  it("provides close_preview command", () => {
+  it("does not register any slash commands", () => {
     const cap = vibeCoder({ provider: mockProvider() });
-    const commands = cap.commands!(mockContext());
-    expect(commands).toHaveLength(1);
-    expect(commands[0].name).toBe("close_preview");
-  });
-
-  describe("close_preview command", () => {
-    it("clears dev port, deletes storage, broadcasts, and appends session entry", async () => {
-      const provider = mockProvider();
-      const ctx = mockContext("session-abc");
-      // Mock storage.get to return preview owned by this session
-      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-        port: 5173,
-        sessionId: "session-abc",
-      });
-      const cap = vibeCoder({ provider });
-      const commands = cap.commands!(ctx);
-      const closeCmd = commands[0];
-
-      const cmdCtx = {
-        sessionId: "session-abc",
-        sessionStore: {
-          appendEntry: vi.fn().mockReturnValue({ id: "e1" }),
-        } as any,
-        schedules: {} as any,
-      };
-
-      const result = await closeCmd.execute(undefined as any, cmdCtx);
-
-      expect(provider.clearDevPort).toHaveBeenCalled();
-      expect(ctx.storage!.delete).toHaveBeenCalledWith("preview");
-      expect(ctx.broadcast).toHaveBeenCalledWith("preview_close", {});
-      expect(cmdCtx.sessionStore.appendEntry).toHaveBeenCalledWith("session-abc", {
-        type: "custom",
-        data: expect.objectContaining({
-          customType: "notification",
-          content: "[The user closed the live preview]",
-        }),
-      });
-      expect(result.text).toContain("Preview closed");
-    });
-
-    it("rejects when session does not own the preview", async () => {
-      const provider = mockProvider();
-      const ctx = mockContext("session-xyz");
-      // Preview is owned by a different session
-      (ctx.storage!.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-        port: 5173,
-        sessionId: "session-abc",
-      });
-      const cap = vibeCoder({ provider });
-      const commands = cap.commands!(ctx);
-      const closeCmd = commands[0];
-
-      const cmdCtx = {
-        sessionId: "session-xyz",
-        sessionStore: { appendEntry: vi.fn() } as any,
-        schedules: {} as any,
-      };
-
-      const result = await closeCmd.execute(undefined as any, cmdCtx);
-
-      expect(result.text).toContain("No active preview");
-      expect(provider.clearDevPort).not.toHaveBeenCalled();
-      expect(ctx.storage!.delete).not.toHaveBeenCalled();
-    });
+    expect(cap.commands).toBeUndefined();
   });
 
   it("has onConnect hook", () => {

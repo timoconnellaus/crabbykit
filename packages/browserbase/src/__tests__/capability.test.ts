@@ -73,13 +73,9 @@ describe("browserbase capability", () => {
     expect(names).toContain("browser_clear_state");
   });
 
-  it("provides close_browser command", () => {
+  it("does not register any slash commands", () => {
     const cap = browserbase(options);
-    const ctx = mockContext();
-    const commands = cap.commands!(ctx);
-
-    expect(commands).toHaveLength(1);
-    expect(commands[0].name).toBe("close_browser");
+    expect(cap.commands).toBeUndefined();
   });
 
   it("has onConnect hook", () => {

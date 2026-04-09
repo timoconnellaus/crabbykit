@@ -165,8 +165,7 @@ function SessionLayout() {
 
   const handleClosePreview = useCallback(() => {
     preview.closePreview();
-    chat.sendCommand("close_preview");
-  }, [preview, chat]);
+  }, [preview]);
 
   const handleCreateAgent = useCallback(async () => {
     const name = prompt("Agent name:");
