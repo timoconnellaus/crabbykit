@@ -284,27 +284,22 @@ function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectio
         <span data-agent-ui="system-prompt-section-chevron" aria-hidden="true">
           {excluded ? "−" : expanded ? "⌄" : "›"}
         </span>
-        <div data-agent-ui="system-prompt-section-text">
-          <div data-agent-ui="system-prompt-section-row1">
-            <span data-agent-ui="system-prompt-section-name">{section.name}</span>
-            {excluded ? (
-              <span data-agent-ui="system-prompt-section-tag">skipped</span>
-            ) : (
-              <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
-            )}
-          </div>
-          <div data-agent-ui="system-prompt-section-row2">
-            <span data-agent-ui="system-prompt-source-pill" data-source-kind={kind}>
-              {sourceLabel(section.source)}
-            </span>
-            {excluded && (
-              <span data-agent-ui="system-prompt-section-excluded">
-                {section.excludedReason ?? "no reason provided"}
-              </span>
-            )}
-          </div>
-        </div>
+        <span data-agent-ui="system-prompt-section-name">{section.name}</span>
+        <span data-agent-ui="system-prompt-source-pill" data-source-kind={kind}>
+          {sourceLabel(section.source)}
+        </span>
+        <span data-agent-ui="system-prompt-section-spacer" />
+        {excluded ? (
+          <span data-agent-ui="system-prompt-section-tag">skipped</span>
+        ) : (
+          <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
+        )}
       </button>
+      {excluded && (
+        <div data-agent-ui="system-prompt-section-excluded">
+          {section.excludedReason ?? "no reason provided"}
+        </div>
+      )}
       {expanded && !excluded && (
         <div data-agent-ui="system-prompt-section-content">
           <MarkdownContent content={section.content} />
