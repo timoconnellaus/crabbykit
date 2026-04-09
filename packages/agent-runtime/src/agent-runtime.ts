@@ -844,6 +844,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           cursor: lastSeq,
           hasMore,
         });
+        // Re-send global capability state that session_sync clears on the client.
+        this.sendCommandList(connection, sessionId);
       }
     }
 
@@ -932,6 +934,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
             cursor: lastSeq,
             hasMore,
           });
+          // Re-send global capability state that session_sync clears on the client.
+          this.sendCommandList(connection, msg.sessionId);
         }
 
         this.fireOnConnectHooks(msg.sessionId).catch((err) => {
@@ -954,6 +958,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           messages: [],
           streamMessage: null,
         });
+        // Re-send global capability state that session_sync clears on the client.
+        this.sendCommandList(connection, session.id);
         this.broadcastSessionList();
 
         this.fireOnConnectHooks(session.id).catch((err) => {
@@ -996,6 +1002,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
                 cursor: delLastSeq,
                 hasMore: delHasMore,
               });
+              // Re-send global capability state that session_sync clears on the client.
+              this.sendCommandList(conn, target.id);
             }
           }
         }
@@ -1315,6 +1323,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       messages: [],
       streamMessage: null,
     });
+    // Re-send global capability state that session_sync clears on the client.
+    this.sendCommandList(connection, newSession.id);
 
     const allSessions = this.sessionStore.list();
     if (allSessions.length > 1) {

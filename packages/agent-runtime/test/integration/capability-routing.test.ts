@@ -16,7 +16,7 @@ import {
   setExtraCapabilities,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import type { CapabilityStateMessage } from "../../src/transport/types.js";
+import type { CapabilityStateMessage, ServerMessage } from "../../src/transport/types.js";
 import {
   connectAndGetSession,
   getSchedules,
@@ -24,6 +24,8 @@ import {
   openSocket,
   prompt,
 } from "../helpers/ws-client.js";
+
+type SessionSyncMsg = Extract<ServerMessage, { type: "session_sync" }>;
 
 describe("Capability state and action routing", () => {
   beforeEach(() => {
@@ -283,6 +285,105 @@ describe("Capability state and action routing", () => {
 
       client1.close();
       client2.close();
+    });
+  });
+
+  describe("11.7 sendCommandList re-sent after session_sync on session changes", () => {
+    /**
+     * Regression for: after the capability-state-protocol refactor, the client
+     * reducer clears `capabilityState` on SESSION_SYNC, which wipes the global
+     * `commands` slot. The server must re-send commands after any session_sync
+     * it pushes post-connect, otherwise the slash-command picker goes empty
+     * after a session switch / create / delete / clear.
+     */
+
+    function countCommandSyncs(client: { messages: ServerMessage[] }): number {
+      return client.messages.filter(
+        (m): m is CapabilityStateMessage =>
+          m.type === "capability_state" && m.capabilityId === "commands" && m.event === "sync",
+      ).length;
+    }
+
+    it("re-sends commands sync after new_session", async () => {
+      const stub = getStub("cap-cmd-resend-1");
+      const { client } = await connectAndGetSession(stub);
+      await new Promise((r) => setTimeout(r, 50));
+      const before = countCommandSyncs(client);
+
+      client.send({ type: "new_session" });
+      // Wait for the second session_sync triggered by new_session
+      let syncCount = 0;
+      await client.waitForMessage((m) => m.type === "session_sync" && ++syncCount >= 2);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(countCommandSyncs(client)).toBeGreaterThan(before);
+      client.close();
+    });
+
+    it("re-sends commands sync after switch_session", async () => {
+      const stub = getStub("cap-cmd-resend-2");
+      const { client, sessionId: firstSessionId } = await connectAndGetSession(stub);
+
+      // Create a second session so we have something to switch to.
+      client.send({ type: "new_session" });
+      let syncCount = 0;
+      await client.waitForMessage((m) => m.type === "session_sync" && ++syncCount >= 2);
+      await new Promise((r) => setTimeout(r, 50));
+      const before = countCommandSyncs(client);
+
+      client.send({ type: "switch_session", sessionId: firstSessionId });
+      await client.waitForMessage(
+        (m) => m.type === "session_sync" && (m as SessionSyncMsg).sessionId === firstSessionId,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(countCommandSyncs(client)).toBeGreaterThan(before);
+      client.close();
+    });
+
+    it("re-sends commands sync after delete_session", async () => {
+      const stub = getStub("cap-cmd-resend-3");
+      const { client } = await connectAndGetSession(stub);
+
+      // Need at least two sessions before delete_session is willing to act, and
+      // the client must be on the session being deleted for it to be "affected"
+      // (delete_session only pushes session_sync to connections that were on
+      // the deleted session).
+      client.send({ type: "new_session" });
+      let syncCount = 0;
+      const secondSync = (await client.waitForMessage(
+        (m) => m.type === "session_sync" && ++syncCount >= 2,
+      )) as SessionSyncMsg;
+      const secondSessionId = secondSync.sessionId;
+      await new Promise((r) => setTimeout(r, 50));
+      const before = countCommandSyncs(client);
+
+      // Delete the session the client is currently on — it should be migrated
+      // to the remaining session and receive a new session_sync.
+      client.send({ type: "delete_session", sessionId: secondSessionId });
+      await client.waitForMessage(
+        (m) => m.type === "session_sync" && (m as SessionSyncMsg).sessionId !== secondSessionId,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(countCommandSyncs(client)).toBeGreaterThan(before);
+      client.close();
+    });
+
+    it("re-sends commands sync after /clear command", async () => {
+      const stub = getStub("cap-cmd-resend-4");
+      const { client, sessionId } = await connectAndGetSession(stub);
+      await new Promise((r) => setTimeout(r, 50));
+      const before = countCommandSyncs(client);
+
+      client.send({ type: "command", sessionId, name: "clear" });
+      // handleClearCommand creates a new session and pushes a session_sync.
+      let syncCount = 0;
+      await client.waitForMessage((m) => m.type === "session_sync" && ++syncCount >= 2);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(countCommandSyncs(client)).toBeGreaterThan(before);
+      client.close();
     });
   });
 });
