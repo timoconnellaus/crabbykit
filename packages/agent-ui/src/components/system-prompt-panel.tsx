@@ -11,44 +11,41 @@ export interface SystemPromptPanelProps extends ComponentPropsWithoutRef<"div"> 
 }
 
 /**
- * Human-readable label for a section's source, used inside the source pill.
- * Deliberately short — the pill sits next to the section name.
+ * Compact source label rendered in the section subtitle. The colour of the
+ * pill conveys the source *kind*; the label only needs to disambiguate within
+ * that kind, so we drop the redundant `default:` / `capability:` prefix.
  */
 function sourceLabel(source: PromptSectionSource): string {
   switch (source.type) {
     case "default":
-      return `default: ${source.id}`;
+      return source.id;
     case "additional":
-      return `additional #${source.index}`;
+      return `additional·${source.index}`;
     case "tools":
       return "tools";
     case "tool-guidance":
-      return "tool guidance";
+      return "guidance";
     case "custom":
       return "custom";
     case "capability":
-      return `capability: ${source.capabilityId}`;
+      return source.capabilityId;
   }
 }
 
-/**
- * Kebab-case key for CSS color coding per source type.
- */
+/** Kebab-case key for CSS color coding per source type. */
 function sourceKind(source: PromptSectionSource): string {
   return source.type;
 }
 
 /**
- * Slide-in panel that displays the current system prompt in structured sections.
+ * Slide-in panel that displays the current system prompt as structured sections.
  *
- * - Fetches prompt data via WebSocket when opened via {@link useChat}.
- * - All sections start collapsed. Individual headers toggle a section; the
- *   "Expand all" / "Collapse all" controls operate on every section at once.
- * - Each section header shows a source pill attributing the content to its
- *   origin (default block, tool list, capability, custom override).
- * - Sections the runtime declared as excluded (e.g. a capability whose
- *   condition wasn't met) render in a dimmed row with the exclusion reason
- *   inline — no expand body.
+ * Sections start collapsed; click a header to expand one, or use the toolbar
+ * controls to expand or collapse all at once. Each section row carries a
+ * source pill (default block / tools / capability / custom) coloured by
+ * source kind. Sections that the runtime declared as excluded — for example,
+ * a capability whose precondition wasn't met — are dimmed and show their
+ * exclusion reason inline.
  */
 export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanelProps) {
   const { systemPrompt, requestSystemPrompt } = useChat();
@@ -89,7 +86,7 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
 
   const expandAll = useCallback(() => {
     if (!systemPrompt) return;
-    setExpanded(new Set(systemPrompt.sections.map((s) => s.key)));
+    setExpanded(new Set(systemPrompt.sections.filter((s) => s.included).map((s) => s.key)));
   }, [systemPrompt]);
 
   const collapseAll = useCallback(() => {
@@ -117,92 +114,36 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
 
   return (
     <div data-agent-ui="system-prompt-panel" {...props}>
-      {/* Header */}
-      <div data-agent-ui="system-prompt-header">
-        <div data-agent-ui="system-prompt-meta">
-          <span data-agent-ui="system-prompt-title">system prompt</span>
-          {sections.length > 0 && (
-            <span data-agent-ui="system-prompt-stats">
-              {stats.included} shown
-              {stats.excluded > 0 ? ` · ${stats.excluded} hidden` : ""} · {stats.lines} lines
-            </span>
-          )}
-        </div>
-        <div data-agent-ui="system-prompt-actions">
-          {/* Expand / Collapse all */}
-          {viewMode === "md" && sections.length > 0 && (
-            <div data-agent-ui="system-prompt-expand-controls">
-              <button type="button" onClick={expandAll} title="Expand all sections">
-                Expand all
-              </button>
-              <button type="button" onClick={collapseAll} title="Collapse all sections">
-                Collapse all
-              </button>
-            </div>
-          )}
-          {/* View mode toggle */}
-          <div data-agent-ui="system-prompt-toggle">
-            <button
-              type="button"
-              data-active={viewMode === "md" || undefined}
-              onClick={() => setViewMode("md")}
-              title="Rendered markdown"
-            >
-              Md
-            </button>
-            <button
-              type="button"
-              data-active={viewMode === "raw" || undefined}
-              onClick={() => setViewMode("raw")}
-              title="Raw source"
-            >
-              Raw
-            </button>
+      {/* Header — title row + toolbar row */}
+      <header data-agent-ui="system-prompt-header">
+        <div data-agent-ui="system-prompt-titlebar">
+          <div data-agent-ui="system-prompt-meta">
+            <span data-agent-ui="system-prompt-title">system prompt</span>
+            {sections.length > 0 && (
+              <span data-agent-ui="system-prompt-stats">
+                <span>{stats.included} shown</span>
+                {stats.excluded > 0 && (
+                  <>
+                    <span data-agent-ui="system-prompt-stats-sep">·</span>
+                    <span>{stats.excluded} hidden</span>
+                  </>
+                )}
+                <span data-agent-ui="system-prompt-stats-sep">·</span>
+                <span>{stats.lines} lines</span>
+              </span>
+            )}
           </div>
-          {/* Copy */}
           <button
             type="button"
-            data-agent-ui="system-prompt-copy"
-            onClick={handleCopy}
-            title="Copy full prompt"
+            data-agent-ui="system-prompt-close"
+            onClick={onClose}
+            aria-label="Close system prompt panel"
+            title="Close"
           >
-            {copied ? (
-              <svg
-                aria-hidden="true"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden="true"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
-          {/* Close */}
-          <button type="button" data-agent-ui="system-prompt-close" onClick={onClose} title="Close">
             <svg
               aria-hidden="true"
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -215,11 +156,86 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
             </svg>
           </button>
         </div>
-      </div>
+
+        <div data-agent-ui="system-prompt-toolbar">
+          <div data-agent-ui="system-prompt-toolbar-group">
+            {viewMode === "md" && sections.length > 0 && (
+              <div data-agent-ui="system-prompt-expand-controls">
+                <button type="button" onClick={expandAll} title="Expand every section">
+                  expand all
+                </button>
+                <button type="button" onClick={collapseAll} title="Collapse every section">
+                  collapse all
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div data-agent-ui="system-prompt-toolbar-group">
+            <div data-agent-ui="system-prompt-toggle">
+              <button
+                type="button"
+                data-active={viewMode === "md" || undefined}
+                onClick={() => setViewMode("md")}
+                title="Rendered markdown"
+              >
+                Md
+              </button>
+              <button
+                type="button"
+                data-active={viewMode === "raw" || undefined}
+                onClick={() => setViewMode("raw")}
+                title="Raw source"
+              >
+                Raw
+              </button>
+            </div>
+            <button
+              type="button"
+              data-agent-ui="system-prompt-copy"
+              onClick={handleCopy}
+              aria-label={copied ? "Copied" : "Copy prompt"}
+              title="Copy full prompt"
+              data-copied={copied || undefined}
+            >
+              {copied ? (
+                <svg
+                  aria-hidden="true"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg
+                  aria-hidden="true"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
 
       {/* Body */}
       <div data-agent-ui="system-prompt-body">
-        {!systemPrompt && <div data-agent-ui="system-prompt-loading">Loading...</div>}
+        {!systemPrompt && <div data-agent-ui="system-prompt-loading">loading…</div>}
 
         {viewMode === "raw" && systemPrompt ? (
           <pre data-agent-ui="system-prompt-raw">{systemPrompt.raw}</pre>
@@ -249,11 +265,12 @@ interface SystemPromptSectionProps {
 
 function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectionProps) {
   const excluded = !section.included;
+  const kind = sourceKind(section.source);
   return (
     <div
       data-agent-ui="system-prompt-section"
       data-section-key={section.key}
-      data-source-kind={sourceKind(section.source)}
+      data-source-kind={kind}
       data-excluded={excluded || undefined}
       data-expanded={expanded || undefined}
     >
@@ -265,23 +282,28 @@ function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectio
         disabled={excluded}
       >
         <span data-agent-ui="system-prompt-section-chevron" aria-hidden="true">
-          {excluded ? "•" : expanded ? "▾" : "▸"}
+          {excluded ? "−" : expanded ? "⌄" : "›"}
         </span>
-        <span data-agent-ui="system-prompt-section-dot" />
-        <span data-agent-ui="system-prompt-section-name">{section.name}</span>
-        <span
-          data-agent-ui="system-prompt-source-pill"
-          data-source-kind={sourceKind(section.source)}
-        >
-          {sourceLabel(section.source)}
-        </span>
-        {excluded ? (
-          <span data-agent-ui="system-prompt-section-excluded">
-            skipped: {section.excludedReason ?? "no reason provided"}
-          </span>
-        ) : (
-          <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
-        )}
+        <div data-agent-ui="system-prompt-section-text">
+          <div data-agent-ui="system-prompt-section-row1">
+            <span data-agent-ui="system-prompt-section-name">{section.name}</span>
+            {excluded ? (
+              <span data-agent-ui="system-prompt-section-tag">skipped</span>
+            ) : (
+              <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
+            )}
+          </div>
+          <div data-agent-ui="system-prompt-section-row2">
+            <span data-agent-ui="system-prompt-source-pill" data-source-kind={kind}>
+              {sourceLabel(section.source)}
+            </span>
+            {excluded && (
+              <span data-agent-ui="system-prompt-section-excluded">
+                {section.excludedReason ?? "no reason provided"}
+              </span>
+            )}
+          </div>
+        </div>
       </button>
       {expanded && !excluded && (
         <div data-agent-ui="system-prompt-section-content">

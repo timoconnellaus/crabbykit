@@ -102,7 +102,7 @@ describe("SystemPromptPanel", () => {
 
   it("shows loading when systemPrompt is null", () => {
     renderPanel(null);
-    expect(q("system-prompt-loading")?.textContent).toBe("Loading...");
+    expect(q("system-prompt-loading")?.textContent).toBe("loading…");
   });
 
   it("starts with every section collapsed (no content bodies rendered)", () => {
@@ -216,11 +216,11 @@ describe("SystemPromptPanel", () => {
 
     const pills = qAll("system-prompt-source-pill");
     expect(pills).toHaveLength(4);
-    expect(pills[0].textContent).toBe("default: identity");
+    expect(pills[0].textContent).toBe("identity");
     expect(pills[0].getAttribute("data-source-kind")).toBe("default");
     expect(pills[1].textContent).toBe("tools");
     expect(pills[1].getAttribute("data-source-kind")).toBe("tools");
-    expect(pills[2].textContent).toBe("capability: web-search");
+    expect(pills[2].textContent).toBe("web-search");
     expect(pills[2].getAttribute("data-source-kind")).toBe("capability");
     expect(pills[3].textContent).toBe("custom");
     expect(pills[3].getAttribute("data-source-kind")).toBe("custom");
