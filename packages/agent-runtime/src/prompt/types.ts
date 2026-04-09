@@ -29,6 +29,8 @@ export interface PromptSection {
   content: string;
   /** Number of lines in content. Zero when `included` is false. */
   lines: number;
+  /** Estimated token count (heuristic: ~3.5 chars/token for prose, lower for code/JSON). Zero when excluded. */
+  tokens: number;
   /** Where this section came from. Shown as a "source pill" in the inspection UI. */
   source: PromptSectionSource;
   /** True when this section is part of the final prompt sent to the LLM. */

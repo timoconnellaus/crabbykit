@@ -1,6 +1,29 @@
 import { identitySection, runtimeSection, safetySection } from "./sections.js";
 import type { PromptOptions, PromptSection, PromptSectionSource } from "./types.js";
 
+/**
+ * Estimate token count for a text string.
+ *
+ * Uses the same heuristic as the compaction engine: ~3.5 chars/token for
+ * prose, ~3.0 for code, ~2.5 for JSON. Exported so that capability
+ * resolve and the inspection UI can reuse it without importing the
+ * compaction module (which has heavier dependencies).
+ */
+export function estimateTextTokens(text: string): number {
+  if (text.length === 0) return 0;
+  const codeIndicators = /[{}[\]();=><|&!~^%]/.test(text);
+  const jsonLike = text.startsWith("{") || text.startsWith("[");
+  let charsPerToken: number;
+  if (jsonLike) {
+    charsPerToken = 2.5;
+  } else if (codeIndicators) {
+    charsPerToken = 3.0;
+  } else {
+    charsPerToken = 3.5;
+  }
+  return Math.ceil(text.length / charsPerToken);
+}
+
 function makeSection(
   name: string,
   key: string,
@@ -12,6 +35,7 @@ function makeSection(
     key,
     content,
     lines: content.split("\n").length,
+    tokens: estimateTextTokens(content),
     source,
     included: true,
   };
@@ -28,6 +52,7 @@ function makeExcluded(
     key,
     content: "",
     lines: 0,
+    tokens: 0,
     source,
     included: false,
     excludedReason,

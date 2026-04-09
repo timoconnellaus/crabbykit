@@ -298,6 +298,7 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
           key: s.key,
           content: s.content,
           lines: s.lines,
+          tokens: s.tokens ?? 0,
           source: s.source ?? { type: "custom" },
           included: s.included ?? true,
           excludedReason: s.excludedReason,

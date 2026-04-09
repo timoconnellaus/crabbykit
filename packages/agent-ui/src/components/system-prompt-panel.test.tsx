@@ -20,6 +20,7 @@ function makeSection(
     name: overrides.key,
     content,
     lines: overrides.lines ?? content.split("\n").length,
+    tokens: overrides.tokens ?? Math.ceil(content.length / 3.5),
     included: overrides.included ?? true,
     ...overrides,
   };
@@ -226,26 +227,26 @@ describe("SystemPromptPanel", () => {
     expect(pills[3].getAttribute("data-source-kind")).toBe("custom");
   });
 
-  it("stats count included/excluded/lines correctly", () => {
+  it("stats count included/excluded/tokens correctly", () => {
     renderPanel([
       makeSection({
         key: "identity",
         source: { type: "default", id: "identity" },
         content: "a\nb\nc",
-        lines: 3,
+        tokens: 10,
       }),
       makeSection({
         key: "safety",
         source: { type: "default", id: "safety" },
         content: "x",
-        lines: 1,
+        tokens: 5,
       }),
       makeSection({
         key: "cap-skills-1",
         name: "Skills",
         source: { type: "capability", capabilityId: "skills", capabilityName: "Skills" },
         content: "",
-        lines: 0,
+        tokens: 0,
         included: false,
         excludedReason: "none",
       }),
@@ -254,7 +255,7 @@ describe("SystemPromptPanel", () => {
     const stats = q("system-prompt-stats")?.textContent ?? "";
     expect(stats).toContain("2 shown");
     expect(stats).toContain("1 hidden");
-    expect(stats).toContain("4 lines");
+    expect(stats).toContain("~15 tokens");
   });
 
   it("copy button writes only included section content to clipboard", async () => {

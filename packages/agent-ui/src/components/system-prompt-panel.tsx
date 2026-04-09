@@ -98,16 +98,16 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
   const stats = useMemo(() => {
     let included = 0;
     let excluded = 0;
-    let lines = 0;
+    let tokens = 0;
     for (const s of sections) {
       if (s.included) {
         included += 1;
-        lines += s.lines;
+        tokens += s.tokens;
       } else {
         excluded += 1;
       }
     }
-    return { included, excluded, lines };
+    return { included, excluded, tokens };
   }, [sections]);
 
   if (!open) return null;
@@ -129,7 +129,7 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
                   </>
                 )}
                 <span data-agent-ui="system-prompt-stats-sep">·</span>
-                <span>{stats.lines} lines</span>
+                <span>~{stats.tokens.toLocaleString()} tokens</span>
               </span>
             )}
           </div>
@@ -292,7 +292,7 @@ function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectio
         {excluded ? (
           <span data-agent-ui="system-prompt-section-tag">skipped</span>
         ) : (
-          <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
+          <span data-agent-ui="system-prompt-section-lines">~{section.tokens} tk</span>
         )}
       </button>
       {excluded && (

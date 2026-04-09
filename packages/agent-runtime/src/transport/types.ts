@@ -117,6 +117,7 @@ export interface SystemPromptMessage {
     key: string;
     content: string;
     lines: number;
+    tokens?: number;
     source?: PromptSectionSource;
     included?: boolean;
     excludedReason?: string;

@@ -1,4 +1,5 @@
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import { estimateTextTokens } from "./build-system-prompt.js";
 import type { PromptSection } from "./types.js";
 
 /**
@@ -29,6 +30,7 @@ export function buildToolPromptSections(tools: AgentTool<any>[]): PromptSection[
     key: "auto-tools",
     content: listContent,
     lines: listLines.length,
+    tokens: estimateTextTokens(listContent),
     source: { type: "tools" },
     included: true,
   });
@@ -48,6 +50,7 @@ export function buildToolPromptSections(tools: AgentTool<any>[]): PromptSection[
       key: "auto-tool-guidance",
       content: guidanceContent,
       lines: guidanceContent.split("\n").length,
+      tokens: estimateTextTokens(guidanceContent),
       source: { type: "tool-guidance" },
       included: true,
     });

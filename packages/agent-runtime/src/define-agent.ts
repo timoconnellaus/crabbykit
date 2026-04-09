@@ -11,7 +11,10 @@ import type {
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
-import { buildDefaultSystemPromptSections } from "./prompt/build-system-prompt.js";
+import {
+  buildDefaultSystemPromptSections,
+  estimateTextTokens,
+} from "./prompt/build-system-prompt.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import type { Schedule } from "./scheduling/types.js";
 import type { SessionStore } from "./session/session-store.js";
@@ -228,6 +231,7 @@ export function defineAgent<TEnv = Record<string, unknown>>(
             key: "custom",
             content: raw,
             lines: raw.split("\n").length,
+            tokens: estimateTextTokens(raw),
             source: { type: "custom" },
             included: true,
           },

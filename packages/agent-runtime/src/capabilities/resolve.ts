@@ -2,6 +2,7 @@ import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
 import type { McpServerConfig } from "../mcp/types.js";
+import { estimateTextTokens } from "../prompt/build-system-prompt.js";
 import type { PromptSection } from "../prompt/types.js";
 import type { ResolvedScheduleDeclaration } from "../scheduling/types.js";
 import type { CapabilityStorage } from "./storage.js";
@@ -158,6 +159,7 @@ export function resolveCapabilities(
             key,
             content: normalized.content,
             lines: normalized.content.split("\n").length,
+            tokens: estimateTextTokens(normalized.content),
             source,
             included: true,
           });
@@ -167,6 +169,7 @@ export function resolveCapabilities(
             key,
             content: "",
             lines: 0,
+            tokens: 0,
             source,
             included: false,
             excludedReason: normalized.reason ?? "Excluded (no reason provided)",

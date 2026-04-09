@@ -29,7 +29,11 @@ import type { ConfigNamespace } from "./config/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { isRuntimeError } from "./errors/runtime-error.js";
 import { McpManager } from "./mcp/mcp-manager.js";
-import { buildDefaultSystemPromptSections, toPromptString } from "./prompt/build-system-prompt.js";
+import {
+  buildDefaultSystemPromptSections,
+  estimateTextTokens,
+  toPromptString,
+} from "./prompt/build-system-prompt.js";
 import { buildToolPromptSections } from "./prompt/tool-sections.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { QueueStore } from "./queue/queue-store.js";
@@ -1166,6 +1170,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           key: "custom",
           content: legacyString,
           lines: legacyString.split("\n").length,
+          tokens: estimateTextTokens(legacyString),
           source: { type: "custom" },
           included: true,
         },
