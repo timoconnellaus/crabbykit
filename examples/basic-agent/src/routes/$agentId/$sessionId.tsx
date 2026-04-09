@@ -3,8 +3,7 @@ import type { SandboxBadgeProps, SubagentInfo } from "@claw-for-cloudflare/agent
 import { useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentRecord } from "../../components/agent-rail";
-import { AgentRail } from "../../components/agent-rail";
+import type { AgentRecord } from "../../components/agent-picker";
 import { ChatView } from "../../components/chat-view";
 import type { PendingA2ATask } from "../../components/pending-tasks";
 import { TabBar } from "../../components/tab-bar";
@@ -231,9 +230,13 @@ function SessionLayout() {
 
   return (
     <ChatContextProvider value={contextValue}>
-      <AgentRail agents={agents} selectedId={agentId} onCreateAgent={handleCreateAgent} />
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-        <TabBar agentId={agentId} activeTab={activeTab} />
+        <TabBar
+          agentId={agentId}
+          activeTab={activeTab}
+          agents={agents}
+          onCreateAgent={handleCreateAgent}
+        />
         {/* Chat stays mounted (hidden) to keep WebSocket alive */}
         <div
           style={{
