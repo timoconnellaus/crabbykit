@@ -11,16 +11,16 @@ export interface SystemPromptPanelProps extends ComponentPropsWithoutRef<"div"> 
 }
 
 /**
- * Compact source label rendered in the section subtitle. The colour of the
- * pill conveys the source *kind*; the label only needs to disambiguate within
- * that kind, so we drop the redundant `default:` / `capability:` prefix.
+ * Source-kind label for the pill. Shows *where* the section came from (the
+ * source type) rather than *what* it is (the section name already conveys
+ * that). Colour reinforces the kind visually.
  */
 function sourceLabel(source: PromptSectionSource): string {
   switch (source.type) {
     case "default":
-      return source.id;
+      return "default";
     case "additional":
-      return `additional·${source.index}`;
+      return "additional";
     case "tools":
       return "tools";
     case "tool-guidance":
@@ -28,7 +28,7 @@ function sourceLabel(source: PromptSectionSource): string {
     case "custom":
       return "custom";
     case "capability":
-      return source.capabilityId;
+      return "capability";
   }
 }
 
