@@ -29,10 +29,7 @@ import type { ConfigNamespace } from "./config/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { isRuntimeError } from "./errors/runtime-error.js";
 import { McpManager } from "./mcp/mcp-manager.js";
-import {
-  buildDefaultSystemPrompt,
-  buildDefaultSystemPromptSections,
-} from "./prompt/build-system-prompt.js";
+import { buildDefaultSystemPromptSections, toPromptString } from "./prompt/build-system-prompt.js";
 import { buildToolPromptSections } from "./prompt/tool-sections.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { QueueStore } from "./queue/queue-store.js";
@@ -364,12 +361,31 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   abstract getTools(context: AgentContext): AnyAgentTool[];
 
   /**
-   * Build the system prompt for this agent. Default implementation composes
-   * identity, safety, and runtime sections from {@link getPromptOptions}.
-   * Capability prompt sections are appended automatically after this.
+   * Build the **base** system prompt for this agent as structured sections.
+   * Default implementation composes identity, safety, and runtime sections
+   * from {@link getPromptOptions}. Tool sections and capability prompt
+   * sections are appended automatically by the runtime after this.
+   *
+   * Override this method to customize the base sections with full metadata:
+   * each section is tagged with a `source` and may declare itself
+   * `included: false` with an `excludedReason` so the inspection UI can
+   * surface conditional opt-outs.
    */
-  buildSystemPrompt(_context: AgentContext): string {
-    return buildDefaultSystemPrompt(this.getPromptOptions());
+  buildSystemPromptSections(_context: AgentContext): PromptSection[] {
+    return buildDefaultSystemPromptSections(this.getPromptOptions());
+  }
+
+  /**
+   * Build the base system prompt as a string.
+   *
+   * @deprecated Prefer overriding {@link buildSystemPromptSections}. This
+   * method is kept for back-compat: consumers who previously returned a
+   * plain string get their output wrapped in a single "custom" section in
+   * the inspection panel. When both methods are overridden,
+   * `buildSystemPromptSections` wins.
+   */
+  buildSystemPrompt(context: AgentContext): string {
+    return toPromptString(this.buildSystemPromptSections(context));
   }
 
   /**
@@ -1060,7 +1076,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
       case "request_system_prompt": {
         const sections = this.getSystemPromptSections();
-        const raw = sections.map((s) => s.content).join("\n\n");
+        const raw = toPromptString(sections);
         connection.send({ type: "system_prompt", sections, raw } as ServerMessage);
         break;
       }
@@ -1079,38 +1095,100 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
   /**
    * Build the system prompt as structured sections for inspection.
+   * Delegates to {@link assembleAllSections} with a fresh inspection context
+   * so that the inspection panel always matches what inference would see
+   * (modulo session-state-dependent capability state).
    */
   private getSystemPromptSections(): PromptSection[] {
-    // Detect custom overrides by comparing the built prompt against the
-    // default prompt. This is structural — it does not depend on class
-    // topology, which matters because the delegating runtime always has
-    // its own `buildSystemPrompt` override in the prototype chain.
     const context = this.createInspectionContext();
-    const promptOptions = this.getPromptOptions();
-    const actualPrompt = this.buildSystemPrompt(context);
-    const defaultPrompt = buildDefaultSystemPrompt(promptOptions);
+    const capabilities = this.getCachedCapabilities();
+    const resolved = resolveCapabilities(capabilities, context);
+    return this.assembleAllSections(context, capabilities, resolved);
+  }
 
-    let baseSections: PromptSection[];
-    if (actualPrompt !== defaultPrompt) {
-      baseSections = [
+  /**
+   * Collect the exact tool list used at inference time. Shared between
+   * inference (`ensureAgent`) and inspection (`getSystemPromptSections`) to
+   * guarantee the inspection panel's tool section matches the tool list the
+   * LLM actually sees.
+   *
+   * Returned tools are pre-timeout-wrapping: callers who need timeouts (the
+   * inference path) should apply {@link applyDefaultTimeout} themselves.
+   */
+  private collectAllTools(
+    context: AgentContext,
+    capabilities: Capability[],
+    resolved: ResolvedCapabilities,
+  ): AnyAgentTool[] {
+    const baseTools = this.getTools(context);
+    const capabilityNamespaces = capabilities.flatMap(
+      (cap) => cap.configNamespaces?.(context) ?? [],
+    );
+    const consumerNamespaces = this.getConfigNamespaces();
+    const configContext = {
+      agentId: this.runtimeContext.agentId,
+      sessionId: context.sessionId,
+      sessionStore: this.sessionStore,
+      configStore: this.configStore,
+      capabilities,
+      namespaces: [...capabilityNamespaces, ...consumerNamespaces],
+    };
+    const configTools = [
+      createConfigGet(configContext),
+      createConfigSet(configContext),
+      createConfigSchema(configContext),
+    ];
+    const a2aClientTools = this.createA2AClientTools(context.sessionId);
+    return [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
+  }
+
+  /**
+   * Resolve the **base** prompt sections (identity / safety / runtime /
+   * additional / custom override). Prefers the section-returning override
+   * when provided; falls back to wrapping the legacy string-returning
+   * `buildSystemPrompt()` in a single "custom" section when it was
+   * independently overridden.
+   */
+  private resolveBaseSections(context: AgentContext): PromptSection[] {
+    const sections = this.buildSystemPromptSections(context);
+    const sectionsAsString = toPromptString(sections);
+    const legacyString = this.buildSystemPrompt(context);
+    // If the legacy string method was overridden independently of
+    // buildSystemPromptSections, the two will disagree. Wrap the legacy
+    // output as a single "custom" section so the inspection panel can
+    // still attribute it. Consumers who override both methods should only
+    // override one — in that case the sections method takes precedence when
+    // the string output happens to match.
+    if (legacyString !== sectionsAsString) {
+      return [
         {
           name: "System Prompt",
           key: "custom",
-          content: actualPrompt,
-          lines: actualPrompt.split("\n").length,
+          content: legacyString,
+          lines: legacyString.split("\n").length,
+          source: { type: "custom" },
+          included: true,
         },
       ];
-    } else {
-      baseSections = buildDefaultSystemPromptSections(promptOptions);
     }
+    return sections;
+  }
 
-    const capabilities = this.getCachedCapabilities();
-    const resolved = resolveCapabilities(capabilities, context);
-
-    const baseTools = this.getTools(context);
-    const inspectionTools = [...baseTools, ...resolved.tools];
-    const toolSections = buildToolPromptSections(inspectionTools);
-
+  /**
+   * Assemble the full prompt section list used for inference and inspection.
+   *
+   * Section order: base (identity/safety/runtime/additional/custom) →
+   * tool sections → capability sections. This ordering matches the on-wire
+   * system prompt the LLM actually receives.
+   */
+  private assembleAllSections(
+    context: AgentContext,
+    capabilities: Capability[],
+    resolved: ResolvedCapabilities,
+  ): PromptSection[] {
+    const baseSections = this.resolveBaseSections(context);
+    const allTools = this.collectAllTools(context, capabilities, resolved);
+    const toolSections = buildToolPromptSections(allTools);
     return [...baseSections, ...toolSections, ...resolved.promptSections];
   }
 
@@ -1435,38 +1513,15 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       await this.syncCapabilitySchedules(resolved.schedules);
     }
 
-    const capabilityNamespaces = capabilities.flatMap(
-      (cap) => cap.configNamespaces?.(context) ?? [],
-    );
-    const consumerNamespaces = this.getConfigNamespaces();
-    const configContext = {
-      agentId: this.runtimeContext.agentId,
-      sessionId,
-      sessionStore: this.sessionStore,
-      configStore: this.configStore,
-      capabilities,
-      namespaces: [...capabilityNamespaces, ...consumerNamespaces],
-    };
-    const configTools = [
-      createConfigGet(configContext),
-      createConfigSet(configContext),
-      createConfigSchema(configContext),
-    ];
-
-    const a2aClientTools = this.createA2AClientTools(sessionId);
-
-    const baseTools = this.getTools(context);
-    let allTools = [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
-
+    // Build the full section list (base + tools + capabilities) and the
+    // exact tool list via the shared helpers so inspection can reproduce it
+    // byte-for-byte. Then apply defaultToolTimeout wrapping to the tools
+    // that actually execute.
+    const allSections = this.assembleAllSections(context, capabilities, resolved);
+    const systemPrompt = toPromptString(allSections);
+    let allTools = this.collectAllTools(context, capabilities, resolved);
     if (config.defaultToolTimeout) {
       allTools = applyDefaultTimeout(allTools, config.defaultToolTimeout);
-    }
-
-    const toolSections = buildToolPromptSections(allTools);
-    const allPromptSections = [...toolSections, ...resolved.promptSections];
-    let systemPrompt = this.buildSystemPrompt(context);
-    if (allPromptSections.length > 0) {
-      systemPrompt += `\n\n${allPromptSections.map((s) => s.content).join("\n\n")}`;
     }
 
     const messages = this.sessionStore.buildContext(sessionId);

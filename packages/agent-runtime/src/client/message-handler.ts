@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { Dispatch, MutableRefObject, RefObject } from "react";
+import type { PromptSection } from "../prompt/types.js";
 import type { ClientMessage, ServerMessage } from "../transport/types.js";
 import type { ChatAction, StreamableMessage } from "./chat-reducer.js";
 
@@ -288,9 +289,22 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
         break;
       }
 
-      case "system_prompt":
-        dispatch({ type: "SET_SYSTEM_PROMPT", sections: msg.sections, raw: msg.raw });
+      case "system_prompt": {
+        // Forward-compat: an older server may omit `source`, `included`,
+        // or `excludedReason`. Default the new fields so the UI still
+        // renders — included-by-default, source shown as "custom".
+        const normalizedSections: PromptSection[] = msg.sections.map((s) => ({
+          name: s.name,
+          key: s.key,
+          content: s.content,
+          lines: s.lines,
+          source: s.source ?? { type: "custom" },
+          included: s.included ?? true,
+          excludedReason: s.excludedReason,
+        }));
+        dispatch({ type: "SET_SYSTEM_PROMPT", sections: normalizedSections, raw: msg.raw });
         break;
+      }
 
       case "pong":
         refs.lastPongAtRef.current = Date.now();

@@ -30,8 +30,22 @@ describe("createMessageHandler", () => {
       const handler = createMessageHandler(dispatch, refs);
 
       const sections: PromptSection[] = [
-        { name: "Identity", key: "identity", content: "You are helpful.", lines: 1 },
-        { name: "Safety", key: "safety", content: "## Safety\n- Be safe.", lines: 2 },
+        {
+          name: "Identity",
+          key: "identity",
+          content: "You are helpful.",
+          lines: 1,
+          source: { type: "default", id: "identity" },
+          included: true,
+        },
+        {
+          name: "Safety",
+          key: "safety",
+          content: "## Safety\n- Be safe.",
+          lines: 2,
+          source: { type: "default", id: "safety" },
+          included: true,
+        },
       ];
       const raw = "You are helpful.\n\n## Safety\n- Be safe.";
 
@@ -41,6 +55,38 @@ describe("createMessageHandler", () => {
         type: "SET_SYSTEM_PROMPT",
         sections,
         raw,
+      });
+    });
+
+    it("normalizes sections missing source/included fields (forward-compat)", () => {
+      const dispatch = vi.fn<(action: ChatAction) => void>();
+      const refs = makeRefs();
+      const handler = createMessageHandler(dispatch, refs);
+
+      // Simulate an older server that omits source/included.
+      const legacySections = [{ name: "Identity", key: "identity", content: "hello", lines: 1 }];
+      handler(
+        makeEvent(refs.wsRef.current!, {
+          type: "system_prompt",
+          sections: legacySections,
+          raw: "hello",
+        }),
+      );
+
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "SET_SYSTEM_PROMPT",
+        sections: [
+          {
+            name: "Identity",
+            key: "identity",
+            content: "hello",
+            lines: 1,
+            source: { type: "custom" },
+            included: true,
+            excludedReason: undefined,
+          },
+        ],
+        raw: "hello",
       });
     });
 

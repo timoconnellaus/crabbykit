@@ -1,4 +1,5 @@
-import { type ComponentPropsWithoutRef, useCallback, useEffect, useState } from "react";
+import type { PromptSection, PromptSectionSource } from "@claw-for-cloudflare/agent-runtime";
+import { type ComponentPropsWithoutRef, useCallback, useEffect, useMemo, useState } from "react";
 import { useChat } from "./chat-provider";
 import { MarkdownContent } from "./markdown-content";
 
@@ -10,13 +11,50 @@ export interface SystemPromptPanelProps extends ComponentPropsWithoutRef<"div"> 
 }
 
 /**
+ * Human-readable label for a section's source, used inside the source pill.
+ * Deliberately short — the pill sits next to the section name.
+ */
+function sourceLabel(source: PromptSectionSource): string {
+  switch (source.type) {
+    case "default":
+      return `default: ${source.id}`;
+    case "additional":
+      return `additional #${source.index}`;
+    case "tools":
+      return "tools";
+    case "tool-guidance":
+      return "tool guidance";
+    case "custom":
+      return "custom";
+    case "capability":
+      return `capability: ${source.capabilityId}`;
+  }
+}
+
+/**
+ * Kebab-case key for CSS color coding per source type.
+ */
+function sourceKind(source: PromptSectionSource): string {
+  return source.type;
+}
+
+/**
  * Slide-in panel that displays the current system prompt in structured sections.
- * Fetches prompt data via WebSocket when opened. Uses `useChat()` context.
+ *
+ * - Fetches prompt data via WebSocket when opened via {@link useChat}.
+ * - All sections start collapsed. Individual headers toggle a section; the
+ *   "Expand all" / "Collapse all" controls operate on every section at once.
+ * - Each section header shows a source pill attributing the content to its
+ *   origin (default block, tool list, capability, custom override).
+ * - Sections the runtime declared as excluded (e.g. a capability whose
+ *   condition wasn't met) render in a dimmed row with the exclusion reason
+ *   inline — no expand body.
  */
 export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanelProps) {
   const { systemPrompt, requestSystemPrompt } = useChat();
   const [viewMode, setViewMode] = useState<"md" | "raw">("md");
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (open) requestSystemPrompt();
@@ -28,8 +66,8 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
       viewMode === "raw"
         ? systemPrompt.raw
         : systemPrompt.sections
+            .filter((s) => s.included)
             .map((s) => s.content)
-            .filter(Boolean)
             .join("\n\n");
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -37,10 +75,45 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
     });
   }, [systemPrompt, viewMode]);
 
-  if (!open) return null;
+  const toggleSection = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAll = useCallback(() => {
+    if (!systemPrompt) return;
+    setExpanded(new Set(systemPrompt.sections.map((s) => s.key)));
+  }, [systemPrompt]);
+
+  const collapseAll = useCallback(() => {
+    setExpanded(new Set());
+  }, []);
 
   const sections = systemPrompt?.sections ?? [];
-  const totalLines = sections.reduce((sum, s) => sum + s.lines, 0);
+
+  const stats = useMemo(() => {
+    let included = 0;
+    let excluded = 0;
+    let lines = 0;
+    for (const s of sections) {
+      if (s.included) {
+        included += 1;
+        lines += s.lines;
+      } else {
+        excluded += 1;
+      }
+    }
+    return { included, excluded, lines };
+  }, [sections]);
+
+  if (!open) return null;
 
   return (
     <div data-agent-ui="system-prompt-panel" {...props}>
@@ -50,11 +123,23 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
           <span data-agent-ui="system-prompt-title">system prompt</span>
           {sections.length > 0 && (
             <span data-agent-ui="system-prompt-stats">
-              {sections.length} sections &middot; {totalLines} lines
+              {stats.included} shown
+              {stats.excluded > 0 ? ` · ${stats.excluded} hidden` : ""} · {stats.lines} lines
             </span>
           )}
         </div>
         <div data-agent-ui="system-prompt-actions">
+          {/* Expand / Collapse all */}
+          {viewMode === "md" && sections.length > 0 && (
+            <div data-agent-ui="system-prompt-expand-controls">
+              <button type="button" onClick={expandAll} title="Expand all sections">
+                Expand all
+              </button>
+              <button type="button" onClick={collapseAll} title="Collapse all sections">
+                Collapse all
+              </button>
+            </div>
+          )}
           {/* View mode toggle */}
           <div data-agent-ui="system-prompt-toggle">
             <button
@@ -139,24 +224,70 @@ export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanel
         {viewMode === "raw" && systemPrompt ? (
           <pre data-agent-ui="system-prompt-raw">{systemPrompt.raw}</pre>
         ) : (
-          sections.map((section) => (
-            <div
-              key={section.key}
-              data-agent-ui="system-prompt-section"
-              data-section-key={section.key}
-            >
-              <div data-agent-ui="system-prompt-section-header">
-                <span data-agent-ui="system-prompt-section-dot" />
-                <span data-agent-ui="system-prompt-section-name">{section.name}</span>
-                <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
-              </div>
-              <div data-agent-ui="system-prompt-section-content">
-                <MarkdownContent content={section.content} />
-              </div>
-            </div>
-          ))
+          sections.map((section) => {
+            const isExpanded = expanded.has(section.key);
+            return (
+              <SystemPromptSection
+                key={section.key}
+                section={section}
+                expanded={isExpanded}
+                onToggle={() => toggleSection(section.key)}
+              />
+            );
+          })
         )}
       </div>
+    </div>
+  );
+}
+
+interface SystemPromptSectionProps {
+  section: PromptSection;
+  expanded: boolean;
+  onToggle: () => void;
+}
+
+function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectionProps) {
+  const excluded = !section.included;
+  return (
+    <div
+      data-agent-ui="system-prompt-section"
+      data-section-key={section.key}
+      data-source-kind={sourceKind(section.source)}
+      data-excluded={excluded || undefined}
+      data-expanded={expanded || undefined}
+    >
+      <button
+        type="button"
+        data-agent-ui="system-prompt-section-header"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        disabled={excluded}
+      >
+        <span data-agent-ui="system-prompt-section-chevron" aria-hidden="true">
+          {excluded ? "•" : expanded ? "▾" : "▸"}
+        </span>
+        <span data-agent-ui="system-prompt-section-dot" />
+        <span data-agent-ui="system-prompt-section-name">{section.name}</span>
+        <span
+          data-agent-ui="system-prompt-source-pill"
+          data-source-kind={sourceKind(section.source)}
+        >
+          {sourceLabel(section.source)}
+        </span>
+        {excluded ? (
+          <span data-agent-ui="system-prompt-section-excluded">
+            skipped: {section.excludedReason ?? "no reason provided"}
+          </span>
+        ) : (
+          <span data-agent-ui="system-prompt-section-lines">{section.lines} ln</span>
+        )}
+      </button>
+      {expanded && !excluded && (
+        <div data-agent-ui="system-prompt-section-content">
+          <MarkdownContent content={section.content} />
+        </div>
+      )}
     </div>
   );
 }

@@ -9,8 +9,22 @@ describe("chatReducer", () => {
       expect(state.systemPrompt).toBeNull();
 
       const sections: PromptSection[] = [
-        { name: "Identity", key: "identity", content: "You are a test agent.", lines: 1 },
-        { name: "Safety", key: "safety", content: "## Safety\n- Be safe.", lines: 2 },
+        {
+          name: "Identity",
+          key: "identity",
+          content: "You are a test agent.",
+          lines: 1,
+          source: { type: "default", id: "identity" },
+          included: true,
+        },
+        {
+          name: "Safety",
+          key: "safety",
+          content: "## Safety\n- Be safe.",
+          lines: 2,
+          source: { type: "default", id: "safety" },
+          included: true,
+        },
       ];
       const raw = "You are a test agent.\n\n## Safety\n- Be safe.";
 
@@ -23,12 +37,28 @@ describe("chatReducer", () => {
       const initial = createInitialState(undefined);
       const first = chatReducer(initial, {
         type: "SET_SYSTEM_PROMPT",
-        sections: [{ name: "Old", key: "old", content: "old", lines: 1 }],
+        sections: [
+          {
+            name: "Old",
+            key: "old",
+            content: "old",
+            lines: 1,
+            source: { type: "custom" },
+            included: true,
+          },
+        ],
         raw: "old",
       });
 
       const newSections: PromptSection[] = [
-        { name: "New", key: "new", content: "new content", lines: 1 },
+        {
+          name: "New",
+          key: "new",
+          content: "new content",
+          lines: 1,
+          source: { type: "custom" },
+          included: true,
+        },
       ];
       const second = chatReducer(first, {
         type: "SET_SYSTEM_PROMPT",
@@ -74,7 +104,16 @@ describe("chatReducer", () => {
       const state = createInitialState(undefined);
       const withPrompt = chatReducer(state, {
         type: "SET_SYSTEM_PROMPT",
-        sections: [{ name: "Test", key: "test", content: "test", lines: 1 }],
+        sections: [
+          {
+            name: "Test",
+            key: "test",
+            content: "test",
+            lines: 1,
+            source: { type: "custom" },
+            included: true,
+          },
+        ],
         raw: "test",
       });
       expect(withPrompt.systemPrompt).not.toBeNull();

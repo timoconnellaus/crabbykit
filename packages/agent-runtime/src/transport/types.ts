@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentMessage } from "@claw-for-cloudflare/agent-core";
 import type { CostEvent } from "../costs/types.js";
+import type { PromptSectionSource } from "../prompt/types.js";
 import type { Session } from "../session/types.js";
 import type { ErrorCode } from "./error-codes.js";
 
@@ -98,9 +99,28 @@ export interface SkillListEntry {
   builtIn?: boolean;
 }
 
+/**
+ * Snapshot of the assembled system prompt delivered in response to a
+ * `request_system_prompt` client message. Each section carries source
+ * attribution (default / tools / capability / custom), an `included` flag,
+ * and an optional `excludedReason` for sections that were declared but
+ * conditionally omitted from the prompt the LLM actually receives.
+ *
+ * The `source`, `included`, and `excludedReason` fields are typed as
+ * optional on the wire so new clients can forward-compat against older
+ * servers: the client normalizer defaults missing fields.
+ */
 export interface SystemPromptMessage {
   type: "system_prompt";
-  sections: Array<{ name: string; key: string; content: string; lines: number }>;
+  sections: Array<{
+    name: string;
+    key: string;
+    content: string;
+    lines: number;
+    source?: PromptSectionSource;
+    included?: boolean;
+    excludedReason?: string;
+  }>;
   raw: string;
 }
 

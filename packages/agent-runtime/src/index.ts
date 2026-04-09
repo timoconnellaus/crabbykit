@@ -70,6 +70,7 @@ export type {
   Capability,
   CapabilityHookContext,
   CapabilityHttpContext,
+  CapabilityPromptSection,
   CapabilityStorage,
   HttpHandler,
   ResolvedCapabilities,
@@ -118,13 +119,15 @@ export type { CostEvent } from "./costs/index.js";
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
 // Prompt building
-export type { PromptOptions, PromptSection } from "./prompt/index.js";
+export type { PromptOptions, PromptSection, PromptSectionSource } from "./prompt/index.js";
 export {
   buildDefaultSystemPrompt,
   buildDefaultSystemPromptSections,
+  buildToolPromptSections,
   identitySection,
   runtimeSection,
   safetySection,
+  toPromptString,
 } from "./prompt/index.js";
 export type { QueuedMessage } from "./queue/index.js";
 // Message queue
