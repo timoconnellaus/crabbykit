@@ -292,7 +292,7 @@ function SystemPromptSection({ section, expanded, onToggle }: SystemPromptSectio
         {excluded ? (
           <span data-agent-ui="system-prompt-section-tag">skipped</span>
         ) : (
-          <span data-agent-ui="system-prompt-section-lines">~{section.tokens} tk</span>
+          <span data-agent-ui="system-prompt-section-lines">~{section.tokens} tokens</span>
         )}
       </button>
       {excluded && (
