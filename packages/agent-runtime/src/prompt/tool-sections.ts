@@ -29,6 +29,8 @@ export function buildToolPromptSections(tools: AgentTool<any>[]): PromptSection[
     key: "auto-tools",
     content: listContent,
     lines: listLines.length,
+    source: { type: "tools" },
+    included: true,
   });
 
   // --- Tool guidance ---
@@ -46,6 +48,8 @@ export function buildToolPromptSections(tools: AgentTool<any>[]): PromptSection[
       key: "auto-tool-guidance",
       content: guidanceContent,
       lines: guidanceContent.split("\n").length,
+      source: { type: "tool-guidance" },
+      included: true,
     });
   }
 

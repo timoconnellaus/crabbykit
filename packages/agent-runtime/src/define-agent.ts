@@ -11,8 +11,8 @@ import type {
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
-import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
-import type { PromptOptions } from "./prompt/types.js";
+import { buildDefaultSystemPromptSections } from "./prompt/build-system-prompt.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import type { Schedule } from "./scheduling/types.js";
 import type { SessionStore } from "./session/session-store.js";
 import type { SqlStore } from "./storage/types.js";
@@ -219,11 +219,21 @@ export function defineAgent<TEnv = Record<string, unknown>>(
       return definition.tools ? definition.tools(context) : [];
     }
 
-    buildSystemPrompt(_context: AgentContext): string {
+    buildSystemPromptSections(_context: AgentContext): PromptSection[] {
       if (typeof definition.prompt === "string") {
-        return definition.prompt;
+        const raw = definition.prompt;
+        return [
+          {
+            name: "System Prompt",
+            key: "custom",
+            content: raw,
+            lines: raw.split("\n").length,
+            source: { type: "custom" },
+            included: true,
+          },
+        ];
       }
-      return buildDefaultSystemPrompt(this.getPromptOptions());
+      return buildDefaultSystemPromptSections(this.getPromptOptions());
     }
 
     getPromptOptions(): PromptOptions {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildDefaultSystemPrompt, buildDefaultSystemPromptSections } from "../build-system-prompt";
-import type { PromptSection } from "../types";
+import {
+  buildDefaultSystemPrompt,
+  buildDefaultSystemPromptSections,
+  toPromptString,
+} from "../build-system-prompt";
 
 describe("buildDefaultSystemPrompt", () => {
   it("returns all default sections with no options", () => {
@@ -78,20 +81,44 @@ describe("buildDefaultSystemPrompt", () => {
     expect(parts.length).toBeGreaterThanOrEqual(3); // identity, safety, runtime
   });
 
-  it("delegates to buildDefaultSystemPromptSections", () => {
+  it("delegates to buildDefaultSystemPromptSections via toPromptString", () => {
     const sections = buildDefaultSystemPromptSections();
     const flat = buildDefaultSystemPrompt();
-    expect(sections.map((s) => s.content).join("\n\n")).toBe(flat);
+    expect(toPromptString(sections)).toBe(flat);
+  });
+
+  it("filters excluded sections out of the string", () => {
+    const result = buildDefaultSystemPrompt({
+      identity: false,
+      safety: false,
+      runtime: false,
+    });
+    expect(result).toBe("");
   });
 });
 
 describe("buildDefaultSystemPromptSections", () => {
-  it("returns three default sections with correct names and keys", () => {
+  it("returns three default sections with correct names, keys, source, and included flag", () => {
     const sections = buildDefaultSystemPromptSections();
     expect(sections).toHaveLength(3);
-    expect(sections[0]).toMatchObject({ name: "Identity", key: "identity" });
-    expect(sections[1]).toMatchObject({ name: "Safety", key: "safety" });
-    expect(sections[2]).toMatchObject({ name: "Runtime", key: "runtime" });
+    expect(sections[0]).toMatchObject({
+      name: "Identity",
+      key: "identity",
+      included: true,
+      source: { type: "default", id: "identity" },
+    });
+    expect(sections[1]).toMatchObject({
+      name: "Safety",
+      key: "safety",
+      included: true,
+      source: { type: "default", id: "safety" },
+    });
+    expect(sections[2]).toMatchObject({
+      name: "Runtime",
+      key: "runtime",
+      included: true,
+      source: { type: "default", id: "runtime" },
+    });
   });
 
   it("populates content and line counts", () => {
@@ -107,31 +134,52 @@ describe("buildDefaultSystemPromptSections", () => {
     expect(sections[0].content).toContain("You are Gia");
   });
 
-  it("omits identity when set to false", () => {
+  it("surfaces identity as excluded when set to false", () => {
     const sections = buildDefaultSystemPromptSections({ identity: false });
-    expect(sections.find((s) => s.key === "identity")).toBeUndefined();
-    expect(sections).toHaveLength(2);
+    const identity = sections.find((s) => s.key === "identity");
+    expect(identity).toMatchObject({
+      included: false,
+      content: "",
+      lines: 0,
+      excludedReason: "Disabled via PromptOptions.identity=false",
+      source: { type: "default", id: "identity" },
+    });
+    expect(sections).toHaveLength(3);
+    // Safety and runtime remain included.
+    expect(sections.find((s) => s.key === "safety")?.included).toBe(true);
+    expect(sections.find((s) => s.key === "runtime")?.included).toBe(true);
   });
 
   it("uses custom identity string", () => {
     const sections = buildDefaultSystemPromptSections({ identity: "Custom identity" });
     const identity = sections.find((s) => s.key === "identity");
     expect(identity?.content).toBe("Custom identity");
+    expect(identity?.included).toBe(true);
   });
 
-  it("omits safety when set to false", () => {
+  it("surfaces safety as excluded when set to false", () => {
     const sections = buildDefaultSystemPromptSections({ safety: false });
-    expect(sections.find((s) => s.key === "safety")).toBeUndefined();
-    expect(sections).toHaveLength(2);
+    const safety = sections.find((s) => s.key === "safety");
+    expect(safety).toMatchObject({
+      included: false,
+      content: "",
+      excludedReason: "Disabled via PromptOptions.safety=false",
+    });
+    expect(sections).toHaveLength(3);
   });
 
-  it("omits runtime when set to false", () => {
+  it("surfaces runtime as excluded when set to false", () => {
     const sections = buildDefaultSystemPromptSections({ runtime: false });
-    expect(sections.find((s) => s.key === "runtime")).toBeUndefined();
-    expect(sections).toHaveLength(2);
+    const runtime = sections.find((s) => s.key === "runtime");
+    expect(runtime).toMatchObject({
+      included: false,
+      content: "",
+      excludedReason: "Disabled via PromptOptions.runtime=false",
+    });
+    expect(sections).toHaveLength(3);
   });
 
-  it("appends additional sections with numbered names and keys", () => {
+  it("appends additional sections with numbered names, keys, and additional source", () => {
     const sections = buildDefaultSystemPromptSections({
       additionalSections: ["## Memory\nRemember things.", "## Tools\nUse them."],
     });
@@ -141,37 +189,84 @@ describe("buildDefaultSystemPromptSections", () => {
       key: "additional-1",
       content: "## Memory\nRemember things.",
       lines: 2,
+      included: true,
+      source: { type: "additional", index: 1 },
     });
     expect(sections[4]).toMatchObject({
       name: "Additional (2)",
       key: "additional-2",
       content: "## Tools\nUse them.",
       lines: 2,
+      included: true,
+      source: { type: "additional", index: 2 },
     });
   });
 
-  it("skips empty additional sections", () => {
+  it("skips empty additional sections but preserves positional numbering", () => {
     const sections = buildDefaultSystemPromptSections({
       additionalSections: ["Valid", "", "Also valid"],
     });
-    // Empty string is falsy, skipped
+    // Empty string is falsy, skipped — but the third entry keeps its positional name.
     expect(sections).toHaveLength(5); // 3 defaults + 2 valid additionals
     expect(sections[3].name).toBe("Additional (1)");
     expect(sections[4].name).toBe("Additional (3)"); // index 2 in the original array
   });
 
-  it("returns empty array when all sections disabled", () => {
+  it("returns all three default sections as excluded when all disabled", () => {
     const sections = buildDefaultSystemPromptSections({
       identity: false,
       safety: false,
       runtime: false,
     });
-    expect(sections).toEqual([]);
+    expect(sections).toHaveLength(3);
+    for (const s of sections) {
+      expect(s.included).toBe(false);
+      expect(s.excludedReason).toBeDefined();
+    }
+    // toPromptString filters them out.
+    expect(toPromptString(sections)).toBe("");
   });
 
   it("passes timezone through to runtime section", () => {
     const sections = buildDefaultSystemPromptSections({ timezone: "UTC" });
     const runtime = sections.find((s) => s.key === "runtime");
     expect(runtime?.content).toContain("Timezone: UTC");
+  });
+});
+
+describe("toPromptString", () => {
+  it("joins only included sections with double newlines", () => {
+    const joined = toPromptString([
+      {
+        name: "A",
+        key: "a",
+        content: "first",
+        lines: 1,
+        source: { type: "custom" },
+        included: true,
+      },
+      {
+        name: "B",
+        key: "b",
+        content: "",
+        lines: 0,
+        source: { type: "custom" },
+        included: false,
+        excludedReason: "nope",
+      },
+      {
+        name: "C",
+        key: "c",
+        content: "second",
+        lines: 1,
+        source: { type: "custom" },
+        included: true,
+      },
+    ]);
+    expect(joined).toBe("first\n\nsecond");
+  });
+
+  it("returns an empty string when no sections are included", () => {
+    expect(toPromptString([])).toBe("");
   });
 });

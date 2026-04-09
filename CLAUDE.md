@@ -207,6 +207,8 @@ All agent extensions go through the `Capability` interface. Capabilities are sta
 
 Registration order determines hook execution order. Each `beforeInference` hook receives the output of the previous one.
 
+`promptSections` may return a mix of bare strings (shorthand for an included section), `{ kind: "included", content, name? }`, and `{ kind: "excluded", reason, name? }`. Excluded entries are NOT part of the prompt the LLM sees — they exist only so the inspection panel can surface "why isn't my-capability contributing here?" (e.g. skills capability returns `{ kind: "excluded", reason: "No skills enabled" }` when its cache is empty). `promptSections` must be pure with respect to session state — it runs at both inference and inspection time, so branching on `sessionId` or reading storage will cause drift.
+
 ### Session entries are an immutable append-log
 
 Never mutate existing entries. The tree structure (parent_id) supports branching. Compaction entries act as checkpoints — `buildContext()` walks from leaf to the most recent compaction boundary.
@@ -249,9 +251,14 @@ Consumers who need direct `this.ctx` / `this.env` access or bespoke
 constructor logic can still `class MyAgent extends AgentDO<Env>`. The
 public override surface:
 - Abstract: `getConfig()`, `getTools(ctx)`
-- Optional overrides: `buildSystemPrompt(ctx)`, `getPromptOptions()`,
-  `getCapabilities()`, `getSubagentProfiles()`, `getConfigNamespaces()`,
-  `getA2AClientOptions()`, `getCommands(ctx)`, `getAgentOptions()`
+- Optional overrides: `buildSystemPromptSections(ctx)` (preferred, returns
+  `PromptSection[]` with source attribution and included/excluded flags),
+  `buildSystemPrompt(ctx)` (@deprecated string-returning form — kept for
+  back-compat; the runtime wraps its output in a single "custom" section
+  when the section-returning method wasn't also overridden),
+  `getPromptOptions()`, `getCapabilities()`, `getSubagentProfiles()`,
+  `getConfigNamespaces()`, `getA2AClientOptions()`, `getCommands(ctx)`,
+  `getAgentOptions()`
 - Lifecycle hooks: `validateAuth?`, `onTurnEnd?`, `onAgentEnd?`,
   `onSessionCreated?`, `onScheduleFire?`
 

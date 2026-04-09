@@ -14,8 +14,8 @@ import type {
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
 import type { ConfigNamespace } from "./config/types.js";
-import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
-import type { PromptOptions } from "./prompt/types.js";
+import { buildDefaultSystemPromptSections, toPromptString } from "./prompt/build-system-prompt.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
 import { type AgentDelegate, createDelegatingRuntime } from "./runtime-delegating.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
@@ -78,12 +78,31 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
   abstract getTools(context: AgentContext): AnyAgentTool[];
 
   /**
-   * Build the system prompt. Default composes identity, safety, and
-   * runtime sections from {@link getPromptOptions}. Capability prompt
-   * sections are appended automatically after this.
+   * Build the **base** system prompt as structured sections. Default
+   * composes identity, safety, and runtime sections from
+   * {@link getPromptOptions}. Tool sections and capability prompt sections
+   * are appended automatically by the runtime after this.
+   *
+   * Override this method (preferred) to customize the base sections with
+   * full structural metadata — each section carries a `source` tag and
+   * can declare itself `included: false` with an `excludedReason` to
+   * surface conditional opt-outs in the inspection UI.
    */
-  buildSystemPrompt(_context: AgentContext): string {
-    return buildDefaultSystemPrompt(this.getPromptOptions());
+  buildSystemPromptSections(_context: AgentContext): PromptSection[] {
+    return buildDefaultSystemPromptSections(this.getPromptOptions());
+  }
+
+  /**
+   * Build the base system prompt as a string.
+   *
+   * @deprecated Prefer overriding {@link buildSystemPromptSections}, which
+   * lets you attribute sections to a source and surface conditional
+   * exclusions in the inspection panel. Existing overrides of this method
+   * continue to work — the runtime wraps the returned string in a single
+   * "custom" section when the section-returning method is not overridden.
+   */
+  buildSystemPrompt(context: AgentContext): string {
+    return toPromptString(this.buildSystemPromptSections(context));
   }
 
   /**

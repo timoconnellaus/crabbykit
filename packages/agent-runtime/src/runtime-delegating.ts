@@ -10,7 +10,7 @@ import {
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
 import type { ConfigNamespace } from "./config/types.js";
-import type { PromptOptions } from "./prompt/types.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import type { RuntimeContext } from "./runtime-context.js";
 import type { Scheduler } from "./scheduling/scheduler-types.js";
 import type { Schedule } from "./scheduling/types.js";
@@ -34,6 +34,9 @@ export interface AgentDelegate<_TEnv = Record<string, unknown>> {
   getTools(context: AgentContext): AnyAgentTool[];
 
   // Optional overrides (runtime has defaults)
+  /** Preferred section-returning override. */
+  buildSystemPromptSections?(context: AgentContext): PromptSection[];
+  /** @deprecated Prefer `buildSystemPromptSections`. */
   buildSystemPrompt?(context: AgentContext): string;
   getPromptOptions?(): PromptOptions;
   getCapabilities?(): Capability[];
@@ -92,6 +95,12 @@ export function createDelegatingRuntime<TEnv>(
 
     getTools(context: AgentContext): AnyAgentTool[] {
       return host.getTools(context);
+    }
+
+    buildSystemPromptSections(context: AgentContext): PromptSection[] {
+      return host.buildSystemPromptSections
+        ? host.buildSystemPromptSections(context)
+        : super.buildSystemPromptSections(context);
     }
 
     buildSystemPrompt(context: AgentContext): string {

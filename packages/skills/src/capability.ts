@@ -129,7 +129,14 @@ export function skills(options: SkillsOptions): Capability {
     tools: (context) => [createSkillLoadTool(agentStorage, cachedSkills, context)],
 
     promptSections: () => {
-      if (!cachedSkills) return [];
+      if (!cachedSkills) {
+        return [
+          {
+            kind: "excluded",
+            reason: "Skills not yet loaded (waiting for onConnect sync to populate the cache)",
+          },
+        ];
+      }
 
       const enabledSkills: Array<{ id: string; name: string; description: string }> = [];
       for (const [key, skill] of cachedSkills) {
@@ -138,7 +145,14 @@ export function skills(options: SkillsOptions): Capability {
         enabledSkills.push({ id, name: skill.name, description: skill.description });
       }
 
-      if (enabledSkills.length === 0) return [];
+      if (enabledSkills.length === 0) {
+        return [
+          {
+            kind: "excluded",
+            reason: "No skills enabled in the registry",
+          },
+        ];
+      }
 
       const lines = [
         "## Available Skills",

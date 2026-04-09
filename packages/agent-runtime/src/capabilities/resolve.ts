@@ -12,8 +12,28 @@ import type {
   Capability,
   CapabilityHookContext,
   CapabilityHttpContext,
+  CapabilityPromptSection,
   ToolExecutionEvent,
 } from "./types.js";
+
+interface NormalizedCapabilitySection {
+  included: boolean;
+  content: string;
+  name?: string;
+  reason?: string;
+}
+
+function normalizeCapabilityPromptSection(
+  entry: string | CapabilityPromptSection,
+): NormalizedCapabilitySection {
+  if (typeof entry === "string") {
+    return { included: true, content: entry };
+  }
+  if (entry.kind === "included") {
+    return { included: true, content: entry.content, name: entry.name };
+  }
+  return { included: false, content: "", name: entry.name, reason: entry.reason };
+}
 
 export interface ResolvedCapabilities {
   tools: AnyAgentTool[];
@@ -86,7 +106,11 @@ export function resolveCapabilities(
   for (const cap of capabilities) {
     const capStorage = getStorage(cap.id);
     const capBroadcastState = getBroadcastState(cap.id);
-    const capContext: AgentContext = { ...context, storage: capStorage, broadcastState: capBroadcastState };
+    const capContext: AgentContext = {
+      ...context,
+      storage: capStorage,
+      broadcastState: capBroadcastState,
+    };
 
     if (cap.tools) {
       for (const tool of cap.tools(capContext)) {
@@ -116,10 +140,38 @@ export function resolveCapabilities(
 
     if (cap.promptSections) {
       const rawSections = cap.promptSections(capContext);
-      for (const [i, content] of rawSections.entries()) {
-        const name = rawSections.length === 1 ? cap.name : `${cap.name} (${i + 1})`;
-        const key = rawSections.length === 1 ? `cap-${cap.id}` : `cap-${cap.id}-${i + 1}`;
-        promptSections.push({ name, key, content, lines: content.split("\n").length });
+      for (const [i, entry] of rawSections.entries()) {
+        const normalized = normalizeCapabilityPromptSection(entry);
+        // Stable index-suffixed keys even for single-section capabilities:
+        // this way UI expand state survives a capability going from 1→2 sections.
+        const key = `cap-${cap.id}-${i + 1}`;
+        const name =
+          normalized.name ?? (rawSections.length === 1 ? cap.name : `${cap.name} (${i + 1})`);
+        const source = {
+          type: "capability" as const,
+          capabilityId: cap.id,
+          capabilityName: cap.name,
+        };
+        if (normalized.included) {
+          promptSections.push({
+            name,
+            key,
+            content: normalized.content,
+            lines: normalized.content.split("\n").length,
+            source,
+            included: true,
+          });
+        } else {
+          promptSections.push({
+            name,
+            key,
+            content: "",
+            lines: 0,
+            source,
+            included: false,
+            excludedReason: normalized.reason ?? "Excluded (no reason provided)",
+          });
+        }
       }
     }
 

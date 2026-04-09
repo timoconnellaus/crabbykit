@@ -154,10 +154,15 @@ describe("skills capability", () => {
 // ---------------------------------------------------------------------------
 
 describe("promptSections", () => {
-  it("returns empty array when no skills are cached", () => {
+  it("returns an excluded section with reason when no skills are cached", () => {
     const cap = skills(createOptions());
     const sections = cap.promptSections!(mockContext());
-    expect(sections).toEqual([]);
+    expect(sections).toEqual([
+      {
+        kind: "excluded",
+        reason: "Skills not yet loaded (waiting for onConnect sync to populate the cache)",
+      },
+    ]);
   });
 
   it("lists enabled skills after onConnect sync", async () => {
@@ -176,12 +181,14 @@ describe("promptSections", () => {
 
     const sections = cap.promptSections!(ctx);
     expect(sections).toHaveLength(1);
-    expect(sections[0]).toContain("code-review");
-    expect(sections[0]).toContain("Reviews code changes");
-    expect(sections[0]).toContain("skill_load");
+    const first = sections[0];
+    const content = typeof first === "string" ? first : "content" in first ? first.content : "";
+    expect(content).toContain("code-review");
+    expect(content).toContain("Reviews code changes");
+    expect(content).toContain("skill_load");
   });
 
-  it("excludes disabled skills", async () => {
+  it("returns an excluded section with reason when no skills are enabled", async () => {
     const cap = skills(
       createOptions({
         skills: [{ id: "code-review", enabled: false }],
@@ -198,7 +205,7 @@ describe("promptSections", () => {
     });
 
     const sections = cap.promptSections!(mockContext());
-    expect(sections).toEqual([]);
+    expect(sections).toEqual([{ kind: "excluded", reason: "No skills enabled in the registry" }]);
   });
 });
 

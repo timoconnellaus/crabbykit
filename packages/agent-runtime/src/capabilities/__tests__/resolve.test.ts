@@ -97,7 +97,7 @@ describe("resolveCapabilities", () => {
     });
   });
 
-  it("uses capability name directly when only one prompt section", () => {
+  it("uses capability name directly when only one prompt section (with stable indexed key)", () => {
     const cap = makeCap({
       id: "web-search",
       name: "Web Search",
@@ -109,9 +109,66 @@ describe("resolveCapabilities", () => {
     expect(result.promptSections).toHaveLength(1);
     expect(result.promptSections[0]).toMatchObject({
       name: "Web Search",
-      key: "cap-web-search",
+      // Stable index-suffixed key: single-section capabilities still get `-1`
+      // so the key doesn't change if the capability later adds a second section.
+      key: "cap-web-search-1",
       content: "You can search the web.",
       lines: 1,
+      included: true,
+      source: { type: "capability", capabilityId: "web-search", capabilityName: "Web Search" },
+    });
+  });
+
+  it("surfaces capability sections returned with kind: excluded", () => {
+    const cap = makeCap({
+      id: "skills",
+      name: "Skills",
+      promptSections: () => [{ kind: "excluded", reason: "No skills enabled" }],
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.promptSections).toHaveLength(1);
+    expect(result.promptSections[0]).toMatchObject({
+      name: "Skills",
+      key: "cap-skills-1",
+      content: "",
+      lines: 0,
+      included: false,
+      excludedReason: "No skills enabled",
+      source: { type: "capability", capabilityId: "skills", capabilityName: "Skills" },
+    });
+  });
+
+  it("accepts mixed included/excluded sections from one capability", () => {
+    const cap = makeCap({
+      id: "multi",
+      name: "Multi",
+      promptSections: () => [
+        "Always on section",
+        { kind: "excluded", reason: "Feature toggled off" },
+        { kind: "included", content: "Custom-named block", name: "Highlights" },
+      ],
+    });
+
+    const result = resolveCapabilities([cap], ctx);
+
+    expect(result.promptSections).toHaveLength(3);
+    expect(result.promptSections[0]).toMatchObject({
+      key: "cap-multi-1",
+      content: "Always on section",
+      included: true,
+    });
+    expect(result.promptSections[1]).toMatchObject({
+      key: "cap-multi-2",
+      included: false,
+      excludedReason: "Feature toggled off",
+    });
+    expect(result.promptSections[2]).toMatchObject({
+      key: "cap-multi-3",
+      name: "Highlights",
+      content: "Custom-named block",
+      included: true,
     });
   });
 

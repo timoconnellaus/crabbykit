@@ -51,6 +51,20 @@ export interface BeforeToolExecutionResult {
 }
 
 /**
+ * An entry returned from `Capability.promptSections()`.
+ *
+ * Use the discriminated union form when you want to:
+ * - give the section an explicit display name (`name`)
+ * - declare a section that is intentionally omitted from the prompt the LLM
+ *   sees, with a `reason` the inspection UI can render
+ *
+ * Returning a bare `string` is shorthand for `{ kind: "included", content }`.
+ */
+export type CapabilityPromptSection =
+  | { kind: "included"; content: string; name?: string }
+  | { kind: "excluded"; reason: string; name?: string };
+
+/**
  * Event passed to `afterToolExecution` hooks after a tool finishes.
  */
 export interface ToolExecutionEvent {
@@ -98,8 +112,24 @@ export interface Capability {
   /** Slash commands contributed by this capability. */
   commands?: (context: AgentContext) => Command[];
 
-  /** Prompt sections to append to the system prompt. */
-  promptSections?: (context: AgentContext) => string[];
+  /**
+   * Prompt sections to append to the system prompt.
+   *
+   * Each entry may be:
+   * - a bare `string` — shorthand for an included section
+   * - `{ kind: "included", content, name? }` — same as a string, optionally with an explicit display name
+   * - `{ kind: "excluded", reason, name? }` — a section that is declared but
+   *   not part of the prompt the LLM sees. Surfaced in the inspection UI so
+   *   operators can see "why isn't my-capability contributing here?".
+   *
+   * **Purity:** `promptSections` must be pure with respect to session state.
+   * It runs both at inference time (with a live `AgentContext`) and at
+   * inspection time (with a minimal context), so branching on `sessionId` or
+   * reading storage from inside this factory will cause the inspection view
+   * to diverge from what the LLM actually receives. Keep the logic dependent
+   * only on capability-level cached state (populated in `onConnect` hooks).
+   */
+  promptSections?: (context: AgentContext) => Array<string | CapabilityPromptSection>;
 
   /** MCP servers this capability requires. */
   mcpServers?: McpServerConfig[];

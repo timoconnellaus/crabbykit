@@ -8,6 +8,7 @@ export type {
   Capability,
   CapabilityHookContext,
   CapabilityHttpContext,
+  CapabilityPromptSection,
   HttpHandler,
   ToolExecutionEvent,
 } from "./types.js";
