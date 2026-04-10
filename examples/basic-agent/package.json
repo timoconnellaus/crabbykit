@@ -12,6 +12,7 @@
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/batch-tool": "workspace:*",
     "@claw-for-cloudflare/browserbase": "workspace:*",
+    "@claw-for-cloudflare/channel-telegram": "workspace:*",
     "@claw-for-cloudflare/doom-loop-detection": "workspace:*",
     "@claw-for-cloudflare/tool-output-truncation": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",

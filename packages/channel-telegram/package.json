@@ -1,0 +1,24 @@
+{
+  "name": "@claw-for-cloudflare/channel-telegram",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@claw-for-cloudflare/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "@vitest/coverage-istanbul": "^3.2.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  }
+}

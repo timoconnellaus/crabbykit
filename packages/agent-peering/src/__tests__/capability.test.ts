@@ -1,28 +1,27 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { signToken } from "@claw-for-cloudflare/agent-auth";
-import { setAuthHeaders } from "@claw-for-cloudflare/agent-auth";
-import type { CapabilityStorage, CapabilityHttpContext } from "@claw-for-cloudflare/agent-runtime";
+import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
+import type { CapabilityHttpContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import type { PeeringOptions, PeerRecord } from "../types.js";
-import { checkRateLimit } from "../rate-limit.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { agentPeering } from "../capability.js";
 import {
-  getInboundPeer,
-  getOutboundPeer,
-  setInboundPeer,
-  setOutboundPeer,
+  handshakeApproveHandler,
+  handshakeCallbackHandler,
+  handshakeDenyHandler,
+  handshakeHandler,
+} from "../handlers.js";
+import {
   deleteInboundPeer,
   deleteOutboundPeer,
+  getInboundPeer,
+  getOutboundPeer,
   listInboundPeers,
   listOutboundPeers,
+  setInboundPeer,
+  setOutboundPeer,
 } from "../peers.js";
-import {
-  handshakeHandler,
-  handshakeApproveHandler,
-  handshakeDenyHandler,
-  handshakeCallbackHandler,
-} from "../handlers.js";
-import { agentPeering } from "../capability.js";
+import { checkRateLimit } from "../rate-limit.js";
 import { createPeeringService } from "../service.js";
+import type { PeeringOptions, PeerRecord } from "../types.js";
 
 const SECRET = "test-secret-key-for-hmac";
 const AGENT_A = "agent-a-hex-id";
@@ -54,6 +53,7 @@ function makeHttpContext(storage: CapabilityStorage): CapabilityHttpContext {
     sessionStore: {} as CapabilityHttpContext["sessionStore"],
     broadcastToAll: vi.fn(),
     broadcastState: vi.fn(),
+    rateLimit: { consume: vi.fn().mockResolvedValue({ allowed: true }) },
     sendPrompt: vi.fn(),
   };
 }
@@ -690,6 +690,7 @@ describe("agentPeering", () => {
       broadcastState: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     });
     expect(handlers).toHaveLength(4);
     const paths = handlers.map((h) => h.path);
@@ -728,6 +729,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       // Now service should work
@@ -752,6 +754,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await setInboundPeer(storage, makePeer({ status: "accepted" }));
@@ -772,6 +775,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await setInboundPeer(storage, makePeer({ status: "pending" }));
@@ -795,6 +799,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await setInboundPeer(storage, makePeer({ agentId: "in-1" }));
@@ -831,6 +836,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       const result = await service.requestPeer(AGENT_B);
@@ -868,6 +874,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await expect(service.requestPeer(AGENT_B)).rejects.toThrow("Handshake failed: 403");
@@ -896,6 +903,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       const result = await service.requestPeer(AGENT_B);
@@ -925,6 +933,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await service.requestPeer(AGENT_B);
@@ -946,6 +955,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       await setInboundPeer(storage, makePeer());
@@ -970,6 +980,7 @@ describe("agentPeering", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       });
 
       expect(await service.checkRateLimit("sender")).toBe(true);

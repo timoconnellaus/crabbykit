@@ -26,6 +26,7 @@ import { Route as ApiPreviewIdSplatRouteImport } from './routes/api/preview/$id/
 import { Route as ApiAppsSlugSplatRouteImport } from './routes/api/apps/$slug/$'
 import { Route as ApiAgentAgentIdSplatRouteImport } from './routes/api/agent/$agentId/$'
 import { Route as ApiDeployAgentIdDeployIdSplatRouteImport } from './routes/api/deploy/$agentId/$deployId/$'
+import { Route as TelegramWebhookAccountIdRouteImport } from './routes/telegram/webhook/$accountId'
 
 const AgentIdRoute = AgentIdRouteImport.update({
   id: '/$agentId',
@@ -114,6 +115,11 @@ const ApiDeployAgentIdDeployIdSplatRoute =
     path: '/api/deploy/$agentId/$deployId/$',
     getParentRoute: () => rootRouteImport,
   } as any)
+const TelegramWebhookAccountIdRoute = TelegramWebhookAccountIdRouteImport.update({
+  id: '/telegram/webhook/$accountId',
+  path: '/telegram/webhook/$accountId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
+    | '/telegram/webhook/$accountId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
+    | '/telegram/webhook/$accountId'
   id:
     | '__root__'
     | '/'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
+    | '/telegram/webhook/$accountId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   ApiAppsSlugSplatRoute: typeof ApiAppsSlugSplatRoute
   ApiPreviewIdSplatRoute: typeof ApiPreviewIdSplatRoute
   ApiDeployAgentIdDeployIdSplatRoute: typeof ApiDeployAgentIdDeployIdSplatRoute
+  TelegramWebhookAccountIdRoute: typeof TelegramWebhookAccountIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -362,6 +375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDeployAgentIdDeployIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/telegram/webhook/$accountId': {
+      id: '/telegram/webhook/$accountId'
+      path: '/telegram/webhook/$accountId'
+      fullPath: '/telegram/webhook/$accountId'
+      preLoaderRoute: typeof TelegramWebhookAccountIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -411,6 +431,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAppsSlugSplatRoute: ApiAppsSlugSplatRoute,
   ApiPreviewIdSplatRoute: ApiPreviewIdSplatRoute,
   ApiDeployAgentIdDeployIdSplatRoute: ApiDeployAgentIdDeployIdSplatRoute,
+  TelegramWebhookAccountIdRoute: TelegramWebhookAccountIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -213,6 +213,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
   protected get transport() {
     return this.runtime.transport;
   }
+  protected get rateLimiter() {
+    return this.runtime.rateLimiter;
+  }
   protected get sessionAgents() {
     return this.runtime.sessionAgents;
   }

@@ -196,6 +196,11 @@ class MockPiAgent {
     }
     this.emit({ type: "message_end", message: assistantMsg } as AgentEvent);
     this._state.streamMessage = null;
+    // Push the assistant message so agent_end.messages includes it.
+    // Real pi-agent-core accumulates all turn messages in the event payload;
+    // the `afterTurn` dispatch site reads this list to extract the final
+    // assistant text, so the mock must match that shape.
+    this._state.messages.push(assistantMsg);
 
     // Handle tool calls
     if (response.toolCalls) {
@@ -244,6 +249,7 @@ class MockPiAgent {
         this.emit({ type: "turn_start" } as AgentEvent);
         this.emit({ type: "message_start", message: followUpMsg } as AgentEvent);
         this.emit({ type: "message_end", message: followUpMsg } as AgentEvent);
+        this._state.messages.push(followUpMsg);
         this.emit({
           type: "turn_end",
           message: followUpMsg,
@@ -633,6 +639,7 @@ export class TestAgentDO extends AgentDO {
       storage: createNoopStorage(),
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
 
     // Resolve capabilities with scoped storage (same as base class)

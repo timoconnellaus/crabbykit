@@ -11,6 +11,7 @@ import {
 } from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
+import { extractFinalAssistantText } from "./agent-runtime-helpers.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
@@ -37,6 +38,8 @@ import {
 import { buildToolPromptSections } from "./prompt/tool-sections.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { QueueStore } from "./queue/queue-store.js";
+import { SlidingWindowRateLimiter } from "./rate-limit/sliding-window.js";
+import type { RateLimiter } from "./rate-limit/types.js";
 import type { RuntimeContext } from "./runtime-context.js";
 import { expiresAtFromDuration, nextFireTime, validateCron } from "./scheduling/cron.js";
 import { ScheduleStore } from "./scheduling/schedule-store.js";
@@ -202,6 +205,13 @@ export interface AgentContext {
   broadcastState: (event: string, data: unknown, scope?: "session" | "global") => void;
   /** Manage prompt-based schedules and one-shot timers. */
   schedules: ScheduleManager;
+  /**
+   * Shared runtime rate limiter. Exposed on every `AgentContext` so that
+   * any capability (not just channels) can apply atomic sliding-window
+   * limits without implementing its own counters. The runtime holds a
+   * single shared instance backed by the DO's SQL store.
+   */
+  rateLimit: RateLimiter;
 }
 
 /**
@@ -298,6 +308,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   mcpManager: McpManager;
   taskStore: TaskStore;
   queueStore: QueueStore;
+  /**
+   * Shared runtime rate limiter. Constructed once per `AgentRuntime` and
+   * passed into every `AgentContext` / `CapabilityHttpContext` construction
+   * site. Backed by the runtime's SQL store; atomic under DO single-threaded
+   * execution (see {@link SlidingWindowRateLimiter}).
+   */
+  rateLimiter: RateLimiter;
 
   /** Per-session agent instances. Present only while inference is active, cleaned up on agent_end. */
   // biome-ignore lint/suspicious/noExplicitAny: Lazy-loaded SDK - types unavailable at import time
@@ -353,6 +370,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     this.queueStore = new QueueStore(sqlStore);
     this.configStore = new ConfigStore(this.kvStore);
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
+    this.rateLimiter = new SlidingWindowRateLimiter(sqlStore);
 
     this.transport.onOpen((connection) => this.handleTransportOpen(connection));
     this.transport.onMessage((connection, data) => this.handleTransportMessage(connection, data));
@@ -1210,6 +1228,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       storage: createNoopStorage(),
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
   }
 
@@ -1369,6 +1388,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           storage: createNoopStorage(),
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
+          rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
       );
@@ -1493,6 +1513,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       storage: createNoopStorage(),
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
@@ -1644,6 +1665,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       storage: createNoopStorage(),
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
 
     const resolved = resolveCapabilities(
@@ -1720,6 +1742,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           storage: createNoopStorage(),
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
+          rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
       );
@@ -1871,6 +1894,103 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         this.logger.error("[AgentRuntime] onAgentEnd hook error", { message: error.message });
         this.onError?.(error, { source: "hook", sessionId });
       }
+
+      // ----- afterTurn dispatch site ---------------------------------------
+      // Fire `Capability.afterTurn` hooks once per `handlePrompt` /
+      // `handleAgentPrompt` invocation. The agent emits `agent_end` exactly
+      // once regardless of termination mode (natural_stop, error, aborted,
+      // max_iterations — see packages/agent-core/src/agent.ts and the
+      // AgentEvent discriminated union in agent-core/src/types.ts). Firing
+      // here therefore delivers a single dispatch per user message, which is
+      // the only shape that makes sense for chat-like channels: a user
+      // message produces intermediate assistant messages (tool calls,
+      // tool-result replies) followed by one final assistant message, and
+      // `afterTurn` delivers that final text exactly once.
+      //
+      // We run the dispatch work inside `runtimeContext.waitUntil(...)` so
+      // the async outbound I/O (sendReply to Telegram, Discord, …) extends
+      // past the current event-loop tick without blocking other
+      // `handleAgentEvent` work. This matches the A2A callback pattern at
+      // handleA2ACallbackPostNotification(~line 2490), which is the only
+      // existing precedent for `waitUntil`-extended inference work inside
+      // the runtime.
+      //
+      // Errors from individual capabilities are caught per-capability and
+      // logged; one failing hook never prevents the others from running or
+      // affects WebSocket broadcast (which has already been emitted at the
+      // top of handleAgentEvent).
+      const dispatchPromise = this.dispatchAfterTurn(sessionId, event.messages).catch((err) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error("[AgentRuntime] afterTurn dispatch error", {
+          message: error.message,
+          sessionId,
+        });
+      });
+      this.pendingAsyncOps.add(dispatchPromise);
+      dispatchPromise.finally(() => this.pendingAsyncOps.delete(dispatchPromise));
+      this.runtimeContext.waitUntil(dispatchPromise);
+    }
+  }
+
+  /**
+   * Invoke `afterTurn` on every resolved capability that defines it, once
+   * per turn termination. Runs inside `waitUntil` via the caller and catches
+   * per-capability errors so a single failing hook cannot block the others.
+   *
+   * `finalText` is computed from the final assistant message in the event
+   * payload: if the last `assistant` entry in `messages` has string content
+   * we use it directly; if the content is an array of blocks we concatenate
+   * the `text` of every text block. If no assistant message was produced
+   * (e.g., turn aborted before any assistant output), the empty string is
+   * passed.
+   */
+  private async dispatchAfterTurn(sessionId: string, messages: AgentMessage[]): Promise<void> {
+    // Snapshot the capability list *synchronously* — the caller invokes us
+    // from inside `handleAgentEvent`'s `agent_end` branch, which runs
+    // before the outer `agent.subscribe` callback clears
+    // `capabilitiesCache`. Capturing here guarantees we see the same
+    // capabilities that ran the turn.
+    const capabilities = this.capabilitiesCache ?? this.getCachedCapabilities();
+
+    // Fast path: skip all work when no capability defines afterTurn.
+    const hooks = capabilities.filter((c) => typeof c.afterTurn === "function");
+    if (hooks.length === 0) return;
+
+    const finalText = extractFinalAssistantText(messages);
+
+    // We need a CapabilityContext per capability, with its own scoped
+    // storage and broadcast state callbacks — matching how `ensureAgent`
+    // calls `resolveCapabilities`. Reuse the same `createCapabilityStorage`
+    // factory so per-capability KV stays scoped.
+    for (const cap of hooks) {
+      try {
+        const capStorage = createCapabilityStorage(this.kvStore, cap.id);
+        const capBroadcastState = this.createCapabilityBroadcastState(cap.id, sessionId);
+        const capContext: AgentContext = {
+          agentId: this.runtimeContext.agentId,
+          sessionId,
+          stepNumber: 0,
+          emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+          broadcast: this.createSessionBroadcast(sessionId),
+          broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          requestFromClient: (eventName, eventData, timeoutMs) =>
+            this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
+          storage: capStorage,
+          broadcastState: capBroadcastState,
+          schedules: this.buildScheduleManager(),
+          rateLimit: this.rateLimiter,
+        };
+        // biome-ignore lint/style/noNonNullAssertion: `hooks` filter guaranteed cap.afterTurn is defined
+        await cap.afterTurn!(capContext, sessionId, finalText);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error("[AgentRuntime] afterTurn hook error", {
+          capabilityId: cap.id,
+          sessionId,
+          message: error.message,
+        });
+        this.onError?.(error, { source: "hook", sessionId });
+      }
     }
   }
 
@@ -2011,6 +2131,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           storage: createNoopStorage(),
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
+          rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
       );
@@ -2120,6 +2241,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       storage: createNoopStorage(),
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
 
     const resolved = resolveCapabilities(capabilities, baseContext, (capId) =>
@@ -2145,6 +2267,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
           broadcastState: (event, data, scope) =>
             this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),
+          rateLimit: this.rateLimiter,
           sendPrompt: (opts) => this.handleAgentPrompt(opts),
         };
         return { handler: h.handler, ctx };
@@ -2170,13 +2293,36 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     sessionId?: string;
     sessionName?: string;
     source?: string;
+    /**
+     * Remote identity for channel-routed sessions. When `sessionId` is
+     * absent and `source` + `sender` are both present, the runtime resolves
+     * the session via {@link SessionStore.findBySourceAndSender}, creating a
+     * new session if none exists. This runs under the DO's single-threaded
+     * execution so no explicit transaction is required.
+     */
+    sender?: string;
   }): Promise<{ sessionId: string; response: string }> {
-    const sessionId =
-      opts.sessionId ??
-      this.sessionStore.create({
-        name: opts.sessionName ?? "Agent message",
-        source: opts.source ?? "agent",
-      }).id;
+    let sessionId = opts.sessionId;
+    if (!sessionId) {
+      if (opts.source && opts.sender) {
+        // Channel-routing path: look up an existing session for this
+        // (source, sender) pair, otherwise create one with the sender
+        // persisted so subsequent inbounds reuse it.
+        const existing = this.sessionStore.findBySourceAndSender(opts.source, opts.sender);
+        sessionId =
+          existing?.id ??
+          this.sessionStore.create({
+            name: opts.sessionName ?? "Agent message",
+            source: opts.source,
+            sender: opts.sender,
+          }).id;
+      } else {
+        sessionId = this.sessionStore.create({
+          name: opts.sessionName ?? "Agent message",
+          source: opts.source ?? "agent",
+        }).id;
+      }
+    }
 
     const existingAgent = this.sessionAgents.get(sessionId);
     if (existingAgent?.state.isStreaming) {
@@ -2343,7 +2489,12 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
       executor.setContext({
         sendPrompt: (opts) => this.handleAgentPrompt(opts),
-        sessionStore: this.sessionStore,
+        // `@claw-for-cloudflare/a2a` re-exports the SessionStore type by
+        // value — its `private sql` field forces nominal disagreement
+        // across workspace packages during cross-compilation. The shapes
+        // are otherwise identical, so we cast across the boundary.
+        // biome-ignore lint/suspicious/noExplicitAny: private-field nominal mismatch across workspace packages
+        sessionStore: this.sessionStore as any,
         fetchFn: this.buildA2AStubFetch(),
       });
 

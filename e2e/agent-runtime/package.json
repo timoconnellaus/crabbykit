@@ -11,6 +11,7 @@
     "@cloudflare/containers": "^0.1.0",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
+    "@claw-for-cloudflare/channel-telegram": "workspace:*",
     "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
     "@claw-for-cloudflare/compaction-summary": "workspace:*",
     "@claw-for-cloudflare/prompt-scheduler": "workspace:*",

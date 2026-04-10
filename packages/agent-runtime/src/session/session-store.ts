@@ -23,11 +23,29 @@ export class SessionStore {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL DEFAULT '',
         source TEXT NOT NULL DEFAULT 'websocket',
+        sender TEXT,
         leaf_id TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
+
+    // Idempotent migration for databases created before the `sender` column
+    // existed. `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` is invalid SQLite
+    // syntax, so we introspect via PRAGMA first and only issue the ALTER
+    // when the column is actually missing.
+    const existingCols = this.sql.exec<{ name: string }>("PRAGMA table_info(sessions)").toArray();
+    const hasSenderCol = existingCols.some((c) => c.name === "sender");
+    if (!hasSenderCol) {
+      this.sql.exec("ALTER TABLE sessions ADD COLUMN sender TEXT");
+    }
+
+    // Partial index on (source, sender) where sender is non-null. Supports
+    // `findBySourceAndSender` without penalizing WebSocket sessions whose
+    // sender is NULL.
+    this.sql.exec(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_source_sender ON sessions(source, sender) WHERE sender IS NOT NULL",
+    );
 
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS session_entries (
@@ -50,18 +68,38 @@ export class SessionStore {
 
   // --- Session CRUD ---
 
-  create(opts: { name?: string; source?: string } = {}): Session {
+  create(opts: { name?: string; source?: string; sender?: string } = {}): Session {
     const id = nanoid();
     const name = opts.name ?? "";
     const source = opts.source ?? DEFAULT_SESSION_SOURCE;
+    const sender = opts.sender ?? null;
 
-    this.sql.exec("INSERT INTO sessions (id, name, source) VALUES (?, ?, ?)", id, name, source);
+    this.sql.exec(
+      "INSERT INTO sessions (id, name, source, sender) VALUES (?, ?, ?, ?)",
+      id,
+      name,
+      source,
+      sender,
+    );
 
     const session = this.get(id);
     if (!session) {
       throw new Error(`Failed to retrieve session immediately after creation: ${id}`);
     }
     return session;
+  }
+
+  /**
+   * Look up a channel-routed session by its `(source, sender)` pair.
+   * Uses the partial index `idx_sessions_source_sender` — rows with a
+   * NULL sender (WebSocket sessions) are never returned here.
+   */
+  findBySourceAndSender(source: string, sender: string): Session | null {
+    const row = this.sql
+      .exec("SELECT * FROM sessions WHERE source = ? AND sender = ?", source, sender)
+      .one();
+    if (!row) return null;
+    return this.rowToSession(row);
   }
 
   get(sessionId: string): Session | null {
@@ -340,6 +378,7 @@ export class SessionStore {
       id: row.id as string,
       name: row.name as string,
       source: row.source as string,
+      sender: (row.sender as string | null | undefined) ?? null,
       leafId: (row.leaf_id as string) ?? null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,

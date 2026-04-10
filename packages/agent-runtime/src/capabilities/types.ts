@@ -5,6 +5,7 @@ import type { Command } from "../commands/define-command.js";
 import type { ConfigNamespace } from "../config/config-namespace.js";
 import type { CostEvent } from "../costs/types.js";
 import type { McpServerConfig } from "../mcp/types.js";
+import type { RateLimiter } from "../rate-limit/types.js";
 import type { ScheduleConfig } from "../scheduling/types.js";
 import type { SessionStore } from "../session/session-store.js";
 import type { CapabilityStorage } from "./storage.js";
@@ -160,6 +161,22 @@ export interface Capability {
   dispose?: () => Promise<void>;
 
   /**
+   * Called once per `handleAgentPrompt` / `handlePrompt` invocation, at the
+   * `agent_end` dispatch site, after entry persistence and WebSocket
+   * broadcast. Receives the concatenated text of the final assistant
+   * message in the turn (empty string if the turn terminated without
+   * assistant text).
+   *
+   * This is a generic lifecycle hook — any capability may use it (debug,
+   * cost reporting, caching, analytics). Channels are one user.
+   *
+   * Errors thrown from `afterTurn` are caught by the runtime, logged with
+   * the capability id and session id, and MUST NOT prevent turn completion,
+   * WebSocket broadcast, or subsequent capabilities' hooks from firing.
+   */
+  afterTurn?: (ctx: AgentContext, sessionId: string, finalText: string) => Promise<void>;
+
+  /**
    * Handle a `capability_action` message from the client.
    * Called when the client sends an action targeting this capability's ID.
    */
@@ -238,8 +255,21 @@ export interface CapabilityHttpContext {
   /** Broadcast capability state to connected clients. */
   broadcastState: (event: string, data: unknown, scope?: "session" | "global") => void;
   /**
+   * Shared runtime rate limiter. Capabilities calling this MUST NOT
+   * implement their own rate-limit counters — see `RateLimiter` for the
+   * atomicity contract.
+   */
+  rateLimit: RateLimiter;
+  /**
    * Inject a prompt and run agent inference. Returns when the agent completes.
    * Creates a new session if sessionId is not provided.
+   *
+   * When `sessionId` is absent and `source` + `sender` are both present,
+   * the runtime resolves the session via
+   * {@link SessionStore.findBySourceAndSender}, creating a new session if
+   * none exists. When `sessionId` is present, it takes precedence and
+   * `source`/`sender` are ignored for routing.
+   *
    * Rejects with 409 if the session's agent is already busy.
    */
   sendPrompt: (opts: {
@@ -247,5 +277,7 @@ export interface CapabilityHttpContext {
     sessionId?: string;
     sessionName?: string;
     source?: string;
+    /** Remote identity for channel-routed sessions. See routing rules above. */
+    sender?: string;
   }) => Promise<{ sessionId: string; response: string }>;
 }

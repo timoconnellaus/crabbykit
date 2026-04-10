@@ -37,6 +37,7 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/vibe-coder`** — Live app preview capability. Provides 3 tools: show_preview, hide_preview, get_console_logs. Proxies dev server traffic through the container, injects console capture script, retrieves logs from the browser via client round-trip.
 - **`packages/container-db`** — Tiny client library for container apps providing `env.DB`-compatible interface over `http://db.internal`. Used by vibe-coded apps for database access that works in both dev (container) and deploy (worker).
 - **`packages/browserbase`** — Browser automation capability via Browserbase. Provides 8 tools: browser_open, browser_navigate, browser_snapshot, browser_screenshot, browser_click, browser_type, browser_close, browser_clear_state. Lightweight CDP client over WebSocket, accessibility tree snapshots with ref-based element selection, hybrid state management (BB Contexts + cookie merge), cost tracking.
+- **`packages/channel-telegram`** — Reference Telegram channel built via `defineChannel`. Constant-time secret verification, dual-bucket rate limiting (per-sender + per-account Sybil guard), chunked outbound with 5-message cap, bot-token redaction on every error path, and group-chat collapse to a single session keyed by `group:<chatId>` with per-member attribution preserved in the stashed inbound.
 
 ### Skills Packages
 - **`packages/skill-registry`** — D1-backed skill registry with `SkillRegistry` interface. Stores skill metadata, content, and version info. Supports self-seeding from a skill definitions array on startup.
@@ -78,6 +79,7 @@ packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
 packages/browserbase        — Browser automation via Browserbase (CDP + snapshots)
+packages/channel-telegram   — Telegram channel (reference implementation of defineChannel)
 packages/task-tracker       — DAG-based task management (deps, ready-work)
 packages/subagent           — Same-DO child agent spawning
 packages/subagent-explorer  — Pre-built explorer subagent profile

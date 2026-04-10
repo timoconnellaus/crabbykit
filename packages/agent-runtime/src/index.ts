@@ -35,6 +35,8 @@ export type { Model } from "@claw-for-cloudflare/ai";
 // Re-export TypeBox for tool schema definition and validation
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export { Value } from "@sinclair/typebox/value";
+// Agent DO (Cloudflare shell)
+export { AgentDO } from "./agent-do.js";
 export type {
   A2AClientOptions,
   A2AConfig,
@@ -49,21 +51,6 @@ export type {
 } from "./agent-runtime.js";
 // Platform-agnostic runtime
 export { AgentRuntime } from "./agent-runtime.js";
-// Agent DO (Cloudflare shell)
-export { AgentDO } from "./agent-do.js";
-// defineAgent factory
-export {
-  defineAgent,
-  type AgentDefinition,
-  type AgentSetup,
-} from "./define-agent.js";
-// Runtime context abstractions
-export type { RuntimeContext } from "./runtime-context.js";
-export { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
-export {
-  type AgentDelegate,
-  createDelegatingRuntime,
-} from "./runtime-delegating.js";
 export type {
   BeforeToolExecutionEvent,
   BeforeToolExecutionResult,
@@ -82,6 +69,14 @@ export {
   createNoopStorage,
   resolveCapabilities,
 } from "./capabilities/index.js";
+export type {
+  ChannelDefinition,
+  ChannelInboundStash,
+  ParsedInbound,
+  RateLimitConfig,
+} from "./channels/index.js";
+// Channels
+export { defineChannel } from "./channels/index.js";
 export type { Command, CommandContext, CommandResult } from "./commands/index.js";
 // Commands
 export { defineCommand } from "./commands/index.js";
@@ -115,6 +110,12 @@ export {
 } from "./config/index.js";
 // Costs
 export type { CostEvent } from "./costs/index.js";
+// defineAgent factory
+export {
+  type AgentDefinition,
+  type AgentSetup,
+  defineAgent,
+} from "./define-agent.js";
 // MCP client
 export { McpManager } from "./mcp/mcp-manager.js";
 export type { McpServerConfig, McpServerStatus } from "./mcp/types.js";
@@ -132,6 +133,16 @@ export {
 export type { QueuedMessage } from "./queue/index.js";
 // Message queue
 export { QueueStore } from "./queue/index.js";
+// Rate limiter
+export type { RateLimiter } from "./rate-limit/index.js";
+export { SlidingWindowRateLimiter } from "./rate-limit/index.js";
+// Runtime context abstractions
+export type { RuntimeContext } from "./runtime-context.js";
+export { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
+export {
+  type AgentDelegate,
+  createDelegatingRuntime,
+} from "./runtime-delegating.js";
 export type {
   CallbackScheduleConfig,
   PromptScheduleConfig,
@@ -164,6 +175,7 @@ export type {
   SessionEntry,
   SessionEntryType,
 } from "./session/types.js";
+export type { ToolExecuteReturn } from "./tools/define-tool.js";
 // Tool system
 export {
   applyDefaultTimeout,
@@ -171,7 +183,6 @@ export {
   mcpToolToAgentTool,
   toolResult,
 } from "./tools/define-tool.js";
-export type { ToolExecuteReturn } from "./tools/define-tool.js";
 // Transport interfaces
 export { CfWebSocketTransport } from "./transport/cloudflare.js";
 export type { ErrorCode } from "./transport/error-codes.js";

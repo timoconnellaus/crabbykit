@@ -40,14 +40,22 @@ export function createMockSqlStore(): SqlStore {
       if (nameMatch && !tables.has(nameMatch[1])) {
         const colDefs = trimmed.match(/\((.+)\)$/s);
         const defaults: Record<string, () => unknown> = {};
+        const columns: string[] = [];
 
         if (colDefs) {
           const parts = colDefs[1].split(/,(?![^(]*\))/);
           for (const part of parts) {
             const p = part.trim();
-            if (p.startsWith("FOREIGN") || p.startsWith("CREATE")) continue;
+            if (
+              p.startsWith("FOREIGN") ||
+              p.startsWith("CREATE") ||
+              /^PRIMARY\s+KEY/i.test(p) ||
+              p.startsWith("CHECK")
+            )
+              continue;
             const colName = p.split(/\s+/)[0];
             if (!colName || colName === "FOREIGN" || colName === "CHECK") continue;
+            columns.push(colName);
 
             if (p.includes("DEFAULT")) {
               if (p.includes("datetime('now')") || p.includes("CURRENT_TIMESTAMP")) {
@@ -62,7 +70,25 @@ export function createMockSqlStore(): SqlStore {
           }
         }
 
-        tables.set(nameMatch[1], { rows: [], columns: [], defaults });
+        tables.set(nameMatch[1], { rows: [], columns, defaults });
+      }
+      return createResult([]);
+    }
+
+    // PRAGMA table_info(tablename)
+    const pragmaMatch = trimmed.match(/^PRAGMA\s+table_info\s*\(\s*(\w+)\s*\)$/i);
+    if (pragmaMatch) {
+      const table = tables.get(pragmaMatch[1]);
+      if (!table) return createResult([]);
+      return createResult(table.columns.map((name) => ({ name })));
+    }
+
+    // ALTER TABLE ... ADD COLUMN <name> <type...>
+    const alterMatch = trimmed.match(/^ALTER TABLE\s+(\w+)\s+ADD COLUMN\s+(\w+)\b/i);
+    if (alterMatch) {
+      const table = tables.get(alterMatch[1]);
+      if (table && !table.columns.includes(alterMatch[2])) {
+        table.columns.push(alterMatch[2]);
       }
       return createResult([]);
     }

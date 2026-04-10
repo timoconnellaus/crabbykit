@@ -28,6 +28,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 | `cloudflare-sandbox` | Sandbox provider implementation for Cloudflare Containers |
 | `vibe-coder` | Live app preview with console capture (show_preview, hide_preview, get_console_logs) |
 | `browserbase` | Browser automation via Browserbase — CDP client, accessibility snapshots, cookie persistence |
+| `channel-telegram` | Telegram channel reference built on `defineChannel` — webhook verification, dual-bucket rate limiting, chunked outbound, bot-token redaction |
 | `container-db` | Tiny client library for container apps providing `env.DB`-compatible interface over `db.internal` |
 | `skill-registry` | D1-backed skill registry with self-seeding and `SkillRegistry` interface |
 | `skills` | On-demand procedural knowledge capability (skill_load tool, auto-update, agent-assisted merge) |

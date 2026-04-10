@@ -1,7 +1,14 @@
 export interface Session {
   id: string;
   name: string;
+  /** Where the session originated. `"websocket"` by default, or a channel id like `"telegram"`. */
   source: string;
+  /**
+   * Remote identity that routed this session, for channel-sourced sessions.
+   * `null` for WebSocket-originated sessions. Paired with `source` for
+   * `SessionStore.findBySourceAndSender` lookups.
+   */
+  sender: string | null;
   leafId: string | null;
   createdAt: string;
   updatedAt: string;

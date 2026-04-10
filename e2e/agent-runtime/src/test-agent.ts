@@ -15,10 +15,10 @@ import type {
 } from "@claw-for-cloudflare/agent-runtime";
 import {
   AgentDO,
-  Type,
   createCapabilityStorage,
   defineTool,
   resolveCapabilities,
+  Type,
 } from "@claw-for-cloudflare/agent-runtime";
 import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
@@ -41,6 +41,51 @@ export function setMockResponses(responses: MockResponse[]) {
 
 export function clearMockResponses() {
   mockResponseQueue = [];
+}
+
+// -----------------------------------------------------------------------------
+// Telegram channel test hooks
+// -----------------------------------------------------------------------------
+//
+// The Telegram channel is wired into the e2e test agent via the factory
+// below. Tests control:
+//   - whether the channel is registered at all (via setTelegramAccounts)
+//   - the fake Bot API client that receives sendMessage / setWebhook calls
+//     (via setTelegramClientFactory)
+//
+// Tests MUST call clearTelegramTestState in afterEach to avoid leakage.
+//
+
+import type { Capability as ChannelCapability } from "@claw-for-cloudflare/agent-runtime";
+import { defineTelegramChannel, type TelegramAccount } from "@claw-for-cloudflare/channel-telegram";
+
+let telegramAccounts: TelegramAccount[] | null = null;
+// biome-ignore lint/suspicious/noExplicitAny: test hook — accepts any fake client shape
+let telegramClientFactory: ((account: TelegramAccount) => any) | null = null;
+
+export function setTelegramAccounts(accounts: TelegramAccount[]) {
+  telegramAccounts = accounts;
+}
+
+export function setTelegramClientFactory(
+  // biome-ignore lint/suspicious/noExplicitAny: test hook — accepts any fake client shape
+  factory: (account: TelegramAccount) => any,
+) {
+  telegramClientFactory = factory;
+}
+
+export function clearTelegramTestState() {
+  telegramAccounts = null;
+  telegramClientFactory = null;
+}
+
+function buildTelegramCapability(): ChannelCapability | null {
+  if (!telegramAccounts || telegramAccounts.length === 0) return null;
+  return defineTelegramChannel({
+    accountsFromEnv: () => telegramAccounts!,
+    // biome-ignore lint/suspicious/noExplicitAny: test factory cast to real type
+    clientFactory: (telegramClientFactory ?? (() => ({}) as any)) as any,
+  });
 }
 
 /**
@@ -243,13 +288,20 @@ export class E2EAgent extends AgentDO<Env> {
     };
   }
 
-  protected getCapabilities(): Capability[] {
+  // Public to satisfy AgentDO's structural override surface — the base class
+  // exposes getCapabilities() publicly so the delegating runtime can see it
+  // through the AgentDelegate interface.
+  getCapabilities(): Capability[] {
     const storage = agentStorage({
       bucket: () => this.env.STORAGE_BUCKET,
       namespace: this.ctx.id.toString(),
     });
 
     const capabilities: Capability[] = [r2Storage({ storage }), promptScheduler()];
+
+    // Telegram channel (only registered when a test has set accounts).
+    const telegram = buildTelegramCapability();
+    if (telegram) capabilities.push(telegram);
 
     // Sandbox capability is added by the dev entry point (test-agent-dev.ts)
     // which can import @cloudflare/containers. Pool-workers can't load that module.
@@ -392,7 +444,11 @@ export class E2EAgent extends AgentDO<Env> {
       broadcast: () => {},
       broadcastToAll: () => {},
       requestFromClient: () => Promise.reject(new Error("Not available")),
+      // biome-ignore lint/suspicious/noExplicitAny: storage is stubbed in this minimal test agent
+      storage: {} as any,
+      broadcastState: () => {},
       schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
     };
 
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>

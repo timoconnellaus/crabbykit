@@ -1,6 +1,25 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { SqlResult, SqlStore } from "../../storage/types.js";
 import { createMockSqlStore } from "../../test-helpers/mock-sql-storage.js";
 import { SessionStore } from "../session-store.js";
+
+/**
+ * Wraps a real SqlStore to record every SQL statement executed against it.
+ * Used below to assert that the migration path is idempotent (no second
+ * ALTER TABLE when the column already exists).
+ */
+function recordingSqlStore(inner: SqlStore): { sql: SqlStore; statements: string[] } {
+  const statements: string[] = [];
+  return {
+    statements,
+    sql: {
+      exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlResult<T> {
+        statements.push(query.replace(/\s+/g, " ").trim());
+        return inner.exec<T>(query, ...bindings);
+      },
+    },
+  };
+}
 
 describe("SessionStore", () => {
   let store: SessionStore;
@@ -505,6 +524,116 @@ describe("SessionStore", () => {
       const result = store.getEntriesPaginated(session.id);
       expect(result.entries).toHaveLength(3);
       expect(result.hasMore).toBe(false);
+    });
+  });
+
+  describe("sender column", () => {
+    it("defaults sender to null on a plain create", () => {
+      const session = store.create();
+      expect(session.sender).toBeNull();
+    });
+
+    it("persists a sender on create", () => {
+      const session = store.create({ source: "telegram", sender: "@alice" });
+      expect(session.sender).toBe("@alice");
+      expect(session.source).toBe("telegram");
+    });
+
+    it("round-trips sender via get", () => {
+      const created = store.create({ source: "telegram", sender: "@bob" });
+      const fetched = store.get(created.id);
+      expect(fetched?.sender).toBe("@bob");
+    });
+
+    it("does not leak sender into websocket-default sessions", () => {
+      const plain = store.create({ name: "ws chat" });
+      const listed = store.list().find((s) => s.id === plain.id);
+      expect(listed?.sender).toBeNull();
+    });
+  });
+
+  describe("findBySourceAndSender", () => {
+    it("returns the matching session", () => {
+      const created = store.create({
+        source: "telegram",
+        sender: "@alice",
+        name: "Alice's chat",
+      });
+      const found = store.findBySourceAndSender("telegram", "@alice");
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(created.id);
+      expect(found?.sender).toBe("@alice");
+      expect(found?.source).toBe("telegram");
+    });
+
+    it("returns null on a miss", () => {
+      expect(store.findBySourceAndSender("telegram", "@bob")).toBeNull();
+    });
+
+    it("does not match rows where sender is null", () => {
+      store.create({ source: "telegram" }); // sender defaults to null
+      // Looking up sender "null" (the string) should not match the NULL row.
+      expect(store.findBySourceAndSender("telegram", "null")).toBeNull();
+    });
+
+    it("isolates rows by source", () => {
+      store.create({ source: "telegram", sender: "@alice" });
+      expect(store.findBySourceAndSender("discord", "@alice")).toBeNull();
+    });
+  });
+
+  describe("migration", () => {
+    it("runs the sender-column migration on a fresh database", () => {
+      const rec = recordingSqlStore(createMockSqlStore());
+      new SessionStore(rec.sql);
+      // Fresh DB: CREATE TABLE is executed, PRAGMA inspects, and the
+      // partial index is created. The column came in via CREATE TABLE
+      // so ALTER TABLE MUST NOT have run.
+      const alters = rec.statements.filter((s) =>
+        /ALTER TABLE sessions ADD COLUMN sender/i.test(s),
+      );
+      expect(alters).toHaveLength(0);
+      const indexes = rec.statements.filter((s) => /idx_sessions_source_sender/i.test(s));
+      expect(indexes.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("is idempotent across re-initialization", () => {
+      const mock = createMockSqlStore();
+      new SessionStore(mock);
+      const rec = recordingSqlStore(mock);
+      new SessionStore(rec.sql);
+      // Second initialization on the same underlying store must not
+      // attempt any ALTER TABLE (sender is already present).
+      const alters = rec.statements.filter((s) =>
+        /ALTER TABLE sessions ADD COLUMN sender/i.test(s),
+      );
+      expect(alters).toHaveLength(0);
+      // The partial index creation uses CREATE INDEX IF NOT EXISTS and
+      // is safe to re-run.
+    });
+
+    it("adds the sender column when an existing sessions table lacks it", () => {
+      const mock = createMockSqlStore();
+      // Simulate a pre-existing sessions table without the sender column
+      // by issuing a CREATE TABLE that matches the legacy schema before
+      // constructing SessionStore.
+      mock.exec(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT 'websocket',
+          leaf_id TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `);
+      const rec = recordingSqlStore(mock);
+      new SessionStore(rec.sql);
+      // The migration path must have added the sender column exactly once.
+      const alters = rec.statements.filter((s) =>
+        /ALTER TABLE sessions ADD COLUMN sender/i.test(s),
+      );
+      expect(alters).toHaveLength(1);
     });
   });
 });

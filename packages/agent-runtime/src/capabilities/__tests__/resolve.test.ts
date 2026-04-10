@@ -22,6 +22,10 @@ const mockSchedules = {
   cancelTimer: async () => {},
 };
 
+const mockRateLimit = {
+  consume: async () => ({ allowed: true }),
+};
+
 const ctx: AgentContext = {
   agentId: "test-agent",
   sessionId: "s1",
@@ -33,6 +37,7 @@ const ctx: AgentContext = {
   storage: createNoopStorage(),
   broadcastState: () => {},
   schedules: mockSchedules,
+  rateLimit: mockRateLimit,
 };
 
 function makeTool(name: string): AgentTool {
