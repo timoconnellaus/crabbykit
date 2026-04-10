@@ -1,6 +1,5 @@
 import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
 import { useCallback } from "react";
-import { useChat } from "../components/chat-provider.js";
 
 /**
  * UI-facing type for a stored Telegram account. Mirrors the
@@ -47,11 +46,12 @@ export interface AddTelegramAccountInput {
  * agent-wide actions.
  */
 export function useTelegramChannel() {
-  const { capabilityState, currentSessionId } = useChat();
-  const { send } = useAgentConnection();
+  const { send, state, currentSessionId } = useAgentConnection();
 
-  const state = capabilityState.telegram as { accounts?: TelegramAccountView[] } | undefined;
-  const accounts = state?.accounts ?? null;
+  const telegramState = state.capabilityState.telegram as
+    | { accounts?: TelegramAccountView[] }
+    | undefined;
+  const accounts = telegramState?.accounts ?? null;
 
   const addAccount = useCallback(
     (input: AddTelegramAccountInput) => {

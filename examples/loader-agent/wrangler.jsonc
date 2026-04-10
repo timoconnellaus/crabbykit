@@ -1,0 +1,33 @@
+{
+  "name": "loader-agent",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "AGENT", "class_name": "LoaderAgent" }
+    ]
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "services": [
+    {
+      "binding": "AI_SERVICE",
+      "service": "loader-agent",
+      "entrypoint": "AiService"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE_BUCKET",
+      "bucket_name": "loader-agent-storage"
+    }
+  ],
+  "worker_loaders": [
+    { "binding": "LOADER" }
+  ],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LoaderAgent"] }
+  ]
+}

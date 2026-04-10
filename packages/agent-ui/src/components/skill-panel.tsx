@@ -1,12 +1,12 @@
+import { useSkills } from "@claw-for-cloudflare/agent-runtime/client";
 import type { ComponentPropsWithoutRef } from "react";
 import { useState } from "react";
-import { useChat } from "./chat-provider";
 import { SkillViewer } from "./skill-viewer";
 
 export interface SkillPanelProps extends ComponentPropsWithoutRef<"div"> {}
 
 export function SkillPanel(props: SkillPanelProps) {
-  const { skills } = useChat();
+  const { skills } = useSkills();
   const [viewingSkill, setViewingSkill] = useState<string | null>(null);
 
   if (skills.length === 0) return null;

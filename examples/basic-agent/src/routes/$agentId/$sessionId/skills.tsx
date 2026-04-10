@@ -1,3 +1,4 @@
+import { useSkills } from "@claw-for-cloudflare/agent-runtime/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { SkillsPanel } from "../../../components/skills-panel";
 import { useChatContext } from "../../../context/chat-context";
@@ -7,6 +8,7 @@ export const Route = createFileRoute("/$agentId/$sessionId/skills")({
 });
 
 function SkillsRoute() {
-  const { chat, agentId } = useChatContext();
-  return <SkillsPanel skills={chat.skills} agentId={agentId} />;
+  const { agentId } = useChatContext();
+  const { skills } = useSkills();
+  return <SkillsPanel skills={skills} agentId={agentId} />;
 }

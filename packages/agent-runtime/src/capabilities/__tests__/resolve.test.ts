@@ -634,7 +634,8 @@ describe("resolveCapabilities", () => {
     const result = resolveCapabilities([cap], ctx);
 
     expect(result.onConnectHooks).toHaveLength(1);
-    await result.onConnectHooks[0]({
+    expect(result.onConnectHooks[0].capabilityId).toBe("connect-cap");
+    await result.onConnectHooks[0].hook({
       agentId: "test-agent",
       sessionId: "s1",
       sessionStore: {} as any,

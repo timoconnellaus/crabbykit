@@ -18,7 +18,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 | Package | Description |
 |---------|-------------|
 | `agent-runtime` | Core runtime — AgentDO base class, session store, capability system, transport protocol, scheduling, MCP client |
-| `agent-ui` | Composable React chat components (ChatPanel, MessageList, ChatInput, etc.) with `useAgentChat()` hook |
+| `agent-ui` | Composable React chat components (MessageList, ChatInput, StatusBar, ChannelsPanel, etc.) driven by the decomposed client hooks (`useChatSession`, `useSessions`, `useSchedules`, …) |
 | `compaction-summary` | LLM-based conversation compaction capability |
 | `tavily-web-search` | Web search + fetch tools via Tavily API |
 | `prompt-scheduler` | Schedule management exposed as agent tools |

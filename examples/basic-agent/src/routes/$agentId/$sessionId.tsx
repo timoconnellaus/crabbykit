@@ -1,4 +1,7 @@
-import { useAgentChat } from "@claw-for-cloudflare/agent-runtime/client";
+import {
+  AgentConnectionProvider,
+  useAgentConnection,
+} from "@claw-for-cloudflare/agent-runtime/client";
 import type { SandboxBadgeProps, SubagentInfo } from "@claw-for-cloudflare/agent-ui";
 import { useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -17,55 +20,22 @@ export const Route = createFileRoute("/$agentId/$sessionId")({
 
 function SessionLayout() {
   const { agentId, sessionId } = Route.useParams();
-  const navigate = useNavigate();
-  const routerState = useRouterState();
 
-  const [agents, setAgents] = useState<AgentRecord[]>([]);
+  // Build WebSocket URL — only on the client
+  const wsUrl =
+    typeof window !== "undefined"
+      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/agent/${agentId}`
+      : "";
+
+  // Shared UI state lives here (outside the provider) so that onCustomEvent
+  // callbacks can mutate it. The provider forwards custom events to these
+  // callbacks; we pass the setters through via closures.
   const [sandboxState, setSandboxState] = useState<SandboxBadgeProps>({ elevated: false });
   const [pendingTasks, setPendingTasks] = useState<PendingA2ATask[]>([]);
   const [deployedApps, setDeployedApps] = useState<AppSummary[]>([]);
-  const taskState = useTaskState({ maxVisible: 5 });
-  const [activeTaskId, setActiveTaskId] = useState<string | undefined>();
-  const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
 
   const preview = usePreview();
   const browser = useBrowser();
-
-  // Detect which tab is active from the URL
-  const activeTab = useMemo(() => {
-    const pathname = routerState.location.pathname;
-    if (pathname.endsWith("/apps")) return "apps";
-    if (pathname.endsWith("/schedules")) return "schedules";
-    if (pathname.endsWith("/skills")) return "skills";
-    if (pathname.endsWith("/channels")) return "channels";
-    return "chat";
-  }, [routerState.location.pathname]);
-
-  // Fetch agent list from registry
-  const fetchAgents = useCallback(async () => {
-    let list = (await (await fetch("/api/agents")).json()) as AgentRecord[];
-    if (list.length === 0) {
-      const res = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "Default Agent" }),
-      });
-      const agent = (await res.json()) as AgentRecord;
-      list = [agent];
-    }
-    setAgents(list);
-    return list;
-  }, []);
-
-  // Bootstrap on mount + poll for changes
-  const bootstrapRef = useRef(false);
-  useEffect(() => {
-    if (bootstrapRef.current) return;
-    bootstrapRef.current = true;
-    fetchAgents();
-    const interval = setInterval(fetchAgents, 5000);
-    return () => clearInterval(interval);
-  }, [fetchAgents]);
 
   const onCustomEvent = useCallback(
     (name: string, data: Record<string, unknown>) => {
@@ -134,34 +104,103 @@ function SessionLayout() {
     [preview],
   );
 
-  // Build WebSocket URL — only on the client
-  const wsUrl =
-    typeof window !== "undefined"
-      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/agent/${agentId}`
-      : "";
+  return (
+    <AgentConnectionProvider
+      url={wsUrl}
+      sessionId={sessionId === "latest" ? undefined : sessionId}
+      onCustomEvent={onCustomEvent}
+      onCustomRequest={onCustomRequest}
+    >
+      <SessionLayoutInner
+        agentId={agentId}
+        sessionId={sessionId}
+        sandboxState={sandboxState}
+        pendingTasks={pendingTasks}
+        deployedApps={deployedApps}
+        preview={preview}
+        browser={browser}
+      />
+    </AgentConnectionProvider>
+  );
+}
 
-  const chat = useAgentChat({
-    url: wsUrl,
-    sessionId: sessionId === "latest" ? undefined : sessionId,
-    onCustomEvent,
-    onCustomRequest,
-  });
+interface SessionLayoutInnerProps {
+  agentId: string;
+  sessionId: string;
+  sandboxState: SandboxBadgeProps;
+  pendingTasks: PendingA2ATask[];
+  deployedApps: AppSummary[];
+  preview: ReturnType<typeof usePreview>;
+  browser: ReturnType<typeof useBrowser>;
+}
+
+/**
+ * Inner component that reads `currentSessionId` from the connection
+ * provider (hence rendered inside it). Handles URL sync on session
+ * changes and exposes the per-route UI state via `ChatContextProvider`.
+ */
+function SessionLayoutInner(props: SessionLayoutInnerProps) {
+  const { agentId, sessionId, sandboxState, pendingTasks, deployedApps, preview, browser } = props;
+  const navigate = useNavigate();
+  const routerState = useRouterState();
+  const { currentSessionId } = useAgentConnection();
+
+  const [agents, setAgents] = useState<AgentRecord[]>([]);
+  const taskState = useTaskState({ maxVisible: 5 });
+  const [activeTaskId, setActiveTaskId] = useState<string | undefined>();
+  const [subagents] = useState<SubagentInfo[]>([]);
+
+  // Detect which tab is active from the URL
+  const activeTab = useMemo(() => {
+    const pathname = routerState.location.pathname;
+    if (pathname.endsWith("/apps")) return "apps";
+    if (pathname.endsWith("/schedules")) return "schedules";
+    if (pathname.endsWith("/skills")) return "skills";
+    if (pathname.endsWith("/channels")) return "channels";
+    return "chat";
+  }, [routerState.location.pathname]);
+
+  // Fetch agent list from registry
+  const fetchAgents = useCallback(async () => {
+    let list = (await (await fetch("/api/agents")).json()) as AgentRecord[];
+    if (list.length === 0) {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Default Agent" }),
+      });
+      const agent = (await res.json()) as AgentRecord;
+      list = [agent];
+    }
+    setAgents(list);
+    return list;
+  }, []);
+
+  // Bootstrap on mount + poll for changes
+  const bootstrapRef = useRef(false);
+  useEffect(() => {
+    if (bootstrapRef.current) return;
+    bootstrapRef.current = true;
+    fetchAgents();
+    const interval = setInterval(fetchAgents, 5000);
+    return () => clearInterval(interval);
+  }, [fetchAgents]);
 
   // Reset task state when session changes (e.g. /clear creates a new session)
   useEffect(() => {
     taskState.reset();
-  }, [chat.currentSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL when server assigns/changes session
   useEffect(() => {
-    if (chat.currentSessionId && chat.currentSessionId !== sessionId) {
+    if (currentSessionId && currentSessionId !== sessionId) {
       navigate({
         to: `/$agentId/$sessionId/${activeTab}`,
-        params: { agentId, sessionId: chat.currentSessionId },
+        params: { agentId, sessionId: currentSessionId },
         replace: sessionId === "latest",
       });
     }
-  }, [chat.currentSessionId, sessionId, agentId, activeTab, navigate]);
+  }, [currentSessionId, sessionId, agentId, activeTab, navigate]);
 
   const handleClosePreview = useCallback(() => {
     preview.closePreview();
@@ -185,7 +224,6 @@ function SessionLayout() {
 
   const contextValue = useMemo(
     () => ({
-      chat,
       agentId,
       sessionId,
       sandboxState,
@@ -207,7 +245,6 @@ function SessionLayout() {
       onCloseBrowser: browser.closeBrowser,
     }),
     [
-      chat,
       agentId,
       sessionId,
       sandboxState,

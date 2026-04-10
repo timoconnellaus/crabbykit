@@ -1,10 +1,16 @@
 import { ChannelsPanel } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { channelsStyles } from "../../../styles/channels";
 
 export const Route = createFileRoute("/$agentId/$sessionId/channels")({
   component: ChannelsRoute,
 });
 
 function ChannelsRoute() {
-  return <ChannelsPanel />;
+  return (
+    <>
+      <style>{channelsStyles}</style>
+      <ChannelsPanel />
+    </>
+  );
 }

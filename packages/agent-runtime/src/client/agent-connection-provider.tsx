@@ -89,8 +89,7 @@ export interface AgentConnectionContextValue {
  *
  * @internal Exported for tests and advanced consumers that need to provide
  * a mock context value (e.g. to test decomposed hooks in isolation without
- * a real WebSocket). Prefer `useAgentConnection` / `useOptionalAgentConnection`
- * for normal usage.
+ * a real WebSocket). Prefer `useAgentConnection` for normal usage.
  */
 export const AgentConnectionContext = createContext<AgentConnectionContextValue | null>(null);
 
@@ -353,18 +352,8 @@ export function useAgentConnection(): AgentConnectionContextValue {
   if (!ctx) {
     throw new Error(
       "useAgentConnection must be used inside an <AgentConnectionProvider>. " +
-        "Wrap your component tree with the provider, or use useOptionalAgentConnection() " +
-        "if the context is optional.",
+        "Wrap your component tree with the provider.",
     );
   }
   return ctx;
-}
-
-/**
- * Read the agent connection context, returning `null` if not inside a provider.
- * Used by legacy hooks (e.g. `useAgentChat`) that support being used without
- * the provider for backward compatibility.
- */
-export function useOptionalAgentConnection(): AgentConnectionContextValue | null {
-  return useContext(AgentConnectionContext);
 }

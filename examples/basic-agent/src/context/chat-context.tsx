@@ -1,4 +1,3 @@
-import type { UseAgentChatReturn } from "@claw-for-cloudflare/agent-runtime/client";
 import type {
   BrowserState,
   ConsoleLogEntry,
@@ -22,7 +21,6 @@ export interface AppSummary {
 }
 
 export interface ChatContextValue {
-  chat: UseAgentChatReturn;
   agentId: string;
   sessionId: string;
   sandboxState: SandboxBadgeProps;

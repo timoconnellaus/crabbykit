@@ -53,7 +53,10 @@ export interface ResolvedCapabilities {
   afterToolExecutionHooks: Array<
     (event: ToolExecutionEvent, ctx: CapabilityHookContext) => Promise<void>
   >;
-  onConnectHooks: Array<(ctx: CapabilityHookContext) => Promise<void>>;
+  onConnectHooks: Array<{
+    capabilityId: string;
+    hook: (ctx: CapabilityHookContext) => Promise<void>;
+  }>;
   schedules: ResolvedScheduleDeclaration[];
   httpHandlers: Array<{
     method: string;
@@ -211,7 +214,10 @@ export function resolveCapabilities(
 
     if (cap.hooks?.onConnect) {
       const rawHook = cap.hooks.onConnect;
-      onConnectHooks.push(async (ctx) => rawHook({ ...ctx, storage: capStorage }));
+      onConnectHooks.push({
+        capabilityId: cap.id,
+        hook: async (ctx) => rawHook({ ...ctx, storage: capStorage }),
+      });
     }
 
     if (cap.onAction) {

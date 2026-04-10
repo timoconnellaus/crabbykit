@@ -1,10 +1,10 @@
+import { useSessions } from "@claw-for-cloudflare/agent-runtime/client";
 import type { ComponentPropsWithoutRef, MouseEvent } from "react";
-import { useChat } from "./chat-provider";
 
 export interface SessionListProps extends ComponentPropsWithoutRef<"div"> {}
 
 export function SessionList(props: SessionListProps) {
-  const { sessions, currentSessionId, switchSession, createSession, deleteSession } = useChat();
+  const { sessions, currentSessionId, switchSession, createSession, deleteSession } = useSessions();
 
   return (
     <div data-agent-ui="session-list" {...props}>

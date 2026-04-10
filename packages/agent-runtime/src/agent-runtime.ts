@@ -1749,14 +1749,14 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
     const broadcastFn = this.createSessionBroadcast(sessionId);
 
-    for (const hook of resolved.onConnectHooks) {
+    for (const { capabilityId, hook } of resolved.onConnectHooks) {
       try {
         const hookContext: CapabilityHookContext = {
           agentId: this.runtimeContext.agentId,
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
-          broadcastState: () => {},
+          broadcastState: this.createCapabilityBroadcastState(capabilityId, sessionId),
           capabilityIds: this.getCapabilityIds(),
           broadcast: broadcastFn,
         };

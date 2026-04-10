@@ -1,3 +1,4 @@
+import { useChatSession, useCommands } from "@claw-for-cloudflare/agent-runtime/client";
 import {
   type ChangeEvent,
   type ComponentPropsWithoutRef,
@@ -8,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useChat } from "./chat-provider";
 import { CommandPicker } from "./command-picker";
 
 export interface ChatInputProps extends Omit<ComponentPropsWithoutRef<"form">, "onSubmit"> {
@@ -22,7 +22,8 @@ export const ChatInput = forwardRef<HTMLFormElement, ChatInputProps>(function Ch
   { placeholder = "Type a message...", onSend, ...props },
   ref,
 ) {
-  const { sendMessage, steerMessage, abort, agentStatus, availableCommands } = useChat();
+  const { sendMessage, steerMessage, abort, agentStatus } = useChatSession();
+  const { availableCommands } = useCommands();
   const isRunning = agentStatus !== "idle";
   const [text, setText] = useState("");
   const pickerVisibleRef = useRef(false);

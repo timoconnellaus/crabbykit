@@ -1,6 +1,6 @@
 import type { PromptSection, PromptSectionSource } from "@claw-for-cloudflare/agent-runtime";
+import { useSystemPrompt } from "@claw-for-cloudflare/agent-runtime/client";
 import { type ComponentPropsWithoutRef, useCallback, useEffect, useMemo, useState } from "react";
-import { useChat } from "./chat-provider";
 import { MarkdownContent } from "./markdown-content";
 
 export interface SystemPromptPanelProps extends ComponentPropsWithoutRef<"div"> {
@@ -48,7 +48,7 @@ function sourceKind(source: PromptSectionSource): string {
  * exclusion reason inline.
  */
 export function SystemPromptPanel({ open, onClose, ...props }: SystemPromptPanelProps) {
-  const { systemPrompt, requestSystemPrompt } = useChat();
+  const { systemPrompt, requestSystemPrompt } = useSystemPrompt();
   const [viewMode, setViewMode] = useState<"md" | "raw">("md");
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());

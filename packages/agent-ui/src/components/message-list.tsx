@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
-import type { ToolState } from "@claw-for-cloudflare/agent-runtime/client";
+import { type ToolState, useChatSession } from "@claw-for-cloudflare/agent-runtime/client";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -11,7 +11,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { useChat } from "./chat-provider";
 import { extractResultText, Message } from "./message";
 
 /** Threshold above which virtualization is enabled. */
@@ -80,7 +79,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   { renderMessage, dir: _dir, ...props },
   ref,
 ) {
-  const { messages, toolStates, agentStatus, thinking, error } = useChat();
+  const { messages, toolStates, agentStatus, thinking, error } = useChatSession();
   const endRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.length;

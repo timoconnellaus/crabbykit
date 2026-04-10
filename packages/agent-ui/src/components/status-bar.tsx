@@ -1,7 +1,10 @@
+import {
+  useAgentConnection,
+  useChatSession,
+} from "@claw-for-cloudflare/agent-runtime/client";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 import type { BrowserState } from "../hooks/use-browser";
 import { BrowserBadge } from "./browser-badge";
-import { useChat } from "./chat-provider";
 import type { SandboxBadgeProps } from "./sandbox-badge";
 import { SandboxBadge } from "./sandbox-badge";
 
@@ -15,7 +18,8 @@ export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {
 }
 
 export function StatusBar({ sandboxState, browserState, children, ...props }: StatusBarProps) {
-  const { connectionStatus, agentStatus, thinking, costs } = useChat();
+  const { connectionStatus } = useAgentConnection();
+  const { agentStatus, costs } = useChatSession();
 
   const totalCost = useMemo(() => {
     if (costs.length === 0) return null;

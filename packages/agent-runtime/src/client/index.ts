@@ -4,7 +4,6 @@ export {
   AgentConnectionContext,
   AgentConnectionProvider,
   useAgentConnection,
-  useOptionalAgentConnection,
 } from "./agent-connection-provider.js";
 export type {
   AgentConnectionContextValue,
@@ -33,20 +32,12 @@ export type {
   SwitchSessionMessage,
   ToolEventMessage,
 } from "../transport/types.js";
-export type { QueuedItem } from "./chat-reducer.js";
+export type { CommandInfo, CommandResultTag, QueuedItem, ToolState } from "./chat-reducer.js";
 // Agent status types
 export type {
   AgentStatus,
   ConnectionStatus,
 } from "./types.js";
-export type {
-  CommandInfo,
-  CommandResultTag,
-  ToolState,
-  UseAgentChatConfig,
-  UseAgentChatReturn,
-} from "./use-agent-chat.js";
-export { useAgentChat } from "./use-agent-chat.js";
 export { useCapabilityEvents, useCapabilityState } from "./use-capability-state.js";
 export { useSendCapabilityAction } from "./use-send-capability-action.js";
 // Decomposed hooks built on top of AgentConnectionProvider

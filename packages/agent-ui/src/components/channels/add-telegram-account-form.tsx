@@ -26,6 +26,8 @@ export function AddTelegramAccountForm({ onSubmit, onCancel }: AddTelegramAccoun
   const [webhookSecret, setWebhookSecret] = useState(() => generateSecret());
   const [publicUrl, setPublicUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [secretVisible, setSecretVisible] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -104,13 +106,42 @@ export function AddTelegramAccountForm({ onSubmit, onCancel }: AddTelegramAccoun
           <input
             id="tg-secret"
             data-agent-ui="add-telegram-account-form-input"
-            type="password"
+            type={secretVisible ? "text" : "password"}
             value={webhookSecret}
             onChange={(e) => setWebhookSecret(e.target.value)}
             autoComplete="new-password"
             spellCheck={false}
             required
           />
+          <button
+            type="button"
+            data-agent-ui="add-telegram-account-form-secret-toggle"
+            onClick={() => setSecretVisible((v) => !v)}
+            aria-pressed={secretVisible}
+            title={secretVisible ? "Hide secret" : "Show secret"}
+          >
+            {secretVisible ? "Hide" : "Show"}
+          </button>
+          <button
+            type="button"
+            data-agent-ui="add-telegram-account-form-secret-copy"
+            data-copied={secretCopied || undefined}
+            onClick={async () => {
+              if (!webhookSecret) return;
+              try {
+                await navigator.clipboard.writeText(webhookSecret);
+                setSecretCopied(true);
+                setTimeout(() => setSecretCopied(false), 1500);
+              } catch {
+                // Clipboard APIs can reject in insecure contexts or when the
+                // document isn't focused. Silently give up — the Show button
+                // still lets the user grab the value manually.
+              }
+            }}
+            title="Copy secret to clipboard"
+          >
+            {secretCopied ? "Copied" : "Copy"}
+          </button>
           <button
             type="button"
             data-agent-ui="add-telegram-account-form-generate"

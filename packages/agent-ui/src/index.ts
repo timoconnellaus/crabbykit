@@ -17,11 +17,6 @@ export type { BrowserBadgeProps } from "./components/browser-badge";
 export { BrowserBadge } from "./components/browser-badge";
 export type { ChatInputProps } from "./components/chat-input";
 export { ChatInput } from "./components/chat-input";
-export type { ChatPanelProps } from "./components/chat-panel";
-// All-in-one
-export { ChatPanel } from "./components/chat-panel";
-export type { ChatProviderProps } from "./components/chat-provider";
-export { ChatProvider, useChat } from "./components/chat-provider";
 // Chat utilities
 export type { ResultSummary, ToolCategory } from "./components/chat-utils";
 export {

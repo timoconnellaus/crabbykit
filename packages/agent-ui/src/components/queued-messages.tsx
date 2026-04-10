@@ -1,11 +1,12 @@
-import { useChat } from "./chat-provider";
+import { useChatSession, useQueue } from "@claw-for-cloudflare/agent-runtime/client";
 
 /**
  * Renders queued messages that will be processed after the current agent turn.
  * Hidden when the queue is empty.
  */
 export function QueuedMessages() {
-  const { queuedMessages, deleteQueuedMessage, steerQueuedMessage, agentStatus } = useChat();
+  const { queuedMessages, deleteQueuedMessage, steerQueuedMessage } = useQueue();
+  const { agentStatus } = useChatSession();
 
   if (queuedMessages.length === 0) return null;
 

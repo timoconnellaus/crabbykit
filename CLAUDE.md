@@ -22,8 +22,8 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **Transport protocol** — Discriminated union messages over WebSocket. Session sync, agent events, tool events, cost events, schedule lists, MCP status.
 
 ### UI (`packages/agent-ui`)
-- **Composable React components** — ChatPanel, MessageList, Message, ChatInput, StatusBar, SessionList. All use `data-agent-ui` attribute selectors for styling isolation.
-- **Client hook** — `useAgentChat()` manages WebSocket connection, message streaming, session switching, and schedule state.
+- **Composable React components** — MessageList, Message, ChatInput, StatusBar, SessionList, SystemPromptPanel, SkillPanel, ChannelsPanel, etc. All use `data-agent-ui` attribute selectors for styling isolation. Components read from the connection context via the decomposed hooks below — there is no global "ChatProvider" / `useChat` shim.
+- **Connection provider + decomposed hooks** (all exported from `@claw-for-cloudflare/agent-runtime/client`) — `AgentConnectionProvider` owns the WebSocket, reconnect, and reducer state. Consumers wrap their tree once, then children pull the slices they need: `useChatSession` (messages, send/steer/abort, agentStatus, thinking, costs, error), `useSessions` (list + switch/create/delete), `useSchedules`, `useSkills`, `useCommands`, `useQueue`, `useSystemPrompt`, `useAgentConnection` (raw `send`, `connectionStatus`, `state`, `dispatch`, `onSessionSwitch`). Capability-specific UI hooks (e.g. `useTelegramChannel`) read directly from `useAgentConnection().state.capabilityState` and send `capability_action` via the provider's `send`.
 - **Markdown rendering** — Lightweight built-in renderer (no external deps). Code blocks, formatting, links, lists.
 
 ### Capability Packages
@@ -314,8 +314,8 @@ legacy access patterns like `this.sessionStore` still work:
 - Types/interfaces: PascalCase (`AgentConfig`, `SessionEntry`)
 - Functions/methods: camelCase (`buildContext`, `defineTool`)
 - Constants: UPPER_SNAKE_CASE (`SAFETY_MARGIN`, `DEFAULT_BASE_CHUNK_RATIO`)
-- React components: PascalCase (`ChatPanel`, `MessageList`)
-- Hooks: `use` prefix (`useChat`, `useAgentChat`)
+- React components: PascalCase (`MessageList`, `ChatInput`)
+- Hooks: `use` prefix (`useChatSession`, `useSessions`, `useTelegramChannel`)
 - Capability IDs: kebab-case (`"compaction-summary"`)
 
 ### Export conventions
@@ -408,7 +408,7 @@ Instead, tests isolate via **unique DO names per describe block** (e.g., `getStu
 
 - **AgentDO lifecycle overrides** (called by framework): `on{Event}` — `onTurnEnd`, `onAgentEnd`, `onSessionCreated`
 - **Capability hooks** (transform data in pipeline): `before{Stage}` / `after{Stage}` — `beforeInference`
-- **React hooks** (standard React): `use{Thing}` — `useChat`, `useAgentChat`
+- **React hooks** (standard React): `use{Thing}` — `useChatSession`, `useAgentConnection`
 
 ## Configuration Defaults
 

@@ -1,8 +1,8 @@
+import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
 import {
   AppPreview,
   BrowserPanel,
   ChatInput,
-  ChatPanel,
   MessageList,
   QueuedMessages,
   SessionList,
@@ -19,7 +19,6 @@ import { PendingTasksBanner } from "./pending-tasks";
 
 export function ChatView() {
   const {
-    chat,
     sandboxState,
     pendingTasks,
     previewState,
@@ -38,11 +37,12 @@ export function ChatView() {
     browserState,
     onCloseBrowser,
   } = useChatContext();
+  const { connectionStatus } = useAgentConnection();
 
   const [promptOpen, setPromptOpen] = useState(false);
 
   return (
-    <ChatPanel chat={chat} style={{ flexDirection: "row", flex: 1 }}>
+    <div data-agent-ui="chat-panel" style={{ flexDirection: "row", flex: 1, display: "flex" }}>
       <div data-agent-ui="sidebar">
         <SessionList />
       </div>
@@ -109,7 +109,7 @@ export function ChatView() {
               onLogFilterChange={(f) =>
                 onLogFilterChange(f as "all" | "error" | "warn" | "info" | "log")
               }
-              connected={chat.connectionStatus === "connected"}
+              connected={connectionStatus === "connected"}
             />
           </div>
         )}
@@ -119,11 +119,11 @@ export function ChatView() {
               debuggerFullscreenUrl={browserState.debuggerFullscreenUrl}
               pageUrl={browserState.pageUrl}
               onClose={onCloseBrowser}
-              connected={chat.connectionStatus === "connected"}
+              connected={connectionStatus === "connected"}
             />
           </div>
         )}
       </div>
-    </ChatPanel>
+    </div>
   );
 }
