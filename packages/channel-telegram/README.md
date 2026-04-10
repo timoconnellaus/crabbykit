@@ -57,6 +57,7 @@ own rate-limit bucket.
 | Field                  | Type        | Default                                   | Notes |
 |------------------------|-------------|-------------------------------------------|-------|
 | `publicUrl`            | `string`    | (optional)                                | Default base URL for `setWebhook`. Falls back to the incoming request origin at add-time. |
+| `agentId`              | `string`    | (optional)                                | When set, `addAccount` embeds `/{agentId}` in the registered webhook URL so a top-level proxy can route inbound traffic to the right DO in a multi-tenant deployment. Omit for single-tenant. |
 | `perSenderRateLimit`   | `{perMinute, perHour?}` | `{perMinute: 10, perHour: 100}`  | Conservative default. Tune per deployment. |
 | `perAccountRateLimit`  | `{perMinute, perHour?}` | `{perMinute: 60, perHour: 1000}` | Sybil guard. Raise once confident. |
 | `clientFactory`        | `(acct) => TelegramClient` | (real Bot API)                   | Test hook. Swap for a fake in integration tests. |
@@ -114,10 +115,27 @@ subsequent chunks are continuation messages.
 ## Manual smoke test via `examples/basic-agent`
 
 The reference agent (`examples/basic-agent`) registers the Telegram
-channel unconditionally. A top-level file route
-`src/routes/telegram/webhook/$accountId.ts` proxies webhook traffic
-into the DO, so the URL registered with Telegram is
-`{PUBLIC_URL}/telegram/webhook/<accountId>`.
+channel unconditionally with its own `agentId` wired through, so the
+URL registered with Telegram is
+`{PUBLIC_URL}/telegram/webhook/<agentId>/<accountId>`. A top-level file
+route `src/routes/telegram/webhook/$agentId/$accountId.ts` extracts
+`agentId` from the path, resolves the right DO via
+`env.AGENT.idFromName(agentId)`, and forwards the inbound with the path
+rewritten back to `/telegram/webhook/<accountId>` so the channel's
+internal HTTP handler matches it. A deployment that runs several agent
+DOs — one per customer, persona, etc. — gets isolated Telegram routing
+for free.
+
+Single-tenant deployments can leave `agentId` unset in
+`defineTelegramChannel` and keep the shorter
+`{PUBLIC_URL}/telegram/webhook/<accountId>` shape; the proxy route and
+the registered URL must match either way.
+
+> **Upgrading an existing deployment.** Adding `agentId` to
+> `defineTelegramChannel` does **not** rewrite webhook URLs that
+> Telegram has already stored. After rolling out the change, re-run the
+> add-account flow (same `id`, same token) for each account so the
+> channel re-registers the new URL via `setWebhook`.
 
 End-to-end recipe (no env vars required):
 

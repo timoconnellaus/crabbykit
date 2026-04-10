@@ -55,6 +55,17 @@ export interface DefineTelegramChannelOptions {
    * to reach the DO).
    */
   publicUrl?: string;
+  /**
+   * Optional agent identifier embedded in the registered webhook URL
+   * as `/telegram/webhook/{agentId}/{accountId}`. A top-level proxy
+   * route in the host Worker can then extract `agentId`, resolve the
+   * right DO via `env.AGENT.idFromName(agentId)`, and forward the
+   * request with the path rewritten back to `/telegram/webhook/{accountId}`
+   * so the DO-internal handler still matches. Omit for single-tenant
+   * deployments — the URL then falls back to the original
+   * `/telegram/webhook/{accountId}` shape.
+   */
+  agentId?: string;
   /** Override the default per-sender rate-limit buckets. */
   perSenderRateLimit?: { perMinute: number; perHour?: number };
   /** Override the default per-account (Sybil) rate-limit buckets. */
@@ -169,7 +180,8 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
         "No public URL available for setWebhook. Pass publicUrl in the add action, set it on defineTelegramChannel, or add the account from a request whose origin is reachable from the Telegram servers.",
       );
     }
-    const webhookUrl = `${publicUrl.replace(/\/$/, "")}/telegram/webhook/${input.id}`;
+    const agentSegment = opts.agentId ? `/${encodeURIComponent(opts.agentId)}` : "";
+    const webhookUrl = `${publicUrl.replace(/\/$/, "")}/telegram/webhook${agentSegment}/${encodeURIComponent(input.id)}`;
 
     const account: TelegramAccount = {
       id: input.id,
@@ -314,7 +326,12 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
           await addAccount(
             context.storage,
             null,
-            { id, token: input.token, webhookSecret: input.webhookSecret, publicUrl: input.publicUrl },
+            {
+              id,
+              token: input.token,
+              webhookSecret: input.webhookSecret,
+              publicUrl: input.publicUrl,
+            },
             null,
           );
           return `Telegram account "${id}" added and webhook registered.`;

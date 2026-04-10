@@ -212,7 +212,11 @@ export const BasicAgent = defineAgent<Env>({
       // `telegram-accounts` config namespace), not via env vars.
       // `publicUrl` is an optional default; the add-account flow falls
       // back to the incoming request origin when it's missing.
-      defineTelegramChannel({ publicUrl: env.PUBLIC_URL }),
+      // `agentId` is embedded in the registered webhook URL
+      // (`/telegram/webhook/<agentId>/<accountId>`) so the top-level
+      // proxy route can resolve the right DO in a multi-tenant
+      // deployment.
+      defineTelegramChannel({ agentId, publicUrl: env.PUBLIC_URL }),
       skills({
         storage,
         registry: new D1SkillRegistry(env.SKILL_DB, { seeds: EXAMPLE_SKILL_SEEDS }),
