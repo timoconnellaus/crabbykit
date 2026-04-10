@@ -215,6 +215,10 @@ Registration order determines hook execution order. Each `beforeInference` hook 
 
 Never mutate existing entries. The tree structure (parent_id) supports branching. Compaction entries act as checkpoints — `buildContext()` walks from leaf to the most recent compaction boundary.
 
+### Runtime-mutable capability state belongs in `ConfigStore` / `CapabilityStorage`, not `defineAgent`
+
+The `defineAgent` closure wires the *set of capability types* that exist in the code — that's genuinely compile-time. Everything else a human operator or the agent itself needs to tune at runtime (accounts, credentials, enabled flags, schedules, skill toggles, channel subscriptions) belongs in `ConfigStore` + per-capability `CapabilityStorage`, exposed via `configNamespaces` (agent-driven CRUD) + `onAction` (UI-driven CRUD) + `broadcastState` (live UI sync). Never bake env-var-derived runtime state into a capability factory's closure — it forces a redeploy for every change. The Telegram channel (`packages/channel-telegram`) is the reference implementation of this pattern.
+
 ### Transport protocol uses discriminated unions
 
 All messages (both `ServerMessage` and `ClientMessage`) discriminate on the `type` field. Server messages include `sessionId` except for global broadcasts. Protocol types use snake_case for `type` values (e.g., `agent_event`, `tool_event`) — this is intentional and matches the underlying event types from pi-agent-core.

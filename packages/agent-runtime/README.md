@@ -168,3 +168,50 @@ user on their most recent channel).
 See `packages/channel-telegram/README.md` for a concrete end-to-end
 example including bot setup, config shape, and a Cloudflare Quick Tunnel
 smoke test.
+
+## Dynamic capability state
+
+The SDK makes a sharp distinction between two tiers of "agent
+configuration":
+
+- **Code tier** — the set of capability *types* wired in at `defineAgent`
+  time. This is genuinely compile-time: you can't invoke a function that
+  isn't bundled into the worker.
+- **State tier** — per-DO runtime state (accounts, credentials, enabled
+  flags, tunable parameters). This lives in `ConfigStore` and
+  `CapabilityStorage`, and is editable without a redeploy.
+
+Anything that a human operator or the agent itself needs to mutate
+**should live in the state tier**, not baked into a `defineAgent`
+closure. The Telegram channel is the reference implementation of this
+pattern — its bot accounts are stored per-DO, exposed to the agent via
+`configNamespaces`, to the UI via `capability_action` / `onAction`, and
+to clients via `broadcastState` / `capability_state`. A user can add
+a Telegram bot by pasting a token into the UI; no env vars, no
+redeploy.
+
+**To adopt the pattern in a new capability:**
+
+1. **Store state in `CapabilityStorage`** (scoped per-capability
+   automatically). Use a small storage wrapper class for type safety —
+   see `TelegramAccountStore` in `packages/channel-telegram` for a
+   minimal example.
+2. **Expose `configNamespaces`** for agent-driven CRUD. Use a
+   pattern-matched namespace (`/^my-thing:(.+)$/`) for per-item read /
+   update / delete, plus an exact-match namespace for listing. The
+   `prompt-scheduler` capability is the reference.
+3. **Expose `onAction`** for UI-driven CRUD. Route the mutation
+   helpers through a single internal function so agent and UI paths
+   share one code path and stay consistent.
+4. **Broadcast state on every mutation** via
+   `ctx.broadcastState("sync", redactedView, "global")`. Also broadcast
+   from `onConnect` so newly connecting UIs hydrate immediately.
+5. **Never echo credentials back.** Define a redacted view type and
+   ensure both the namespace `get` and the state broadcast convert to
+   it. Tokens, secrets, and keys stay server-side.
+
+The runtime currently does NOT support a universal `enabled: boolean`
+flag on capabilities — that's a documented follow-up. For now a
+capability that wants to be toggleable should encode an `enabled`
+field in its own config schema and check it inside `tools()` /
+`promptSections()` / hooks.

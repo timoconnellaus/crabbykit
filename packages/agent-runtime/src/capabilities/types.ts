@@ -255,6 +255,16 @@ export interface CapabilityHttpContext {
   /** Broadcast capability state to connected clients. */
   broadcastState: (event: string, data: unknown, scope?: "session" | "global") => void;
   /**
+   * Path parameters extracted from the handler's declared path pattern.
+   *
+   * Handlers may declare paths with `/:name` wildcards (e.g.
+   * `/telegram/webhook/:accountId`). The runtime matches the incoming
+   * request against each handler's path, and when a wildcard segment
+   * matches, the value is exposed here by name. Exact-match paths (no
+   * `:` segments) see an empty object.
+   */
+  params: Record<string, string>;
+  /**
    * Shared runtime rate limiter. Capabilities calling this MUST NOT
    * implement their own rate-limit counters — see `RateLimiter` for the
    * atomicity contract.

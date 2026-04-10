@@ -58,14 +58,9 @@ export interface Env {
   // Browserbase (set via .dev.vars or wrangler secret put)
   BROWSERBASE_API_KEY: string;
   BROWSERBASE_PROJECT_ID: string;
-  // Telegram channel (optional — leave blank to disable)
-  //   TELEGRAM_BOT_TOKEN       : the token from @BotFather
-  //   TELEGRAM_WEBHOOK_SECRET  : random secret, passed as `secret_token`
-  //                              to setWebhook and verified on every inbound
-  //   PUBLIC_URL               : public base URL where the agent is reachable
-  //                              (e.g. https://xxx.trycloudflare.com during dev)
-  TELEGRAM_BOT_TOKEN?: string;
-  TELEGRAM_WEBHOOK_SECRET?: string;
+  // Default public URL used by channels (e.g. Telegram) when registering
+  // webhooks. Optional — the add-account flow falls back to deriving one
+  // from the incoming request origin when this isn't set.
   PUBLIC_URL?: string;
 }
 
@@ -212,27 +207,12 @@ export const BasicAgent = defineAgent<Env>({
         },
       }),
       aiProxy({ apiKey: () => env.OPENROUTER_API_KEY }),
-      // Telegram channel — only registered when both the bot token and
-      // webhook secret are present. Tune the rate-limit defaults per
-      // deployment; the defaults baked into defineTelegramChannel are
-      // deliberately conservative (10/min per sender, 60/min per account).
-      ...(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_WEBHOOK_SECRET
-        ? [
-            defineTelegramChannel({
-              publicUrl: env.PUBLIC_URL,
-              accountsFromEnv: (e) => {
-                const typed = e as Env;
-                return [
-                  {
-                    id: "default",
-                    token: typed.TELEGRAM_BOT_TOKEN!,
-                    webhookSecret: typed.TELEGRAM_WEBHOOK_SECRET!,
-                  },
-                ];
-              },
-            }),
-          ]
-        : []),
+      // Telegram channel. Registered unconditionally — accounts are
+      // managed at runtime from the Channels UI (or via the
+      // `telegram-accounts` config namespace), not via env vars.
+      // `publicUrl` is an optional default; the add-account flow falls
+      // back to the incoming request origin when it's missing.
+      defineTelegramChannel({ publicUrl: env.PUBLIC_URL }),
       skills({
         storage,
         registry: new D1SkillRegistry(env.SKILL_DB, { seeds: EXAMPLE_SKILL_SEEDS }),

@@ -20,9 +20,10 @@
   // - AWS_ACCESS_KEY_ID     (R2 API token — for container FUSE mount)
   // - AWS_SECRET_ACCESS_KEY (R2 API token — for container FUSE mount)
   // - R2_ACCOUNT_ID         (Cloudflare account ID — for container FUSE mount)
-  // - TELEGRAM_BOT_TOKEN     (optional — enables the Telegram channel)
-  // - TELEGRAM_WEBHOOK_SECRET (optional — random string, sent as secret_token)
-  // - PUBLIC_URL             (optional — e.g. https://xxx.trycloudflare.com)
+  // - PUBLIC_URL            (optional — default webhook origin used by the
+  //                          Telegram channel; e.g. https://xxx.trycloudflare.com.
+  //                          Telegram bot tokens themselves are NOT set as env
+  //                          vars; they're added from the Channels UI page.)
   "durable_objects": {
     "bindings": [
       {

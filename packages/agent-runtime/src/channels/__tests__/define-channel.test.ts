@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentContext } from "../../agent-runtime.js";
 import type { CapabilityStorage } from "../../capabilities/storage.js";
-import type { CapabilityHookContext, CapabilityHttpContext } from "../../capabilities/types.js";
+import type { CapabilityHttpContext } from "../../capabilities/types.js";
 import { SessionStore } from "../../session/session-store.js";
 import { createMockSqlStore } from "../../test-helpers/mock-sql-storage.js";
 import { defineChannel } from "../define-channel.js";
 import type { ChannelDefinition } from "../types.js";
 
 /**
- * Simple in-memory capability storage for the helper. The real runtime
- * wraps DO KV, but these tests exercise the helper in isolation.
+ * Simple in-memory capability storage. The real runtime wraps DO KV,
+ * but these tests exercise the helper in isolation.
  */
 function makeStorage(): CapabilityStorage {
   const data = new Map<string, unknown>();
@@ -33,10 +33,6 @@ function makeStorage(): CapabilityStorage {
   };
 }
 
-/**
- * Minimal test channel definition. Mocks every hook so tests can assert
- * what was called with what.
- */
 interface TestAccount {
   id: string;
   tag: string;
@@ -47,13 +43,20 @@ interface TestInbound {
   messageId: number;
 }
 
+/**
+ * Build a `ChannelDefinition` backed by an in-memory account registry.
+ * The test mutates `accounts` between calls to simulate runtime add /
+ * remove flows.
+ */
 function makeChannelDef(
+  accounts: TestAccount[] = [{ id: "acct-a", tag: "primary" }],
   overrides: Partial<ChannelDefinition<TestAccount, TestInbound>> = {},
 ): ChannelDefinition<TestAccount, TestInbound> {
   return {
     id: "test-ch",
-    accounts: () => [{ id: "acct-a", tag: "primary" }],
-    webhookPath: (a) => `/webhook/${a.id}`,
+    getAccount: async (id) => accounts.find((a) => a.id === id) ?? null,
+    listAccounts: async () => accounts,
+    webhookPathPattern: "/webhook/:accountId",
     verifyWebhook: () => true,
     parseWebhook: async (req) => {
       const body = (await req.json()) as {
@@ -100,6 +103,7 @@ function makeAgentContext(storage: CapabilityStorage): AgentContext {
 function makeHttpContext(opts: {
   storage: CapabilityStorage;
   sessionStore: SessionStore;
+  params?: Record<string, string>;
   rateLimit?: CapabilityHttpContext["rateLimit"];
   sendPrompt?: CapabilityHttpContext["sendPrompt"];
 }): CapabilityHttpContext {
@@ -108,13 +112,14 @@ function makeHttpContext(opts: {
     sessionStore: opts.sessionStore,
     broadcastToAll: () => {},
     broadcastState: () => {},
+    params: opts.params ?? { accountId: "acct-a" },
     rateLimit: opts.rateLimit ?? { consume: async () => ({ allowed: true }) },
     sendPrompt:
       opts.sendPrompt ?? (async (o) => ({ sessionId: o.sessionId ?? "s1", response: "ok" })),
   };
 }
 
-// Helper to build a webhook Request with a JSON body.
+/** Build a webhook POST request with a JSON body. The URL is cosmetic — the path is already matched via `ctx.params`. */
 function webhookRequest(body: Record<string, unknown>): Request {
   return new Request("https://agent.test/webhook/acct-a", {
     method: "POST",
@@ -132,13 +137,50 @@ describe("defineChannel", () => {
     storage = makeStorage();
   });
 
-  describe("inbound pipeline", () => {
-    it("returns 403 when verifyWebhook returns false", async () => {
-      const sendPrompt = vi.fn();
-      const def = makeChannelDef({ verifyWebhook: () => false });
-      const cap = defineChannel(def);
+  describe("HTTP handler registration", () => {
+    it("registers a single handler at the webhookPathPattern", () => {
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       expect(handlers).toHaveLength(1);
+      expect(handlers[0].method).toBe("POST");
+      expect(handlers[0].path).toBe("/webhook/:accountId");
+    });
+  });
+
+  describe("inbound pipeline", () => {
+    it("returns 403 when the path-param account id is unknown", async () => {
+      const sendPrompt = vi.fn();
+      const cap = defineChannel(makeChannelDef());
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
+      const resp = await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({
+          storage,
+          sessionStore,
+          sendPrompt,
+          params: { accountId: "not-a-thing" },
+        }),
+      );
+      expect(resp.status).toBe(403);
+      expect(sendPrompt).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 when no accountId is present in params (definition bug)", async () => {
+      const sendPrompt = vi.fn();
+      const cap = defineChannel(makeChannelDef());
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
+      const resp = await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({ storage, sessionStore, sendPrompt, params: {} }),
+      );
+      expect(resp.status).toBe(403);
+      expect(sendPrompt).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 when verifyWebhook returns false", async () => {
+      const sendPrompt = vi.fn();
+      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { verifyWebhook: () => false }));
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const resp = await handlers[0].handler(
         webhookRequest({ senderId: "@alice", text: "hi" }),
         makeHttpContext({ storage, sessionStore, sendPrompt }),
@@ -149,8 +191,9 @@ describe("defineChannel", () => {
 
     it("returns 200 without processing when parseWebhook returns null", async () => {
       const sendPrompt = vi.fn();
-      const def = makeChannelDef({ parseWebhook: async () => null });
-      const cap = defineChannel(def);
+      const cap = defineChannel(
+        makeChannelDef([{ id: "acct-a", tag: "primary" }], { parseWebhook: async () => null }),
+      );
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const resp = await handlers[0].handler(
         webhookRequest({ senderId: "@alice", text: "hi" }),
@@ -169,8 +212,7 @@ describe("defineChannel", () => {
           return { allowed: true };
         }),
       };
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const resp = await handlers[0].handler(
         webhookRequest({ senderId: "@alice", text: "hi" }),
@@ -178,7 +220,6 @@ describe("defineChannel", () => {
       );
       expect(resp.status).toBe(200);
       expect(sendPrompt).not.toHaveBeenCalled();
-      // Only the per-sender bucket should have been consumed.
       expect(rateLimit.consume).toHaveBeenCalledTimes(1);
     });
 
@@ -191,8 +232,7 @@ describe("defineChannel", () => {
           return { allowed: true };
         }),
       };
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const resp = await handlers[0].handler(
         webhookRequest({ senderId: "@alice", text: "hi" }),
@@ -200,7 +240,6 @@ describe("defineChannel", () => {
       );
       expect(resp.status).toBe(200);
       expect(sendPrompt).not.toHaveBeenCalled();
-      // Per-sender passes, per-account denies.
       expect(rateLimit.consume).toHaveBeenCalledTimes(2);
     });
 
@@ -209,8 +248,7 @@ describe("defineChannel", () => {
         sessionId: o.sessionId ?? "",
         response: "",
       }));
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const ctx = makeHttpContext({ storage, sessionStore, sendPrompt });
 
@@ -222,8 +260,6 @@ describe("defineChannel", () => {
         webhookRequest({ senderId: "@alice", text: "two", chatId: 123, messageId: 2 }),
         ctx,
       );
-
-      // Wait a tick for the fire-and-forget sendPrompt inside the handler.
       await new Promise((r) => setTimeout(r, 10));
 
       expect(sendPrompt).toHaveBeenCalledTimes(2);
@@ -232,21 +268,19 @@ describe("defineChannel", () => {
       expect(first.sessionId).toBeTruthy();
       expect(first.sessionId).toBe(second.sessionId);
 
-      // Exactly one session row exists for this (source, sender) pair.
       const found = sessionStore.findBySourceAndSender("test-ch", "@alice");
       expect(found).not.toBeNull();
       expect(found?.sender).toBe("@alice");
     });
 
     it("stashes the inbound payload under channel-inbound:<sessionId>", async () => {
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
-      const sendPrompt = vi.fn(async (o: { sessionId?: string }) => ({
-        sessionId: o.sessionId ?? "",
-        response: "",
-      }));
-      const ctx = makeHttpContext({ storage, sessionStore, sendPrompt });
+      const ctx = makeHttpContext({
+        storage,
+        sessionStore,
+        sendPrompt: async (o) => ({ sessionId: o.sessionId ?? "", response: "" }),
+      });
 
       await handlers[0].handler(
         webhookRequest({ senderId: "@bob", text: "hi", chatId: 555, messageId: 77 }),
@@ -263,8 +297,7 @@ describe("defineChannel", () => {
     });
 
     it("overwrites the stash on subsequent inbounds for the same session", async () => {
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const ctx = makeHttpContext({ storage, sessionStore });
 
@@ -283,13 +316,43 @@ describe("defineChannel", () => {
       };
       expect(stash.inbound.messageId).toBe(20);
     });
+
+    it("looks up the account dynamically (reflects runtime mutations)", async () => {
+      // Start with NO accounts — webhook should 403. Then add one —
+      // next webhook should succeed, without rebuilding the handler.
+      const sendPrompt = vi.fn(async (o: { sessionId?: string }) => ({
+        sessionId: o.sessionId ?? "s1",
+        response: "",
+      }));
+      const accounts: TestAccount[] = [];
+      const cap = defineChannel(makeChannelDef(accounts));
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
+
+      const resp1 = await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({ storage, sessionStore, sendPrompt, params: { accountId: "acct-a" } }),
+      );
+      expect(resp1.status).toBe(403);
+      expect(sendPrompt).not.toHaveBeenCalled();
+
+      // Mutate the backing store — real channels do this via their own
+      // add-account flow (see packages/channel-telegram).
+      accounts.push({ id: "acct-a", tag: "primary" });
+
+      const resp2 = await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({ storage, sessionStore, sendPrompt, params: { accountId: "acct-a" } }),
+      );
+      expect(resp2.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(sendPrompt).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("outbound (afterTurn)", () => {
     it("reads the stash and calls sendReply with the stashed inbound", async () => {
       const sendReply = vi.fn(async () => {});
-      const def = makeChannelDef({ sendReply });
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { sendReply }));
 
       // Seed the stash directly (as if a webhook had arrived).
       await storage.put("channel-inbound:sess-1", {
@@ -310,8 +373,7 @@ describe("defineChannel", () => {
 
     it("is a no-op for sessions with no stash", async () => {
       const sendReply = vi.fn(async () => {});
-      const def = makeChannelDef({ sendReply });
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { sendReply }));
       const ctx = makeAgentContext(storage);
       await cap.afterTurn!(ctx, "ws-session", "anything");
       expect(sendReply).not.toHaveBeenCalled();
@@ -319,11 +381,7 @@ describe("defineChannel", () => {
 
     it("drops the dispatch if the stashed accountId is no longer configured", async () => {
       const sendReply = vi.fn(async () => {});
-      const def = makeChannelDef({
-        accounts: () => [{ id: "acct-a", tag: "primary" }],
-        sendReply,
-      });
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { sendReply }));
       await storage.put("channel-inbound:sess-1", {
         accountId: "acct-gone",
         inbound: { chatId: 1, messageId: 1 },
@@ -336,8 +394,7 @@ describe("defineChannel", () => {
       const sendReply = vi.fn(async () => {
         throw new Error("telegram down");
       });
-      const def = makeChannelDef({ sendReply });
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { sendReply }));
       await storage.put("channel-inbound:sess-1", {
         accountId: "acct-a",
         inbound: { chatId: 1, messageId: 1 },
@@ -348,8 +405,7 @@ describe("defineChannel", () => {
     });
 
     it("does NOT delete the stash after dispatch", async () => {
-      const def = makeChannelDef();
-      const cap = defineChannel(def);
+      const cap = defineChannel(makeChannelDef());
       await storage.put("channel-inbound:sess-1", {
         accountId: "acct-a",
         inbound: { chatId: 1, messageId: 1 },
@@ -357,76 +413,6 @@ describe("defineChannel", () => {
       await cap.afterTurn!(makeAgentContext(storage), "sess-1", "text");
       const stillThere = await storage.get("channel-inbound:sess-1");
       expect(stillThere).toBeDefined();
-    });
-  });
-
-  describe("lifecycle hooks", () => {
-    it("calls onAccountAdded for every configured account on onConnect", async () => {
-      const accountsSeen: TestAccount[] = [];
-      const onAccountAdded = vi.fn(async (account: TestAccount) => {
-        accountsSeen.push(account);
-      });
-      const def = makeChannelDef({
-        accounts: () => [
-          { id: "a1", tag: "one" },
-          { id: "a2", tag: "two" },
-        ],
-        onAccountAdded,
-      });
-      const cap = defineChannel(def);
-      // First, httpHandlers populates the cache so onConnect sees accounts.
-      cap.httpHandlers!(makeAgentContext(storage));
-      await cap.hooks!.onConnect!({
-        agentId: "",
-        sessionId: "",
-        // biome-ignore lint/suspicious/noExplicitAny: stub
-        sessionStore: {} as any,
-        storage,
-        capabilityIds: [def.id],
-      } as CapabilityHookContext);
-      expect(onAccountAdded).toHaveBeenCalledTimes(2);
-      expect(accountsSeen[0]).toEqual({ id: "a1", tag: "one" });
-      expect(accountsSeen[1]).toEqual({ id: "a2", tag: "two" });
-    });
-
-    it("calls onAccountRemoved for every configured account at dispose", async () => {
-      const onAccountRemoved = vi.fn(async () => {});
-      const def = makeChannelDef({
-        accounts: () => [
-          { id: "a1", tag: "one" },
-          { id: "a2", tag: "two" },
-        ],
-        onAccountRemoved,
-      });
-      const cap = defineChannel(def);
-      cap.httpHandlers!(makeAgentContext(storage));
-      await cap.dispose!();
-      expect(onAccountRemoved).toHaveBeenCalledTimes(2);
-    });
-
-    it("survives onAccountAdded throwing without aborting the rest", async () => {
-      const calls: string[] = [];
-      const def = makeChannelDef({
-        accounts: () => [
-          { id: "a1", tag: "one" },
-          { id: "a2", tag: "two" },
-        ],
-        onAccountAdded: async (account) => {
-          calls.push(account.id);
-          if (account.id === "a1") throw new Error("webhook 409");
-        },
-      });
-      const cap = defineChannel(def);
-      cap.httpHandlers!(makeAgentContext(storage));
-      await cap.hooks!.onConnect!({
-        agentId: "",
-        sessionId: "",
-        // biome-ignore lint/suspicious/noExplicitAny: stub
-        sessionStore: {} as any,
-        storage,
-        capabilityIds: [def.id],
-      } as CapabilityHookContext);
-      expect(calls).toEqual(["a1", "a2"]);
     });
   });
 });

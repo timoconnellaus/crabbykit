@@ -37,6 +37,7 @@ function SessionLayout() {
     if (pathname.endsWith("/apps")) return "apps";
     if (pathname.endsWith("/schedules")) return "schedules";
     if (pathname.endsWith("/skills")) return "skills";
+    if (pathname.endsWith("/channels")) return "channels";
     return "chat";
   }, [routerState.location.pathname]);
 

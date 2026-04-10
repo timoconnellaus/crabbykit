@@ -67,6 +67,16 @@ export { TaskTreePanel } from "./components/task-tree-panel";
 // Task state hook
 export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
 export { useTaskState } from "./hooks/use-task-state";
+
+// Channels (Telegram) panel
+export type { AccountListItemProps } from "./components/channels/account-list-item";
+export { AccountListItem } from "./components/channels/account-list-item";
+export type { AddTelegramAccountFormProps } from "./components/channels/add-telegram-account-form";
+export { AddTelegramAccountForm } from "./components/channels/add-telegram-account-form";
+export type { ChannelsPanelProps } from "./components/channels/channels-panel";
+export { ChannelsPanel } from "./components/channels/channels-panel";
+export type { AddTelegramAccountInput, TelegramAccountView } from "./hooks/use-telegram-channel";
+export { useTelegramChannel } from "./hooks/use-telegram-channel";
 export { ThinkingIndicator } from "./components/thinking-indicator";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";

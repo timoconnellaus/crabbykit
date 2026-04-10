@@ -21,6 +21,7 @@ function createMockCtx(storage = createMapStorage()) {
     storage,
     broadcastToAll: vi.fn(),
     broadcastState: vi.fn(),
+    params: {},
     rateLimit: { consume: vi.fn().mockResolvedValue({ allowed: true }) },
     sendPrompt: vi.fn(),
   };

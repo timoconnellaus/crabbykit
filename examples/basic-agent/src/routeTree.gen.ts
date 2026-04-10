@@ -16,17 +16,19 @@ import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as AgentIdSkillsRouteImport } from './routes/$agentId/skills'
 import { Route as AgentIdSchedulesRouteImport } from './routes/$agentId/schedules'
 import { Route as AgentIdChatRouteImport } from './routes/$agentId/chat'
+import { Route as AgentIdChannelsRouteImport } from './routes/$agentId/channels'
 import { Route as AgentIdAppsRouteImport } from './routes/$agentId/apps'
 import { Route as AgentIdSessionIdRouteImport } from './routes/$agentId/$sessionId'
+import { Route as TelegramWebhookAccountIdRouteImport } from './routes/telegram/webhook/$accountId'
 import { Route as AgentIdSessionIdSkillsRouteImport } from './routes/$agentId/$sessionId/skills'
 import { Route as AgentIdSessionIdSchedulesRouteImport } from './routes/$agentId/$sessionId/schedules'
 import { Route as AgentIdSessionIdChatRouteImport } from './routes/$agentId/$sessionId/chat'
+import { Route as AgentIdSessionIdChannelsRouteImport } from './routes/$agentId/$sessionId/channels'
 import { Route as AgentIdSessionIdAppsRouteImport } from './routes/$agentId/$sessionId/apps'
 import { Route as ApiPreviewIdSplatRouteImport } from './routes/api/preview/$id/$'
 import { Route as ApiAppsSlugSplatRouteImport } from './routes/api/apps/$slug/$'
 import { Route as ApiAgentAgentIdSplatRouteImport } from './routes/api/agent/$agentId/$'
 import { Route as ApiDeployAgentIdDeployIdSplatRouteImport } from './routes/api/deploy/$agentId/$deployId/$'
-import { Route as TelegramWebhookAccountIdRouteImport } from './routes/telegram/webhook/$accountId'
 
 const AgentIdRoute = AgentIdRouteImport.update({
   id: '/$agentId',
@@ -63,6 +65,11 @@ const AgentIdChatRoute = AgentIdChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AgentIdRoute,
 } as any)
+const AgentIdChannelsRoute = AgentIdChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
+  getParentRoute: () => AgentIdRoute,
+} as any)
 const AgentIdAppsRoute = AgentIdAppsRouteImport.update({
   id: '/apps',
   path: '/apps',
@@ -73,6 +80,12 @@ const AgentIdSessionIdRoute = AgentIdSessionIdRouteImport.update({
   path: '/$sessionId',
   getParentRoute: () => AgentIdRoute,
 } as any)
+const TelegramWebhookAccountIdRoute =
+  TelegramWebhookAccountIdRouteImport.update({
+    id: '/telegram/webhook/$accountId',
+    path: '/telegram/webhook/$accountId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AgentIdSessionIdSkillsRoute = AgentIdSessionIdSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -89,6 +102,12 @@ const AgentIdSessionIdChatRoute = AgentIdSessionIdChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AgentIdSessionIdRoute,
 } as any)
+const AgentIdSessionIdChannelsRoute =
+  AgentIdSessionIdChannelsRouteImport.update({
+    id: '/channels',
+    path: '/channels',
+    getParentRoute: () => AgentIdSessionIdRoute,
+  } as any)
 const AgentIdSessionIdAppsRoute = AgentIdSessionIdAppsRouteImport.update({
   id: '/apps',
   path: '/apps',
@@ -115,50 +134,49 @@ const ApiDeployAgentIdDeployIdSplatRoute =
     path: '/api/deploy/$agentId/$deployId/$',
     getParentRoute: () => rootRouteImport,
   } as any)
-const TelegramWebhookAccountIdRoute = TelegramWebhookAccountIdRouteImport.update({
-  id: '/telegram/webhook/$accountId',
-  path: '/telegram/webhook/$accountId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$agentId': typeof AgentIdRouteWithChildren
   '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
+  '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
   '/$agentId/': typeof AgentIdIndexRoute
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
-  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
+  '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
   '/$agentId': typeof AgentIdIndexRoute
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
-  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -166,20 +184,22 @@ export interface FileRoutesById {
   '/$agentId': typeof AgentIdRouteWithChildren
   '/$agentId/$sessionId': typeof AgentIdSessionIdRouteWithChildren
   '/$agentId/apps': typeof AgentIdAppsRoute
+  '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
   '/$agentId/': typeof AgentIdIndexRoute
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
+  '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
+  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
   '/api/apps/$slug/$': typeof ApiAppsSlugSplatRoute
   '/api/preview/$id/$': typeof ApiPreviewIdSplatRoute
   '/api/deploy/$agentId/$deployId/$': typeof ApiDeployAgentIdDeployIdSplatRoute
-  '/telegram/webhook/$accountId': typeof TelegramWebhookAccountIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -188,70 +208,76 @@ export interface FileRouteTypes {
     | '/$agentId'
     | '/$agentId/$sessionId'
     | '/$agentId/apps'
+    | '/$agentId/channels'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
     | '/$agentId/'
     | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
+    | '/telegram/webhook/$accountId'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
-    | '/telegram/webhook/$accountId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$agentId/$sessionId'
     | '/$agentId/apps'
+    | '/$agentId/channels'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
     | '/$agentId'
     | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
+    | '/telegram/webhook/$accountId'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
-    | '/telegram/webhook/$accountId'
   id:
     | '__root__'
     | '/'
     | '/$agentId'
     | '/$agentId/$sessionId'
     | '/$agentId/apps'
+    | '/$agentId/channels'
     | '/$agentId/chat'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
     | '/$agentId/'
     | '/$agentId/$sessionId/apps'
+    | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
+    | '/telegram/webhook/$accountId'
     | '/api/agent/$agentId/$'
     | '/api/apps/$slug/$'
     | '/api/preview/$id/$'
     | '/api/deploy/$agentId/$deployId/$'
-    | '/telegram/webhook/$accountId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentIdRoute: typeof AgentIdRouteWithChildren
   ApiAgentsRoute: typeof ApiAgentsRoute
+  TelegramWebhookAccountIdRoute: typeof TelegramWebhookAccountIdRoute
   ApiAgentAgentIdSplatRoute: typeof ApiAgentAgentIdSplatRoute
   ApiAppsSlugSplatRoute: typeof ApiAppsSlugSplatRoute
   ApiPreviewIdSplatRoute: typeof ApiPreviewIdSplatRoute
   ApiDeployAgentIdDeployIdSplatRoute: typeof ApiDeployAgentIdDeployIdSplatRoute
-  TelegramWebhookAccountIdRoute: typeof TelegramWebhookAccountIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -305,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentIdChatRouteImport
       parentRoute: typeof AgentIdRoute
     }
+    '/$agentId/channels': {
+      id: '/$agentId/channels'
+      path: '/channels'
+      fullPath: '/$agentId/channels'
+      preLoaderRoute: typeof AgentIdChannelsRouteImport
+      parentRoute: typeof AgentIdRoute
+    }
     '/$agentId/apps': {
       id: '/$agentId/apps'
       path: '/apps'
@@ -318,6 +351,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$agentId/$sessionId'
       preLoaderRoute: typeof AgentIdSessionIdRouteImport
       parentRoute: typeof AgentIdRoute
+    }
+    '/telegram/webhook/$accountId': {
+      id: '/telegram/webhook/$accountId'
+      path: '/telegram/webhook/$accountId'
+      fullPath: '/telegram/webhook/$accountId'
+      preLoaderRoute: typeof TelegramWebhookAccountIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/$agentId/$sessionId/skills': {
       id: '/$agentId/$sessionId/skills'
@@ -338,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/$agentId/$sessionId/chat'
       preLoaderRoute: typeof AgentIdSessionIdChatRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
+    '/$agentId/$sessionId/channels': {
+      id: '/$agentId/$sessionId/channels'
+      path: '/channels'
+      fullPath: '/$agentId/$sessionId/channels'
+      preLoaderRoute: typeof AgentIdSessionIdChannelsRouteImport
       parentRoute: typeof AgentIdSessionIdRoute
     }
     '/$agentId/$sessionId/apps': {
@@ -375,18 +422,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDeployAgentIdDeployIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/telegram/webhook/$accountId': {
-      id: '/telegram/webhook/$accountId'
-      path: '/telegram/webhook/$accountId'
-      fullPath: '/telegram/webhook/$accountId'
-      preLoaderRoute: typeof TelegramWebhookAccountIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 interface AgentIdSessionIdRouteChildren {
   AgentIdSessionIdAppsRoute: typeof AgentIdSessionIdAppsRoute
+  AgentIdSessionIdChannelsRoute: typeof AgentIdSessionIdChannelsRoute
   AgentIdSessionIdChatRoute: typeof AgentIdSessionIdChatRoute
   AgentIdSessionIdSchedulesRoute: typeof AgentIdSessionIdSchedulesRoute
   AgentIdSessionIdSkillsRoute: typeof AgentIdSessionIdSkillsRoute
@@ -394,6 +435,7 @@ interface AgentIdSessionIdRouteChildren {
 
 const AgentIdSessionIdRouteChildren: AgentIdSessionIdRouteChildren = {
   AgentIdSessionIdAppsRoute: AgentIdSessionIdAppsRoute,
+  AgentIdSessionIdChannelsRoute: AgentIdSessionIdChannelsRoute,
   AgentIdSessionIdChatRoute: AgentIdSessionIdChatRoute,
   AgentIdSessionIdSchedulesRoute: AgentIdSessionIdSchedulesRoute,
   AgentIdSessionIdSkillsRoute: AgentIdSessionIdSkillsRoute,
@@ -405,6 +447,7 @@ const AgentIdSessionIdRouteWithChildren =
 interface AgentIdRouteChildren {
   AgentIdSessionIdRoute: typeof AgentIdSessionIdRouteWithChildren
   AgentIdAppsRoute: typeof AgentIdAppsRoute
+  AgentIdChannelsRoute: typeof AgentIdChannelsRoute
   AgentIdChatRoute: typeof AgentIdChatRoute
   AgentIdSchedulesRoute: typeof AgentIdSchedulesRoute
   AgentIdSkillsRoute: typeof AgentIdSkillsRoute
@@ -414,6 +457,7 @@ interface AgentIdRouteChildren {
 const AgentIdRouteChildren: AgentIdRouteChildren = {
   AgentIdSessionIdRoute: AgentIdSessionIdRouteWithChildren,
   AgentIdAppsRoute: AgentIdAppsRoute,
+  AgentIdChannelsRoute: AgentIdChannelsRoute,
   AgentIdChatRoute: AgentIdChatRoute,
   AgentIdSchedulesRoute: AgentIdSchedulesRoute,
   AgentIdSkillsRoute: AgentIdSkillsRoute,
@@ -427,11 +471,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentIdRoute: AgentIdRouteWithChildren,
   ApiAgentsRoute: ApiAgentsRoute,
+  TelegramWebhookAccountIdRoute: TelegramWebhookAccountIdRoute,
   ApiAgentAgentIdSplatRoute: ApiAgentAgentIdSplatRoute,
   ApiAppsSlugSplatRoute: ApiAppsSlugSplatRoute,
   ApiPreviewIdSplatRoute: ApiPreviewIdSplatRoute,
   ApiDeployAgentIdDeployIdSplatRoute: ApiDeployAgentIdDeployIdSplatRoute,
-  TelegramWebhookAccountIdRoute: TelegramWebhookAccountIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

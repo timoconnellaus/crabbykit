@@ -1,4 +1,5 @@
 import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
+import type { CapabilityStorage } from "./../capabilities/storage.js";
 
 /**
  * A verified, parsed inbound payload from a channel webhook. Produced by
@@ -39,6 +40,12 @@ export interface RateLimitConfig {
  * constructions that omit any of the security-critical fields
  * (`verifyWebhook`, `parseWebhook`, `rateLimit.perSender`,
  * `rateLimit.perAccount`, `sendReply`).
+ *
+ * **Accounts are dynamic.** The definition does not take a static
+ * account list — instead it exposes `getAccount(id)` and `listAccounts()`
+ * which are called at request time. This lets consumers back accounts
+ * with per-DO storage that a human or an agent can mutate at runtime
+ * without a redeploy.
  */
 export interface ChannelDefinition<TAccount extends { id: string }, TInbound> {
   /**
@@ -47,11 +54,36 @@ export interface ChannelDefinition<TAccount extends { id: string }, TInbound> {
    */
   id: string;
 
-  /** Load accounts from the runtime env/config. */
-  accounts(env: unknown): TAccount[] | Promise<TAccount[]>;
+  /**
+   * Fetch a single account by id. Called at request time from inside
+   * the webhook handler (after the path-pattern matcher extracts the id)
+   * and from `afterTurn` when resolving the stashed account. Returns
+   * `null` when the account no longer exists — the webhook handler
+   * responds with HTTP 403 and `afterTurn` becomes a no-op.
+   *
+   * `storage` is the channel capability's own per-DO
+   * `CapabilityStorage`, plumbed through from the calling context.
+   * Channels that back accounts with external state (D1, env, etc.)
+   * can ignore it and close over their own source.
+   */
+  getAccount(accountId: string, storage: CapabilityStorage): Promise<TAccount | null>;
 
-  /** Webhook path per account (relative to the agent's public URL). */
-  webhookPath(account: TAccount): string;
+  /**
+   * List every configured account. Used by capability state broadcasts
+   * and by any consumer that needs to enumerate accounts (e.g. a UI).
+   * Not called on the webhook hot path — `getAccount` is preferred there.
+   */
+  listAccounts(storage: CapabilityStorage): Promise<TAccount[]>;
+
+  /**
+   * Webhook path pattern for the channel. MUST include exactly one
+   * `:accountId` path segment. The runtime's HTTP handler matcher
+   * extracts the id and exposes it via `ctx.params.accountId` before
+   * invoking the channel's pipeline.
+   *
+   * Example: `"/telegram/webhook/:accountId"`.
+   */
+  webhookPathPattern: string;
 
   /**
    * MANDATORY — verify the inbound request is authentic (e.g., HMAC,
@@ -85,15 +117,21 @@ export interface ChannelDefinition<TAccount extends { id: string }, TInbound> {
   sendReply(account: TAccount, inbound: TInbound, text: string): Promise<void>;
 
   /**
-   * Optional — invoked at capability initialization for each account,
-   * *after* the HTTP handlers are registered. Typical use: call the
-   * provider's `setWebhook` API with the now-live URL.
+   * Optional — called by the defining capability when an account is
+   * added at runtime (e.g., via a UI form or a config_set tool call).
+   * Typical use: call the provider's `setWebhook` API with the
+   * now-resolved public URL.
+   *
+   * Unlike the previous design, this is NOT wired into `onConnect`.
+   * Channels are responsible for calling it from their own add-flow
+   * handler so that the webhook is registered immediately after the
+   * user clicks "Add", not on the next WebSocket connect.
    */
   onAccountAdded?(account: TAccount, ctx: CapabilityHookContext): Promise<void>;
 
   /**
-   * Optional — invoked at capability disposal for each account. Typical
-   * use: call the provider's `deleteWebhook` API.
+   * Optional — mirror of `onAccountAdded` for removal. Called by the
+   * defining capability from its remove-flow handler.
    */
   onAccountRemoved?(account: TAccount, ctx: CapabilityHookContext): Promise<void>;
 }

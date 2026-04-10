@@ -55,6 +55,7 @@ function makeSession(sessionId: string) {
     id: sessionId,
     name: "Test Session",
     source: "websocket",
+    sender: null as string | null,
     leafId: null as string | null,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T00:00:00Z",

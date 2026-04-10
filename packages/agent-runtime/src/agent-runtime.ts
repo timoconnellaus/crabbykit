@@ -11,7 +11,7 @@ import {
 } from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
-import { extractFinalAssistantText } from "./agent-runtime-helpers.js";
+import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
@@ -2260,18 +2260,20 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   } | null> {
     const handlers = this.resolveHttpHandlers();
     for (const h of handlers) {
-      if (h.method === method && h.path === pathname) {
-        const ctx: CapabilityHttpContext = {
-          sessionStore: this.sessionStore,
-          storage: h.storage,
-          broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
-          broadcastState: (event, data, scope) =>
-            this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),
-          rateLimit: this.rateLimiter,
-          sendPrompt: (opts) => this.handleAgentPrompt(opts),
-        };
-        return { handler: h.handler, ctx };
-      }
+      if (h.method !== method) continue;
+      const params = matchPathPattern(h.path, pathname);
+      if (params === null) continue;
+      const ctx: CapabilityHttpContext = {
+        sessionStore: this.sessionStore,
+        storage: h.storage,
+        broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+        broadcastState: (event, data, scope) =>
+          this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),
+        params,
+        rateLimit: this.rateLimiter,
+        sendPrompt: (opts) => this.handleAgentPrompt(opts),
+      };
+      return { handler: h.handler, ctx };
     }
     return null;
   }
@@ -2489,12 +2491,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
       executor.setContext({
         sendPrompt: (opts) => this.handleAgentPrompt(opts),
-        // `@claw-for-cloudflare/a2a` re-exports the SessionStore type by
-        // value — its `private sql` field forces nominal disagreement
-        // across workspace packages during cross-compilation. The shapes
-        // are otherwise identical, so we cast across the boundary.
-        // biome-ignore lint/suspicious/noExplicitAny: private-field nominal mismatch across workspace packages
-        sessionStore: this.sessionStore as any,
+        sessionStore: this.sessionStore,
         fetchFn: this.buildA2AStubFetch(),
       });
 

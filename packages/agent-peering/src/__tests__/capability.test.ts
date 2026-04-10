@@ -53,6 +53,7 @@ function makeHttpContext(storage: CapabilityStorage): CapabilityHttpContext {
     sessionStore: {} as CapabilityHttpContext["sessionStore"],
     broadcastToAll: vi.fn(),
     broadcastState: vi.fn(),
+    params: {},
     rateLimit: { consume: vi.fn().mockResolvedValue({ allowed: true }) },
     sendPrompt: vi.fn(),
   };

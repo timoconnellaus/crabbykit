@@ -16,46 +16,54 @@ export default defineAgent({
   model: "claude-opus-4-6",
   prompt: "You are a helpful assistant.",
   capabilities: [
+    // Register unconditionally — no env vars required. Accounts are
+    // added at runtime from the Channels UI (or via config_set).
     defineTelegramChannel({
-      publicUrl: "https://agent.example.com",
-      accountsFromEnv: (env) => [
-        {
-          id: "support",
-          token: (env as { TELEGRAM_SUPPORT_TOKEN: string }).TELEGRAM_SUPPORT_TOKEN,
-          webhookSecret: (env as { TELEGRAM_SUPPORT_SECRET: string }).TELEGRAM_SUPPORT_SECRET,
-        },
-      ],
+      publicUrl: "https://agent.example.com",  // optional; falls back to the request origin
     }),
   ],
 });
 ```
 
-On first boot, the channel calls the Bot API `setWebhook` with
-`publicUrl + "/telegram/webhook/<accountId>"` and the configured
-`webhookSecret`. Incoming webhooks are verified via the
-`X-Telegram-Bot-Api-Secret-Token` header.
+Accounts are stored per-DO, not in env vars. A user adds a bot by
+navigating to the agent's **Channels** page in the UI, clicking
+**+ Add account**, pasting their token + webhook secret, and hitting
+**Add account**. The channel's `onAction` handler persists the account
+in `CapabilityStorage`, calls the Bot API `setWebhook`, and broadcasts
+the new state so every connected client refreshes its list.
+
+The agent can manage the same accounts via tool calls to
+`config_set("telegram-account:<id>", { token, webhookSecret })` and
+`config_set("telegram-account:<id>", null)` for removal.
 
 ## Bot setup
 
 1. Talk to [@BotFather](https://t.me/BotFather) and create a new bot.
-2. Note the bot token — do NOT commit it to source.
-3. Pick a webhook secret string (random, ≥ 32 characters recommended).
-4. Set both as Cloudflare secrets:
-   ```bash
-   wrangler secret put TELEGRAM_SUPPORT_TOKEN
-   wrangler secret put TELEGRAM_SUPPORT_SECRET
-   ```
-5. Deploy. The agent's first boot registers the webhook automatically.
+2. Copy the bot token — you'll paste it into the UI.
+3. Deploy your agent somewhere with a public HTTPS origin (production
+   Worker, Cloudflare Quick Tunnel, ngrok, etc.).
+4. Open the agent in the UI → **Channels** tab → **+ Add account**.
+5. Paste the token, click **Generate** to create a webhook secret,
+   choose an account id (e.g. `"support"`), and submit.
+6. The panel updates to show the new account with its webhook URL and
+   **active** status. DM your bot — the reply should arrive.
+
+You can add multiple accounts (multiple bots) against the same agent
+by repeating the flow with different `id` values. Each account has its
+own rate-limit bucket.
 
 ## Config shape
 
 | Field                  | Type        | Default                                   | Notes |
 |------------------------|-------------|-------------------------------------------|-------|
-| `accountsFromEnv`      | `(env) => TelegramAccount[]` | (required)                       | Loader that extracts accounts from the worker env. |
-| `publicUrl`            | `string`    | (optional)                                | Base URL used for `setWebhook`. Omit if you register webhooks out-of-band. |
+| `publicUrl`            | `string`    | (optional)                                | Default base URL for `setWebhook`. Falls back to the incoming request origin at add-time. |
 | `perSenderRateLimit`   | `{perMinute, perHour?}` | `{perMinute: 10, perHour: 100}`  | Conservative default. Tune per deployment. |
 | `perAccountRateLimit`  | `{perMinute, perHour?}` | `{perMinute: 60, perHour: 1000}` | Sybil guard. Raise once confident. |
 | `clientFactory`        | `(acct) => TelegramClient` | (real Bot API)                   | Test hook. Swap for a fake in integration tests. |
+
+Accounts themselves are NOT passed in at construction time — they
+live in per-DO storage and are added via the UI or the agent's
+`config_set` tool.
 
 ## Rate-limit defaults (and why they're low)
 
@@ -105,53 +113,61 @@ subsequent chunks are continuation messages.
 
 ## Manual smoke test via `examples/basic-agent`
 
-The reference agent (`examples/basic-agent`) already registers this
-channel conditionally — if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET`
-are set in the env, the capability is added to the `"default"` agent DO.
-A top-level file route `src/routes/telegram/webhook/$accountId.ts` proxies
-webhook traffic into the DO without requiring the `/api/agent/:agentId/`
-prefix, so the URL you register with Telegram is simply
-`{PUBLIC_URL}/telegram/webhook/default`.
+The reference agent (`examples/basic-agent`) registers the Telegram
+channel unconditionally. A top-level file route
+`src/routes/telegram/webhook/$accountId.ts` proxies webhook traffic
+into the DO, so the URL registered with Telegram is
+`{PUBLIC_URL}/telegram/webhook/<accountId>`.
 
-End-to-end recipe:
+End-to-end recipe (no env vars required):
 
 ```bash
-# 1. Create a bot with @BotFather, copy the token, pick a random secret.
-export TELEGRAM_BOT_TOKEN="123456:AA..."
-export TELEGRAM_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+# 1. Create a bot with @BotFather, copy the token — you'll paste it
+#    into the UI, not set it as a secret.
 
 # 2. Boot the example agent against the remote Cloudflare edge.
 cd examples/basic-agent
 wrangler dev --remote &
 
-# 3. Open a Cloudflare Quick Tunnel at localhost:8787 (wrangler's default).
+# 3. Open a Cloudflare Quick Tunnel at localhost:8787.
 cloudflared tunnel --url http://localhost:8787
 # → copy the https://<random>.trycloudflare.com URL
 
-# 4. Set the public URL so `onAccountAdded` can register the webhook.
-export PUBLIC_URL="https://<random>.trycloudflare.com"
+# 4. (Optional) export PUBLIC_URL=https://<random>.trycloudflare.com
+#    and restart wrangler dev. This sets the default origin that new
+#    accounts will register their webhook against. If you skip this,
+#    the add-account flow falls back to the origin of whatever URL
+#    the UI was loaded from — usually also the tunnel — so it Just Works.
 
-# 5. Restart wrangler dev so all three env vars are picked up.
-#    On restart, the channel's onAccountAdded hook fires setWebhook against
-#    Telegram's Bot API. Confirm with:
-curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+# 5. Open the tunnel URL in your browser → pick the default agent →
+#    click the "Channels" tab → "+ Add account" →
+#      - account id: "support" (or whatever)
+#      - bot token: paste what @BotFather gave you
+#      - webhook secret: click "Generate"
+#      - submit
+#    The UI should show the new account with its webhook URL and
+#    "Webhook active" status within a second or two.
 
-# 6. DM the bot from your Telegram account.
-#    A session is created (source: "telegram", sender: "@yourhandle"),
-#    inference runs, and the reply arrives back in the chat.
+# 6. Confirm with Telegram itself if you like:
+curl "https://api.telegram.org/bot<YOUR_TOKEN>/getWebhookInfo"
+
+# 7. DM your bot from Telegram. A session is created
+#    (source: "telegram", sender: "@yourhandle"), inference runs,
+#    and the reply arrives back in the chat.
 ```
 
-For production via `wrangler deploy`, set the secrets once:
+**Verify rate limiting.** Send 15+ messages rapidly. Replies should
+stop arriving after 10 (the default per-sender `perMinute` bucket).
+Subsequent webhooks return HTTP 200 silently so Telegram doesn't
+retry-storm.
 
-```bash
-wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put TELEGRAM_WEBHOOK_SECRET
-wrangler secret put PUBLIC_URL   # e.g. https://basic-agent.example.workers.dev
-```
+**Verify persistence.** Restart `wrangler dev`. The account survives
+the restart (it lives in the DO's SQLite storage, not memory). No
+re-configuration needed.
 
-Send 15+ messages rapidly to verify per-sender rate-limiting. You should
-see the replies stop after 10 messages (the default per-minute bucket);
-subsequent webhooks will be silently acked with HTTP 200.
+For production via `wrangler deploy`, you don't need any Telegram
+secrets in `wrangler secret put` — only `PUBLIC_URL` optionally. Bot
+tokens are added through the UI at runtime.
 
 ## Group chats
 
