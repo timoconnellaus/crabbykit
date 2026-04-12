@@ -25,8 +25,9 @@ export function TabBar({
   return (
     <>
       <style>{layoutStyles}</style>
-      <div data-agent-ui="header-bar">
-        <div data-agent-ui="header-bar-tabs">
+      <div data-agent-ui="sidebar-nav">
+        <AgentPicker agents={agents} selectedId={agentId} onCreateAgent={onCreateAgent} />
+        <div data-agent-ui="sidebar-nav-tabs">
           {TABS.map((tab) => (
             <Link
               key={tab.id}
@@ -40,7 +41,6 @@ export function TabBar({
             </Link>
           ))}
         </div>
-        <AgentPicker agents={agents} selectedId={agentId} onCreateAgent={onCreateAgent} />
       </div>
     </>
   );

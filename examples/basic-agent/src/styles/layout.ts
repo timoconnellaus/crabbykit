@@ -1,8 +1,8 @@
 export const layoutStyles = `
-[data-agent-ui="header-bar"] {
+[data-agent-ui="sidebar-nav"] {
   display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid var(--agent-ui-border);
+  flex-direction: column;
+  border-right: 1px solid var(--agent-ui-border);
   background: var(--agent-ui-bg);
   font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.6875rem;
@@ -10,19 +10,18 @@ export const layoutStyles = `
   user-select: none;
   position: relative;
   z-index: 20;
+  width: 200px;
 }
 
-[data-agent-ui="header-bar-tabs"] {
+[data-agent-ui="sidebar-nav-tabs"] {
   display: flex;
-  align-items: stretch;
-  flex: 1;
-  min-width: 0;
+  flex-direction: column;
 }
 
 [data-agent-ui="tab-item"] {
-  padding: 0.5rem 1rem;
+  padding: 0.55rem 0.85rem;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
   background: transparent;
   color: var(--agent-ui-text-muted);
   cursor: pointer;
@@ -38,7 +37,7 @@ export const layoutStyles = `
 }
 [data-agent-ui="tab-item"][data-active] {
   color: var(--agent-ui-primary);
-  border-bottom-color: var(--agent-ui-primary);
+  border-left-color: var(--agent-ui-primary);
 }
 
 [data-agent-ui="message-timestamp"] {
@@ -50,15 +49,15 @@ export const layoutStyles = `
 [data-agent-ui="agent-picker"] {
   position: relative;
   display: flex;
-  align-items: stretch;
-  margin-left: auto;
+  flex-direction: column;
+  border-bottom: 1px solid var(--agent-ui-border);
 }
 
 [data-agent-ui="agent-picker-trigger"] {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.5rem 0.9rem 0.5rem 0.85rem;
+  padding: 0.55rem 0.85rem;
   border: none;
   background: transparent;
   color: var(--agent-ui-text);
@@ -66,6 +65,7 @@ export const layoutStyles = `
   font: inherit;
   letter-spacing: 0.02em;
   transition: background 0.15s ease, color 0.15s ease;
+  width: 100%;
 }
 [data-agent-ui="agent-picker-trigger"]:hover,
 [data-agent-ui="agent-picker-trigger"][data-open] {
@@ -111,8 +111,8 @@ export const layoutStyles = `
 
 [data-agent-ui="agent-picker-menu"] {
   position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  top: 0;
+  left: calc(100% + 4px);
   width: 280px;
   background: var(--agent-ui-bg);
   border: 1px solid var(--agent-ui-border);

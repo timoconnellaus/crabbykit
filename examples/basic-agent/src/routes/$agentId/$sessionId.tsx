@@ -268,25 +268,27 @@ function SessionLayoutInner(props: SessionLayoutInnerProps) {
 
   return (
     <ChatContextProvider value={contextValue}>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "row", flex: 1, minWidth: 0 }}>
         <TabBar
           agentId={agentId}
           activeTab={activeTab}
           agents={agents}
           onCreateAgent={handleCreateAgent}
         />
-        {/* Chat stays mounted (hidden) to keep WebSocket alive */}
-        <div
-          style={{
-            display: activeTab === "chat" ? "flex" : "none",
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
-          <ChatView />
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+          {/* Chat stays mounted (hidden) to keep WebSocket alive */}
+          <div
+            style={{
+              display: activeTab === "chat" ? "flex" : "none",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+            }}
+          >
+            <ChatView />
+          </div>
+          {activeTab !== "chat" && <Outlet />}
         </div>
-        {activeTab !== "chat" && <Outlet />}
       </div>
     </ChatContextProvider>
   );
