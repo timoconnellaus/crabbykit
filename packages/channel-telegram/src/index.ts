@@ -1,4 +1,5 @@
 import type {
+  AgentContext,
   Capability,
   CapabilityHookContext,
   CapabilityStorage,
@@ -39,22 +40,17 @@ export const TELEGRAM_CAPABILITY_ID = "telegram";
 /**
  * Options for constructing the Telegram channel.
  *
- * Accounts are NOT passed in at construction time. They live in the
- * per-DO `CapabilityStorage` (encrypted at rest) and are added or
+ * The channel no longer takes a `publicUrl` here — the public base URL for
+ * `setWebhook` registration is a deployment-level concern supplied by the
+ * runtime via `env.PUBLIC_URL` (or an explicit `AgentDefinition.publicUrl`
+ * override) and read off the capability context at add time.
+ *
+ * Accounts themselves are NOT passed in at construction time. They live in
+ * the per-DO `CapabilityStorage` (encrypted at rest) and are added or
  * removed at runtime by the agent (via the `telegram-accounts` config
  * namespace) or by a human (via a `capability_action` message).
  */
 export interface DefineTelegramChannelOptions {
-  /**
-   * Default public base URL for `setWebhook` registration. Typically
-   * the agent's live origin (e.g. the Cloudflare Quick Tunnel URL
-   * during development, or the production Workers hostname).
-   *
-   * Optional: if omitted, the add-account flow falls back to deriving
-   * the URL from the incoming request's origin (the URL the UI used
-   * to reach the DO).
-   */
-  publicUrl?: string;
   /**
    * Optional agent identifier embedded in the registered webhook URL
    * as `/telegram/webhook/{agentId}/{accountId}`. A top-level proxy
@@ -87,12 +83,6 @@ const TELEGRAM_ACCOUNT_SCHEMA = Type.Object({
   webhookSecret: Type.String({
     description: "Random shared secret sent to setWebhook and verified on every inbound.",
   }),
-  publicUrl: Type.Optional(
-    Type.String({
-      description:
-        "Override the default public URL for this account's webhook. Falls back to the channel-level publicUrl, then to the request origin.",
-    }),
-  ),
 });
 
 /** Schema for the read-only `telegram-accounts` namespace (list-all). */
@@ -121,7 +111,7 @@ function toAccountView(account: TelegramAccount): TelegramAccountView {
  *
  * UI-driven path: send a `capability_action` with
  * `capabilityId: "telegram"` and one of:
- *   - `{ action: "add", data: { id, token, webhookSecret, publicUrl? } }`
+ *   - `{ action: "add", data: { id, token, webhookSecret } }`
  *   - `{ action: "remove", data: { id } }`
  *   - `{ action: "list" }` (re-broadcasts state without mutation)
  *
@@ -151,13 +141,17 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
    * stores the resulting webhookUrl/webhookActive/lastError metadata,
    * and broadcasts the new state. On setWebhook failure the account is
    * rolled back so the store never shows a half-configured entry.
+   *
+   * `publicUrl` is the agent's deployment-level public origin, read from
+   * the capability context. Both `AgentContext` (config_set path) and
+   * `CapabilityHookContext` (onAction path) surface it identically,
+   * sourced from `env.PUBLIC_URL` at runtime construction time.
    */
   async function addAccount(
     storage: CapabilityStorage,
     hookCtx: CapabilityHookContext | null,
-    input: { id: string; token: string; webhookSecret: string; publicUrl?: string },
-    /** Fallback URL derived from the request origin when opts.publicUrl is missing. */
-    fallbackPublicUrl: string | null,
+    publicUrl: string | undefined,
+    input: { id: string; token: string; webhookSecret: string },
   ): Promise<TelegramAccount> {
     if (!input.id || typeof input.id !== "string") {
       throw new Error("Telegram account id is required.");
@@ -168,18 +162,13 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
     if (!input.webhookSecret || typeof input.webhookSecret !== "string") {
       throw new Error("Telegram webhook secret is required.");
     }
-
-    const store = storeFor(storage);
-
-    // Resolve the webhook URL: per-call override > channel-level opt >
-    // request fallback. If none are available, bail out — there is
-    // nothing to register.
-    const publicUrl = input.publicUrl ?? opts.publicUrl ?? fallbackPublicUrl;
     if (!publicUrl) {
       throw new Error(
-        "No public URL available for setWebhook. Pass publicUrl in the add action, set it on defineTelegramChannel, or add the account from a request whose origin is reachable from the Telegram servers.",
+        "No public URL available for setWebhook. Set `PUBLIC_URL` in the worker env (or pass an explicit `publicUrl` on defineAgent) before adding a Telegram account.",
       );
     }
+
+    const store = storeFor(storage);
     const agentSegment = opts.agentId ? `/${encodeURIComponent(opts.agentId)}` : "";
     const webhookUrl = `${publicUrl.replace(/\/$/, "")}/telegram/webhook${agentSegment}/${encodeURIComponent(input.id)}`;
 
@@ -283,7 +272,7 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
   //    connecting UI hydrates its account list immediately.
   return {
     ...baseCapability,
-    configNamespaces: (context): ConfigNamespace[] => [
+    configNamespaces: (context: AgentContext): ConfigNamespace[] => [
       {
         id: "telegram-accounts",
         description: "List all configured Telegram accounts.",
@@ -322,18 +311,12 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
             return `Telegram account "${id}" removed.`;
           }
 
-          const input = value as { token: string; webhookSecret: string; publicUrl?: string };
-          await addAccount(
-            context.storage,
-            null,
-            {
-              id,
-              token: input.token,
-              webhookSecret: input.webhookSecret,
-              publicUrl: input.publicUrl,
-            },
-            null,
-          );
+          const input = value as { token: string; webhookSecret: string };
+          await addAccount(context.storage, null, context.publicUrl, {
+            id,
+            token: input.token,
+            webhookSecret: input.webhookSecret,
+          });
           return `Telegram account "${id}" added and webhook registered.`;
         },
       },
@@ -346,10 +329,9 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
             id: string;
             token: string;
             webhookSecret: string;
-            publicUrl?: string;
           };
           try {
-            await addAccount(ctx.storage, ctx, input, null);
+            await addAccount(ctx.storage, ctx, ctx.publicUrl, input);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error(`[channel:telegram] onAction add failed: ${message}`);

@@ -159,6 +159,18 @@ export interface ScheduleManager {
 const DEFAULT_CLIENT_REQUEST_TIMEOUT_MS = 5_000;
 
 /**
+ * Coerce a public URL value into a trimmed, trailing-slash-free string, or
+ * undefined. Accepts whatever consumers might hand in (raw env var, explicit
+ * override, empty string) and normalizes once so downstream capabilities can
+ * treat the value as a ready-to-concatenate base URL.
+ */
+function normalizePublicUrl(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim().replace(/\/$/, "");
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
  * A subagent profile defines the configuration for a child agent.
  * Defined here to avoid a circular dependency between agent-runtime and subagent packages.
  * The full SubagentProfile type in @claw-for-cloudflare/subagent extends this.
@@ -175,6 +187,14 @@ export interface SubagentProfile {
 export interface AgentContext {
   /** The unique identifier of the agent (platform-agnostic; hex string on Cloudflare DOs). */
   agentId: string;
+  /**
+   * Public base URL of the agent's host worker, if configured. Sourced from
+   * `env.PUBLIC_URL` (or an explicit `AgentDefinition.publicUrl` override)
+   * at runtime construction time. Undefined when unset. Capabilities that
+   * need to register external webhooks or emit absolute URLs should read
+   * this rather than accepting their own `publicUrl` option.
+   */
+  publicUrl?: string;
   sessionId: string;
   stepNumber: number;
   /** Emit a cost event. Persisted to session and broadcast to clients. */
@@ -257,6 +277,17 @@ export interface AgentRuntimeOptions {
    * through to the default routing; returning a Response short-circuits it.
    */
   fetch?: (request: Request) => Promise<Response | null> | Response | null;
+  /**
+   * Public base URL of the agent's host worker. Surfaced on every
+   * {@link AgentContext}, {@link CapabilityHookContext}, and
+   * {@link CapabilityHttpContext} so capabilities that need to register
+   * external webhooks (channels, A2A callbacks) can read it without
+   * demanding their own option.
+   *
+   * Normally sourced from `env.PUBLIC_URL` by {@link defineAgent}. Subclasses
+   * of {@link AgentRuntime} may pass an explicit value here instead.
+   */
+  publicUrl?: string;
 }
 
 /**
@@ -298,6 +329,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   readonly kvStore: KvStore;
   readonly scheduler: Scheduler;
   readonly transport: Transport;
+  /**
+   * Public base URL of the agent's host worker, if configured. See
+   * {@link AgentRuntimeOptions.publicUrl} for semantics. Propagated to
+   * every `AgentContext` / `CapabilityHookContext` / `CapabilityHttpContext`
+   * constructed by the runtime.
+   */
+  readonly publicUrl?: string;
   logger: Logger;
   onError?: (error: Error, info: ErrorInfo) => void;
   preFetchHandler?: AgentRuntimeOptions["fetch"];
@@ -363,6 +401,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     this.logger = options.logger ?? NOOP_LOGGER;
     this.onError = options.onError;
     this.preFetchHandler = options.fetch;
+    this.publicUrl = normalizePublicUrl(options.publicUrl);
 
     this.sessionStore = new SessionStore(sqlStore);
     this.taskStore = new TaskStore(sqlStore);
@@ -1149,6 +1188,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const consumerNamespaces = this.getConfigNamespaces();
     const configContext = {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId: context.sessionId,
       sessionStore: this.sessionStore,
       configStore: this.configStore,
@@ -1219,6 +1259,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   private createInspectionContext(): AgentContext {
     return {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId: "__inspection__",
       stepNumber: 0,
       emitCost: () => {},
@@ -1242,6 +1283,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       const handler = resolved.onActionHandlers.get(capabilityId)!;
       const hookCtx: CapabilityHookContext = {
         agentId: this.runtimeContext.agentId,
+        publicUrl: this.publicUrl,
         sessionId,
         sessionStore: this.sessionStore,
         storage: createNoopStorage(),
@@ -1379,6 +1421,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         this.getCachedCapabilities(),
         {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           stepNumber: 0,
           emitCost: () => {},
@@ -1503,6 +1546,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const config = this.getConfig();
     const context: AgentContext = {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
@@ -1585,6 +1629,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       agent.setBeforeToolCall(async (btcContext: any) => {
         const hookContext: CapabilityHookContext = {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
@@ -1618,6 +1663,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       agent.setAfterToolCall(async (atcContext: any) => {
         const hookContext: CapabilityHookContext = {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
@@ -1656,6 +1702,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   } {
     const context: AgentContext = {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId,
       stepNumber: 0,
       emitCost: (cost) => this.handleCostEvent(cost, sessionId),
@@ -1686,6 +1733,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
     const hookContext: CapabilityHookContext = {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId,
       sessionStore: this.sessionStore,
       storage: createNoopStorage(),
@@ -1727,6 +1775,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         this.getCachedCapabilities(),
         {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           stepNumber: 0,
           emitCost: () => {},
@@ -1753,6 +1802,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       try {
         const hookContext: CapabilityHookContext = {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           sessionStore: this.sessionStore,
           storage: createNoopStorage(),
@@ -1968,6 +2018,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         const capBroadcastState = this.createCapabilityBroadcastState(cap.id, sessionId);
         const capContext: AgentContext = {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId,
           stepNumber: 0,
           emitCost: (cost) => this.handleCostEvent(cost, sessionId),
@@ -2122,6 +2173,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         this.getCachedCapabilities(),
         {
           agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
           sessionId: "",
           stepNumber: 0,
           emitCost: () => {},
@@ -2232,6 +2284,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const capabilities = this.getCachedCapabilities();
     const baseContext: AgentContext = {
       agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
       sessionId: "",
       stepNumber: 0,
       emitCost: () => {},
@@ -2266,6 +2319,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       const ctx: CapabilityHttpContext = {
         sessionStore: this.sessionStore,
         storage: h.storage,
+        publicUrl: this.publicUrl,
         broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
         broadcastState: (event, data, scope) =>
           this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),

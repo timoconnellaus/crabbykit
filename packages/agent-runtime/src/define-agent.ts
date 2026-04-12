@@ -34,6 +34,13 @@ export interface AgentSetup<TEnv> {
   env: TEnv;
   /** Platform-agnostic agent identifier. */
   agentId: string;
+  /**
+   * Resolved public base URL of the agent's host worker, if configured.
+   * Mirrors the value surfaced on every `AgentContext` /
+   * `CapabilityHookContext` / `CapabilityHttpContext`, so capability
+   * factories can read it directly at construction time as well.
+   */
+  publicUrl?: string;
   /** Abstract SQL store (not a raw `SqlStorage` handle). */
   sqlStore: SqlStore;
   /** Session store, already backed by {@link sqlStore}. */
@@ -82,6 +89,21 @@ export interface AgentDefinitionHooks {
 export interface AgentDefinition<TEnv = Record<string, unknown>> {
   /** LLM configuration. Literal or function of env. */
   model: AgentConfig | ((env: TEnv) => AgentConfig);
+
+  /**
+   * Public base URL of the agent's host worker. Surfaced on every
+   * `AgentContext`, `CapabilityHookContext`, and `CapabilityHttpContext` so
+   * capabilities that need to register external webhooks (Telegram, Slack,
+   * A2A callbacks, …) can read it without demanding their own option.
+   *
+   * Resolution order at construction:
+   * 1. This field, if set (literal or function of env).
+   * 2. `env.PUBLIC_URL`, if it's a non-empty string.
+   * 3. Otherwise undefined. Capabilities that need a public URL are
+   *    expected to surface a clear error or fall back to deriving it
+   *    from the incoming request origin.
+   */
+  publicUrl?: string | ((env: TEnv) => string | undefined);
 
   /**
    * System prompt. A literal string replaces the default prompt (no capability
@@ -135,6 +157,27 @@ const CONSOLE_LOGGER: Logger = {
 };
 
 /**
+ * Resolve an {@link AgentDefinition.publicUrl} field at construction time.
+ * Falls back to `env.PUBLIC_URL` (convention) when the definition doesn't
+ * provide one. Returned value is raw — the runtime normalizes trimming and
+ * trailing slashes via `normalizePublicUrl`.
+ */
+function resolvePublicUrl<TEnv>(definition: AgentDefinition<TEnv>, env: TEnv): string | undefined {
+  if (typeof definition.publicUrl === "function") {
+    return definition.publicUrl(env);
+  }
+  if (typeof definition.publicUrl === "string") {
+    return definition.publicUrl;
+  }
+  // Convention: read PUBLIC_URL off the env bindings. TEnv is opaque here,
+  // so go through `unknown` to avoid polluting the public signature with an
+  // implicit index-signature constraint.
+  const envRecord = env as unknown as Record<string, unknown>;
+  const fromEnv = envRecord?.PUBLIC_URL;
+  return typeof fromEnv === "string" ? fromEnv : undefined;
+}
+
+/**
  * Construct a Durable Object class from a flat {@link AgentDefinition}.
  *
  * The returned class extends {@link AgentDO} and wires each definition field
@@ -166,12 +209,14 @@ export function defineAgent<TEnv = Record<string, unknown>>(
       super(ctx, env, {
         logger: definition.logger ?? CONSOLE_LOGGER,
         onError: definition.onError,
+        publicUrl: resolvePublicUrl(definition, env),
       });
 
       // Build setup once, after stores are initialized by super().
       this._setup = {
         env,
         agentId: this.runtime.runtimeContext.agentId,
+        publicUrl: this.runtime.publicUrl,
         sqlStore: this.runtime.sqlStore,
         sessionStore: this.runtime.sessionStore,
         transport: this.runtime.transport,

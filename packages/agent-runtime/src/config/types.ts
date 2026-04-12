@@ -14,6 +14,8 @@ import type { ConfigNamespace } from "./config-namespace.js";
 export interface ConfigContext {
   /** The Durable Object ID of the agent (hex string). */
   agentId: string;
+  /** Public base URL of the agent's host worker, if configured. See {@link CapabilityHookContext.publicUrl}. */
+  publicUrl?: string;
   /** Current session ID. */
   sessionId: string;
   /** Session store for rename operations. */

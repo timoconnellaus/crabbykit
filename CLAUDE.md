@@ -219,6 +219,12 @@ Never mutate existing entries. The tree structure (parent_id) supports branching
 
 The `defineAgent` closure wires the *set of capability types* that exist in the code — that's genuinely compile-time. Everything else a human operator or the agent itself needs to tune at runtime (accounts, credentials, enabled flags, schedules, skill toggles, channel subscriptions) belongs in `ConfigStore` + per-capability `CapabilityStorage`, exposed via `configNamespaces` (agent-driven CRUD) + `onAction` (UI-driven CRUD) + `broadcastState` (live UI sync). Never bake env-var-derived runtime state into a capability factory's closure — it forces a redeploy for every change. The Telegram channel (`packages/channel-telegram`) is the reference implementation of this pattern.
 
+### Deployment-level values belong on the runtime context, not in capability options
+
+Values that describe *where the agent is deployed* (public base URL, future peers: region, auth issuer, …) are deployment state, not capability config. They live on the runtime and are surfaced identically on `AgentContext`, `CapabilityHookContext`, and `CapabilityHttpContext` so every capability can read them without demanding its own option.
+
+Today the one value wired this way is `publicUrl`. `AgentRuntime` reads it from `env.PUBLIC_URL` at construction time (overridable via `AgentDefinition.publicUrl` on `defineAgent`), normalizes it (trimmed, no trailing slash), and propagates it to every capability context. Channels and other capabilities that register external webhooks MUST read `ctx.publicUrl` — don't add a new `publicUrl` option to your capability factory. If a capability needs the URL and it's undefined, throw a clear error that points the operator at `PUBLIC_URL`.
+
 ### Transport protocol uses discriminated unions
 
 All messages (both `ServerMessage` and `ClientMessage`) discriminate on the `type` field. Server messages include `sessionId` except for global broadcasts. Protocol types use snake_case for `type` values (e.g., `agent_event`, `tool_event`) — this is intentional and matches the underlying event types from pi-agent-core.

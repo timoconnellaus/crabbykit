@@ -83,6 +83,7 @@ export function createConfigSet(ctx: ConfigContext) {
             {};
           const hookContext: CapabilityHookContext = {
             agentId: ctx.agentId,
+            publicUrl: ctx.publicUrl,
             sessionId: ctx.sessionId,
             sessionStore: ctx.sessionStore,
             capabilityIds: ctx.capabilities.map((c) => c.id),

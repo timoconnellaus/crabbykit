@@ -22,6 +22,17 @@ export interface CapabilityHookContext {
   storage: CapabilityStorage;
   /** IDs of all capabilities registered on this agent. */
   capabilityIds: string[];
+  /**
+   * Public base URL of the agent's host worker, if configured. Sourced from
+   * `env.PUBLIC_URL` (or an explicit {@link AgentDefinition.publicUrl}
+   * override) at runtime construction time. Capabilities that need to
+   * register external webhooks (Telegram, Slack, A2A callbacks, etc.)
+   * should read this rather than accepting their own `publicUrl` option.
+   *
+   * Optional — undefined in local dev without a tunnel, in tests, and in
+   * any deployment that hasn't set `PUBLIC_URL`.
+   */
+  publicUrl?: string;
   /** Broadcast a custom event to the current session's clients. Only available in onConnect. */
   broadcast?: (name: string, data: Record<string, unknown>) => void;
   /** Broadcast capability state. Wraps the transport state_event. */
@@ -250,6 +261,13 @@ export interface CapabilityHttpContext {
   sessionStore: SessionStore;
   /** Persistent key-value storage scoped to this capability. */
   storage: CapabilityStorage;
+  /**
+   * Public base URL of the agent's host worker, if configured. Sourced from
+   * `env.PUBLIC_URL` (or an explicit `AgentDefinition.publicUrl` override)
+   * at runtime construction time. Same semantics as the field on
+   * {@link CapabilityHookContext}.
+   */
+  publicUrl?: string;
   /** Broadcast a custom event to ALL connected WebSocket clients. */
   broadcastToAll: (name: string, data: Record<string, unknown>) => void;
   /** Broadcast capability state to connected clients. */

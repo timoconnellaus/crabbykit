@@ -15,12 +15,16 @@ import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
 export default defineAgent({
   model: "claude-opus-4-6",
   prompt: "You are a helpful assistant.",
+  // The public base URL used for `setWebhook` is sourced from the
+  // runtime — it defaults to `env.PUBLIC_URL`, and can be overridden
+  // with an explicit `publicUrl` here. Every capability reads it off
+  // its context, so individual capabilities (including this channel)
+  // do not accept their own `publicUrl` option.
+  publicUrl: (env) => env.PUBLIC_URL,
   capabilities: [
     // Register unconditionally — no env vars required. Accounts are
     // added at runtime from the Channels UI (or via config_set).
-    defineTelegramChannel({
-      publicUrl: "https://agent.example.com",  // optional; falls back to the request origin
-    }),
+    defineTelegramChannel(),
   ],
 });
 ```
@@ -56,11 +60,16 @@ own rate-limit bucket.
 
 | Field                  | Type        | Default                                   | Notes |
 |------------------------|-------------|-------------------------------------------|-------|
-| `publicUrl`            | `string`    | (optional)                                | Default base URL for `setWebhook`. Falls back to the incoming request origin at add-time. |
 | `agentId`              | `string`    | (optional)                                | When set, `addAccount` embeds `/{agentId}` in the registered webhook URL so a top-level proxy can route inbound traffic to the right DO in a multi-tenant deployment. Omit for single-tenant. |
 | `perSenderRateLimit`   | `{perMinute, perHour?}` | `{perMinute: 10, perHour: 100}`  | Conservative default. Tune per deployment. |
 | `perAccountRateLimit`  | `{perMinute, perHour?}` | `{perMinute: 60, perHour: 1000}` | Sybil guard. Raise once confident. |
 | `clientFactory`        | `(acct) => TelegramClient` | (real Bot API)                   | Test hook. Swap for a fake in integration tests. |
+
+The public base URL used for `setWebhook` is NOT a channel option — it
+is a runtime-level value sourced from `env.PUBLIC_URL` (or an explicit
+`AgentDefinition.publicUrl` override on `defineAgent`). The channel
+reads it off the capability context at add-time, so one setting
+satisfies every capability that needs to register a public webhook.
 
 Accounts themselves are NOT passed in at construction time — they
 live in per-DO storage and are added via the UI or the agent's
@@ -151,11 +160,11 @@ wrangler dev --remote &
 cloudflared tunnel --url http://localhost:8787
 # → copy the https://<random>.trycloudflare.com URL
 
-# 4. (Optional) export PUBLIC_URL=https://<random>.trycloudflare.com
-#    and restart wrangler dev. This sets the default origin that new
-#    accounts will register their webhook against. If you skip this,
-#    the add-account flow falls back to the origin of whatever URL
-#    the UI was loaded from — usually also the tunnel — so it Just Works.
+# 4. export PUBLIC_URL=https://<random>.trycloudflare.com and restart
+#    wrangler dev. This is the origin the runtime surfaces on every
+#    capability context, and the Telegram channel reads it off that
+#    context when registering `setWebhook`. Add-account will refuse
+#    if this isn't set.
 
 # 5. Open the tunnel URL in your browser → pick the default agent →
 #    click the "Channels" tab → "+ Add account" →

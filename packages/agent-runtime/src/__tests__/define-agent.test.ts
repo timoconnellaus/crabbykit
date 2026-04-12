@@ -99,4 +99,23 @@ describe("defineAgent", () => {
     });
     expect(typeof Agent).toBe("function");
   });
+
+  it("accepts publicUrl as a literal string", () => {
+    const Agent = defineAgent({
+      model: baseModel,
+      publicUrl: "https://agent.example.com",
+    });
+    expect(typeof Agent).toBe("function");
+  });
+
+  it("accepts publicUrl as a function of env", () => {
+    interface Env {
+      DEPLOY_ORIGIN: string;
+    }
+    const Agent = defineAgent<Env>({
+      model: baseModel,
+      publicUrl: (env) => env.DEPLOY_ORIGIN,
+    });
+    expect(typeof Agent).toBe("function");
+  });
 });

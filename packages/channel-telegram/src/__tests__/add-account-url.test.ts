@@ -35,9 +35,10 @@ function createMockStorage(): CapabilityStorage {
   };
 }
 
-function createHookContext(storage: CapabilityStorage): CapabilityHookContext {
+function createHookContext(storage: CapabilityStorage, publicUrl?: string): CapabilityHookContext {
   return {
     agentId: "test-do-id",
+    publicUrl,
     sessionId: "test-session",
     sessionStore: {} as any,
     storage,
@@ -65,12 +66,11 @@ describe("defineTelegramChannel — addAccount webhook URL", () => {
     calls = [];
   });
 
-  it("omits the agent segment when agentId is not configured (single-tenant shape)", async () => {
+  it("reads publicUrl from the capability context (runtime-supplied)", async () => {
     const channel = defineTelegramChannel({
-      publicUrl: "https://agent.example.com",
       clientFactory: makeFakeClient(calls),
     });
-    const ctx = createHookContext(storage);
+    const ctx = createHookContext(storage, "https://agent.example.com");
 
     await channel.onAction?.(
       "add",
@@ -84,11 +84,10 @@ describe("defineTelegramChannel — addAccount webhook URL", () => {
 
   it("includes the agent segment when agentId is configured (multi-tenant shape)", async () => {
     const channel = defineTelegramChannel({
-      publicUrl: "https://agent.example.com",
       agentId: "agent-bob",
       clientFactory: makeFakeClient(calls),
     });
-    const ctx = createHookContext(storage);
+    const ctx = createHookContext(storage, "https://agent.example.com");
 
     await channel.onAction?.(
       "add",
@@ -102,11 +101,10 @@ describe("defineTelegramChannel — addAccount webhook URL", () => {
 
   it("URL-encodes agent and account ids so path-unsafe characters don't break routing", async () => {
     const channel = defineTelegramChannel({
-      publicUrl: "https://agent.example.com",
       agentId: "tenant/with spaces",
       clientFactory: makeFakeClient(calls),
     });
-    const ctx = createHookContext(storage);
+    const ctx = createHookContext(storage, "https://agent.example.com");
 
     await channel.onAction?.(
       "add",
@@ -122,11 +120,10 @@ describe("defineTelegramChannel — addAccount webhook URL", () => {
 
   it("strips a trailing slash from publicUrl before joining the webhook path", async () => {
     const channel = defineTelegramChannel({
-      publicUrl: "https://agent.example.com/",
       agentId: "agent-bob",
       clientFactory: makeFakeClient(calls),
     });
-    const ctx = createHookContext(storage);
+    const ctx = createHookContext(storage, "https://agent.example.com/");
 
     await channel.onAction?.(
       "add",
@@ -136,5 +133,27 @@ describe("defineTelegramChannel — addAccount webhook URL", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("https://agent.example.com/telegram/webhook/agent-bob/support");
+  });
+
+  it("swallows the add failure and leaves no account when publicUrl is missing", async () => {
+    // onAction catches add failures internally — they surface as a logged
+    // error + a re-broadcast of the (still empty) account list, not a
+    // thrown exception. Assert via the storage state instead.
+    const channel = defineTelegramChannel({
+      clientFactory: makeFakeClient(calls),
+    });
+    const ctx = createHookContext(storage, undefined);
+
+    await channel.onAction?.(
+      "add",
+      { id: "support", token: "bot-token", webhookSecret: "secret" },
+      ctx,
+    );
+
+    // No Bot API call happened.
+    expect(calls).toHaveLength(0);
+    // No account persisted — the add handler refused before calling store.put.
+    const stored = await storage.list("");
+    expect(stored.size).toBe(0);
   });
 });
