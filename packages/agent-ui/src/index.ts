@@ -63,13 +63,16 @@ export { TaskTreePanel } from "./components/task-tree-panel";
 export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
 export { useTaskState } from "./hooks/use-task-state";
 
-// Channels (Telegram) panel
+// Channels hub + Telegram channel
 export type { AccountListItemProps } from "./components/channels/account-list-item";
 export { AccountListItem } from "./components/channels/account-list-item";
 export type { AddTelegramAccountFormProps } from "./components/channels/add-telegram-account-form";
 export { AddTelegramAccountForm } from "./components/channels/add-telegram-account-form";
 export type { ChannelsPanelProps } from "./components/channels/channels-panel";
 export { ChannelsPanel } from "./components/channels/channels-panel";
+export { TelegramChannelSection } from "./components/channels/telegram-channel-section";
+export type { ChannelInfo } from "./hooks/use-channels";
+export { useChannels } from "./hooks/use-channels";
 export type { AddTelegramAccountInput, TelegramAccountView } from "./hooks/use-telegram-channel";
 export { useTelegramChannel } from "./hooks/use-telegram-channel";
 export { ThinkingIndicator } from "./components/thinking-indicator";

@@ -34,7 +34,7 @@ export const skillsStyles = `
 [data-agent-ui="skills-panel-list"] {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0.375rem;
   padding: 0.5rem;
 }
 

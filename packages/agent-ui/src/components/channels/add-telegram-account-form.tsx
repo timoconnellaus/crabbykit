@@ -180,11 +180,7 @@ export function AddTelegramAccountForm({ onSubmit, onCancel }: AddTelegramAccoun
       )}
 
       <div data-agent-ui="add-telegram-account-form-actions">
-        <button
-          type="button"
-          data-agent-ui="add-telegram-account-form-cancel"
-          onClick={onCancel}
-        >
+        <button type="button" data-agent-ui="add-telegram-account-form-cancel" onClick={onCancel}>
           Cancel
         </button>
         <button type="submit" data-agent-ui="add-telegram-account-form-submit">
