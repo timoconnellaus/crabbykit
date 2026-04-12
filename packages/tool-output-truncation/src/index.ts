@@ -1,2 +1,10 @@
-export type { ToolOutputTruncationOptions } from "./capability.js";
-export { toolOutputTruncation, estimateTextTokens, truncateText } from "./capability.js";
+export type {
+  ToolOutputTruncationConfig,
+  ToolOutputTruncationOptions,
+} from "./capability.js";
+export {
+  estimateTextTokens,
+  ToolOutputTruncationConfigSchema,
+  toolOutputTruncation,
+  truncateText,
+} from "./capability.js";

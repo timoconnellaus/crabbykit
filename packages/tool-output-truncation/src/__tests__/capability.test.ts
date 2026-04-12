@@ -273,4 +273,35 @@ describe("toolOutputTruncation", () => {
       expect(content[0].text).toBe(text);
     });
   });
+
+  describe("agent-level config mapping", () => {
+    it("reads maxTokens from ctx.agentConfig per call", async () => {
+      const cap = toolOutputTruncation({
+        config: (c) => (c as { toolOutput: { maxTokens: number } }).toolOutput,
+      });
+      const hook = cap.hooks!.beforeInference!;
+      const bigText = textOfTokens(20_000);
+      const messages = [makeToolResult([bigText])];
+      // Cap at 5k — should truncate.
+      const result = await hook(messages, { agentConfig: { maxTokens: 5_000 } } as never);
+      const content = (result[0] as unknown as { content: Array<{ text: string }> }).content;
+      expect(content[0].text).toContain("[... truncated");
+    });
+
+    it("exposes agentConfigMapping for runtime resolution", () => {
+      const mapping = (c: Record<string, unknown>) =>
+        (c as { toolOutput: { maxTokens: number } }).toolOutput;
+      const cap = toolOutputTruncation({ config: mapping });
+      expect(cap.agentConfigMapping).toBe(mapping);
+    });
+
+    it("falls back to deprecated maxTokens option", async () => {
+      const cap = toolOutputTruncation({ maxTokens: 1_000 });
+      const hook = cap.hooks!.beforeInference!;
+      const messages = [makeToolResult([textOfTokens(10_000)])];
+      const result = await hook(messages, {} as never);
+      const content = (result[0] as unknown as { content: Array<{ text: string }> }).content;
+      expect(content[0].text).toContain("[... truncated");
+    });
+  });
 });

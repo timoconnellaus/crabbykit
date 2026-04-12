@@ -57,6 +57,18 @@ export function createConfigSchema(ctx: ConfigContext) {
       }
       result.capabilities = capabilities;
 
+      // Agent-level namespaces declared on defineAgent
+      for (const [nsId, schema] of Object.entries(ctx.agentConfigSchema)) {
+        result[nsId] = {
+          description: (schema as { description?: string }).description ?? nsId,
+          schema,
+          value:
+            ctx.agentConfigSnapshot[nsId] !== undefined
+              ? ctx.agentConfigSnapshot[nsId]
+              : undefined,
+        };
+      }
+
       // Capability-contributed and consumer namespaces
       for (const ns of ctx.namespaces) {
         result[ns.id] = {
@@ -84,6 +96,9 @@ function resolveSchema(namespace: string, ctx: ConfigContext): unknown | null {
       }
     );
   }
+
+  const agentSchema = ctx.agentConfigSchema[namespace];
+  if (agentSchema) return agentSchema;
 
   const ns = ctx.namespaces.find((n) => n.id === namespace);
   if (ns) return ns.schema;

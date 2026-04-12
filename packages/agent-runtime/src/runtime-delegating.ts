@@ -1,4 +1,5 @@
 import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { TObject } from "@sinclair/typebox";
 import {
   type A2AClientOptions,
   type AgentConfig,
@@ -42,6 +43,7 @@ export interface AgentDelegate<_TEnv = Record<string, unknown>> {
   getCapabilities?(): Capability[];
   getSubagentProfiles?(): SubagentProfile[];
   getConfigNamespaces?(): ConfigNamespace[];
+  getAgentConfigSchema?(): Record<string, TObject>;
   getA2AClientOptions?(): A2AClientOptions | null;
   getCommands?(context: CommandContext): Command[];
   /**
@@ -123,6 +125,12 @@ export function createDelegatingRuntime<TEnv>(
 
     getConfigNamespaces(): ConfigNamespace[] {
       return host.getConfigNamespaces ? host.getConfigNamespaces() : super.getConfigNamespaces();
+    }
+
+    getAgentConfigSchema(): Record<string, TObject> {
+      return host.getAgentConfigSchema
+        ? host.getAgentConfigSchema()
+        : super.getAgentConfigSchema();
     }
 
     getA2AClientOptions(): A2AClientOptions | null {

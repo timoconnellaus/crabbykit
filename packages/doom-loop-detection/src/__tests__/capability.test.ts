@@ -31,10 +31,10 @@ describe("doomLoopDetection", () => {
       expect(cap.hooks?.beforeToolExecution).toBeInstanceOf(Function);
     });
 
-    it("has config schema with threshold and lookbackWindow", () => {
+    it("no longer declares the dead configSchema/configDefault fields", () => {
       const cap = doomLoopDetection();
-      expect(cap.configSchema).toBeDefined();
-      expect(cap.configDefault).toEqual({ threshold: 3, lookbackWindow: 10 });
+      expect(cap.configSchema).toBeUndefined();
+      expect(cap.configDefault).toBeUndefined();
     });
   });
 
@@ -273,6 +273,46 @@ describe("doomLoopDetection", () => {
       const result = await hook(event, ctx);
       expect(result?.block).toBe(true);
       expect(result?.reason).toContain("5 times");
+    });
+  });
+
+  describe("agent-level config mapping", () => {
+    it("reads threshold from ctx.agentConfig per call", async () => {
+      const cap = doomLoopDetection({
+        config: (c) =>
+          (c as { doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] } })
+            .doomLoop,
+      });
+      const hook = cap.hooks!.beforeToolExecution!;
+      const ctx = makeCtx({
+        agentConfig: { threshold: 2, lookbackWindow: 5, allowRepeatTools: [] },
+      });
+      const event = makeEvent("search", {});
+
+      expect(await hook(event, ctx)).toBeUndefined();
+      const result = await hook(event, ctx);
+      expect(result?.block).toBe(true);
+      expect(result?.reason).toContain("2 times");
+    });
+
+    it("exposes agentConfigMapping for runtime resolution", () => {
+      const mapping = (c: Record<string, unknown>) =>
+        (c as { doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] } })
+          .doomLoop;
+      const cap = doomLoopDetection({ config: mapping });
+      expect(cap.agentConfigMapping).toBe(mapping);
+    });
+
+    it("falls back to deprecated options when no mapping given", async () => {
+      const cap = doomLoopDetection({ threshold: 4 });
+      const hook = cap.hooks!.beforeToolExecution!;
+      const ctx = makeCtx();
+      const event = makeEvent("ping", {});
+      for (let i = 0; i < 3; i++) {
+        expect(await hook(event, ctx)).toBeUndefined();
+      }
+      const result = await hook(event, ctx);
+      expect(result?.block).toBe(true);
     });
   });
 });

@@ -11,6 +11,8 @@ import {
 } from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
+import type { TObject } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
@@ -105,6 +107,23 @@ export interface A2AClientOptions {
   callbackBaseUrl?: string;
   maxDepth?: number;
   authHeaders?: (target: string) => Record<string, string> | Promise<Record<string, string>>;
+}
+
+/**
+ * Deep-equal check for capability-mapped config slices. JSON stringify
+ * is sufficient — mapped slices are serializable-shaped data (no
+ * functions, no cyclic refs). Order-sensitive by design: reshuffling
+ * object key order should not be considered a meaningful change, so
+ * callers that need that guarantee should produce stable output from
+ * their mapping function.
+ */
+function sliceEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 export interface AgentConfig {
@@ -232,6 +251,15 @@ export interface AgentContext {
    * single shared instance backed by the DO's SQL store.
    */
   rateLimit: RateLimiter;
+  /**
+   * Capability's mapped slice of the agent-level config, produced by the
+   * capability's `agentConfigMapping` function against the current
+   * `defineAgent`-declared agent config. Typed as `unknown` at the runtime
+   * boundary — each capability narrows to the slice it requested via its
+   * mapping function. `undefined` when the capability supplied no mapping
+   * or the agent declared no `config`.
+   */
+  agentConfig?: unknown;
 }
 
 /**
@@ -490,6 +518,162 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   getConfigNamespaces(): ConfigNamespace[] {
     return [];
+  }
+
+  /**
+   * Override (or populated via `defineAgent`'s `config` field) to declare
+   * an agent-level config schema. Each top-level key in the returned
+   * record is a namespace the agent can read/write through the config
+   * tools. Defaults to empty.
+   */
+  getAgentConfigSchema(): Record<string, TObject> {
+    return {};
+  }
+
+  /**
+   * Cached agent-level config schema. Populated lazily on first access
+   * and treated as stable for the lifetime of the runtime instance
+   * (schemas are declarative).
+   */
+  private cachedAgentConfigSchema: Record<string, TObject> | null = null;
+
+  getCachedAgentConfigSchema(): Record<string, TObject> {
+    if (!this.cachedAgentConfigSchema) {
+      this.cachedAgentConfigSchema = this.getAgentConfigSchema();
+    }
+    return this.cachedAgentConfigSchema;
+  }
+
+  /**
+   * Current agent-level config snapshot: a flat record of
+   * namespace → value. Populated by {@link ensureAgentConfigLoaded} and
+   * mutated in place when `config_set` writes an agent-level namespace,
+   * so resolveCapabilities always sees the latest values.
+   */
+  agentConfigSnapshot: Record<string, unknown> = {};
+  private agentConfigLoaded = false;
+
+  /**
+   * Load the agent-level config snapshot from `ConfigStore`, filling
+   * defaults from `Value.Create(schema)` for namespaces with no
+   * persisted value. Idempotent — subsequent calls are no-ops once the
+   * snapshot is loaded.
+   */
+  /**
+   * React to a successful `config_set` on an agent-level namespace.
+   * Fires `onAgentConfigChange` on every capability whose
+   * `agentConfigMapping` produces a different slice than before, and
+   * broadcasts the update to connected clients as a
+   * `capability_state { capabilityId: "agent-config", event: "update" }`
+   * message.
+   *
+   * `ctxSessionId` is the session that triggered the write. When the
+   * capability change dispatch runs, each hook's context is filled with
+   * that session so capabilities can broadcast to the caller.
+   */
+  /**
+   * Apply an agent-level config write originating from the UI
+   * (`capability_action { capabilityId: "agent-config", action: "set" }`).
+   * Validates against the declared schema, persists to ConfigStore,
+   * updates the in-memory snapshot, and delegates to
+   * {@link handleAgentConfigSet} for hook dispatch + broadcast.
+   *
+   * Returns an error string on validation failure so the caller (the
+   * runtime's capability_action dispatcher) can log it; UI originators
+   * don't see a synchronous error today, matching how other
+   * capability_action handlers behave.
+   */
+  private async applyAgentConfigSet(
+    namespace: string,
+    value: unknown,
+    sessionId: string,
+  ): Promise<string | null> {
+    const schema = this.getCachedAgentConfigSchema()[namespace];
+    if (!schema) {
+      const msg = `Unknown agent-level config namespace: ${namespace}`;
+      this.logger.warn(`[AgentRuntime] ${msg}`);
+      return msg;
+    }
+    if (!Value.Check(schema, value)) {
+      const msg = `Invalid agent config payload for namespace "${namespace}"`;
+      this.logger.warn(`[AgentRuntime] ${msg}`);
+      return msg;
+    }
+    await this.ensureAgentConfigLoaded();
+    const oldValue =
+      this.agentConfigSnapshot[namespace] !== undefined
+        ? this.agentConfigSnapshot[namespace]
+        : Value.Create(schema);
+    await this.configStore.setAgentConfig(namespace, value);
+    this.agentConfigSnapshot[namespace] = value;
+    await this.handleAgentConfigSet(namespace, oldValue, value, sessionId);
+    return null;
+  }
+
+  async handleAgentConfigSet(
+    namespace: string,
+    _oldValue: unknown,
+    newValue: unknown,
+    ctxSessionId: string,
+  ): Promise<void> {
+    // Snapshot was already updated in place by config_set before this
+    // fires, so capability mappings see the new value.
+    const capabilities = this.getCachedCapabilities();
+    for (const cap of capabilities) {
+      if (!cap.agentConfigMapping || !cap.hooks?.onAgentConfigChange) continue;
+      // Compute old slice against a snapshot where this namespace holds
+      // the previous value. Clone shallowly and overwrite the one key
+      // so the mapping function sees the pre-change state.
+      const priorSnapshot: Record<string, unknown> = { ...this.agentConfigSnapshot };
+      priorSnapshot[namespace] = _oldValue;
+      const oldSlice = cap.agentConfigMapping(priorSnapshot);
+      const newSlice = cap.agentConfigMapping(this.agentConfigSnapshot);
+      if (sliceEqual(oldSlice, newSlice)) continue;
+      const hookContext: CapabilityHookContext = {
+        agentId: this.runtimeContext.agentId,
+        publicUrl: this.publicUrl,
+        sessionId: ctxSessionId,
+        sessionStore: this.sessionStore,
+        storage: createCapabilityStorage(this.kvStore, cap.id),
+        capabilityIds: capabilities.map((c) => c.id),
+        broadcastState: this.createCapabilityBroadcastState(cap.id, ctxSessionId),
+      };
+      try {
+        await cap.hooks.onAgentConfigChange(oldSlice, newSlice, hookContext);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error("[AgentRuntime] onAgentConfigChange hook error", {
+          capabilityId: cap.id,
+          message: error.message,
+        });
+        this.onError?.(error, { source: "hook", sessionId: ctxSessionId });
+      }
+    }
+
+    // Re-sync capability schedules in case heartbeat-style capabilities
+    // reshape a cron on change. Cheap when nothing changed.
+    if (this.resolvedCapabilitiesCache?.schedules?.length) {
+      await this.syncCapabilitySchedules(this.resolvedCapabilitiesCache.schedules);
+    }
+
+    // Broadcast the update to connected clients.
+    this.broadcastCoreState(
+      "agent-config",
+      "update",
+      { namespace, value: newValue },
+      "global",
+    );
+  }
+
+  async ensureAgentConfigLoaded(): Promise<void> {
+    if (this.agentConfigLoaded) return;
+    const schema = this.getCachedAgentConfigSchema();
+    for (const [namespace, nsSchema] of Object.entries(schema)) {
+      const stored = await this.configStore.getAgentConfig(namespace);
+      this.agentConfigSnapshot[namespace] =
+        stored !== undefined ? stored : Value.Create(nsSchema);
+    }
+    this.agentConfigLoaded = true;
   }
 
   /**
@@ -1163,7 +1347,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   private getSystemPromptSections(): PromptSection[] {
     const context = this.createInspectionContext();
     const capabilities = this.getCachedCapabilities();
-    const resolved = resolveCapabilities(capabilities, context);
+    const resolved = resolveCapabilities(
+      capabilities,
+      context,
+      undefined,
+      undefined,
+      this.agentConfigSnapshot,
+    );
     return this.assembleAllSections(context, capabilities, resolved);
   }
 
@@ -1194,6 +1384,10 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       configStore: this.configStore,
       capabilities,
       namespaces: [...capabilityNamespaces, ...consumerNamespaces],
+      agentConfigSchema: this.getCachedAgentConfigSchema(),
+      agentConfigSnapshot: this.agentConfigSnapshot,
+      onAgentConfigSet: (namespace: string, oldValue: unknown, newValue: unknown) =>
+        this.handleAgentConfigSet(namespace, oldValue, newValue, context.sessionId),
     };
     const configTools = [
       createConfigGet(configContext),
@@ -1294,6 +1488,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     }
 
     switch (capabilityId) {
+      case "agent-config": {
+        if (action === "set") {
+          const { namespace, value } = data as { namespace: string; value: unknown };
+          await this.applyAgentConfigSet(namespace, value, sessionId);
+        }
+        break;
+      }
       case "schedules": {
         if (action === "toggle") {
           const { scheduleId, enabled } = data as { scheduleId: string; enabled: boolean };
@@ -1434,6 +1635,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
+        undefined,
+        this.agentConfigSnapshot,
       );
 
     const commandMap = new Map<string, Command>();
@@ -1543,6 +1746,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
   async ensureAgent(sessionId: string): Promise<void> {
     const { piAgent, getModel } = await loadPiSdk();
+    await this.ensureAgentConfigLoaded();
     const config = this.getConfig();
     const context: AgentContext = {
       agentId: this.runtimeContext.agentId,
@@ -1572,6 +1776,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       context,
       (capId) => createCapabilityStorage(this.kvStore, capId),
       (capId) => this.createCapabilityBroadcastState(capId, sessionId),
+      this.agentConfigSnapshot,
     );
     this.resolvedCapabilitiesCache = resolved;
     this.beforeInferenceHooks = resolved.beforeInferenceHooks;
@@ -1720,6 +1925,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       context,
       (capId) => createCapabilityStorage(this.kvStore, capId),
       (capId) => this.createCapabilityBroadcastState(capId, sessionId),
+      this.agentConfigSnapshot,
     );
 
     const baseTools = this.getTools(context);
@@ -1769,6 +1975,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
   /** Fire onConnect hooks for all registered capabilities. */
   async fireOnConnectHooks(sessionId: string): Promise<void> {
+    await this.ensureAgentConfigLoaded();
     const resolved =
       this.resolvedCapabilitiesCache ??
       resolveCapabilities(
@@ -1794,9 +2001,28 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
+        undefined,
+        this.agentConfigSnapshot,
       );
 
     const broadcastFn = this.createSessionBroadcast(sessionId);
+
+    // Broadcast full agent-level config snapshot to the (re)connecting
+    // client as a `capability_state { capabilityId: "agent-config",
+    // event: "sync" }` message. The useAgentConfig() client hook
+    // subscribes to this ID and hydrates from the sync payload.
+    if (Object.keys(this.getCachedAgentConfigSchema()).length > 0) {
+      this.broadcastCoreState(
+        "agent-config",
+        "sync",
+        {
+          schema: this.getCachedAgentConfigSchema(),
+          values: this.agentConfigSnapshot,
+        },
+        "session",
+        { sessionId },
+      );
+    }
 
     for (const { capabilityId, hook } of resolved.onConnectHooks) {
       try {
@@ -2166,6 +2392,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   /** Ensure capability schedule callbacks are registered (lightweight, no agent creation). */
   private async ensureScheduleCallbacks(): Promise<void> {
     if (this.scheduleCallbacks.size > 0) return;
+    await this.ensureAgentConfigLoaded();
 
     const resolved =
       this.resolvedCapabilitiesCache ??
@@ -2186,6 +2413,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
+        undefined,
+        this.agentConfigSnapshot,
       );
 
     for (const { config } of resolved.schedules) {
@@ -2297,8 +2526,12 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
     };
 
-    const resolved = resolveCapabilities(capabilities, baseContext, (capId) =>
-      createCapabilityStorage(this.kvStore, capId),
+    const resolved = resolveCapabilities(
+      capabilities,
+      baseContext,
+      (capId) => createCapabilityStorage(this.kvStore, capId),
+      undefined,
+      this.agentConfigSnapshot,
     );
     this.resolvedHttpHandlers = resolved.httpHandlers;
     return this.resolvedHttpHandlers;
@@ -2316,10 +2549,16 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       if (h.method !== method) continue;
       const params = matchPathPattern(h.path, pathname);
       if (params === null) continue;
+      await this.ensureAgentConfigLoaded();
+      const cap = this.getCachedCapabilities().find((c) => c.id === h.capabilityId);
+      const agentConfig = cap?.agentConfigMapping
+        ? cap.agentConfigMapping(this.agentConfigSnapshot)
+        : undefined;
       const ctx: CapabilityHttpContext = {
         sessionStore: this.sessionStore,
         storage: h.storage,
         publicUrl: this.publicUrl,
+        agentConfig,
         broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
         broadcastState: (event, data, scope) =>
           this.broadcastCoreState(h.capabilityId, event, data, scope ?? "session"),

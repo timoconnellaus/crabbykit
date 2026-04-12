@@ -142,9 +142,55 @@ describe("heartbeat capability", () => {
       expect(cap.tools).toBeUndefined();
     });
 
-    it("does not define hooks", () => {
+    it("declares an onAgentConfigChange hook", () => {
       const cap = heartbeat({ every: "1h" });
-      expect(cap.hooks).toBeUndefined();
+      expect(cap.hooks?.onAgentConfigChange).toBeDefined();
+    });
+  });
+
+  describe("agent-level config mapping", () => {
+    it("reads schedule values from context.agentConfig when mapped", () => {
+      const cap = heartbeat({ config: (c) => (c as { hb: never }).hb });
+      const ctxWithMapped = {
+        agentConfig: {
+          every: "*/15 * * * *",
+          sessionPrefix: "Pulse",
+          retention: 7,
+          prompt: "mapped prompt",
+          enabled: true,
+          timezone: "UTC",
+        },
+      } as AgentContext;
+      const schedule = cap.schedules!(ctxWithMapped)[0] as PromptScheduleConfig;
+      expect(schedule.cron).toBe("*/15 * * * *");
+      expect(schedule.prompt).toBe("mapped prompt");
+      expect(schedule.enabled).toBe(true);
+      expect(schedule.sessionPrefix).toBe("Pulse");
+      expect(schedule.retention).toBe(7);
+    });
+
+    it("exposes agentConfigMapping for runtime resolution", () => {
+      const mapping = (c: Record<string, unknown>) =>
+        (
+          c as {
+            hb: {
+              every: string;
+              sessionPrefix: string;
+              retention: number;
+              prompt: string;
+              enabled: boolean;
+            };
+          }
+        ).hb;
+      const cap = heartbeat({ config: mapping });
+      expect(cap.agentConfigMapping).toBe(mapping);
+    });
+
+    it("falls back to deprecated options when no mapping provided", () => {
+      const cap = heartbeat({ every: "45m", retention: 4 });
+      const schedule = cap.schedules!({} as AgentContext)[0] as PromptScheduleConfig;
+      expect(schedule.cron).toBe("45m");
+      expect(schedule.retention).toBe(4);
     });
   });
 });

@@ -87,6 +87,7 @@ export function resolveCapabilities(
   context: AgentContext,
   createStorage?: (capabilityId: string) => CapabilityStorage,
   createBroadcastState?: (capabilityId: string) => AgentContext["broadcastState"],
+  agentConfigSnapshot: Record<string, unknown> = {},
 ): ResolvedCapabilities {
   const tools: AnyAgentTool[] = [];
   const toolNames = new Set<string>();
@@ -110,10 +111,14 @@ export function resolveCapabilities(
   for (const cap of capabilities) {
     const capStorage = getStorage(cap.id);
     const capBroadcastState = getBroadcastState(cap.id);
+    const mappedAgentConfig = cap.agentConfigMapping
+      ? cap.agentConfigMapping(agentConfigSnapshot)
+      : undefined;
     const capContext: AgentContext = {
       ...context,
       storage: capStorage,
       broadcastState: capBroadcastState,
+      agentConfig: mappedAgentConfig,
     };
 
     if (cap.tools) {
@@ -191,24 +196,43 @@ export function resolveCapabilities(
       }
     }
 
+    // Every hook wrapper reads the mapped agent-config slice at call
+    // time from the live snapshot reference so later `config_set`
+    // mutations flow through without re-resolving capabilities.
+    const capMapping = cap.agentConfigMapping;
+    const resolveHookAgentConfig = (): unknown =>
+      capMapping ? capMapping(agentConfigSnapshot) : undefined;
+
     if (cap.hooks?.beforeInference) {
       const rawHook = cap.hooks.beforeInference;
       beforeInferenceHooks.push(async (messages, ctx) =>
-        rawHook(messages, { ...ctx, storage: capStorage }),
+        rawHook(messages, {
+          ...ctx,
+          storage: capStorage,
+          agentConfig: resolveHookAgentConfig(),
+        }),
       );
     }
 
     if (cap.hooks?.beforeToolExecution) {
       const rawHook = cap.hooks.beforeToolExecution;
       beforeToolExecutionHooks.push(async (event, ctx) =>
-        rawHook(event, { ...ctx, storage: capStorage }),
+        rawHook(event, {
+          ...ctx,
+          storage: capStorage,
+          agentConfig: resolveHookAgentConfig(),
+        }),
       );
     }
 
     if (cap.hooks?.afterToolExecution) {
       const rawHook = cap.hooks.afterToolExecution;
       afterToolExecutionHooks.push(async (event, ctx) =>
-        rawHook(event, { ...ctx, storage: capStorage }),
+        rawHook(event, {
+          ...ctx,
+          storage: capStorage,
+          agentConfig: resolveHookAgentConfig(),
+        }),
       );
     }
 
@@ -216,7 +240,12 @@ export function resolveCapabilities(
       const rawHook = cap.hooks.onConnect;
       onConnectHooks.push({
         capabilityId: cap.id,
-        hook: async (ctx) => rawHook({ ...ctx, storage: capStorage }),
+        hook: async (ctx) =>
+          rawHook({
+            ...ctx,
+            storage: capStorage,
+            agentConfig: resolveHookAgentConfig(),
+          }),
       });
     }
 

@@ -26,4 +26,21 @@ export class ConfigStore {
   async setNamespace(namespace: string, value: unknown): Promise<void> {
     await this.storage.put(`config:ns:${namespace}`, value);
   }
+
+  /**
+   * Read an agent-level config namespace value.
+   *
+   * Agent-level namespaces are declared via the `config` field on
+   * `defineAgent` and persist under `config:agent:{namespace}`. Returns
+   * `undefined` when nothing has been written yet — callers should fall
+   * back to `Value.Create(schema)` for defaults.
+   */
+  async getAgentConfig<T = unknown>(namespace: string): Promise<T | undefined> {
+    return this.storage.get<T>(`config:agent:${namespace}`);
+  }
+
+  /** Write an agent-level config namespace value. */
+  async setAgentConfig(namespace: string, value: unknown): Promise<void> {
+    await this.storage.put(`config:agent:${namespace}`, value);
+  }
 }

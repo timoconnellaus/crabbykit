@@ -147,6 +147,66 @@ describe("defineChannel", () => {
     });
   });
 
+  describe("dynamic rateLimit (agent-config backed)", () => {
+    it("calls rateLimit() with the http context on each inbound", async () => {
+      const rateLimitFn = vi.fn().mockReturnValue({
+        perSender: { perMinute: 2 },
+        perAccount: { perMinute: 5 },
+      });
+      const consumeCalls: Array<{ key: string; perMinute: number }> = [];
+      const rateLimit = {
+        consume: async (opts: { key: string; perMinute: number }) => {
+          consumeCalls.push({ key: opts.key, perMinute: opts.perMinute });
+          return { allowed: true };
+        },
+      };
+      const cap = defineChannel(
+        makeChannelDef([{ id: "acct-a", tag: "primary" }], { rateLimit: rateLimitFn }),
+      );
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
+      const resp = await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({
+          storage,
+          sessionStore,
+          sendPrompt: async () => ({ sessionId: "s1", response: "ok" }),
+          rateLimit,
+        }),
+      );
+      expect(resp.status).toBe(200);
+      // Called once, with the http context (agentConfig visible if the
+      // runtime populated it).
+      expect(rateLimitFn).toHaveBeenCalledTimes(1);
+      // Both buckets consulted with the mapped perMinute values.
+      expect(consumeCalls.find((c) => c.key.includes(":sender:"))?.perMinute).toBe(2);
+      expect(consumeCalls.find((c) => c.key.endsWith(":_global"))?.perMinute).toBe(5);
+    });
+
+    it("still accepts a static rateLimit object for back-compat", async () => {
+      const consumeCalls: number[] = [];
+      const rateLimit = {
+        consume: async (opts: { key: string; perMinute: number }) => {
+          consumeCalls.push(opts.perMinute);
+          return { allowed: true };
+        },
+      };
+      const cap = defineChannel(makeChannelDef());
+      const handlers = cap.httpHandlers!(makeAgentContext(storage));
+      await handlers[0].handler(
+        webhookRequest({ senderId: "@alice", text: "hi" }),
+        makeHttpContext({
+          storage,
+          sessionStore,
+          sendPrompt: async () => ({ sessionId: "s1", response: "ok" }),
+          rateLimit,
+        }),
+      );
+      // Default perSender.perMinute = 10, perAccount.perMinute = 60 from makeChannelDef.
+      expect(consumeCalls).toContain(10);
+      expect(consumeCalls).toContain(60);
+    });
+  });
+
   describe("inbound pipeline", () => {
     it("returns 403 when the path-param account id is unknown", async () => {
       const sendPrompt = vi.fn();

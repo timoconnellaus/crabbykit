@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { TObject } from "@sinclair/typebox";
 import type {
   A2AClientOptions,
   A2AConfig,
@@ -131,6 +132,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
    */
   getConfigNamespaces(): ConfigNamespace[] {
     return [];
+  }
+
+  /**
+   * Override to declare an agent-level config schema. `defineAgent` sets
+   * this via its `config` field; subclassers who want agent-level config
+   * without `defineAgent` can override this directly. Defaults to an
+   * empty record (no agent-level config namespaces).
+   */
+  getAgentConfigSchema(): Record<string, TObject> {
+    return {};
   }
 
   /**

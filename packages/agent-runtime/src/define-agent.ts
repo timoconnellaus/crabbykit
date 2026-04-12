@@ -1,4 +1,5 @@
 import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { TObject } from "@sinclair/typebox";
 import { AgentDO } from "./agent-do.js";
 import type {
   A2AClientOptions,
@@ -47,6 +48,13 @@ export interface AgentSetup<TEnv> {
   sessionStore: SessionStore;
   /** Abstract transport. */
   transport: Transport;
+  /**
+   * Resolved agent-level config schema — a flat record of TypeBox object
+   * schemas keyed by namespace name. Populated from
+   * {@link AgentDefinition.config} (literal or function of env/setup).
+   * Empty object when the consumer declared no `config` field.
+   */
+  configSchema: Record<string, TObject>;
   /**
    * Resolve all tools (base + capability) for a given session. Synchronous —
    * matches the underlying {@link AgentRuntime.resolveToolsForSession}.
@@ -111,6 +119,22 @@ export interface AgentDefinition<TEnv = Record<string, unknown>> {
    * sections (capability sections still append).
    */
   prompt?: string | PromptOptions;
+
+  /**
+   * Agent-level config schema. A flat record of TypeBox object schemas
+   * keyed by namespace name. Each key becomes a namespace the agent can
+   * read/write via the existing `config_get` / `config_set` /
+   * `config_schema` tools, validated against the schema. Capabilities map
+   * slices of this record into their own context via their factory's
+   * `config` parameter (see capability factories for examples).
+   *
+   * Accepts a literal or a function of `(env, setup)` for consistency
+   * with other `defineAgent` fields that need env access. When omitted,
+   * the agent has no agent-level config namespaces (existing behaviour).
+   */
+  config?:
+    | Record<string, TObject>
+    | ((env: TEnv, setup: AgentSetup<TEnv>) => Record<string, TObject>);
 
   /** Tools — function receiving the per-session {@link AgentContext}. */
   tools?: (context: AgentContext) => AnyAgentTool[];
@@ -213,7 +237,7 @@ export function defineAgent<TEnv = Record<string, unknown>>(
       });
 
       // Build setup once, after stores are initialized by super().
-      this._setup = {
+      const partialSetup: Omit<AgentSetup<TEnv>, "configSchema"> = {
         env,
         agentId: this.runtime.runtimeContext.agentId,
         publicUrl: this.runtime.publicUrl,
@@ -222,6 +246,11 @@ export function defineAgent<TEnv = Record<string, unknown>>(
         transport: this.runtime.transport,
         resolveToolsForSession: (sid) => this.runtime.resolveToolsForSession(sid),
       };
+      const configSchema: Record<string, TObject> =
+        typeof definition.config === "function"
+          ? definition.config(env, partialSetup as AgentSetup<TEnv>)
+          : (definition.config ?? {});
+      this._setup = { ...partialSetup, configSchema };
 
       // Build hooks once and remember the result.
       this._hooks = definition.hooks ? definition.hooks(this._setup) : {};
@@ -298,6 +327,10 @@ export function defineAgent<TEnv = Record<string, unknown>>(
 
     getCapabilities(): Capability[] {
       return definition.capabilities ? definition.capabilities(this._setup) : [];
+    }
+
+    getAgentConfigSchema(): Record<string, TObject> {
+      return this._setup.configSchema;
     }
 
     getSubagentProfiles(): SubagentProfile[] {

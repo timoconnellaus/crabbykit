@@ -55,3 +55,5 @@ export { useSystemPrompt } from "./hooks/use-system-prompt.js";
 export type { UseSystemPromptReturn } from "./hooks/use-system-prompt.js";
 export { useQueue } from "./hooks/use-queue.js";
 export type { UseQueueReturn } from "./hooks/use-queue.js";
+export { useAgentConfig } from "./hooks/use-agent-config.js";
+export type { AgentConfigSnapshot, UseAgentConfigReturn } from "./hooks/use-agent-config.js";

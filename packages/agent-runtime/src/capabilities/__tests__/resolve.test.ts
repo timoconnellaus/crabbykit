@@ -706,3 +706,69 @@ describe("resolveCapabilities", () => {
     expect(result.disposers).toEqual([]);
   });
 });
+
+describe("resolveCapabilities agentConfigMapping", () => {
+  it("injects mapped slice into AgentContext.agentConfig for tools()", () => {
+    const received: unknown[] = [];
+    const cap: Capability = {
+      id: "tavily",
+      name: "Tavily",
+      description: "web search",
+      agentConfigMapping: (agentConfig) =>
+        (agentConfig as { search?: { maxResults: number } }).search,
+      tools: (toolCtx) => {
+        received.push(toolCtx.agentConfig);
+        return [];
+      },
+    };
+    resolveCapabilities([cap], ctx, undefined, undefined, {
+      search: { maxResults: 7 },
+    });
+    expect(received[0]).toEqual({ maxResults: 7 });
+  });
+
+  it("leaves agentConfig undefined when no mapping declared", () => {
+    const received: unknown[] = [];
+    const cap: Capability = {
+      id: "plain",
+      name: "Plain",
+      description: "no config",
+      tools: (toolCtx) => {
+        received.push(toolCtx.agentConfig);
+        return [];
+      },
+    };
+    resolveCapabilities([cap], ctx, undefined, undefined, {
+      search: { maxResults: 7 },
+    });
+    expect(received[0]).toBeUndefined();
+  });
+
+  it("wraps beforeInference hook with live mapped slice at call time", async () => {
+    const snapshot: Record<string, unknown> = { personality: { tone: "formal" } };
+    let observed: unknown;
+    const cap: Capability = {
+      id: "personality",
+      name: "Personality",
+      description: "persona",
+      agentConfigMapping: (c) => (c as { personality?: unknown }).personality,
+      hooks: {
+        beforeInference: async (messages, hookCtx) => {
+          observed = hookCtx.agentConfig;
+          return messages;
+        },
+      },
+    };
+    const resolved = resolveCapabilities([cap], ctx, undefined, undefined, snapshot);
+    // Mutate snapshot after resolve to prove the wrapper reads live state.
+    snapshot.personality = { tone: "casual" };
+    await resolved.beforeInferenceHooks[0]([], {
+      agentId: "a",
+      sessionId: "s",
+      sessionStore: {} as never,
+      storage: createNoopStorage(),
+      capabilityIds: [],
+    });
+    expect(observed).toEqual({ tone: "casual" });
+  });
+});

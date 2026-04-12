@@ -1,5 +1,9 @@
-import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { Type } from "@sinclair/typebox";
+import {
+  type Capability,
+  type CapabilityStorage,
+  type Static,
+  Type,
+} from "@claw-for-cloudflare/agent-runtime";
 import { stableStringify } from "./stable-stringify.js";
 
 const DEFAULT_THRESHOLD = 3;
@@ -12,13 +16,44 @@ interface ToolCallRecord {
   argsSignature: string;
 }
 
+/**
+ * TypeBox schema for the doom-loop-detection capability's agent-level
+ * config namespace. Fields match the legacy `DoomLoopDetectionOptions`
+ * one-for-one so consumers can migrate by wiring a single mapping.
+ */
+export const DoomLoopConfigSchema = Type.Object({
+  threshold: Type.Integer({ default: DEFAULT_THRESHOLD, minimum: 1 }),
+  lookbackWindow: Type.Integer({ default: DEFAULT_LOOKBACK, minimum: 0 }),
+  allowRepeatTools: Type.Array(Type.String(), { default: [] }),
+});
+
+export type DoomLoopConfig = Static<typeof DoomLoopConfigSchema>;
+
 export interface DoomLoopDetectionOptions {
-  /** Number of consecutive identical calls before blocking (default 3). */
+  /**
+   * Agent-level config mapping. Typically `(c) => c.doomLoop`.
+   */
+  config?: (agentConfig: Record<string, unknown>) => DoomLoopConfig;
+
+  /** @deprecated Use the agent-level `config` mapping. */
   threshold?: number;
-  /** Number of recent tool calls to track (default 10). */
+  /** @deprecated Use the agent-level `config` mapping. */
   lookbackWindow?: number;
-  /** Tool names that are exempt from doom loop detection. */
+  /** @deprecated Use the agent-level `config` mapping. */
   allowRepeatTools?: string[];
+}
+
+function resolveConfig(
+  options: DoomLoopDetectionOptions,
+  contextAgentConfig: unknown,
+): DoomLoopConfig {
+  const mapped = contextAgentConfig as DoomLoopConfig | undefined;
+  if (mapped) return mapped;
+  return {
+    threshold: options.threshold ?? DEFAULT_THRESHOLD,
+    lookbackWindow: options.lookbackWindow ?? DEFAULT_LOOKBACK,
+    allowRepeatTools: options.allowRepeatTools ?? [],
+  };
 }
 
 /**
@@ -26,37 +61,27 @@ export interface DoomLoopDetectionOptions {
  *
  * Detects when the agent calls the same tool with identical arguments
  * repeatedly and blocks further calls, returning an error to the LLM.
- *
- * @example
- * ```ts
- * getCapabilities() {
- *   return [
- *     doomLoopDetection({ threshold: 3 }),
- *   ];
- * }
- * ```
  */
 export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capability {
-  const threshold = options.threshold ?? DEFAULT_THRESHOLD;
-  const lookbackWindow = options.lookbackWindow ?? DEFAULT_LOOKBACK;
-  const allowRepeatSet = new Set(options.allowRepeatTools ?? []);
-
   return {
     id: "doom-loop-detection",
     name: "Doom Loop Detection",
     description: "Detects and blocks repeated identical tool calls to prevent runaway agent loops.",
-    configSchema: Type.Object({
-      threshold: Type.Optional(Type.Number({ minimum: 1, default: DEFAULT_THRESHOLD })),
-      lookbackWindow: Type.Optional(Type.Number({ minimum: 0, default: DEFAULT_LOOKBACK })),
-    }),
-    configDefault: { threshold, lookbackWindow },
+    agentConfigMapping: options.config,
     hooks: {
       beforeToolExecution: async (event, ctx) => {
+        const config = resolveConfig(options, ctx.agentConfig);
+        const allowRepeatSet = new Set(config.allowRepeatTools);
         const storageKey = `${STORAGE_KEY_PREFIX}:${ctx.sessionId}`;
 
-        // Check allow-repeat exemption
         if (allowRepeatSet.has(event.toolName)) {
-          await recordToolCall(ctx.storage, storageKey, event.toolName, event.args, lookbackWindow);
+          await recordToolCall(
+            ctx.storage,
+            storageKey,
+            event.toolName,
+            event.args,
+            config.lookbackWindow,
+          );
           return;
         }
 
@@ -76,11 +101,15 @@ export function doomLoopDetection(options: DoomLoopDetectionOptions = {}): Capab
           }
         }
 
-        // Record the current call
-        await recordToolCall(ctx.storage, storageKey, event.toolName, event.args, lookbackWindow);
+        await recordToolCall(
+          ctx.storage,
+          storageKey,
+          event.toolName,
+          event.args,
+          config.lookbackWindow,
+        );
 
-        // +1 because the current call counts too
-        if (consecutiveCount + 1 >= threshold) {
+        if (consecutiveCount + 1 >= config.threshold) {
           ctx.broadcast?.("doom_loop_detected", {
             toolName: event.toolName,
             count: consecutiveCount + 1,
@@ -114,7 +143,6 @@ async function recordToolCall(
 ): Promise<void> {
   const recent = await getRecentCalls(storage, key);
   recent.push({ toolName, argsSignature: stableStringify(args) });
-  // Trim to lookback window
   while (recent.length > lookbackWindow) {
     recent.shift();
   }

@@ -1,2 +1,2 @@
-export type { DoomLoopDetectionOptions } from "./capability.js";
-export { doomLoopDetection } from "./capability.js";
+export type { DoomLoopConfig, DoomLoopDetectionOptions } from "./capability.js";
+export { DoomLoopConfigSchema, doomLoopDetection } from "./capability.js";

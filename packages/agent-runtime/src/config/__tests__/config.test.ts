@@ -60,6 +60,8 @@ function makeCtx(overrides: Partial<ConfigContext> = {}): ConfigContext {
     configStore: new ConfigStore(createMockKvStore()),
     capabilities: [],
     namespaces: [],
+    agentConfigSchema: {},
+    agentConfigSnapshot: {},
     ...overrides,
   };
 }
@@ -602,5 +604,154 @@ describe("config_set", () => {
     const result = await tool.execute({ namespace: "theme", value: null }, TOOL_CTX);
     expect(isError(result)).toBeUndefined();
     expect(setFn).toHaveBeenCalledWith("theme", null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent-level config (ConfigStore + config tools)
+// ---------------------------------------------------------------------------
+
+describe("ConfigStore agent-level config", () => {
+  it("returns undefined for unset agent namespace", async () => {
+    const store = new ConfigStore(createMockKvStore());
+    expect(await store.getAgentConfig("search")).toBeUndefined();
+  });
+
+  it("round-trips agent config", async () => {
+    const store = new ConfigStore(createMockKvStore());
+    await store.setAgentConfig("search", { maxResults: 7 });
+    expect(await store.getAgentConfig("search")).toEqual({ maxResults: 7 });
+  });
+
+  it("isolates agent namespaces from capability keys", async () => {
+    const store = new ConfigStore(createMockKvStore());
+    await store.setAgentConfig("search", { maxResults: 10 });
+    await store.setCapabilityConfig("search", { maxResults: 20 });
+    expect(await store.getAgentConfig("search")).toEqual({ maxResults: 10 });
+    expect(await store.getCapabilityConfig("search")).toEqual({ maxResults: 20 });
+  });
+});
+
+const SEARCH_SCHEMA = Type.Object({
+  maxResults: Type.Integer({ default: 5, minimum: 1 }),
+});
+const PERSONALITY_SCHEMA = Type.Object({
+  tone: Type.Union([Type.Literal("formal"), Type.Literal("casual")], { default: "casual" }),
+});
+
+describe("config_get agent-level namespaces", () => {
+  it("returns stored agent config value", async () => {
+    const ctx = makeCtx({
+      agentConfigSchema: { search: SEARCH_SCHEMA },
+      agentConfigSnapshot: { search: { maxResults: 10 } },
+    });
+    const tool = createConfigGet(ctx);
+    const result = await tool.execute({ namespace: "search" }, TOOL_CTX);
+    expect(isError(result)).toBeUndefined();
+    expect(JSON.parse(textOf(result))).toEqual({ maxResults: 10 });
+  });
+
+  it("falls back to schema defaults when no value is set", async () => {
+    const ctx = makeCtx({
+      agentConfigSchema: { search: SEARCH_SCHEMA },
+      agentConfigSnapshot: {},
+    });
+    const tool = createConfigGet(ctx);
+    const result = await tool.execute({ namespace: "search" }, TOOL_CTX);
+    expect(JSON.parse(textOf(result))).toEqual({ maxResults: 5 });
+  });
+});
+
+describe("config_set agent-level namespaces", () => {
+  it("validates and persists a valid value", async () => {
+    const store = new ConfigStore(createMockKvStore());
+    const snapshot: Record<string, unknown> = {};
+    const setFn = vi.fn();
+    const ctx = makeCtx({
+      configStore: store,
+      agentConfigSchema: { search: SEARCH_SCHEMA },
+      agentConfigSnapshot: snapshot,
+      onAgentConfigSet: setFn,
+    });
+    const tool = createConfigSet(ctx);
+    const result = await tool.execute(
+      { namespace: "search", value: { maxResults: 8 } },
+      TOOL_CTX,
+    );
+    expect(isError(result)).toBeUndefined();
+    expect(await store.getAgentConfig("search")).toEqual({ maxResults: 8 });
+    expect(snapshot.search).toEqual({ maxResults: 8 });
+    expect(setFn).toHaveBeenCalledWith("search", expect.anything(), { maxResults: 8 });
+  });
+
+  it("rejects an invalid value without persisting", async () => {
+    const store = new ConfigStore(createMockKvStore());
+    const ctx = makeCtx({
+      configStore: store,
+      agentConfigSchema: { search: SEARCH_SCHEMA },
+      agentConfigSnapshot: {},
+    });
+    const tool = createConfigSet(ctx);
+    const result = await tool.execute(
+      { namespace: "search", value: { maxResults: "wrong" } },
+      TOOL_CTX,
+    );
+    expect(isError(result)).toBe(true);
+    expect(textOf(result)).toContain("Validation error");
+    expect(await store.getAgentConfig("search")).toBeUndefined();
+  });
+});
+
+describe("config tools namespace resolution priority", () => {
+  it("resolves capability: namespace before agent-level namespace of same name", async () => {
+    // An agent namespace and a capability both named "search"
+    const cap = makeCap({ id: "search", configSchema: SEARCH_SCHEMA });
+    const store = new ConfigStore(createMockKvStore());
+    await store.setCapabilityConfig("search", { maxResults: 20 });
+    const ctx = makeCtx({
+      configStore: store,
+      capabilities: [cap],
+      agentConfigSchema: { search: SEARCH_SCHEMA },
+      agentConfigSnapshot: { search: { maxResults: 3 } },
+    });
+    const get = createConfigGet(ctx);
+    // capability:{id} is the capability path
+    const capResult = await get.execute({ namespace: "capability:search" }, TOOL_CTX);
+    expect(JSON.parse(textOf(capResult))).toEqual({ maxResults: 20 });
+    // bare "search" resolves the agent-level namespace
+    const agentResult = await get.execute({ namespace: "search" }, TOOL_CTX);
+    expect(JSON.parse(textOf(agentResult))).toEqual({ maxResults: 3 });
+  });
+
+  it("agent-level namespace wins over custom namespace of same id", async () => {
+    const ns: ConfigNamespace = {
+      id: "personality",
+      description: "custom",
+      schema: PERSONALITY_SCHEMA,
+      get: async () => ({ tone: "formal" }),
+      set: async () => {},
+    };
+    const ctx = makeCtx({
+      namespaces: [ns],
+      agentConfigSchema: { personality: PERSONALITY_SCHEMA },
+      agentConfigSnapshot: { personality: { tone: "casual" } },
+    });
+    const tool = createConfigGet(ctx);
+    const result = await tool.execute({ namespace: "personality" }, TOOL_CTX);
+    expect(JSON.parse(textOf(result))).toEqual({ tone: "casual" });
+  });
+});
+
+describe("config_schema agent-level namespaces", () => {
+  it("lists agent namespaces in the schema output", async () => {
+    const ctx = makeCtx({
+      agentConfigSchema: { search: SEARCH_SCHEMA, personality: PERSONALITY_SCHEMA },
+      agentConfigSnapshot: { search: { maxResults: 5 } },
+    });
+    const tool = createConfigSchema(ctx);
+    const result = await tool.execute({}, TOOL_CTX);
+    const parsed = JSON.parse(textOf(result)) as Record<string, unknown>;
+    expect(parsed.search).toBeDefined();
+    expect(parsed.personality).toBeDefined();
   });
 });

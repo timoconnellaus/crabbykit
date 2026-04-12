@@ -1,14 +1,40 @@
 import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
+import {
+  type Capability,
+  type Static,
+  Type,
+} from "@claw-for-cloudflare/agent-runtime";
 
 const DEFAULT_MAX_TOKENS = 30_000;
 const CHARS_PER_TOKEN = 3.5;
 const HEAD_RATIO = 0.4;
 const TAIL_RATIO = 0.4;
 
+/**
+ * TypeBox schema for the tool-output-truncation capability's
+ * agent-level config namespace.
+ */
+export const ToolOutputTruncationConfigSchema = Type.Object({
+  maxTokens: Type.Integer({ default: DEFAULT_MAX_TOKENS, minimum: 1_000 }),
+});
+
+export type ToolOutputTruncationConfig = Static<typeof ToolOutputTruncationConfigSchema>;
+
 export interface ToolOutputTruncationOptions {
-  /** Maximum tokens per tool result text block before truncation (default 30,000). */
+  /** Agent-level config mapping. Typically `(c) => c.toolOutput`. */
+  config?: (agentConfig: Record<string, unknown>) => ToolOutputTruncationConfig;
+
+  /** @deprecated Use the agent-level `config` mapping. */
   maxTokens?: number;
+}
+
+function resolveConfig(
+  options: ToolOutputTruncationOptions,
+  contextAgentConfig: unknown,
+): ToolOutputTruncationConfig {
+  const mapped = contextAgentConfig as ToolOutputTruncationConfig | undefined;
+  if (mapped) return mapped;
+  return { maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS };
 }
 
 /**
@@ -30,7 +56,6 @@ const TRUNCATION_MARKER = "[... truncated";
 export function truncateText(text: string, maxTokens: number): string {
   const estimatedTokens = estimateTextTokens(text);
   if (estimatedTokens <= maxTokens) return text;
-  // Already truncated — don't re-truncate
   if (text.includes(TRUNCATION_MARKER)) return text;
 
   const maxChars = Math.floor(maxTokens * CHARS_PER_TOKEN);
@@ -44,29 +69,18 @@ export function truncateText(text: string, maxTokens: number): string {
   return `${head}\n\n[... truncated ${removed} tokens, ${maxTokens} of ${estimatedTokens} kept ...]\n\n${tail}`;
 }
 
-/**
- * Check if a tool result message has opted out of truncation
- * via `details.skipTruncation`.
- */
 function hasSkipTruncation(message: AgentMessage): boolean {
   // biome-ignore lint/suspicious/noExplicitAny: AgentMessage details structure is opaque
   const details = (message as any).details;
   return details?.skipTruncation === true;
 }
 
-/**
- * Check if a message is a tool result (role === "tool" or role === "toolResult").
- */
 function isToolResult(message: AgentMessage): boolean {
   // biome-ignore lint/suspicious/noExplicitAny: AgentMessage role is opaque from pi-agent-core
   const role = (message as any).role;
   return role === "tool" || role === "toolResult";
 }
 
-/**
- * Truncate text content blocks in a message if they exceed the token limit.
- * Returns a new message with truncated content, or the original if unchanged.
- */
 function truncateMessageContent(message: AgentMessage, maxTokens: number): AgentMessage {
   // biome-ignore lint/suspicious/noExplicitAny: AgentMessage content structure is opaque
   const content = (message as any).content;
@@ -104,29 +118,20 @@ function truncateMessageContent(message: AgentMessage, maxTokens: number): Agent
  * Scans tool result messages before each inference call and truncates
  * oversized text content blocks, preserving the first and last 40%
  * of the allowed content.
- *
- * @example
- * ```ts
- * getCapabilities() {
- *   return [
- *     toolOutputTruncation({ maxTokens: 30_000 }),
- *   ];
- * }
- * ```
  */
 export function toolOutputTruncation(options: ToolOutputTruncationOptions = {}): Capability {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-
   return {
     id: "tool-output-truncation",
     name: "Tool Output Truncation",
     description: "Truncates oversized tool results before they enter the LLM context window.",
+    agentConfigMapping: options.config,
     hooks: {
-      beforeInference: async (messages) => {
+      beforeInference: async (messages, ctx) => {
+        const config = resolveConfig(options, ctx.agentConfig);
         return messages.map((msg) => {
           if (!isToolResult(msg)) return msg;
           if (hasSkipTruncation(msg)) return msg;
-          return truncateMessageContent(msg, maxTokens);
+          return truncateMessageContent(msg, config.maxTokens);
         });
       },
     },

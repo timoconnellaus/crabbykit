@@ -53,18 +53,18 @@ export const TELEGRAM_CAPABILITY_ID = "telegram";
 export interface DefineTelegramChannelOptions {
   /**
    * Optional agent identifier embedded in the registered webhook URL
-   * as `/telegram/webhook/{agentId}/{accountId}`. A top-level proxy
-   * route in the host Worker can then extract `agentId`, resolve the
-   * right DO via `env.AGENT.idFromName(agentId)`, and forward the
-   * request with the path rewritten back to `/telegram/webhook/{accountId}`
-   * so the DO-internal handler still matches. Omit for single-tenant
-   * deployments — the URL then falls back to the original
-   * `/telegram/webhook/{accountId}` shape.
+   * as `/telegram/webhook/{agentId}/{accountId}`.
    */
   agentId?: string;
-  /** Override the default per-sender rate-limit buckets. */
+  /**
+   * Agent-level config mapping for rate-limit policy. Typically
+   * `(c) => c.telegramRateLimit`. The channel calls this on every
+   * inbound so `config_set` updates take effect without a redeploy.
+   */
+  config?: (agentConfig: Record<string, unknown>) => TelegramRateLimitConfig;
+  /** @deprecated Use the agent-level `config` mapping. */
   perSenderRateLimit?: { perMinute: number; perHour?: number };
-  /** Override the default per-account (Sybil) rate-limit buckets. */
+  /** @deprecated Use the agent-level `config` mapping. */
   perAccountRateLimit?: { perMinute: number; perHour?: number };
   /**
    * Test hook: override the Telegram client factory so unit/e2e tests
@@ -72,6 +72,27 @@ export interface DefineTelegramChannelOptions {
    */
   clientFactory?: (account: TelegramAccount) => TelegramClient;
 }
+
+/**
+ * TypeBox schema for the Telegram channel's agent-level rate-limit
+ * config. Account list (`telegram-accounts`) stays in
+ * `CapabilityStorage` — only the policy knobs move to agent config.
+ */
+export const TelegramRateLimitSchema = Type.Object({
+  perSenderRateLimit: Type.Object({
+    perMinute: Type.Integer({ minimum: 1 }),
+    perHour: Type.Optional(Type.Integer({ minimum: 1 })),
+  }),
+  perAccountRateLimit: Type.Object({
+    perMinute: Type.Integer({ minimum: 1 }),
+    perHour: Type.Optional(Type.Integer({ minimum: 1 })),
+  }),
+});
+
+export type TelegramRateLimitConfig = {
+  perSenderRateLimit: { perMinute: number; perHour?: number };
+  perAccountRateLimit: { perMinute: number; perHour?: number };
+};
 
 /** Default conservative rate limits — tune per deployment. */
 const DEFAULT_PER_SENDER = { perMinute: 10, perHour: 100 } as const;
@@ -256,9 +277,14 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
       }
       return parseTelegramUpdate(update);
     },
-    rateLimit: {
-      perSender: opts.perSenderRateLimit ?? DEFAULT_PER_SENDER,
-      perAccount: opts.perAccountRateLimit ?? DEFAULT_PER_ACCOUNT,
+    rateLimit: (ctx) => {
+      // `ctx.agentConfig` is already the mapped slice (runtime applies
+      // the capability's `agentConfigMapping` before dispatch).
+      const mapped = ctx.agentConfig as TelegramRateLimitConfig | undefined;
+      return {
+        perSender: mapped?.perSenderRateLimit ?? opts.perSenderRateLimit ?? DEFAULT_PER_SENDER,
+        perAccount: mapped?.perAccountRateLimit ?? opts.perAccountRateLimit ?? DEFAULT_PER_ACCOUNT,
+      };
     },
     sendReply,
   };
@@ -272,6 +298,7 @@ export function defineTelegramChannel(opts: DefineTelegramChannelOptions = {}): 
   //    connecting UI hydrates its account list immediately.
   return {
     ...baseCapability,
+    agentConfigMapping: opts.config,
     configNamespaces: (context: AgentContext): ConfigNamespace[] => [
       {
         id: "telegram-accounts",

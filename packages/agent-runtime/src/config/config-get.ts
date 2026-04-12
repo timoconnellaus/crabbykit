@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 import { defineTool, toolResult } from "../tools/define-tool.js";
 import type { ConfigNamespace } from "./config-namespace.js";
 import type { ConfigContext } from "./types.js";
@@ -18,7 +19,13 @@ function findNamespace(
  * Create the config_get tool that reads agent configuration by namespace.
  */
 export function createConfigGet(ctx: ConfigContext) {
-  const namespaceList = ["capability:{id}", "session", ...ctx.namespaces.map((ns) => ns.id)];
+  const agentNamespaceIds = Object.keys(ctx.agentConfigSchema);
+  const namespaceList = [
+    "capability:{id}",
+    "session",
+    ...agentNamespaceIds,
+    ...ctx.namespaces.map((ns) => ns.id),
+  ];
 
   return defineTool({
     name: "config_get",
@@ -50,6 +57,14 @@ export function createConfigGet(ctx: ConfigContext) {
         const session = ctx.sessionStore.get(ctx.sessionId);
         const name = session?.name ?? "";
         return toolResult.text(JSON.stringify({ name }, null, 2));
+      }
+
+      // Agent-level namespaces declared on defineAgent
+      const agentSchema = ctx.agentConfigSchema[namespace];
+      if (agentSchema) {
+        const stored = ctx.agentConfigSnapshot[namespace];
+        const value = stored !== undefined ? stored : Value.Create(agentSchema);
+        return toolResult.text(JSON.stringify(value, null, 2));
       }
 
       // Capability-contributed and consumer namespaces (exact + pattern)

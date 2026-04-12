@@ -1,21 +1,70 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import {
+  type AgentContext,
+  type Capability,
+  type Static,
+  Type,
+} from "@claw-for-cloudflare/agent-runtime";
 import { createFetchTool } from "./fetch.js";
-import type { TavilySearchDefaults } from "./search.js";
 import { createSearchTool } from "./search.js";
 
 const DEFAULT_MAX_RESULTS = 5;
+const DEFAULT_USER_AGENT = "ClawAgent/1.0";
+const DEFAULT_MAX_FETCH_SIZE = 50_000;
+
+/**
+ * TypeBox schema for the tavily-web-search capability's agent-level
+ * config. `tavilyApiKey` intentionally stays in the factory closure —
+ * it's a secret, not tunable config.
+ */
+export const TavilyConfigSchema = Type.Object({
+  maxResults: Type.Integer({ default: DEFAULT_MAX_RESULTS, minimum: 1, maximum: 50 }),
+  userAgent: Type.String({ default: DEFAULT_USER_AGENT }),
+  maxFetchSize: Type.Integer({
+    default: DEFAULT_MAX_FETCH_SIZE,
+    minimum: 1_000,
+    maximum: 1_000_000,
+  }),
+  searchDefaults: Type.Object({
+    searchDepth: Type.Optional(Type.Union([Type.Literal("basic"), Type.Literal("advanced")])),
+    includeDomains: Type.Optional(Type.Array(Type.String())),
+    excludeDomains: Type.Optional(Type.Array(Type.String())),
+  }),
+});
+
+export type TavilyConfig = Static<typeof TavilyConfigSchema>;
 
 export interface TavilyWebSearchOptions {
-  /** Tavily API key — string or getter function. */
+  /** Tavily API key — string or getter function. Stays in-closure. */
   tavilyApiKey: string | (() => string);
-  /** Maximum search results (default 5). */
+  /**
+   * Agent-level config mapping. Typically `(c) => c.search`. Receives
+   * the full agent config record and returns the slice this capability
+   * consumes on each turn.
+   */
+  config?: (agentConfig: Record<string, unknown>) => TavilyConfig;
+
+  /** @deprecated Use the agent-level `config` mapping. */
   maxResults?: number;
-  /** User-Agent header for web_fetch (default "ClawAgent/1.0"). */
+  /** @deprecated Use the agent-level `config` mapping. */
   userAgent?: string;
-  /** Maximum fetch content size in chars (default 50,000). */
+  /** @deprecated Use the agent-level `config` mapping. */
   maxFetchSize?: number;
-  /** Default search options applied to every search unless overridden per-call. */
-  searchDefaults?: TavilySearchDefaults;
+  /** @deprecated Use the agent-level `config` mapping. */
+  searchDefaults?: TavilyConfig["searchDefaults"];
+}
+
+function resolveConfig(
+  options: TavilyWebSearchOptions,
+  context: AgentContext,
+): TavilyConfig {
+  const mapped = context.agentConfig as TavilyConfig | undefined;
+  if (mapped) return mapped;
+  return {
+    maxResults: options.maxResults ?? DEFAULT_MAX_RESULTS,
+    userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
+    maxFetchSize: options.maxFetchSize ?? DEFAULT_MAX_FETCH_SIZE,
+    searchDefaults: options.searchDefaults ?? {},
+  };
 }
 
 /**
@@ -24,17 +73,6 @@ export interface TavilyWebSearchOptions {
  * Provides two tools:
  * - `web_search` — Search the web via Tavily API
  * - `web_fetch` — Fetch and extract content from a URL
- *
- * @example
- * ```ts
- * getCapabilities() {
- *   return [
- *     tavilyWebSearch({
- *       tavilyApiKey: () => this.env.TAVILY_API_KEY,
- *     }),
- *   ];
- * }
- * ```
  */
 export function tavilyWebSearch(options: TavilyWebSearchOptions): Capability {
   const getApiKey =
@@ -46,14 +84,13 @@ export function tavilyWebSearch(options: TavilyWebSearchOptions): Capability {
     id: "tavily-web-search",
     name: "Web Search (Tavily)",
     description: "Search the web and fetch URLs for current information.",
-    tools: (context: AgentContext) => [
-      createSearchTool(
-        getApiKey,
-        options.maxResults ?? DEFAULT_MAX_RESULTS,
-        context,
-        options.searchDefaults,
-      ),
-      createFetchTool(options.userAgent, options.maxFetchSize, context),
-    ],
+    agentConfigMapping: options.config,
+    tools: (context: AgentContext) => {
+      const config = resolveConfig(options, context);
+      return [
+        createSearchTool(getApiKey, config.maxResults, context, config.searchDefaults),
+        createFetchTool(config.userAgent, config.maxFetchSize, context),
+      ];
+    },
   };
 }

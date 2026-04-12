@@ -103,11 +103,16 @@ export interface ChannelDefinition<TAccount extends { id: string }, TInbound> {
    * MANDATORY — both per-sender AND per-account buckets are required by
    * the type system. `perSender` protects against a single-user flood;
    * `perAccount` protects against Sybil attacks (rotating sender ids).
+   *
+   * Accepts either a static object or a function of the dispatching
+   * HTTP context so channels can derive the limits from live agent
+   * config per inbound (see the Telegram reference implementation).
    */
-  rateLimit: {
-    perSender: RateLimitConfig;
-    perAccount: RateLimitConfig;
-  };
+  rateLimit:
+    | { perSender: RateLimitConfig; perAccount: RateLimitConfig }
+    | ((
+        ctx: { agentConfig?: unknown },
+      ) => { perSender: RateLimitConfig; perAccount: RateLimitConfig });
 
   /**
    * MANDATORY — send the final assistant text to the inbound target.

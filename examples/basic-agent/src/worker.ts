@@ -17,7 +17,7 @@ import {
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
-import { heartbeat } from "@claw-for-cloudflare/heartbeat";
+import { heartbeat, HeartbeatConfigSchema } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
@@ -25,7 +25,7 @@ import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-regi
 import { skills } from "@claw-for-cloudflare/skills";
 import { explorer } from "@claw-for-cloudflare/subagent-explorer";
 import { taskTracker } from "@claw-for-cloudflare/task-tracker";
-import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
+import { tavilyWebSearch, TavilyConfigSchema } from "@claw-for-cloudflare/tavily-web-search";
 import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
@@ -78,6 +78,25 @@ const EXAMPLE_SKILL_SEEDS = [
  * need direct `this.ctx` access or bespoke constructor logic, consumers can
  * still `class MyAgent extends AgentDO { ... }` as the escape hatch.
  */
+/**
+ * Agent-level config surface. Flat record of TypeBox schemas keyed by
+ * namespace; each key becomes a namespace the agent can read/write via
+ * `config_get` / `config_set` / `config_schema` tools and the UI's
+ * `useAgentConfig()` hook. Capability schemas migrate in here; custom
+ * consumer config (e.g. `personality`) sits alongside.
+ */
+const agentConfig = {
+  personality: Type.Object({
+    tone: Type.Union(
+      [Type.Literal("formal"), Type.Literal("casual"), Type.Literal("terse")],
+      { default: "casual" },
+    ),
+    verbosity: Type.Integer({ default: 3, minimum: 1, maximum: 5 }),
+  }),
+  heartbeat: HeartbeatConfigSchema,
+  search: TavilyConfigSchema,
+};
+
 export const BasicAgent = defineAgent<Env>({
   model: (env) => ({
     provider: "openrouter",
@@ -85,6 +104,8 @@ export const BasicAgent = defineAgent<Env>({
     apiKey: env.OPENROUTER_API_KEY,
     a2a: { discoverable: true },
   }),
+
+  config: agentConfig,
 
   prompt: {
     agentName: "Basic Agent",
@@ -158,7 +179,10 @@ export const BasicAgent = defineAgent<Env>({
         getApiKey: () => env.OPENROUTER_API_KEY,
         pruneBudget: 40_000,
       }),
-      tavilyWebSearch({ tavilyApiKey: () => env.TAVILY_API_KEY }),
+      tavilyWebSearch({
+        tavilyApiKey: () => env.TAVILY_API_KEY,
+        config: (c) => c.search as import("@claw-for-cloudflare/tavily-web-search").TavilyConfig,
+      }),
       r2Storage({ storage }),
       vectorMemory({
         storage,
@@ -167,7 +191,9 @@ export const BasicAgent = defineAgent<Env>({
       }),
       promptScheduler(),
       credentialStore(),
-      heartbeat({ every: "30m", enabled: false }),
+      heartbeat({
+        config: (c) => c.heartbeat as import("@claw-for-cloudflare/heartbeat").HeartbeatConfig,
+      }),
       peering.capability,
       agentFleet({
         registry: agentRegistry,

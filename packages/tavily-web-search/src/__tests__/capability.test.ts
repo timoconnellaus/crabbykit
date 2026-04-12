@@ -159,4 +159,60 @@ describe("tavilyWebSearch", () => {
     const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
     expect(body.search_depth).toBe("advanced");
   });
+
+  describe("agent-level config mapping", () => {
+    it("reads tunables from ctx.agentConfig when mapped", async () => {
+      mockFetch.mockResolvedValue(
+        new Response(JSON.stringify({ results: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const cap = tavilyWebSearch({
+        tavilyApiKey: "key",
+        config: (c) =>
+          (
+            c as {
+              search: {
+                maxResults: number;
+                userAgent: string;
+                maxFetchSize: number;
+                searchDefaults: { searchDepth?: "basic" | "advanced" };
+              };
+            }
+          ).search,
+      });
+      const context = {
+        agentId: "test-agent",
+        sessionId: "s1",
+        stepNumber: 0,
+        emitCost: vi.fn(),
+        broadcast: () => {},
+        broadcastToAll: () => {},
+        broadcastState: () => {},
+        requestFromClient: () => Promise.reject(new Error("Not available")),
+        storage: createNoopStorage(),
+        schedules: {} as any,
+        agentConfig: {
+          maxResults: 13,
+          userAgent: "mapped/1",
+          maxFetchSize: 20_000,
+          searchDefaults: { searchDepth: "advanced" },
+        },
+      };
+      const tools = cap.tools!(context as never);
+      await tools[0].execute({ query: "hi" }, { toolCallId: "test" });
+      const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.max_results).toBe(13);
+      expect(body.search_depth).toBe("advanced");
+    });
+
+    it("exposes agentConfigMapping for runtime resolution", () => {
+      const mapping = (c: Record<string, unknown>) =>
+        (c as { search: Record<string, unknown> }).search as never;
+      const cap = tavilyWebSearch({ tavilyApiKey: "k", config: mapping });
+      expect(cap.agentConfigMapping).toBe(mapping);
+    });
+  });
 });

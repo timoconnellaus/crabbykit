@@ -7,7 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*"
+    "@claw-for-cloudflare/agent-runtime": "workspace:*",
+    "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

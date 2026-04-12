@@ -179,11 +179,15 @@ async function handleInbound<TAccount extends { id: string }, TInbound>(
   }
 
   // 3. Per-sender rate-limit — HTTP 200 on denial (no 429) so the
-  //    provider doesn't retry-storm us.
+  //    provider doesn't retry-storm us. `rateLimit` may be a static
+  //    object or a function of the dispatching ctx — call it fresh on
+  //    every inbound so agent-config changes take effect immediately.
+  const resolvedLimits =
+    typeof def.rateLimit === "function" ? def.rateLimit(ctx) : def.rateLimit;
   const perSenderKey = `${def.id}:${account.id}:sender:${parsed.senderId}`;
   const perSenderResult = await ctx.rateLimit.consume({
     key: perSenderKey,
-    ...def.rateLimit.perSender,
+    ...resolvedLimits.perSender,
   });
   if (!perSenderResult.allowed) {
     return new Response("ok", { status: 200 });
@@ -194,7 +198,7 @@ async function handleInbound<TAccount extends { id: string }, TInbound>(
   const perAccountKey = `${def.id}:${account.id}:_global`;
   const perAccountResult = await ctx.rateLimit.consume({
     key: perAccountKey,
-    ...def.rateLimit.perAccount,
+    ...resolvedLimits.perAccount,
   });
   if (!perAccountResult.allowed) {
     return new Response("ok", { status: 200 });

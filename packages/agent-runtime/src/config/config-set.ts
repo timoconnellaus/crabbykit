@@ -29,7 +29,13 @@ function findNamespace(
  * Create the config_set tool that updates agent configuration by namespace.
  */
 export function createConfigSet(ctx: ConfigContext) {
-  const namespaceList = ["capability:{id}", "session", ...ctx.namespaces.map((ns) => ns.id)];
+  const agentNamespaceIds = Object.keys(ctx.agentConfigSchema);
+  const namespaceList = [
+    "capability:{id}",
+    "session",
+    ...agentNamespaceIds,
+    ...ctx.namespaces.map((ns) => ns.id),
+  ];
 
   return defineTool({
     name: "config_set",
@@ -108,6 +114,33 @@ export function createConfigSet(ctx: ConfigContext) {
         }
 
         await ctx.configStore.setCapabilityConfig(id, value);
+        return toolResult.text(`Configuration updated: ${namespace}`);
+      }
+
+      // Agent-level namespace declared on defineAgent
+      const agentSchema = ctx.agentConfigSchema[namespace];
+      if (agentSchema) {
+        if (!Value.Check(agentSchema, value)) {
+          const hint = formatErrors(agentSchema, value);
+          return toolResult.error(
+            `Validation error: ${hint}\nExpected schema: ${JSON.stringify(agentSchema, null, 2)}`,
+          );
+        }
+        const oldValue =
+          ctx.agentConfigSnapshot[namespace] !== undefined
+            ? ctx.agentConfigSnapshot[namespace]
+            : Value.Create(agentSchema);
+        await ctx.configStore.setAgentConfig(namespace, value);
+        ctx.agentConfigSnapshot[namespace] = value;
+        if (ctx.onAgentConfigSet) {
+          try {
+            await ctx.onAgentConfigSet(namespace, oldValue, value);
+          } catch (err) {
+            return toolResult.error(
+              `Error in agent config change dispatch: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
         return toolResult.text(`Configuration updated: ${namespace}`);
       }
 

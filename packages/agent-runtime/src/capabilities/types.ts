@@ -39,6 +39,15 @@ export interface CapabilityHookContext {
   broadcastState?: (event: string, data: unknown, scope?: "session" | "global") => void;
   /** Emit a cost event. Persisted to session and broadcast to clients. */
   emitCost?: (cost: CostEvent) => void;
+  /**
+   * Capability's mapped slice of the agent-level config snapshot at the
+   * time the hook fires. Mirrors `AgentContext.agentConfig` — present
+   * when the capability declared an `agentConfigMapping`, otherwise
+   * `undefined`. Capability hooks that need live config should read
+   * this field rather than relying on a closure captured at factory
+   * time.
+   */
+  agentConfig?: unknown;
 }
 
 /**
@@ -117,6 +126,19 @@ export interface Capability {
    * Returned by config_get when no config has been explicitly set.
    */
   configDefault?: Record<string, unknown>;
+
+  /**
+   * Optional mapping from the agent-level config (declared on
+   * `defineAgent`'s `config` field) to the slice this capability cares
+   * about. The runtime invokes this at capability-resolution time with
+   * the current agent config record and writes the result onto
+   * `AgentContext.agentConfig`. Set via the capability factory's
+   * `config` option; capabilities rarely populate this field by hand.
+   *
+   * When `undefined`, the capability receives `context.agentConfig` as
+   * `undefined` and behaves as it did before the agent-config layer.
+   */
+  agentConfigMapping?: (agentConfig: Record<string, unknown>) => unknown;
 
   /** Tools contributed by this capability. */
   tools?: (context: AgentContext) => AnyAgentTool[];
@@ -241,6 +263,24 @@ export interface Capability {
       newConfig: Record<string, unknown>,
       ctx: CapabilityHookContext,
     ) => Promise<void>;
+
+    /**
+     * Called when an agent-level config namespace changes and this
+     * capability's `agentConfigMapping` produced a different slice than
+     * before. Receives the previous and next mapped slices (same shape
+     * the capability reads from `context.agentConfig`).
+     *
+     * Capabilities that only read `context.agentConfig` at tool-execution
+     * time do not need this hook — they always see the latest value.
+     * Use it when the capability holds derived state that must be
+     * rebuilt on change (e.g., re-syncing a schedule, resetting a
+     * rate-limit bucket).
+     */
+    onAgentConfigChange?: (
+      oldSlice: unknown,
+      newSlice: unknown,
+      ctx: CapabilityHookContext,
+    ) => Promise<void>;
   };
 }
 
@@ -288,6 +328,14 @@ export interface CapabilityHttpContext {
    * atomicity contract.
    */
   rateLimit: RateLimiter;
+  /**
+   * Capability's mapped slice of the agent-level config snapshot,
+   * resolved at the time the HTTP handler is dispatched. Mirrors
+   * `AgentContext.agentConfig` / `CapabilityHookContext.agentConfig` so
+   * capabilities with long-lived webhook routes (channels, A2A
+   * callbacks, …) can consult live config per request.
+   */
+  agentConfig?: unknown;
   /**
    * Inject a prompt and run agent inference. Returns when the agent completes.
    * Creates a new session if sessionId is not provided.
