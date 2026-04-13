@@ -36,6 +36,7 @@ describe("r2Storage", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
     const tools = cap.tools!(context);
 

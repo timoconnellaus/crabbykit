@@ -47,6 +47,7 @@ function mockContext(sessionId = "test-session"): AgentContext {
       delete: vi.fn().mockResolvedValue(false),
       list: vi.fn().mockResolvedValue(new Map()),
     },
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

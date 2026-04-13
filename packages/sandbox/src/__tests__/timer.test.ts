@@ -23,6 +23,7 @@ function mockContext() {
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
     storage: createNoopStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

@@ -38,6 +38,7 @@ function mockContext(overrides: Partial<AgentContext> = {}): AgentContext {
     requestFromClient: vi.fn(),
     schedules: {} as AgentContext["schedules"],
     storage: createMockStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
     ...overrides,
   };
 }

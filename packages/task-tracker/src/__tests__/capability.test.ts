@@ -33,6 +33,7 @@ describe("taskTracker capability", () => {
       requestFromClient: vi.fn(),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
 
     const tools = cap.tools!(context);
@@ -61,6 +62,7 @@ describe("taskTracker capability", () => {
       requestFromClient: vi.fn(),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
 
     const sections = cap.promptSections!(context);

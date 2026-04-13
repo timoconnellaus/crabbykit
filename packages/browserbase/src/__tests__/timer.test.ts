@@ -23,6 +23,7 @@ function mockContext(): AgentContext {
       cancelTimer: vi.fn(),
     },
     storage: createNoopStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

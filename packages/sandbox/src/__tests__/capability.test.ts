@@ -61,6 +61,7 @@ function mockContext(sessionId = "test-session", storage?: CapabilityStorage): A
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
     storage: storage ?? createMapStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

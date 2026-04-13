@@ -10,11 +10,8 @@
  *  - result formatting
  */
 
-import type {
-  AgentContext,
-  CapabilityHookContext,
-  Tool,
-} from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -32,10 +29,10 @@ function makeMockService() {
   };
 }
 
-function makeContext(token?: string): CapabilityHookContext & {
+function makeContext(token?: string): AgentContext & {
   env: { __SPINE_TOKEN?: string };
 } {
-  const agentCtx: AgentContext = {
+  return {
     agentId: "agent",
     sessionId: "session",
     stepNumber: 0,
@@ -46,14 +43,13 @@ function makeContext(token?: string): CapabilityHookContext & {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     storage: createNoopStorage(),
     schedules: {} as never,
-  };
-  return {
-    ...(agentCtx as unknown as CapabilityHookContext),
+    rateLimit: { consume: async () => ({ allowed: true }) },
     env: { __SPINE_TOKEN: token },
-  };
+  } as unknown as AgentContext & { env: { __SPINE_TOKEN?: string } };
 }
 
-function toolByName(tools: Tool[], name: string): Tool {
+// biome-ignore lint/suspicious/noExplicitAny: test helper
+function toolByName(tools: AgentTool<any>[], name: string): AgentTool<any> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) throw new Error(`Tool ${name} not found`);
   return tool;
@@ -69,7 +65,7 @@ describe("tavilyClient capability shape", () => {
   it("produces web_search and web_fetch tools", () => {
     const cap = tavilyClient({ service: makeMockService() });
     const ctx = makeContext("tok");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(["web_fetch", "web_search"]);
   });
@@ -90,7 +86,7 @@ describe("web_search tool", () => {
 
     const cap = tavilyClient({ service });
     const ctx = makeContext("tok-abc");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
     const result = await search.execute!(
@@ -111,13 +107,13 @@ describe("web_search tool", () => {
     service.search.mockResolvedValue({ results: [] });
     const cap = tavilyClient({ service });
     const ctx = makeContext("real-env-token");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
     await search.execute!(
       {
         query: "q",
-        // @ts-expect-error — exercising the trust boundary: LLM-supplied tokens
+        // Exercising the trust boundary: LLM-supplied tokens should be ignored
         __SPINE_TOKEN: "llm-forged-token",
       },
       ctx as never,
@@ -130,7 +126,7 @@ describe("web_search tool", () => {
     const service = makeMockService();
     const cap = tavilyClient({ service });
     const ctx = makeContext(undefined);
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
     await expect(
@@ -144,7 +140,7 @@ describe("web_search tool", () => {
     service.search.mockResolvedValue({ results: [] });
     const cap = tavilyClient({ service });
     const ctx = makeContext("tok");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
     const result = await search.execute!({ query: "q" }, ctx as never);
@@ -158,7 +154,7 @@ describe("web_fetch tool", () => {
     service.extract.mockResolvedValue({ content: "page text" });
     const cap = tavilyClient({ service });
     const ctx = makeContext("tok-x");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
     const result = await fetch.execute!(
@@ -178,7 +174,7 @@ describe("web_fetch tool", () => {
     const service = makeMockService();
     const cap = tavilyClient({ service });
     const ctx = makeContext(undefined);
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
     await expect(
@@ -192,7 +188,7 @@ describe("web_fetch tool", () => {
     service.extract.mockResolvedValue({ content: "" });
     const cap = tavilyClient({ service });
     const ctx = makeContext("tok");
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
     const result = await fetch.execute!(
@@ -215,8 +211,8 @@ describe("tavilyClient credential isolation", () => {
     const ctx = {
       ...makeContext("tok"),
       env: envWithSecret,
-    } as unknown as CapabilityHookContext;
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    } as unknown as AgentContext;
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
     await search.execute!({ query: "q" }, ctx as never);
 

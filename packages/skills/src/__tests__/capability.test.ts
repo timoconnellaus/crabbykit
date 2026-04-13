@@ -113,6 +113,7 @@ function mockContext(storage?: CapabilityStorage) {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     schedules: {} as any,
     storage: storage ?? capStorage,
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

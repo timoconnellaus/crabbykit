@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { heartbeat } from "../capability.js";
 
 // Heartbeat ignores context — a dummy value satisfies the type signature.
-const ctx = {} as AgentContext;
+const ctx = { rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext;
 
 /** Helper to get the single prompt schedule from the capability. */
 function getSchedule(cap: ReturnType<typeof heartbeat>): PromptScheduleConfig {
@@ -160,7 +160,8 @@ describe("heartbeat capability", () => {
           enabled: true,
           timezone: "UTC",
         },
-      } as AgentContext;
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext;
       const schedule = cap.schedules!(ctxWithMapped)[0] as PromptScheduleConfig;
       expect(schedule.cron).toBe("*/15 * * * *");
       expect(schedule.prompt).toBe("mapped prompt");
@@ -188,7 +189,7 @@ describe("heartbeat capability", () => {
 
     it("falls back to deprecated options when no mapping provided", () => {
       const cap = heartbeat({ every: "45m", retention: 4 });
-      const schedule = cap.schedules!({} as AgentContext)[0] as PromptScheduleConfig;
+      const schedule = cap.schedules!({ rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext)[0] as PromptScheduleConfig;
       expect(schedule.cron).toBe("45m");
       expect(schedule.retention).toBe(4);
     });

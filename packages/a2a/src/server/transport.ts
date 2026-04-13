@@ -5,7 +5,7 @@ import {
   parseError,
   versionNotSupportedError,
 } from "../errors.js";
-import type { JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from "../types.js";
+import type { JsonRpcRequest, JsonRpcResponse } from "../types.js";
 import { isJsonRpcError } from "../types.js";
 import { A2A_PROTOCOL_VERSION, DEFAULT_VERSION, SUPPORTED_VERSIONS } from "../version.js";
 import type { AgentExecutor } from "./executor.js";

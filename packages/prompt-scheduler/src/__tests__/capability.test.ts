@@ -54,6 +54,7 @@ function mockContext(schedules?: ScheduleManager): AgentContext {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     storage: createNoopStorage(),
     schedules: schedules ?? mockScheduleManager(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 
@@ -76,7 +77,7 @@ describe("promptScheduler", () => {
 
   it("returns prompt sections with scheduling instructions", () => {
     const cap = promptScheduler();
-    const sections = cap.promptSections!({} as AgentContext);
+    const sections = cap.promptSections!({ rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
 
     expect(sections).toHaveLength(1);
     expect(sections[0]).toContain("config_set");

@@ -13,7 +13,7 @@
  *      contains the TAVILY_API_KEY string.
  */
 
-import type { CapabilityHookContext, Tool } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,9 +33,7 @@ function mockFetchResponse(body: unknown, status = 200): Response {
   });
 }
 
-function makeTestContext(token: string): CapabilityHookContext & {
-  env: { __SPINE_TOKEN: string };
-} {
+function makeTestContext(token: string) {
   return {
     agentId: "agent-int",
     sessionId: TEST_SESSION,
@@ -47,9 +45,8 @@ function makeTestContext(token: string): CapabilityHookContext & {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     storage: createNoopStorage(),
     schedules: {} as never,
+    rateLimit: { consume: async () => ({ allowed: true }) },
     env: { __SPINE_TOKEN: token },
-  } as unknown as CapabilityHookContext & {
-    env: { __SPINE_TOKEN: string };
   };
 }
 
@@ -92,7 +89,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     });
 
     const ctx = makeTestContext(TEST_TOKEN);
-    const tools = capability.tools!(ctx) as unknown as Tool[];
+    const tools = capability.tools!(ctx) as unknown as AgentTool<any>[];
     const search = tools.find((t) => t.name === "web_search");
     expect(search).toBeDefined();
 
@@ -133,7 +130,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
       service: service as unknown as Service<TavilyService>,
     });
     const ctx = makeTestContext(TEST_TOKEN);
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = tools.find((t) => t.name === "web_search")!;
 
     await search.execute!({ query: "anything" }, ctx as never);
@@ -159,7 +156,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
       service: service as unknown as Service<TavilyService>,
     });
     const ctx = makeTestContext(TEST_TOKEN);
-    const tools = cap.tools!(ctx) as unknown as Tool[];
+    const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetchTool = tools.find((t) => t.name === "web_fetch")!;
 
     const result = await fetchTool.execute!(

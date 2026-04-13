@@ -69,6 +69,7 @@ describe("subagentCapability", () => {
       requestFromClient: vi.fn(),
       schedules: {} as any,
       storage: mockStorage,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     });
 
     expect(tools).toHaveLength(4);

@@ -1,6 +1,5 @@
 import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { Type } from "@sinclair/typebox";
-import { A2A_PROTOCOL_VERSION } from "../version.js";
 import type { AgentCardConfig } from "./claw-executor.js";
 import { ClawExecutor } from "./claw-executor.js";
 import { A2AHandler } from "./handler.js";

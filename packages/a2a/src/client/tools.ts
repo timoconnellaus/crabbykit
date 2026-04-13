@@ -77,7 +77,7 @@ function resolveClient(targetAgent: string, options: A2AToolOptions): A2AHttpCli
 export function createCallAgentTool(
   options: A2AToolOptions,
   getStorage: () => CapabilityStorage,
-  getSessionId: () => string,
+  _getSessionId: () => string,
 ): AgentTool<any> {
   return defineTool({
     name: "call_agent",

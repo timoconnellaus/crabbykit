@@ -15,7 +15,6 @@ import type {
   JsonRpcSuccessResponse,
   ListTasksParams,
   MessageSendParams,
-  StreamEvent,
   TaskStatus,
 } from "../types.js";
 import { isTerminalState } from "../types.js";

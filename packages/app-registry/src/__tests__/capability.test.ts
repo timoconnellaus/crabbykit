@@ -43,6 +43,7 @@ describe("appRegistry capability", () => {
       broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     } as unknown as AgentContext;
 
     const tools = cap.tools!(context);
@@ -186,6 +187,7 @@ describe("appRegistry capability", () => {
       broadcastState: vi.fn(),
       requestFromClient: vi.fn(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     } as unknown as AgentContext;
 
     const tools = cap.tools!(context);

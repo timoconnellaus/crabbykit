@@ -63,6 +63,7 @@ function mockContext(storage?: CapabilityStorage): AgentContext {
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
     storage: storage ?? createMapStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

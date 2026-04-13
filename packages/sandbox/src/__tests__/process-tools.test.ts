@@ -74,6 +74,7 @@ function mockContext(sessionId: string, storage: CapabilityStorage): AgentContex
       cancelTimer: vi.fn().mockResolvedValue(undefined),
     },
     storage,
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 

@@ -62,6 +62,7 @@ describe("vectorMemory", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
 
     const tools = cap.tools!(context);
@@ -87,6 +88,7 @@ describe("vectorMemory", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
 
     const sections = cap.promptSections!(context);

@@ -39,6 +39,7 @@ describe("tavilyWebSearch", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
     const tools = cap.tools!(context);
 
@@ -63,6 +64,7 @@ describe("tavilyWebSearch", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     });
     expect(tools).toHaveLength(2);
   });
@@ -87,6 +89,7 @@ describe("tavilyWebSearch", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     });
     expect(tools).toHaveLength(2);
   });
@@ -116,6 +119,7 @@ describe("tavilyWebSearch", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
     const tools = cap.tools!(context);
     const searchTool = tools[0];
@@ -152,6 +156,7 @@ describe("tavilyWebSearch", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       storage: createNoopStorage(),
       schedules: {} as any,
+      rateLimit: { consume: async () => ({ allowed: true }) },
     };
     const tools = cap.tools!(context);
     await tools[0].execute({ query: "test" }, { toolCallId: "test" });
@@ -194,6 +199,7 @@ describe("tavilyWebSearch", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         storage: createNoopStorage(),
         schedules: {} as any,
+        rateLimit: { consume: async () => ({ allowed: true }) },
         agentConfig: {
           maxResults: 13,
           userAgent: "mapped/1",

@@ -1,5 +1,4 @@
 import type {
-  AgentTool,
   AgentToolResult,
   AnyAgentTool,
   ToolExecuteContext,

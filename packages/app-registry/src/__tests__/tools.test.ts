@@ -40,6 +40,7 @@ function createTestContext(): {
     sessionId: "test-session",
     storage: null,
     broadcast: broadcastFn,
+    rateLimit: { consume: async () => ({ allowed: true }) },
   } as unknown as AgentContext;
 
   const broadcastAppList = vi.fn();

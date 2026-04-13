@@ -35,6 +35,7 @@ function getCapTools(getTools: () => AgentTool[]) {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     storage: createNoopStorage(),
     schedules: {} as never,
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
   return cap.tools!(ctx);
 }
@@ -265,6 +266,7 @@ describe("batchTool", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         storage: createNoopStorage(),
         schedules: {} as never,
+        rateLimit: { consume: async () => ({ allowed: true }) },
       };
       const tools = cap.tools!(ctx);
 

@@ -64,6 +64,7 @@ function mockContext(overrides: Partial<AgentContext> = {}): AgentContext {
     requestFromClient: vi.fn(),
     schedules: {} as AgentContext["schedules"],
     storage: createNoopStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
     ...overrides,
   };
 }

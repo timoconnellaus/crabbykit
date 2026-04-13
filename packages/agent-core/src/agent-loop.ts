@@ -20,7 +20,6 @@ import type {
   AgentTool,
   AgentToolCall,
   AgentToolResult,
-  AgentToolUpdateCallback,
   StreamFn,
 } from "./types.js";
 
@@ -456,7 +455,7 @@ async function executeToolCallsSequential(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-  streamFn?: StreamFn,
+  _streamFn?: StreamFn,
 ): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
 
@@ -505,7 +504,7 @@ async function executeToolCallsParallel(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-  streamFn?: StreamFn,
+  _streamFn?: StreamFn,
 ): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
   const runnableCalls: PreparedToolCall[] = [];

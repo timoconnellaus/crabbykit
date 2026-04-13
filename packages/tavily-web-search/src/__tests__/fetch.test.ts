@@ -20,6 +20,7 @@ function mockContext(): AgentContext {
     requestFromClient: () => Promise.reject(new Error("Not available")),
     storage: createNoopStorage(),
     schedules: {} as any,
+    rateLimit: { consume: async () => ({ allowed: true }) },
   };
 }
 
