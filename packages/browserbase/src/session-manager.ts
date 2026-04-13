@@ -4,9 +4,9 @@ import { CDPClient } from "./cdp-client.js";
 import { mergeCookies } from "./cookie-merge.js";
 import type {
   ActiveSession,
-  BrowserState,
   BrowserbaseDebugUrls,
   BrowserbaseOptions,
+  BrowserState,
   Cookie,
   RefMap,
 } from "./types.js";

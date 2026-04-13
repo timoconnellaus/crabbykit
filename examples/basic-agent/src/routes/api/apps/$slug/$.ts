@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { env as rawEnv } from "cloudflare:workers";
 import { handleAppRequest } from "@claw-for-cloudflare/app-registry";
+import { createFileRoute } from "@tanstack/react-router";
 import type { Env } from "../../../../worker";
 
 const env = rawEnv as unknown as Env;

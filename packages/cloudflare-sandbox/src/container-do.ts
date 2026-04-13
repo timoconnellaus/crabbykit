@@ -107,10 +107,7 @@ function jsonResponse(body: unknown, status: number): Response {
  * map (which receives `env` as a parameter) and the instance method
  * `handleDbRequest` (which passes `this.env`).
  */
-async function dbHandlerImpl(
-  request: Request,
-  env: SandboxContainerEnv,
-): Promise<Response> {
+async function dbHandlerImpl(request: Request, env: SandboxContainerEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
@@ -168,10 +165,7 @@ async function dbHandlerImpl(
  * Handle intercepted ai.internal requests.
  * Module-level for the same reason as `dbHandlerImpl`.
  */
-async function aiHandlerImpl(
-  request: Request,
-  env: SandboxContainerEnv,
-): Promise<Response> {
+async function aiHandlerImpl(request: Request, env: SandboxContainerEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
   const apiKey = env.OPENROUTER_API_KEY;

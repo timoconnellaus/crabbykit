@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AssistantMessageEvent,
   Context,

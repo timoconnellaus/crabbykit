@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
 import type { CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { describe, expect, it, vi } from "vitest";
 import { vectorMemory } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";
 import { createMockVectorize } from "./mock-vectorize.js";

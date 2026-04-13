@@ -1,8 +1,8 @@
 import type { AssistantMessage, AssistantMessageEvent } from "../../types.js";
 import {
   AssistantMessageEventStream,
-  EventStream,
   createAssistantMessageEventStream,
+  EventStream,
 } from "../event-stream.js";
 
 function makeAssistantMessage(overrides?: Partial<AssistantMessage>): AssistantMessage {

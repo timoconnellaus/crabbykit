@@ -5,7 +5,10 @@ import { toR2Key, validatePath } from "./paths.js";
 /**
  * Create a file_edit tool backed by an R2 bucket.
  */
-export function createFileEditTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileEditTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_edit",
     description:

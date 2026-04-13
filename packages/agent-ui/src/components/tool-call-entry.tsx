@@ -7,9 +7,9 @@ import {
 } from "./chat-utils";
 import type { ToolResultInfo } from "./message-list";
 import {
+  extractPath,
   HighlightedCode,
   HighlightedDiff,
-  extractPath,
   langFromPath,
   parseDiffLines,
 } from "./syntax-highlight";

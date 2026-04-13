@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDuration,
+  summarizeResult,
   summarizeToolInput,
   toolColorCategory,
-  summarizeResult,
 } from "./chat-utils";
 
 // ---------------------------------------------------------------------------

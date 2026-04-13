@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Api, Model, Usage } from "../types.js";
 import {
   calculateCost,
   getModel,
@@ -8,6 +7,7 @@ import {
   modelsAreEqual,
   supportsXhigh,
 } from "../models.js";
+import type { Api, Model, Usage } from "../types.js";
 
 function makeModel(overrides: Partial<Model<Api>> = {}): Model<Api> {
   return {

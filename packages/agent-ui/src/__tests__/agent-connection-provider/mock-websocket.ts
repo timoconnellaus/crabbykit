@@ -7,10 +7,7 @@
  * promote it to a shared module.
  */
 
-import type {
-  ClientMessage,
-  ServerMessage,
-} from "@claw-for-cloudflare/agent-runtime/client";
+import type { ClientMessage, ServerMessage } from "@claw-for-cloudflare/agent-runtime/client";
 
 export class MockWebSocket {
   static readonly CONNECTING = 0;

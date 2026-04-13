@@ -11,6 +11,7 @@ import {
   type ToolResultMessage,
   validateToolArguments,
 } from "@claw-for-cloudflare/ai";
+import { buildToolNotFoundError, repairToolName } from "./tool-call-repair.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -22,7 +23,6 @@ import type {
   AgentToolUpdateCallback,
   StreamFn,
 } from "./types.js";
-import { buildToolNotFoundError, repairToolName } from "./tool-call-repair.js";
 
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 

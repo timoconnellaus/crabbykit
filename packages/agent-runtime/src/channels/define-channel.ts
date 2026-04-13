@@ -139,9 +139,7 @@ async function handleInbound<TAccount extends { id: string }, TInbound>(
     account = await def.getAccount(accountId, ctx.storage);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[channel:${def.id}] getAccount threw for id "${accountId}": ${message}`,
-    );
+    console.error(`[channel:${def.id}] getAccount threw for id "${accountId}": ${message}`);
     return new Response("Forbidden", { status: 403 });
   }
   if (!account) {
@@ -182,8 +180,7 @@ async function handleInbound<TAccount extends { id: string }, TInbound>(
   //    provider doesn't retry-storm us. `rateLimit` may be a static
   //    object or a function of the dispatching ctx — call it fresh on
   //    every inbound so agent-config changes take effect immediately.
-  const resolvedLimits =
-    typeof def.rateLimit === "function" ? def.rateLimit(ctx) : def.rateLimit;
+  const resolvedLimits = typeof def.rateLimit === "function" ? def.rateLimit(ctx) : def.rateLimit;
   const perSenderKey = `${def.id}:${account.id}:sender:${parsed.senderId}`;
   const perSenderResult = await ctx.rateLimit.consume({
     key: perSenderKey,

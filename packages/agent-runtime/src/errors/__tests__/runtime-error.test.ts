@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ErrorCodes } from "../../transport/error-codes.js";
 import {
-  RuntimeError,
   agentBusy,
   compactionOverflow,
   doomLoopDetected,
   isRuntimeError,
+  RuntimeError,
   sessionNotFound,
   toolExecutionFailed,
   toolNotFound,

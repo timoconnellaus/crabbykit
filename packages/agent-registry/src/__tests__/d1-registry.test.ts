@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from "vitest";
 import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { D1AgentRegistry } from "../d1-registry.js";
 
 // ---------------------------------------------------------------------------

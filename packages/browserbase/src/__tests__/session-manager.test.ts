@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SessionManager } from "../session-manager.js";
-import type { BrowserbaseClient } from "../browserbase-client.js";
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import type { BrowserbaseOptions, ActiveSession, BrowserState } from "../types.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { BrowserbaseClient } from "../browserbase-client.js";
+import { SessionManager } from "../session-manager.js";
+import type { ActiveSession, BrowserbaseOptions, BrowserState } from "../types.js";
 
 /** In-memory capability storage mock. */
 function createMockStorage(): CapabilityStorage {

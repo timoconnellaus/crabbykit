@@ -3,7 +3,7 @@
  * Runs against wrangler dev (started by global-setup.ts).
  */
 
-import { describe, expect, it, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 const BASE_URL = "http://localhost:8787";
 const AGENT_ID = "e2e-sandbox";

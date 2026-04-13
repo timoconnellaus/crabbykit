@@ -128,9 +128,7 @@ export function createDelegatingRuntime<TEnv>(
     }
 
     getAgentConfigSchema(): Record<string, TObject> {
-      return host.getAgentConfigSchema
-        ? host.getAgentConfigSchema()
-        : super.getAgentConfigSchema();
+      return host.getAgentConfigSchema ? host.getAgentConfigSchema() : super.getAgentConfigSchema();
     }
 
     getA2AClientOptions(): A2AClientOptions | null {

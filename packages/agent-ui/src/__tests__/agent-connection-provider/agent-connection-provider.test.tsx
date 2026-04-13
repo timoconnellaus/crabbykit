@@ -319,4 +319,3 @@ describe("AgentConnectionProvider: subscription cleanup", () => {
     expect(received).toHaveLength(1);
   });
 });
-

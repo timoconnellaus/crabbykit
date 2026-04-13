@@ -39,7 +39,9 @@ describe("matchPathPattern", () => {
     });
 
     it("returns null when the surrounding segments differ", () => {
-      expect(matchPathPattern("/telegram/webhook/:accountId", "/discord/webhook/support")).toBeNull();
+      expect(
+        matchPathPattern("/telegram/webhook/:accountId", "/discord/webhook/support"),
+      ).toBeNull();
     });
 
     it("returns null when the segment count is off even with a wildcard", () => {

@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { AgentContext, CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import { describe, expect, it, vi } from "vitest";
 import { AppStore } from "../app-store.js";
 import { appRegistry } from "../capability.js";
 import { createMockSqlStore } from "./mock-sql-store.js";

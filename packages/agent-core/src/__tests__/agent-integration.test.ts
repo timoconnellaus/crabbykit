@@ -5,16 +5,17 @@
  * sequences (start → deltas → done/error) to verify the complete
  * prompt → stream → tool call → result → next turn → final response pipeline.
  */
-import { Type } from "@sinclair/typebox";
-import { describe, expect, it, vi } from "vitest";
+
 import {
-  createAssistantMessageEventStream,
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
+  createAssistantMessageEventStream,
   type Model,
   type ToolCall,
 } from "@claw-for-cloudflare/ai";
+import { Type } from "@sinclair/typebox";
+import { describe, expect, it, vi } from "vitest";
 import { Agent } from "../agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, StreamFn } from "../types.js";
 
@@ -505,7 +506,7 @@ describe("Agent full loop integration", () => {
         content: [{ type: "text", text: "Follow-up answer." }],
       });
 
-      let followUpCallCount = 0;
+      const followUpCallCount = 0;
       const followUpMsg: AgentMessage = {
         role: "user",
         content: [{ type: "text", text: "One more thing" }],

@@ -6,6 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import type { Capability } from "../../src/capabilities/types.js";
 import {
   clearCompactionOverrides,
   clearExtraCapabilities,
@@ -13,7 +14,6 @@ import {
   setExtraCapabilities,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import type { Capability } from "../../src/capabilities/types.js";
 import { getEntries, getStub, openSocket } from "../helpers/ws-client.js";
 
 // --- Tests ---
@@ -589,7 +589,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
 
     it("multiple hooks — one failing, one succeeding — surviving hook still runs", async () => {
       const stub = getStub("edge2-error-6");
-      let survivingHookCalled = false;
+      const survivingHookCalled = false;
 
       const failingCapability: Capability = {
         id: "failing-hook",

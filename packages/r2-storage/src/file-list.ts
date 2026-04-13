@@ -5,7 +5,10 @@ import { resolveListPrefix } from "./paths.js";
 /**
  * Create a file_list tool backed by an R2 bucket.
  */
-export function createFileListTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileListTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_list",
     description:

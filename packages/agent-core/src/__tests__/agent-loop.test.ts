@@ -1,11 +1,11 @@
-import { Type } from "@sinclair/typebox";
-import { describe, expect, it, vi } from "vitest";
 import {
-  createAssistantMessageEventStream,
   type AssistantMessage,
   type AssistantMessageEvent,
+  createAssistantMessageEventStream,
   type Model,
 } from "@claw-for-cloudflare/ai";
+import { Type } from "@sinclair/typebox";
+import { describe, expect, it, vi } from "vitest";
 import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
 import type {
   AgentContext,

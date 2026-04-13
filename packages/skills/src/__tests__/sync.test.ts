@@ -1,13 +1,13 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
-import { syncSkills } from "../sync.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getInstalledSkill,
   getSkillConflicts,
   listInstalledSkills,
   putInstalledSkill,
 } from "../storage.js";
+import { syncSkills } from "../sync.js";
 import type { InstalledSkill } from "../types.js";
 
 function createMockRegistry(records: SkillRecord[]): SkillRegistry {

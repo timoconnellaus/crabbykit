@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockStorage, textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { createMockStorage, textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { skills } from "../capability.js";
 import type { SkillsOptions } from "../types.js";
 

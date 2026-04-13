@@ -1,7 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { describe, expect, it, vi } from "vitest";
 import { browserbase } from "../capability.js";
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 
 function createMockStorage(): CapabilityStorage {
   const store = new Map<string, unknown>();

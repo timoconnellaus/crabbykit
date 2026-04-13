@@ -7,7 +7,10 @@ const MAX_RESULTS = 200;
 /**
  * Create a file_find tool backed by an R2 bucket.
  */
-export function createFileFindTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileFindTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_find",
     description:

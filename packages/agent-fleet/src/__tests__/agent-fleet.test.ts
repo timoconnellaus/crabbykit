@@ -1,28 +1,28 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
+import type { PeeringService } from "@claw-for-cloudflare/agent-peering";
+import type { AgentRecord, AgentRegistry } from "@claw-for-cloudflare/agent-registry";
 import type {
-  CapabilityStorage,
   AgentContext,
   AgentMessage,
   CapabilityHookContext,
   CapabilityHttpContext,
+  CapabilityStorage,
 } from "@claw-for-cloudflare/agent-runtime";
 import {
   createMockStorage,
   textOf,
   TOOL_CTX as toolCtx,
 } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import type { AgentRecord, AgentRegistry } from "@claw-for-cloudflare/agent-registry";
-import type { PeeringService } from "@claw-for-cloudflare/agent-peering";
-import { signToken, setAuthHeaders } from "@claw-for-cloudflare/agent-auth";
-import { getAttachedAgentId, setAttachedAgentId, clearAttachedAgentId } from "../attach.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearAttachedAgentId, getAttachedAgentId, setAttachedAgentId } from "../attach.js";
+import { agentFleet } from "../capability.js";
 import {
-  createAgentListTool,
+  createAgentAttachTool,
   createAgentCreateTool,
   createAgentDeleteTool,
-  createAgentAttachTool,
   createAgentDetachTool,
+  createAgentListTool,
 } from "../tools.js";
-import { agentFleet } from "../capability.js";
 import type { FleetOptions } from "../types.js";
 
 // ---------------------------------------------------------------------------

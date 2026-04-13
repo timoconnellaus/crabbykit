@@ -264,7 +264,7 @@ describe("batchTool", () => {
         broadcastState: () => {},
         requestFromClient: () => Promise.reject(new Error("Not available")),
         storage: createNoopStorage(),
-    schedules: {} as never,
+        schedules: {} as never,
       };
       const tools = cap.tools!(ctx);
 

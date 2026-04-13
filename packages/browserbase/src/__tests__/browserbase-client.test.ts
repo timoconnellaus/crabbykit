@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserbaseClient } from "../browserbase-client.js";
 
 const TEST_API_KEY = "test-api-key-123";

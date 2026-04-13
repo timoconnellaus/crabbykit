@@ -90,12 +90,12 @@ export function AgentPicker({
         <div data-agent-ui="agent-picker-menu" role="listbox">
           <div data-agent-ui="agent-picker-menu-header">
             <span>all agents</span>
-            <span data-agent-ui="agent-picker-count">{agents.length.toString().padStart(2, "0")}</span>
+            <span data-agent-ui="agent-picker-count">
+              {agents.length.toString().padStart(2, "0")}
+            </span>
           </div>
           <div data-agent-ui="agent-picker-menu-list">
-            {agents.length === 0 && (
-              <div data-agent-ui="agent-picker-empty">no agents yet</div>
-            )}
+            {agents.length === 0 && <div data-agent-ui="agent-picker-empty">no agents yet</div>}
             {agents.map((a) => (
               <button
                 key={a.id}
@@ -108,17 +108,11 @@ export function AgentPicker({
               >
                 <span data-agent-ui="agent-picker-item-dot" />
                 <span data-agent-ui="agent-picker-item-name">{a.name}</span>
-                {a.id === selectedId && (
-                  <span data-agent-ui="agent-picker-item-mark">active</span>
-                )}
+                {a.id === selectedId && <span data-agent-ui="agent-picker-item-mark">active</span>}
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            data-agent-ui="agent-picker-create"
-            onClick={handleCreate}
-          >
+          <button type="button" data-agent-ui="agent-picker-create" onClick={handleCreate}>
             <span data-agent-ui="agent-picker-plus">+</span>
             <span>new agent</span>
           </button>

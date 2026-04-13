@@ -53,10 +53,7 @@ export interface TavilyWebSearchOptions {
   searchDefaults?: TavilyConfig["searchDefaults"];
 }
 
-function resolveConfig(
-  options: TavilyWebSearchOptions,
-  context: AgentContext,
-): TavilyConfig {
+function resolveConfig(options: TavilyWebSearchOptions, context: AgentContext): TavilyConfig {
   const mapped = context.agentConfig as TavilyConfig | undefined;
   if (mapped) return mapped;
   return {

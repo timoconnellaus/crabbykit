@@ -1,14 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { TOOL_CTX, textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { Type } from "@sinclair/typebox";
-import { textOf, TOOL_CTX } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import { ConfigStore } from "../config-store.js";
-import { createConfigSchema } from "../config-schema.js";
-import { createConfigGet } from "../config-get.js";
-import { createConfigSet } from "../config-set.js";
-import type { ConfigContext } from "../types.js";
-import type { ConfigNamespace } from "../config-namespace.js";
-import type { KvStore } from "../../storage/types.js";
+import { describe, expect, it, vi } from "vitest";
 import type { Capability } from "../../capabilities/types.js";
+import type { KvStore } from "../../storage/types.js";
+import { createConfigGet } from "../config-get.js";
+import type { ConfigNamespace } from "../config-namespace.js";
+import { createConfigSchema } from "../config-schema.js";
+import { createConfigSet } from "../config-set.js";
+import { ConfigStore } from "../config-store.js";
+import type { ConfigContext } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -674,10 +674,7 @@ describe("config_set agent-level namespaces", () => {
       onAgentConfigSet: setFn,
     });
     const tool = createConfigSet(ctx);
-    const result = await tool.execute(
-      { namespace: "search", value: { maxResults: 8 } },
-      TOOL_CTX,
-    );
+    const result = await tool.execute({ namespace: "search", value: { maxResults: 8 } }, TOOL_CTX);
     expect(isError(result)).toBeUndefined();
     expect(await store.getAgentConfig("search")).toEqual({ maxResults: 8 });
     expect(snapshot.search).toEqual({ maxResults: 8 });

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { describe, expect, it, vi } from "vitest";
 import { fetchAgentCard, getAgentCard } from "../client/discovery.js";
 import type { AgentCard } from "../types.js";
 

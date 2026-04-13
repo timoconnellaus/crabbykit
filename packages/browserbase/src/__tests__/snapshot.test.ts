@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { formatAXTree, resolveRef } from "../snapshot.js";
 import type { AXNode } from "../types.js";
 

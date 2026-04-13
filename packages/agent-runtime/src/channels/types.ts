@@ -1,5 +1,5 @@
-import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
 import type { CapabilityStorage } from "./../capabilities/storage.js";
+import type { Capability, CapabilityHookContext } from "../capabilities/types.js";
 
 /**
  * A verified, parsed inbound payload from a channel webhook. Produced by
@@ -110,9 +110,10 @@ export interface ChannelDefinition<TAccount extends { id: string }, TInbound> {
    */
   rateLimit:
     | { perSender: RateLimitConfig; perAccount: RateLimitConfig }
-    | ((
-        ctx: { agentConfig?: unknown },
-      ) => { perSender: RateLimitConfig; perAccount: RateLimitConfig });
+    | ((ctx: { agentConfig?: unknown }) => {
+        perSender: RateLimitConfig;
+        perAccount: RateLimitConfig;
+      });
 
   /**
    * MANDATORY — send the final assistant text to the inbound target.

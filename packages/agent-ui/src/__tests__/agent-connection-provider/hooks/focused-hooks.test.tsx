@@ -37,9 +37,7 @@ function makeWrapper(
   handle: MockProviderHandle,
   opts: {
     currentSessionId?: string | null;
-    state?: Partial<
-      Parameters<typeof MockAgentConnectionProvider>[0]["stateOverrides"]
-    >;
+    state?: Partial<Parameters<typeof MockAgentConnectionProvider>[0]["stateOverrides"]>;
   } = {},
 ) {
   return ({ children }: { children: ReactNode }) => (
@@ -129,9 +127,7 @@ describe("useSchedules", () => {
 describe("useSkills", () => {
   it("reads skills from capabilityState.skills.skills", () => {
     const handle = createMockProviderHandle();
-    const skills = [
-      { name: "deploy", description: "Ship it", version: 1, enabled: true },
-    ];
+    const skills = [{ name: "deploy", description: "Ship it", version: 1, enabled: true }];
     const { result } = renderHook(() => useSkills(), {
       wrapper: makeWrapper(handle, {
         state: {
@@ -276,9 +272,7 @@ describe("useSessions", () => {
 describe("useQueue", () => {
   it("reads queued messages from capabilityState", () => {
     const handle = createMockProviderHandle();
-    const items = [
-      { id: "q1", text: "hello", createdAt: "2025-01-01T00:00:00Z" },
-    ];
+    const items = [{ id: "q1", text: "hello", createdAt: "2025-01-01T00:00:00Z" }];
     const { result } = renderHook(() => useQueue(), {
       wrapper: makeWrapper(handle, {
         currentSessionId: "sess_1",

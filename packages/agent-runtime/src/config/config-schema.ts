@@ -63,9 +63,7 @@ export function createConfigSchema(ctx: ConfigContext) {
           description: (schema as { description?: string }).description ?? nsId,
           schema,
           value:
-            ctx.agentConfigSnapshot[nsId] !== undefined
-              ? ctx.agentConfigSnapshot[nsId]
-              : undefined,
+            ctx.agentConfigSnapshot[nsId] !== undefined ? ctx.agentConfigSnapshot[nsId] : undefined,
         };
       }
 

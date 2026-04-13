@@ -335,10 +335,7 @@ export interface AnyAgentTool {
   parameters: TSchema;
   label: string;
   guidance?: string;
-  execute: (
-    args: unknown,
-    context: ToolExecuteContext,
-  ) => Promise<AgentToolResult<unknown>>;
+  execute: (args: unknown, context: ToolExecuteContext) => Promise<AgentToolResult<unknown>>;
 }
 
 // AgentContext is like Context but uses AgentTool

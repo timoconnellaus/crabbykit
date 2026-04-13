@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { AgentTool } from "../types.js";
 import {
   buildToolNotFoundError,
   findClosestTool,
   levenshtein,
   repairToolName,
 } from "../tool-call-repair.js";
+import type { AgentTool } from "../types.js";
 
 /** Create a minimal AgentTool stub for testing. */
 function makeTool(name: string): AgentTool {

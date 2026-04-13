@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { beforeEach, describe, expect, it } from "vitest";
 import { TelegramAccountStore } from "../account-store.js";
 import type { TelegramAccount } from "../types.js";
 

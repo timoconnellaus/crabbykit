@@ -13,7 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 const SERVER_PATH = path.resolve(__dirname, "..", "server.ts");
 
 let serverProc: ChildProcess;
-let BASE: string;
+let Base: string;
 let port: number;
 /**
  * True when the server's PTY layer (node-pty) can reliably spawn AND exit a
@@ -51,7 +51,7 @@ async function getFreePort(): Promise<number> {
 
 /** POST JSON helper */
 async function post(endpoint: string, body: unknown): Promise<{ status: number; data: unknown }> {
-  const res = await fetch(`${BASE}${endpoint}`, {
+  const res = await fetch(`${Base}${endpoint}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -62,14 +62,14 @@ async function post(endpoint: string, body: unknown): Promise<{ status: number; 
 
 /** GET helper */
 async function get(endpoint: string): Promise<{ status: number; data: unknown }> {
-  const res = await fetch(`${BASE}${endpoint}`);
+  const res = await fetch(`${Base}${endpoint}`);
   const data = await res.json();
   return { status: res.status, data };
 }
 
 /** GET text helper */
 async function getText(endpoint: string): Promise<{ status: number; text: string }> {
-  const res = await fetch(`${BASE}${endpoint}`);
+  const res = await fetch(`${Base}${endpoint}`);
   const text = await res.text();
   return { status: res.status, text };
 }
@@ -82,7 +82,7 @@ async function postSSE(
 ): Promise<{ events: unknown[] }> {
   const maxEvents = opts?.maxEvents ?? 100;
   const timeoutMs = opts?.timeoutMs ?? 15_000;
-  const res = await fetch(`${BASE}${endpoint}`, {
+  const res = await fetch(`${Base}${endpoint}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -115,7 +115,7 @@ async function postSSE(
 
 beforeAll(async () => {
   port = await getFreePort();
-  BASE = `http://127.0.0.1:${port}`;
+  Base = `http://127.0.0.1:${port}`;
 
   serverProc = spawn("bun", ["run", SERVER_PATH], {
     env: {
@@ -139,7 +139,7 @@ beforeAll(async () => {
   let lastError: unknown;
   while (Date.now() - start < 10_000) {
     try {
-      const res = await fetch(`${BASE}/health`);
+      const res = await fetch(`${Base}/health`);
       if (res.ok) {
         lastError = null;
         break;
@@ -157,14 +157,12 @@ beforeAll(async () => {
   // fire (the host's node-pty is broken), all PTY-dependent tests will skip.
   try {
     const probe = await Promise.race([
-      fetch(`${BASE}/exec`, {
+      fetch(`${Base}/exec`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ command: "echo probe" }),
       }).then((r) => r.json()),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("pty probe timeout")), 5_000),
-      ),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("pty probe timeout")), 5_000)),
     ]);
     ptyExecWorks =
       typeof probe === "object" &&
@@ -363,7 +361,7 @@ describe("process management", () => {
 
 describe("/process-stream", () => {
   it("returns 404 for unknown process", async () => {
-    const res = await fetch(`${BASE}/process-stream/ghost`);
+    const res = await fetch(`${Base}/process-stream/ghost`);
     expect(res.status).toBe(404);
   });
 
@@ -375,7 +373,7 @@ describe("/process-stream", () => {
     // Give the process a moment to start producing output
     await new Promise((r) => setTimeout(r, 300));
 
-    const res = await fetch(`${BASE}/process-stream/stream-me?afterSeq=0`);
+    const res = await fetch(`${Base}/process-stream/stream-me?afterSeq=0`);
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -596,7 +594,7 @@ describe("/session-log", () => {
   });
 
   it("returns 404 for unknown session", async () => {
-    const res = await fetch(`${BASE}/session-log/nonexistent`);
+    const res = await fetch(`${Base}/session-log/nonexistent`);
     expect(res.status).toBe(404);
   });
 });
@@ -800,7 +798,7 @@ describe("dev server proxy", () => {
     const badPort = await getFreePort();
     await post("/set-dev-port", { port: badPort });
 
-    const res = await fetch(`${BASE}/some-random-path`);
+    const res = await fetch(`${Base}/some-random-path`);
     expect(res.status).toBe(503);
     const html = await res.text();
     expect(html).toContain("Dev server starting");
@@ -818,7 +816,7 @@ describe("dev server proxy", () => {
       basePath: "/preview/agent-1/",
     });
 
-    const res = await fetch(`${BASE}/preview/agent-1/index.html`);
+    const res = await fetch(`${Base}/preview/agent-1/index.html`);
     expect(res.status).toBe(503);
 
     await post("/clear-dev-port", {});
@@ -1063,7 +1061,7 @@ describe("process-stream edge cases", () => {
     await new Promise((r) => setTimeout(r, 300));
 
     // Request with afterSeq=0 should get all buffered output
-    const res = await fetch(`${BASE}/process-stream/backfill-test?afterSeq=0`);
+    const res = await fetch(`${Base}/process-stream/backfill-test?afterSeq=0`);
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -1104,7 +1102,7 @@ describe("process-stream edge cases", () => {
     });
     await new Promise((r) => setTimeout(r, 500));
 
-    const res = await fetch(`${BASE}/process-stream/already-done?afterSeq=0`);
+    const res = await fetch(`${Base}/process-stream/already-done?afterSeq=0`);
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buf = "";

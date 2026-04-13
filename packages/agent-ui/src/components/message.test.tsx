@@ -1,6 +1,6 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Message, extractResultText } from "./message";
+import { extractResultText, Message } from "./message";
 
 afterEach(() => {
   cleanup();

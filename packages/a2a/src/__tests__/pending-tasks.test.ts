@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { describe, expect, it } from "vitest";
 import type { PendingTask } from "../client/pending-tasks.js";
 import { PendingTaskStore } from "../client/pending-tasks.js";
 

@@ -13,7 +13,12 @@ import {
   useRef,
 } from "react";
 import type { ClientMessage } from "../transport/types.js";
-import { type ChatAction, type ChatState, chatReducer, createInitialState } from "./chat-reducer.js";
+import {
+  type ChatAction,
+  type ChatState,
+  chatReducer,
+  createInitialState,
+} from "./chat-reducer.js";
 import { createMessageHandler } from "./message-handler.js";
 
 const DEFAULT_MAX_RECONNECT_DELAY = 30_000;
@@ -127,9 +132,7 @@ export function AgentConnectionProvider(props: AgentConnectionProviderProps): Re
   const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPongAtRef = useRef<number>(0);
 
-  const capabilitySubscribersRef = useRef(
-    new Map<string, Set<CapabilityEventHandler>>(),
-  );
+  const capabilitySubscribersRef = useRef(new Map<string, Set<CapabilityEventHandler>>());
   const sessionSwitchListenersRef = useRef(new Set<SessionSwitchHandler>());
 
   // Wrap dispatch to observe session-switching actions and notify listeners.
@@ -158,26 +161,23 @@ export function AgentConnectionProvider(props: AgentConnectionProviderProps): Re
     }
   }, []);
 
-  const subscribe = useCallback(
-    (capabilityId: string, handler: CapabilityEventHandler) => {
-      const map = capabilitySubscribersRef.current;
-      let set = map.get(capabilityId);
-      if (!set) {
-        set = new Set();
-        map.set(capabilityId, set);
+  const subscribe = useCallback((capabilityId: string, handler: CapabilityEventHandler) => {
+    const map = capabilitySubscribersRef.current;
+    let set = map.get(capabilityId);
+    if (!set) {
+      set = new Set();
+      map.set(capabilityId, set);
+    }
+    set.add(handler);
+    return () => {
+      const existing = capabilitySubscribersRef.current.get(capabilityId);
+      if (!existing) return;
+      existing.delete(handler);
+      if (existing.size === 0) {
+        capabilitySubscribersRef.current.delete(capabilityId);
       }
-      set.add(handler);
-      return () => {
-        const existing = capabilitySubscribersRef.current.get(capabilityId);
-        if (!existing) return;
-        existing.delete(handler);
-        if (existing.size === 0) {
-          capabilitySubscribersRef.current.delete(capabilityId);
-        }
-      };
-    },
-    [],
-  );
+    };
+  }, []);
 
   const onSessionSwitch = useCallback((handler: SessionSwitchHandler) => {
     sessionSwitchListenersRef.current.add(handler);

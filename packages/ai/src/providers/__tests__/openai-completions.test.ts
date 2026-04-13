@@ -1,3 +1,4 @@
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { describe, expect, it } from "vitest";
 import type {
   AssistantMessage,
@@ -7,7 +8,6 @@ import type {
   ToolResultMessage,
   UserMessage,
 } from "../../types.js";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { convertMessages } from "../openai-completions.js";
 
 const DEFAULT_COMPAT: Required<OpenAICompletionsCompat> = {

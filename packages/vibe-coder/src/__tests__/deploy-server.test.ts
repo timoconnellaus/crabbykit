@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateWorkerScript, handleDeployRequest } from "../deploy-server.js";
 import type { DeployRequestOptions } from "../deploy-server.js";
+import { generateWorkerScript, handleDeployRequest } from "../deploy-server.js";
 
 // --- Helpers ---
 

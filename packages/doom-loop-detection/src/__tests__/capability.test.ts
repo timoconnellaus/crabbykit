@@ -1,10 +1,10 @@
+import type {
+  BeforeToolExecutionEvent,
+  CapabilityHookContext,
+} from "@claw-for-cloudflare/agent-runtime";
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { doomLoopDetection } from "../capability.js";
-import type {
-  CapabilityHookContext,
-  BeforeToolExecutionEvent,
-} from "@claw-for-cloudflare/agent-runtime";
 
 function makeEvent(toolName: string, args: unknown = {}): BeforeToolExecutionEvent {
   return { toolName, args, toolCallId: `call-${Date.now()}` };
@@ -280,8 +280,11 @@ describe("doomLoopDetection", () => {
     it("reads threshold from ctx.agentConfig per call", async () => {
       const cap = doomLoopDetection({
         config: (c) =>
-          (c as { doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] } })
-            .doomLoop,
+          (
+            c as {
+              doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] };
+            }
+          ).doomLoop,
       });
       const hook = cap.hooks!.beforeToolExecution!;
       const ctx = makeCtx({
@@ -297,8 +300,11 @@ describe("doomLoopDetection", () => {
 
     it("exposes agentConfigMapping for runtime resolution", () => {
       const mapping = (c: Record<string, unknown>) =>
-        (c as { doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] } })
-          .doomLoop;
+        (
+          c as {
+            doomLoop: { threshold: number; lookbackWindow: number; allowRepeatTools: string[] };
+          }
+        ).doomLoop;
       const cap = doomLoopDetection({ config: mapping });
       expect(cap.agentConfigMapping).toBe(mapping);
     });

@@ -18,8 +18,8 @@ import {
   findMessages,
   getEntries,
   getStub,
-  openSocket,
   prompt as httpPrompt,
+  openSocket,
 } from "../helpers/ws-client.js";
 
 // --- Tests ---

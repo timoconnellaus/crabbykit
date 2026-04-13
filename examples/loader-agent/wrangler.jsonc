@@ -4,9 +4,7 @@
   "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [
-      { "name": "AGENT", "class_name": "LoaderAgent" }
-    ]
+    "bindings": [{ "name": "AGENT", "class_name": "LoaderAgent" }]
   },
   "ai": {
     "binding": "AI"
@@ -24,10 +22,6 @@
       "bucket_name": "loader-agent-storage"
     }
   ],
-  "worker_loaders": [
-    { "binding": "LOADER" }
-  ],
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["LoaderAgent"] }
-  ]
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LoaderAgent"] }]
 }

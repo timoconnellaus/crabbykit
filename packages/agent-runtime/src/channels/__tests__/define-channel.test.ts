@@ -239,7 +239,9 @@ describe("defineChannel", () => {
 
     it("returns 403 when verifyWebhook returns false", async () => {
       const sendPrompt = vi.fn();
-      const cap = defineChannel(makeChannelDef([{ id: "acct-a", tag: "primary" }], { verifyWebhook: () => false }));
+      const cap = defineChannel(
+        makeChannelDef([{ id: "acct-a", tag: "primary" }], { verifyWebhook: () => false }),
+      );
       const handlers = cap.httpHandlers!(makeAgentContext(storage));
       const resp = await handlers[0].handler(
         webhookRequest({ senderId: "@alice", text: "hi" }),

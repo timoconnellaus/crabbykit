@@ -11,8 +11,8 @@ vi.mock("@cloudflare/worker-bundler", () => ({
 }));
 
 import { createWorker } from "@cloudflare/worker-bundler";
-import { createDeployAppTool } from "../tools/deploy-app.js";
 import { vibeCoder } from "../capability.js";
+import { createDeployAppTool } from "../tools/deploy-app.js";
 
 // --- Helpers ---
 

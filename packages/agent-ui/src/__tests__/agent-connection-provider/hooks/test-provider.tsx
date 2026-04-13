@@ -50,14 +50,9 @@ export interface MockProviderHandle {
   /** All dispatched actions. */
   dispatched: Parameters<AgentConnectionContextValue["dispatch"]>[0][];
   /** Capability subscribers from the current context value (if any). */
-  subscribers: Map<
-    string,
-    Set<Parameters<AgentConnectionContextValue["subscribe"]>[1]>
-  >;
+  subscribers: Map<string, Set<Parameters<AgentConnectionContextValue["subscribe"]>[1]>>;
   /** Session-switch listeners for firing from tests. */
-  sessionSwitchListeners: Set<
-    Parameters<AgentConnectionContextValue["onSessionSwitch"]>[0]
-  >;
+  sessionSwitchListeners: Set<Parameters<AgentConnectionContextValue["onSessionSwitch"]>[0]>;
 }
 
 export function createMockProviderHandle(): MockProviderHandle {
@@ -85,16 +80,8 @@ export interface MockProviderProps {
  * The context `value` is re-created whenever the props change, so hook
  * re-renders get updated state when tests rerender the wrapper.
  */
-export function MockAgentConnectionProvider(
-  props: MockProviderProps,
-): ReactElement {
-  const {
-    handle,
-    stateOverrides,
-    currentSessionId,
-    connectionStatus,
-    children,
-  } = props;
+export function MockAgentConnectionProvider(props: MockProviderProps): ReactElement {
+  const { handle, stateOverrides, currentSessionId, connectionStatus, children } = props;
 
   const currentSessionIdRef = useRef<string | null>(currentSessionId ?? null);
   currentSessionIdRef.current = currentSessionId ?? null;
@@ -114,10 +101,7 @@ export function MockAgentConnectionProvider(
       handle.dispatched.push(action);
     };
 
-    const subscribe: AgentConnectionContextValue["subscribe"] = (
-      capabilityId,
-      handler,
-    ) => {
+    const subscribe: AgentConnectionContextValue["subscribe"] = (capabilityId, handler) => {
       let set = handle.subscribers.get(capabilityId);
       if (!set) {
         set = new Set();
@@ -132,9 +116,7 @@ export function MockAgentConnectionProvider(
       };
     };
 
-    const onSessionSwitch: AgentConnectionContextValue["onSessionSwitch"] = (
-      listener,
-    ) => {
+    const onSessionSwitch: AgentConnectionContextValue["onSessionSwitch"] = (listener) => {
       handle.sessionSwitchListeners.add(listener);
       return () => {
         handle.sessionSwitchListeners.delete(listener);
@@ -154,17 +136,12 @@ export function MockAgentConnectionProvider(
   }, [handle, stateOverrides, currentSessionId, connectionStatus]);
 
   return (
-    <AgentConnectionContext.Provider value={value}>
-      {children}
-    </AgentConnectionContext.Provider>
+    <AgentConnectionContext.Provider value={value}>{children}</AgentConnectionContext.Provider>
   );
 }
 
 /** Convenience: fire a session-switch notification through the handle. */
-export function fireSessionSwitch(
-  handle: MockProviderHandle,
-  sessionId: string | null,
-): void {
+export function fireSessionSwitch(handle: MockProviderHandle, sessionId: string | null): void {
   for (const listener of handle.sessionSwitchListeners) {
     listener(sessionId);
   }

@@ -1,7 +1,7 @@
 import type { AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { SessionManager } from "../session-manager.js";
 import type { BrowserbaseClient } from "../browserbase-client.js";
+import type { SessionManager } from "../session-manager.js";
 
 export function createBrowserOpenTool(
   sessionManager: SessionManager,

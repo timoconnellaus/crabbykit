@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ServerMessage } from "../types.js";
 import { CfWebSocketTransport } from "../cloudflare.js";
+import type { ServerMessage } from "../types.js";
 
 /** WebSocket with hibernation attachment methods (added by ctx.acceptWebSocket in Workers). */
 interface HibernatableWebSocket extends WebSocket {

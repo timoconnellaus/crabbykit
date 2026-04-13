@@ -8,7 +8,10 @@ const MAX_ENTRIES_PER_LEVEL = 100;
 /**
  * Create a file_tree tool backed by an R2 bucket.
  */
-export function createFileTreeTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileTreeTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_tree",
     description:

@@ -2,8 +2,6 @@
 export * from "./agent.js";
 // Loop functions
 export * from "./agent-loop.js";
-// Types
-export * from "./types.js";
 // Tool call repair
 export {
   buildToolNotFoundError,
@@ -11,3 +9,5 @@ export {
   levenshtein,
   repairToolName,
 } from "./tool-call-repair.js";
+// Types
+export * from "./types.js";

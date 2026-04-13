@@ -5,7 +5,10 @@ import { toR2Key, validatePath } from "./paths.js";
 /**
  * Create a file_copy tool backed by an R2 bucket.
  */
-export function createFileCopyTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileCopyTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_copy",
     description: "Copy a file to a new path. Overwrites the destination if it exists.",

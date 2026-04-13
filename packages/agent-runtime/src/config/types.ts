@@ -47,9 +47,5 @@ export interface ConfigContext {
    * `capability_state` update to clients. Optional in tests where the
    * broadcast/hook machinery isn't wired up.
    */
-  onAgentConfigSet?: (
-    namespace: string,
-    oldValue: unknown,
-    newValue: unknown,
-  ) => Promise<void>;
+  onAgentConfigSet?: (namespace: string, oldValue: unknown, newValue: unknown) => Promise<void>;
 }

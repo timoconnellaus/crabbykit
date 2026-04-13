@@ -26,6 +26,7 @@ import {
   containerMode,
   devServerBasePath,
   devServerPort,
+  injectedEnv,
   lastSyncAt,
   processes,
   sessions,
@@ -37,7 +38,6 @@ import {
   setWorkspacePath,
   touchActivity,
   workspacePath,
-  injectedEnv,
 } from "./state.ts";
 import type { BufferEntry, ManagedProcess } from "./types.ts";
 

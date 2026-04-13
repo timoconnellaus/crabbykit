@@ -1,5 +1,4 @@
 import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import type { SandboxProvider } from "./types.js";
 import {
   clearAllElevation,
   clearAllProcessOwners,
@@ -7,6 +6,7 @@ import {
   setSessionElevated,
 } from "./session-state.js";
 import { getTeardownPromise } from "./teardown.js";
+import type { SandboxProvider } from "./types.js";
 
 const NOT_ELEVATED_RESULT = {
   content: [

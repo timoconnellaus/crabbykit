@@ -36,10 +36,7 @@ export function defineTool<TParameters extends TObject>(opts: {
   label?: string;
   /** Optional timeout in milliseconds. Tool execution is aborted if it exceeds this duration. */
   timeout?: number;
-  execute: (
-    args: Static<TParameters>,
-    context: ToolExecuteContext,
-  ) => Promise<ToolExecuteReturn>;
+  execute: (args: Static<TParameters>, context: ToolExecuteContext) => Promise<ToolExecuteReturn>;
 }): AnyAgentTool {
   const userExecute = opts.execute;
   const wrappedExecute = async (args: unknown, ctx: ToolExecuteContext) => {

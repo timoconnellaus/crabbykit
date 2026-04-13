@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { base64UrlEncode, base64UrlDecode } from "../encoding.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { base64UrlDecode, base64UrlEncode } from "../encoding.js";
+import { getAuthFromRequest, setAuthHeaders } from "../headers.js";
 import { signToken } from "../sign.js";
 import { verifyToken } from "../verify.js";
-import { setAuthHeaders, getAuthFromRequest } from "../headers.js";
 
 // ---------------------------------------------------------------------------
 // encoding.ts

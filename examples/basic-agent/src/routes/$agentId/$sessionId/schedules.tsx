@@ -10,7 +10,5 @@ export const Route = createFileRoute("/$agentId/$sessionId/schedules")({
 function SchedulesRoute() {
   const { agentId } = useChatContext();
   const { schedules, toggleSchedule } = useSchedules();
-  return (
-    <SchedulePanel agentId={agentId} schedules={schedules} toggleSchedule={toggleSchedule} />
-  );
+  return <SchedulePanel agentId={agentId} schedules={schedules} toggleSchedule={toggleSchedule} />;
 }

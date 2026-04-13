@@ -25,10 +25,7 @@ import type { AssistantMessage } from "@claw-for-cloudflare/ai";
  *   matchPathPattern("/a/b", "/a/b") → {}
  *   matchPathPattern("/a/b", "/a/c") → null
  */
-export function matchPathPattern(
-  pattern: string,
-  pathname: string,
-): Record<string, string> | null {
+export function matchPathPattern(pattern: string, pathname: string): Record<string, string> | null {
   const patternSegments = pattern.split("/");
   const pathSegments = pathname.split("/");
   if (patternSegments.length !== pathSegments.length) return null;

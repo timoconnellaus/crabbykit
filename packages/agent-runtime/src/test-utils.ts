@@ -10,8 +10,8 @@
  * ```
  */
 
-import type { CapabilityStorage } from "./capabilities/storage.js";
 import type { ToolExecuteContext } from "@claw-for-cloudflare/agent-core";
+import type { CapabilityStorage } from "./capabilities/storage.js";
 
 // ---------------------------------------------------------------------------
 // Mock storage

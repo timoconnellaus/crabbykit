@@ -7,7 +7,10 @@ const MAX_CONTENT_BYTES = 1_048_576; // 1MB
 /**
  * Create a file_write tool backed by an R2 bucket.
  */
-export function createFileWriteTool(getBucket: () => R2Bucket, getPrefix: () => string): AnyAgentTool {
+export function createFileWriteTool(
+  getBucket: () => R2Bucket,
+  getPrefix: () => string,
+): AnyAgentTool {
   return defineTool({
     name: "file_write",
     description:

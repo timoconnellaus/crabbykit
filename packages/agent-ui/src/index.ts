@@ -15,6 +15,14 @@ export { usePreview } from "./hooks/use-preview";
 
 export type { BrowserBadgeProps } from "./components/browser-badge";
 export { BrowserBadge } from "./components/browser-badge";
+// Channels hub + Telegram channel
+export type { AccountListItemProps } from "./components/channels/account-list-item";
+export { AccountListItem } from "./components/channels/account-list-item";
+export type { AddTelegramAccountFormProps } from "./components/channels/add-telegram-account-form";
+export { AddTelegramAccountForm } from "./components/channels/add-telegram-account-form";
+export type { ChannelsPanelProps } from "./components/channels/channels-panel";
+export { ChannelsPanel } from "./components/channels/channels-panel";
+export { TelegramChannelSection } from "./components/channels/telegram-channel-section";
 export type { ChatInputProps } from "./components/chat-input";
 export { ChatInput } from "./components/chat-input";
 // Chat utilities
@@ -59,23 +67,14 @@ export type { TaskListProps } from "./components/task-list";
 export { TaskList } from "./components/task-list";
 export type { TaskNode, TaskTreePanelProps } from "./components/task-tree-panel";
 export { TaskTreePanel } from "./components/task-tree-panel";
-// Task state hook
-export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
-export { useTaskState } from "./hooks/use-task-state";
-
-// Channels hub + Telegram channel
-export type { AccountListItemProps } from "./components/channels/account-list-item";
-export { AccountListItem } from "./components/channels/account-list-item";
-export type { AddTelegramAccountFormProps } from "./components/channels/add-telegram-account-form";
-export { AddTelegramAccountForm } from "./components/channels/add-telegram-account-form";
-export type { ChannelsPanelProps } from "./components/channels/channels-panel";
-export { ChannelsPanel } from "./components/channels/channels-panel";
-export { TelegramChannelSection } from "./components/channels/telegram-channel-section";
-export type { ChannelInfo } from "./hooks/use-channels";
-export { useChannels } from "./hooks/use-channels";
-export type { AddTelegramAccountInput, TelegramAccountView } from "./hooks/use-telegram-channel";
-export { useTelegramChannel } from "./hooks/use-telegram-channel";
 export { ThinkingIndicator } from "./components/thinking-indicator";
 // Tool call entry
 export type { ToolCallEntryProps } from "./components/tool-call-entry";
 export { ToolCallEntry } from "./components/tool-call-entry";
+export type { ChannelInfo } from "./hooks/use-channels";
+export { useChannels } from "./hooks/use-channels";
+// Task state hook
+export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
+export { useTaskState } from "./hooks/use-task-state";
+export type { AddTelegramAccountInput, TelegramAccountView } from "./hooks/use-telegram-channel";
+export { useTelegramChannel } from "./hooks/use-telegram-channel";

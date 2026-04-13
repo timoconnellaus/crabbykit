@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { AgentContext, PromptScheduleConfig } from "@claw-for-cloudflare/agent-runtime";
+import { describe, expect, it } from "vitest";
 import { heartbeat } from "../capability.js";
 
 // Heartbeat ignores context — a dummy value satisfies the type signature.

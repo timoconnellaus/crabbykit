@@ -4,8 +4,8 @@
  * in pool-workers (which doesn't support it).
  */
 
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import {
   CloudflareSandboxProvider,
   SandboxContainer,

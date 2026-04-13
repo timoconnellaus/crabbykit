@@ -1,15 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
-import { createBrowserOpenTool } from "../tools/browser-open.js";
-import { createBrowserNavigateTool } from "../tools/browser-navigate.js";
-import { createBrowserSnapshotTool } from "../tools/browser-snapshot.js";
-import { createBrowserClickTool } from "../tools/browser-click.js";
-import { createBrowserTypeTool } from "../tools/browser-type.js";
-import { createBrowserCloseTool } from "../tools/browser-close.js";
-import { createBrowserClearStateTool } from "../tools/browser-clear-state.js";
-import { createBrowserScreenshotTool } from "../tools/browser-screenshot.js";
-import type { SessionManager } from "../session-manager.js";
 import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import { describe, expect, it, vi } from "vitest";
+import type { SessionManager } from "../session-manager.js";
+import { createBrowserClearStateTool } from "../tools/browser-clear-state.js";
+import { createBrowserClickTool } from "../tools/browser-click.js";
+import { createBrowserCloseTool } from "../tools/browser-close.js";
+import { createBrowserNavigateTool } from "../tools/browser-navigate.js";
+import { createBrowserOpenTool } from "../tools/browser-open.js";
+import { createBrowserScreenshotTool } from "../tools/browser-screenshot.js";
+import { createBrowserSnapshotTool } from "../tools/browser-snapshot.js";
+import { createBrowserTypeTool } from "../tools/browser-type.js";
 import type { RefMap } from "../types.js";
 
 function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
