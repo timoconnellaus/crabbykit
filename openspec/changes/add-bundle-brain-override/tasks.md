@@ -45,7 +45,7 @@
 - [x] 2.7 Create `packages/agent-bundle` with `package.json`, `tsconfig.json`, `src/index.ts`, `src/bundle/`, `src/host/`
 - [x] 2.8 Implement `defineBundleAgent<BundleEnv>(setup)` in `src/bundle/define.ts`
 - [x] 2.9 Define `BundleEnv` constraint type that excludes native binding types and accepts only `Service<T>` + serializable values
-- [ ] 2.10 Type-level tests: `interface E extends BundleEnv { AI: Ai }` fails to compile; `interface E extends BundleEnv { LLM: Service<unknown> }` succeeds; `interface E extends BundleEnv { TIMEZONE: string }` succeeds
+- [x] 2.10 Type-level tests: `interface E extends BundleEnv { AI: Ai }` fails to compile; `interface E extends BundleEnv { LLM: Service<unknown> }` succeeds; `interface E extends BundleEnv { TIMEZONE: string }` succeeds
 - [x] 2.11 Define the bundle default-export contract: fetch handler discriminating on `/turn`, `/client-event`, `/alarm`, `/session-created`, `/smoke`, `/metadata`
 - [x] 2.12 Implement `SessionStoreClient` async interface (bundle-side, not the static SessionStore — distinct types in distinct files)
 - [x] 2.13 Implement `KvStoreClient`, `SchedulerClient` async interfaces (bundle-side)
@@ -55,7 +55,7 @@
 - [x] 2.17 Bundle subpath export from `@claw-for-cloudflare/agent-bundle/bundle` that exposes `defineBundleAgent`, `defineTool`, `Type`, the bundle hook context types — but NOT `LlmService`, `SpineService`, or any host-side WorkerEntrypoint
 - [x] 2.18 Add `package.json` `exports` rules that physically separate bundle-authoring entry from host-side entry
 - [x] 2.19 Unit tests: bundle constructs runtime, runs a simple turn against a fake spine, returns stream of events
-- [ ] 2.20 Integration test: hand-compiled bundle loaded via Worker Loader handles a turn against an in-process mock SpineService
+- [x] 2.20 Integration test: hand-compiled bundle loaded via Worker Loader handles a turn against an in-process mock SpineService
 
 ## 3. Phase 2 — bundle field on defineAgent + SpineService bridge
 
@@ -94,13 +94,13 @@
 - [x] 3.23 The DO reserves `/bundle/*` paths and never forwards them to a bundle
 - [x] 3.24 Per-entry bundle version tagging: when the dispatcher persists an entry produced by a bundle turn, the DO stamps `bundleVersionId: <hash>` on the entry's metadata. When persisting from a static turn, the DO stamps `bundleVersionId: "static"`.
 - [x] 3.25 Unit tests: dispatch check short-circuits when `bundle` config is absent (no overhead); dispatch correctly handles active bundle path; auto-revert kicks in after N failures; static brain runs after revert
-- [ ] 3.26 Integration test: a `defineAgent`-produced DO with bundle config loads a hand-compiled bundle and runs a turn end-to-end; verify token is minted, spine RPCs are made, entries are persisted, events are broadcast, cost emission works
+- [x] 3.26 Integration test: a `defineAgent`-produced DO with bundle config loads a hand-compiled bundle and runs a turn end-to-end; verify token is minted, spine RPCs are made, entries are persisted, events are broadcast, cost emission works
 
 ### 3C. Phase 1 → Phase 2 milestone demo
 
 - [x] 3.27 Create `examples/bundle-agent-phase2/` with one bundle-enabled `defineAgent` and a hand-written/hand-compiled bundle
 - [x] 3.28 Demo script: start `wrangler dev`, the example uses an inline test fallback registry pointing at a file-loaded bundle, send a prompt via curl, see a response via the bundle path
-- [ ] 3.29 Verify spine RPC calls in DO logs: token verification, entry appends, transport broadcasts
+- [x] 3.29 Verify spine RPC calls in DO logs: token verification, entry appends, transport broadcasts
 - [x] 3.30 Document the demo in `examples/bundle-agent-phase2/README.md`
 - [x] 3.31 Measure: cold-load latency, per-turn RPC count, total turn latency vs the static `examples/basic-agent` baseline
 - [x] 3.32 **Phase 2 decision gate**: if loader latency > 3× static latency, stop and add batching to spine clients before continuing to Phase 3
@@ -125,8 +125,8 @@
 - [x] 4.14 Bundle-side `ServiceLlmProvider` adapter in `packages/agent-bundle/src/bundle/llm/` — implements bundle runtime's LLM provider interface, RPCs to `env.LLM_SERVICE` with `env.__SPINE_TOKEN`
 - [x] 4.15 Bundle runtime selects `ServiceLlmProvider` automatically when `model()` returns `{ provider, modelId }` without `apiKey`
 - [x] 4.16 Make `apiKey` a compile-time error in bundle-side `model` type — type-level enforcement via the bundle subpath's restricted `ModelConfig` type
-- [ ] 4.17 Unit tests for each provider branch with credential redaction assertions
-- [ ] 4.18 Integration test: bundle declaring `model: { provider: "openrouter", modelId: "..." }` runs a complete tool-calling turn; bundle source greppable for OpenRouter key returns zero matches
+- [x] 4.17 Unit tests for each provider branch with credential redaction assertions
+- [x] 4.18 Integration test: bundle declaring `model: { provider: "openrouter", modelId: "..." }` runs a complete tool-calling turn; bundle source greppable for OpenRouter key returns zero matches
 
 ### 4B. Tavily capability service pilot
 
@@ -141,9 +141,9 @@
 - [x] 4.27 Update `packages/tavily-web-search/package.json` `exports` to expose `/service`, `/client`, `/schemas` subpaths; keep `.` unchanged
 - [x] 4.28 Verify legacy `tavilyWebSearch({apiKey})` still builds and tests pass — static agents unaffected
 - [x] 4.29 Schema-hash check: client passes computed schema hash, service compares against its own (defensive consistency check, not security boundary — service still validates args against its own TypeBox schema)
-- [ ] 4.30 Unit tests for `TavilyService` (mocked fetch + mocked spine; verify cost emission, token rejection)
-- [ ] 4.31 Unit tests for `tavilyClient` (mocked service stub; verify tools RPC correctly with token; verify no credential paths)
-- [ ] 4.32 Integration test: bundle-enabled agent with `tavilyClient` capability runs a search via the service; cost event lands in session store keyed to correct sessionId; bundle source grep for `TAVILY_API_KEY` returns zero matches
+- [x] 4.30 Unit tests for `TavilyService` (mocked fetch + mocked spine; verify cost emission, token rejection)
+- [x] 4.31 Unit tests for `tavilyClient` (mocked service stub; verify tools RPC correctly with token; verify no credential paths)
+- [x] 4.32 Integration test: bundle-enabled agent with `tavilyClient` capability runs a search via the service; cost event lands in session store keyed to correct sessionId; bundle source grep for `TAVILY_API_KEY` returns zero matches
 
 ## 5. Phase 4 — packages/bundle-registry
 
@@ -158,11 +158,11 @@
 - [x] 5.9 Implement atomic `rollback` using `db.batch` — wraps swap + insert deployment log
 - [x] 5.10 Implement `InMemoryBundleRegistry` for unit tests (no D1 required)
 - [x] 5.11 Unit tests for both implementations: version CRUD, set/get active, rollback with and without previous, deployment log ordering, KV size limit enforcement
-- [ ] 5.12 Unit test KV readback verification: happy path, simulated lag, timeout failure
-- [ ] 5.13 Unit test D1 batch atomicity: partial-failure simulation
+- [x] 5.12 Unit test KV readback verification: happy path, simulated lag, timeout failure
+- [x] 5.13 Unit test D1 batch atomicity: partial-failure simulation
 - [x] 5.14 Wire `defineAgent`'s bundle field to accept the registry from `packages/bundle-registry`
 - [x] 5.15 Implement `ctx.storage` active-version pointer cache update via a method the workshop calls when a deploy completes
-- [ ] 5.16 Integration test: two deploys in sequence; both versions land in KV and D1 with correct hashes; DO pointer updates after each; rollback works; KV readback enforced
+- [x] 5.16 Integration test: two deploys in sequence; both versions land in KV and D1 with correct hashes; DO pointer updates after each; rollback works; KV readback enforced
 
 ## 6. Phase 5 — packages/bundle-workshop
 
@@ -174,8 +174,8 @@
 - [x] 6.4 Vendored set includes only what bundle authors need: `@claw-for-cloudflare/agent-bundle/bundle` subpath, `@claw-for-cloudflare/tavily-web-search/client` and `/schemas`, plus any other capability `client`/`bundle` subpaths that exist
 - [x] 6.5 Verify that vendored snapshot does NOT include host-side WorkerEntrypoint classes (no `LlmService`, no `SpineService`, no `TavilyService`)
 - [x] 6.6 Document the image rebuild process in `packages/cloudflare-sandbox/README.md`
-- [ ] 6.7 Add a CI check that the sandbox container image builds successfully after SDK changes
-- [ ] 6.8 Add a CI check that `INTEGRITY.json` is regenerated whenever any vendored file changes
+- [x] 6.7 Add a CI check that the sandbox container image builds successfully after SDK changes
+- [x] 6.8 Add a CI check that `INTEGRITY.json` is regenerated whenever any vendored file changes
 
 ### 6B. Workshop package and tools
 
@@ -198,7 +198,7 @@
 - [x] 6.25 KV size limit check in `bundle_deploy` — fail fast on bundles > 25 MiB
 - [x] 6.26 Workshop tool audit logging — every `bundle_*` invocation appends a structured `workshop_audit` custom session entry recording tool name, args summary, status, error code if applicable, timestamp
 - [x] 6.27 Unit tests for each workshop tool — mocked sandbox, registry, KV
-- [ ] 6.28 Integration test (pool-workers): full init → build → test → deploy loop against a real (mocked-network) sandbox container and a real registry
+- [x] 6.28 Integration test (pool-workers): full init → build → test → deploy loop against a real (mocked-network) sandbox container and a real registry
 
 ## 7. Phase 6 — Example, polish, docs
 
@@ -215,7 +215,7 @@
   - Hit the agent again, see it can answer with the new tool
   - Send `bundle_disable` to revert to static brain
 - [x] 7.6 Include CLI/curl demo commands for the full sequence
-- [ ] 7.7 Verify the example works end-to-end with all features active
+- [x] 7.7 Verify the example works end-to-end with all features active
 
 ### 7B. Final validation
 

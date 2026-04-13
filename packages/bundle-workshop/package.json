@@ -12,6 +12,7 @@
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
+    "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@cloudflare/workers-types": "^4.20250109.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"

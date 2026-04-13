@@ -1,0 +1,19 @@
+{
+  "name": "bundle-registry-test",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "BUNDLE_DB",
+      "database_name": "bundle-registry-test",
+      "database_id": "00000000-0000-0000-0000-000000000002"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BUNDLE_KV",
+      "id": "bundle-registry-test-kv"
+    }
+  ]
+}

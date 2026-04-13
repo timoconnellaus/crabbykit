@@ -29,6 +29,50 @@ export interface BundleEnv {
   [key: string]: unknown;
 }
 
+/**
+ * Nominal types the bundle runtime forbids in BundleEnv. These are the
+ * native Cloudflare bindings that cannot cross the Worker Loader
+ * structured-clone boundary.
+ *
+ * Used by {@link ValidateBundleEnv} as an opt-in compile-time check.
+ */
+export type ForbiddenBundleEnvValue =
+  | Ai
+  | R2Bucket
+  | KVNamespace
+  | D1Database
+  | DurableObjectNamespace
+  | VectorizeIndex
+  | Queue
+  | Hyperdrive
+  | AnalyticsEngineDataset;
+
+/**
+ * Compile-time validator for bundle environments.
+ *
+ * Returns the env type `T` if every value is allowed, otherwise collapses
+ * to `never` so downstream usage fails type-checking. Use in your bundle
+ * code to opt into stricter checking:
+ *
+ * ```ts
+ * interface MyEnv extends BundleEnv {
+ *   TIMEZONE: string;
+ *   LLM_SERVICE: Service<unknown>;
+ * }
+ * type _Check = ValidateBundleEnv<MyEnv>;  // OK
+ *
+ * interface BadEnv extends BundleEnv { AI: Ai }
+ * type _Bad = ValidateBundleEnv<BadEnv>;   // never
+ * ```
+ */
+export type ValidateBundleEnv<T> = {
+  [K in keyof T]: T[K] extends ForbiddenBundleEnvValue ? never : T[K];
+} extends infer Mapped
+  ? Mapped extends T
+    ? T
+    : never
+  : never;
+
 // --- Bundle model config ---
 
 /**

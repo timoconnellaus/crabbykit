@@ -7,6 +7,7 @@
  */
 
 import { computeVersionId } from "./hash.js";
+import { verifyKvReadback } from "./readback.js";
 import type {
   AgentBundle,
   BundleDeployment,
@@ -22,7 +23,6 @@ import {
   METADATA_DESCRIPTION_MAX,
   METADATA_KEYS,
   METADATA_STRING_MAX,
-  READBACK_DELAYS,
 } from "./types.js";
 
 export class D1BundleRegistry implements BundleRegistry {
@@ -308,22 +308,11 @@ export class D1BundleRegistry implements BundleRegistry {
   // --- KV readback verification ---
 
   private async verifyReadback(key: string): Promise<void> {
-    for (const delay of READBACK_DELAYS) {
-      await sleep(delay);
-      const value = await this.kv.get(key, "arrayBuffer");
-      if (value !== null) {
-        return;
-      }
-    }
-    throw new Error(`KV readback verification timed out for key: ${key}`);
+    await verifyKvReadback(this.kv, key);
   }
 }
 
 // --- Helpers ---
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function sanitizeMetadata(raw: BundleMetadata): BundleMetadata {
   const result: BundleMetadata = {};
