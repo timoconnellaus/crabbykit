@@ -173,7 +173,7 @@
 - [x] 6.3 Generate `/opt/claw-sdk/INTEGRITY.json` at image build time with SHA-256 hashes of every vendored file
 - [x] 6.4 Vendored set includes only what bundle authors need: `@claw-for-cloudflare/agent-bundle/bundle` subpath, `@claw-for-cloudflare/tavily-web-search/client` and `/schemas`, plus any other capability `client`/`bundle` subpaths that exist
 - [x] 6.5 Verify that vendored snapshot does NOT include host-side WorkerEntrypoint classes (no `LlmService`, no `SpineService`, no `TavilyService`)
-- [ ] 6.6 Document the image rebuild process in `packages/cloudflare-sandbox/README.md`
+- [x] 6.6 Document the image rebuild process in `packages/cloudflare-sandbox/README.md`
 - [ ] 6.7 Add a CI check that the sandbox container image builds successfully after SDK changes
 - [ ] 6.8 Add a CI check that `INTEGRITY.json` is regenerated whenever any vendored file changes
 
@@ -208,13 +208,13 @@
 - [x] 7.2 Host worker exports the `defineAgent` class plus `LlmService`, `TavilyService`, `SpineService` WorkerEntrypoint classes
 - [x] 7.3 Wrangler config has `worker_loaders`, KV namespace for bundles, D1 database for registry, R2 bucket for sandbox, `AGENT_AUTH_KEY` secret, plus service bindings
 - [x] 7.4 The agent has the `bundleWorkshop` capability and a starter system prompt that knows how to use it
-- [ ] 7.5 Example README walks through:
+- [x] 7.5 Example README walks through:
   - Run wrangler dev, hit the agent, see static brain answer (no bundle yet)
   - Send a prompt asking the agent to add a `current_time` tool to itself
   - Agent runs `bundle_init` → `bundle_build` → `bundle_test` → `bundle_deploy` (self-edit)
   - Hit the agent again, see it can answer with the new tool
   - Send `bundle_disable` to revert to static brain
-- [ ] 7.6 Include CLI/curl demo commands for the full sequence
+- [x] 7.6 Include CLI/curl demo commands for the full sequence
 - [ ] 7.7 Verify the example works end-to-end with all features active
 
 ### 7B. Final validation
@@ -235,4 +235,4 @@
 - [x] 7.18 Document the `BundleEnv` constraint with explicit examples of what does and doesn't type-check
 - [x] 7.19 Document the capability service pattern with the Tavily split as the reference
 - [x] 7.20 Document the four-layer cache/storage model for operators (Worker Loader → KV → DO storage → D1 registry)
-- [ ] 7.21 Archive the previous `add-agent-bundles` change once this change is approved
+- [x] 7.21 Archive the previous `add-agent-bundles` change once this change is approved

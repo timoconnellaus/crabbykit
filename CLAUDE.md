@@ -199,6 +199,42 @@ The debug system has three parts, all in the example app (not the runtime):
 - Tool simulation persists entries and broadcasts `tool_event` messages, but the UI won't stream them live unless a WebSocket client is connected to that session. Switching to the session in the UI triggers a `session_sync` which loads all entries.
 - The `calculate` tool uses `Function()` which is blocked in Workers — use other tools for testing.
 
+## Bundle Brain Override in basic-agent
+
+The basic-agent example includes full bundle brain override support. The agent can author, build, and deploy bundles to itself at runtime via the workshop tools.
+
+### How to use bundles in basic-agent
+
+1. Start the dev server: `cd examples/basic-agent && bun dev`
+2. Open the UI and send a prompt — the static brain responds
+3. Ask the agent to create a bundle: *"Create a bundle called my-brain that adds a current_time tool"*
+4. The agent runs `bundle_init` → edits `src/index.ts` → `bundle_build` → `bundle_test` → `bundle_deploy`
+5. On the next turn, the bundle brain handles the prompt instead of the static brain
+6. To revert: ask the agent to run `bundle_disable`, or call `POST /bundle/disable` directly
+
+### Bundle tools available
+
+| Tool | Purpose |
+|------|---------|
+| `bundle_init` | Scaffold a new bundle workspace in the sandbox |
+| `bundle_build` | Compile with `bun build --target=browser --format=esm` |
+| `bundle_test` | Validate the built bundle |
+| `bundle_deploy` | Register as active brain (self-editing by default) |
+| `bundle_disable` | Revert to static brain |
+| `bundle_rollback` | Swap to previous version |
+| `bundle_versions` | List deployment history |
+
+### Wrangler bindings required
+
+- `BUNDLE_DB`: D1 database for bundle registry
+- `BUNDLE_KV`: KV namespace for bundle bytes
+- `AGENT_AUTH_KEY`: HMAC secret for capability tokens
+- `SPINE_SERVICE`, `LLM_SERVICE`: Service bindings for bundle RPC
+
+### Standalone demo
+
+A minimal standalone demo exists at `examples/bundle-agent-phase2/` with an InMemoryBundleRegistry and curl-based workflow — see its README for details.
+
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers + Durable Objects + SQLite
