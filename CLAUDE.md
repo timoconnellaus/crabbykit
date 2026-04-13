@@ -59,6 +59,11 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 - **`packages/heartbeat`** — Periodic heartbeat capability with configurable interval.
 - **`packages/vite-plugin`** — Vite plugin for CLAW development (bundled into container images).
 
+### Bundle Brain Override Packages
+- **`packages/agent-bundle`** — Bundle authoring API (`defineBundleAgent`), `BundleEnv` type constraint, small async bundle runtime, `SpineService` WorkerEntrypoint (bridges bundle RPC to DO's sync stores), `LlmService` (multi-provider LLM proxy with credential isolation), capability token mint/verify/HKDF utilities, `InMemoryBundleRegistry` for tests.
+- **`packages/bundle-registry`** — D1-backed bundle version store with content-addressed IDs (SHA-256), KV bundle bytes storage, KV readback verification on deploy, atomic `setActive`/`rollback` via `db.batch()`, self-seeding migration, append-only deployment audit log.
+- **`packages/bundle-workshop`** — Agent-facing capability with 7 tools: `bundle_init`, `bundle_build`, `bundle_test`, `bundle_deploy`, `bundle_disable`, `bundle_rollback`, `bundle_versions`. Self-editing deploys by default (safe because static brain is always the fallback). Per-agent deploy rate limiting.
+
 ### Internal Packages (not published)
 - **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
 - **`packages/ai`** — Fork of pi-ai. Model provider abstraction (OpenRouter, Anthropic, etc.).
@@ -79,6 +84,9 @@ packages/sandbox           — Shell execution with elevation model
 packages/cloudflare-sandbox — Sandbox provider for Cloudflare Containers
 packages/vibe-coder        — Live app preview with console capture
 packages/browserbase        — Browser automation via Browserbase (CDP + snapshots)
+packages/agent-bundle       — Bundle authoring + host dispatch + security tokens
+packages/bundle-registry    — D1/KV bundle version store
+packages/bundle-workshop    — Agent-facing bundle authoring tools
 packages/channel-telegram   — Telegram channel (reference implementation of defineChannel)
 packages/task-tracker       — DAG-based task management (deps, ready-work)
 packages/subagent           — Same-DO child agent spawning
@@ -202,6 +210,18 @@ The debug system has three parts, all in the example app (not the runtime):
 - **AI SDK**: @mariozechner/pi-agent-core + pi-ai
 
 ## Architecture Rules
+
+### Bundle brain override — opt-in per-agent runtime override via Worker Loader
+
+`defineAgent` accepts an optional `bundle` config field. When omitted, the agent is purely static — no new code paths. When present, the agent gains the ability to dispatch turns into a registry-backed bundle loaded via Worker Loader.
+
+**How it works:** On each turn, if a bundle is registered for the agent, the DO mints an HMAC capability token, loads the compiled bundle via `LOADER.get(versionId, factory)`, and dispatches the turn into the bundle's `POST /turn` endpoint. The bundle runs its own small async runtime, calls back to the DO via `SpineService` for state operations (session store, KV, transport, cost emission), and streams agent events back. If no bundle is registered (or the bundle fails to load), the static brain runs unchanged.
+
+**Security model:** Per-turn HMAC tokens with HKDF-derived per-service subkeys. Bundles cannot forge identity — every SpineService/LlmService/capability-service method derives identity from the verified token payload. `globalOutbound: null` on the loader isolate prevents bundles from making direct outbound network calls. Provider credentials live in host-side `LlmService`/capability services, never in bundle env.
+
+**Capability service pattern:** Capability packages that hold secrets expose four subpaths: `index` (legacy static, unchanged), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy), `schemas` (shared tool schemas). Tavily is the pilot implementation.
+
+**Self-editing is safe by default:** `bundle_deploy` targets the invoking agent's own bundle pointer. The static brain (defined at compile time via `defineAgent` fields) is always the fallback — disabling the bundle reverts to it.
 
 ### Capabilities are the extension model
 

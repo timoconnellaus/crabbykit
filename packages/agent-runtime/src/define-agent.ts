@@ -22,6 +22,46 @@ import type { SessionStore } from "./session/session-store.js";
 import type { SqlStore } from "./storage/types.js";
 import type { Transport } from "./transport/transport.js";
 
+// --- Bundle config types (inlined to avoid circular workspace dep) ---
+
+/**
+ * Registry interface for bundle version management.
+ * Consumers provide a registry implementation (e.g., D1BundleRegistry).
+ */
+export interface BundleRegistry {
+  getActiveForAgent(agentId: string): Promise<string | null>;
+  setActive(
+    agentId: string,
+    versionId: string | null,
+    opts?: { rationale?: string; sessionId?: string },
+  ): Promise<void>;
+  getBytes(versionId: string): Promise<ArrayBuffer | null>;
+}
+
+/**
+ * Optional bundle config on {@link AgentDefinition}. When provided, the agent
+ * gains the ability to dispatch turns into a registry-backed bundle loaded via
+ * Worker Loader. When omitted, the agent is purely static — no new code paths,
+ * no new dependencies, no overhead.
+ */
+export interface BundleConfig<TEnv = Record<string, unknown>> {
+  /** Factory returning a BundleRegistry instance. */
+  registry: (env: TEnv) => BundleRegistry;
+  /** Factory returning the Worker Loader binding. */
+  loader: (env: TEnv) => WorkerLoader;
+  /** Factory returning the master HMAC key for capability token minting. */
+  authKey: (env: TEnv) => string;
+  /**
+   * Factory projecting the bundle's env from the host env.
+   * Only service bindings and serializable values. __SPINE_TOKEN is injected
+   * automatically. Native bindings that aren't structured-cloneable cause
+   * DataCloneError → fallback to static brain.
+   */
+  bundleEnv: (env: TEnv) => Record<string, unknown>;
+  /** Consecutive load failures before auto-revert to static. Default: 3. */
+  maxLoadFailures?: number;
+}
+
 /**
  * Setup context passed to {@link AgentDefinition} factory functions that
  * need late-bound access to runtime state.
@@ -171,6 +211,17 @@ export interface AgentDefinition<TEnv = Record<string, unknown>> {
    * routing. Return `null` to fall through; return a Response to short-circuit.
    */
   fetch?: (request: Request, setup: AgentSetup<TEnv>) => Promise<Response | null> | Response | null;
+
+  /**
+   * Optional bundle brain override. When provided, the agent gains the ability
+   * to dispatch turns into a registry-backed bundle loaded via Worker Loader.
+   * When omitted, the agent is purely static — exact same code path, exact
+   * same wrangler config, exact same dependencies.
+   *
+   * The static fields (`model`, `prompt`, `tools`, `capabilities`) remain the
+   * agent's identity and are always the fallback when no bundle is active.
+   */
+  bundle?: BundleConfig<TEnv>;
 }
 
 const CONSOLE_LOGGER: Logger = {
@@ -284,6 +335,256 @@ export function defineAgent<TEnv = Record<string, unknown>>(
         const setup = this._setup;
         this.runtime.preFetchHandler = (request: Request) => userFetch(request, setup);
       }
+
+      // --- Bundle dispatch (only when bundle config is present) ---
+      if (definition.bundle) {
+        this._initBundleDispatch(ctx, env, definition.bundle);
+      }
+    }
+
+    /**
+     * Initialize bundle dispatch. Only called when `bundle` config is present.
+     * Installs a prompt handler and HTTP routes for bundle management.
+     */
+    private _initBundleDispatch(
+      ctx: DurableObjectState,
+      env: TEnv,
+      bundleConfig: BundleConfig<TEnv>,
+    ): void {
+      const agentId = this.runtime.runtimeContext.agentId;
+      const registry = bundleConfig.registry(env);
+      const loader = bundleConfig.loader(env);
+      const masterKey = bundleConfig.authKey(env);
+      const maxLoadFailures = bundleConfig.maxLoadFailures ?? 3;
+
+      // Mutable dispatch state
+      let consecutiveFailures = 0;
+      let spineSubkeyPromise: Promise<CryptoKey> | null = null;
+
+      const getSpineSubkey = async (): Promise<CryptoKey> => {
+        if (!spineSubkeyPromise) {
+          spineSubkeyPromise = (async () => {
+            const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
+            return deriveSubkey(masterKey, "claw/spine-v1");
+          })();
+        }
+        return spineSubkeyPromise;
+      };
+
+      const checkActiveBundle = async (): Promise<string | null> => {
+        // Warm path: ctx.storage
+        const cached = await ctx.storage.get<string | null>("activeBundleVersionId");
+        if (cached !== undefined) {
+          return cached;
+        }
+        // Cold path: registry query
+        const id = await registry.getActiveForAgent(agentId);
+        await ctx.storage.put("activeBundleVersionId", id);
+        return id;
+      };
+
+      // Install the bundle prompt handler on the runtime
+      this.runtime.bundlePromptHandler = async (
+        sessionId: string,
+        _text: string,
+      ): Promise<boolean> => {
+        const versionId = await checkActiveBundle();
+        if (!versionId) {
+          return false; // No active bundle → static brain
+        }
+
+        try {
+          const subkey = await getSpineSubkey();
+          const { mintToken } = await import("@claw-for-cloudflare/agent-bundle/security");
+          const token = await mintToken({ agentId, sessionId }, subkey);
+
+          const projectedEnv = bundleConfig.bundleEnv(env);
+
+          const worker = loader.get(versionId, async () => {
+            const bytes = await registry.getBytes(versionId);
+            if (!bytes) {
+              throw new Error(`Bundle bytes not found for version ${versionId}`);
+            }
+            const source = new TextDecoder().decode(bytes);
+            return {
+              compatibilityDate: "2025-12-01",
+              compatibilityFlags: ["nodejs_compat"],
+              mainModule: "bundle.js",
+              modules: { "bundle.js": source },
+              env: { ...projectedEnv, __SPINE_TOKEN: token },
+              globalOutbound: null,
+            };
+          });
+
+          const res = await worker.getEntrypoint().fetch(
+            new Request("https://bundle/turn", {
+              method: "POST",
+              body: JSON.stringify({ prompt: _text }),
+            }),
+          );
+
+          if (!res.ok) {
+            throw new Error(`Bundle turn returned ${res.status}`);
+          }
+
+          // Consume NDJSON event stream and forward events
+          const text = await res.text();
+          const lines = text.trim().split("\n").filter(Boolean);
+
+          for (const line of lines) {
+            try {
+              const event = JSON.parse(line) as {
+                type: string;
+                event?: string;
+                data?: Record<string, unknown>;
+              };
+
+              // Forward agent events to the session's transport.
+              // The bundle streams NDJSON events; we persist and broadcast
+              // the ones we understand. Full event mapping will be refined
+              // when the bundle runtime integration is complete.
+              if (event.type === "agent_event" && event.event === "text" && event.data) {
+                const content = event.data.text as string;
+                this.runtime.sessionStore.appendEntry(sessionId, {
+                  type: "message",
+                  data: {
+                    role: "assistant",
+                    content,
+                    timestamp: Date.now(),
+                    metadata: { bundleVersionId: versionId },
+                  },
+                });
+                // Broadcast as a raw message — the client understands this shape
+                this.runtime.transport.broadcastToSession(sessionId, {
+                  type: "agent_event",
+                  sessionId,
+                  event: { type: "message_end", message: { role: "assistant", content } },
+                } as unknown as import("./transport/types.js").ServerMessage);
+              } else if (event.type === "agent_event" && event.event === "agent_end") {
+                this.runtime.transport.broadcastToSession(sessionId, {
+                  type: "agent_event",
+                  sessionId,
+                  event: { type: "agent_end", messages: [] },
+                } as unknown as import("./transport/types.js").ServerMessage);
+              }
+            } catch {
+              // Skip malformed lines
+            }
+          }
+
+          consecutiveFailures = 0;
+          return true;
+        } catch (err) {
+          consecutiveFailures++;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          this.runtime.logger.error(
+            `[BundleDispatch] Failure ${consecutiveFailures}/${maxLoadFailures}: ${errMsg}`,
+          );
+
+          if (consecutiveFailures >= maxLoadFailures) {
+            this.runtime.logger.warn("[BundleDispatch] Auto-reverting to static brain");
+            try {
+              await registry.setActive(agentId, null, {
+                rationale: "auto-revert: poison bundle",
+              });
+            } catch (revertErr) {
+              this.runtime.logger.error("[BundleDispatch] Failed to auto-revert", {
+                error: revertErr instanceof Error ? revertErr.message : String(revertErr),
+              });
+            }
+            consecutiveFailures = 0;
+            await ctx.storage.put("activeBundleVersionId", null);
+          }
+
+          return false; // Fall through to static brain
+        }
+      };
+
+      // Install the client event handler for steer/abort during bundle turns.
+      this.runtime.bundleClientEventHandler = async (
+        sessionId: string,
+        event: unknown,
+      ): Promise<void> => {
+        const versionId = await checkActiveBundle();
+        if (!versionId) return;
+
+        try {
+          const subkey = await getSpineSubkey();
+          const { mintToken: mint } = await import("@claw-for-cloudflare/agent-bundle/security");
+          const token = await mint({ agentId, sessionId }, subkey);
+          const projectedEnv = bundleConfig.bundleEnv(env);
+
+          const worker = loader.get(versionId, async () => {
+            const bytes = await registry.getBytes(versionId);
+            if (!bytes) throw new Error("Bundle bytes not found");
+            const source = new TextDecoder().decode(bytes);
+            return {
+              compatibilityDate: "2025-12-01",
+              compatibilityFlags: ["nodejs_compat"],
+              mainModule: "bundle.js",
+              modules: { "bundle.js": source },
+              env: { ...projectedEnv, __SPINE_TOKEN: token },
+              globalOutbound: null,
+            };
+          });
+
+          await worker.getEntrypoint().fetch(
+            new Request("https://bundle/client-event", {
+              method: "POST",
+              body: JSON.stringify(event),
+            }),
+          );
+        } catch (err) {
+          // Client event delivery is best-effort
+          this.runtime.logger.warn("[BundleDispatch] Client event delivery failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      };
+
+      // Install the pre-fetch handler for bundle HTTP endpoints.
+      // Chain with any existing pre-fetch handler.
+      const existingPreFetch = this.runtime.preFetchHandler;
+      this.runtime.preFetchHandler = async (request: Request) => {
+        const url = new URL(request.url);
+
+        // POST /bundle/disable — out-of-band privileged endpoint
+        if (url.pathname === "/bundle/disable" && request.method === "POST") {
+          // Auth check via the runtime's validateAuth (if configured)
+          if (this.runtime.validateAuth) {
+            const allowed = await this.runtime.validateAuth(request);
+            if (!allowed) {
+              return new Response("Unauthorized", { status: 401 });
+            }
+          }
+
+          await registry.setActive(agentId, null, {
+            rationale: "out-of-band disable",
+          });
+          consecutiveFailures = 0;
+          await ctx.storage.put("activeBundleVersionId", null);
+
+          return Response.json({ status: "disabled" });
+        }
+
+        // POST /bundle/refresh — signal to refresh the cached pointer
+        if (url.pathname === "/bundle/refresh" && request.method === "POST") {
+          const id = await registry.getActiveForAgent(agentId);
+          await ctx.storage.put("activeBundleVersionId", id);
+          return Response.json({ status: "refreshed", activeVersionId: id });
+        }
+
+        // Reserve /bundle/* paths — never forward to bundle
+        if (url.pathname.startsWith("/bundle/")) {
+          return new Response("Not found", { status: 404 });
+        }
+
+        // Fall through to existing pre-fetch handler
+        if (existingPreFetch) {
+          return existingPreFetch(request);
+        }
+        return null;
+      };
     }
 
     getConfig(): AgentConfig {

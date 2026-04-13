@@ -1,0 +1,19 @@
+{
+  "name": "bundle-agent-phase2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build:bundle": "bun build bundle-src/index.ts --target=browser --format=esm --outfile=dist/test.bundle.js --external cloudflare:workers --external cloudflare:sockets",
+    "spike": "bun run build:bundle && wrangler dev"
+  },
+  "dependencies": {
+    "@claw-for-cloudflare/agent-bundle": "workspace:*",
+    "@claw-for-cloudflare/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

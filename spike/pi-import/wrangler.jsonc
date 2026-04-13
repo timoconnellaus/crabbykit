@@ -1,0 +1,12 @@
+{
+  "name": "spike-pi-import",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "AGENT", "class_name": "SpikeAgent" }]
+  },
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.bundle.js"], "fallthrough": true }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SpikeAgent"] }]
+}

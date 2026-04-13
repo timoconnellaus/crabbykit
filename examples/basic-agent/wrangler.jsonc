@@ -12,7 +12,9 @@
     // Used by SandboxContainer to configure FUSE mount inside the container.
     "R2_BUCKET_NAME": "basic-agent-storage",
     // Agent-ops shared secret (override in production via wrangler secret put)
-    "AGENT_SECRET": "dev-secret-change-in-production"
+    "AGENT_SECRET": "dev-secret-change-in-production",
+    // Bundle brain override HMAC key (override in production via wrangler secret put)
+    "AGENT_AUTH_KEY": "dev-bundle-auth-key-change-in-production"
   },
   // Secrets (set via `wrangler secret put`):
   // - OPENROUTER_API_KEY
@@ -44,6 +46,7 @@
     {
       "class_name": "SandboxContainer",
       "image": "../../packages/cloudflare-sandbox/container/Dockerfile",
+      "image_build_context": "../../",
       "instance_type": "basic"
     }
   ],
@@ -57,6 +60,16 @@
       "binding": "AI_SERVICE",
       "service": "basic-agent",
       "entrypoint": "AiService"
+    },
+    {
+      "binding": "SPINE_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "SpineService"
+    },
+    {
+      "binding": "LLM_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "LlmService"
     }
   ],
   "ai": {
@@ -91,6 +104,17 @@
       "binding": "SKILL_DB",
       "database_name": "skill-registry",
       "database_id": "local"
+    },
+    {
+      "binding": "BUNDLE_DB",
+      "database_name": "bundle-registry",
+      "database_id": "local"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BUNDLE_KV",
+      "id": "local"
     }
   ],
   "migrations": [

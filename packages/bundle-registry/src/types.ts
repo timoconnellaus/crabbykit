@@ -1,0 +1,79 @@
+/**
+ * BundleRegistry types — shared between D1 and in-memory implementations.
+ */
+
+import type { BundleRegistry } from "@claw-for-cloudflare/agent-runtime";
+
+export type { BundleRegistry };
+
+export interface BundleVersion {
+  versionId: string;
+  kvKey: string;
+  sizeBytes: number;
+  createdAt: number;
+  createdBy: string | null;
+  metadata: BundleMetadata | null;
+}
+
+export interface BundleMetadata {
+  id?: string;
+  name?: string;
+  description?: string;
+  declaredModel?: string;
+  capabilityIds?: string[];
+  authoredBy?: string;
+  version?: string;
+  buildTimestamp?: number;
+}
+
+export interface AgentBundle {
+  agentId: string;
+  activeVersionId: string | null;
+  previousVersionId: string | null;
+  updatedAt: number;
+}
+
+export interface BundleDeployment {
+  id: number;
+  agentId: string;
+  versionId: string | null;
+  deployedAt: number;
+  deployedBySessionId: string | null;
+  rationale: string | null;
+}
+
+export interface CreateVersionOpts {
+  bytes: ArrayBuffer;
+  createdBy?: string;
+  metadata?: BundleMetadata;
+}
+
+export interface SetActiveOpts {
+  rationale?: string;
+  sessionId?: string;
+}
+
+/** Maximum bundle size per KV value (Cloudflare KV limit). */
+export const MAX_BUNDLE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MiB
+
+/** KV readback verification polling schedule (ms). */
+export const READBACK_DELAYS = [50, 100, 200, 400, 800, 1600, 2000];
+
+/** Allowed top-level metadata keys. */
+export const METADATA_KEYS = new Set([
+  "id",
+  "name",
+  "description",
+  "declaredModel",
+  "capabilityIds",
+  "authoredBy",
+  "version",
+  "buildTimestamp",
+]);
+
+/** Max length for string metadata fields. */
+export const METADATA_STRING_MAX = 256;
+/** Max length for description field. */
+export const METADATA_DESCRIPTION_MAX = 1024;
+/** Max entries for capabilityIds array. */
+export const METADATA_CAPABILITY_IDS_MAX = 32;

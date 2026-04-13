@@ -32,6 +32,9 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 | `container-db` | Tiny client library for container apps providing `env.DB`-compatible interface over `db.internal` |
 | `skill-registry` | D1-backed skill registry with self-seeding and `SkillRegistry` interface |
 | `skills` | On-demand procedural knowledge capability (skill_load tool, auto-update, agent-assisted merge) |
+| `agent-bundle` | Bundle brain override — `defineBundleAgent` authoring API, `SpineService` RPC bridge, `LlmService` multi-provider proxy, capability token security |
+| `bundle-registry` | D1/KV bundle version store with content-addressed IDs, KV readback verification, atomic operations |
+| `bundle-workshop` | Agent-facing bundle authoring tools (init, build, test, deploy, disable, rollback, versions) |
 
 Internal (not published): `agent-core` (LLM agent loop), `ai` (model provider abstraction).
 

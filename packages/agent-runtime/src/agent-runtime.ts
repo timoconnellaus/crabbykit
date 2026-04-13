@@ -368,6 +368,23 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   onError?: (error: Error, info: ErrorInfo) => void;
   preFetchHandler?: AgentRuntimeOptions["fetch"];
 
+  /**
+   * Optional bundle prompt handler. When set, `handlePrompt` checks this
+   * handler first. If it returns `true`, the bundle handled the turn and
+   * the static brain is skipped. If it returns `false`, the static brain
+   * runs as normal.
+   *
+   * Installed by `defineAgent` when the `bundle` config field is present.
+   */
+  bundlePromptHandler?: (sessionId: string, text: string) => Promise<boolean>;
+
+  /**
+   * Optional bundle client event handler. When set, steer/abort messages
+   * during a bundle turn are routed through this handler to the bundle's
+   * POST /client-event endpoint.
+   */
+  bundleClientEventHandler?: (sessionId: string, event: unknown) => Promise<void>;
+
   sessionStore: SessionStore;
   scheduleStore: ScheduleStore;
   configStore: ConfigStore;
@@ -657,12 +674,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     }
 
     // Broadcast the update to connected clients.
-    this.broadcastCoreState(
-      "agent-config",
-      "update",
-      { namespace, value: newValue },
-      "global",
-    );
+    this.broadcastCoreState("agent-config", "update", { namespace, value: newValue }, "global");
   }
 
   async ensureAgentConfigLoaded(): Promise<void> {
@@ -670,8 +682,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const schema = this.getCachedAgentConfigSchema();
     for (const [namespace, nsSchema] of Object.entries(schema)) {
       const stored = await this.configStore.getAgentConfig(namespace);
-      this.agentConfigSnapshot[namespace] =
-        stored !== undefined ? stored : Value.Create(nsSchema);
+      this.agentConfigSnapshot[namespace] = stored !== undefined ? stored : Value.Create(nsSchema);
     }
     this.agentConfigLoaded = true;
   }
@@ -1552,6 +1563,24 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       type: "message",
       data: { role: "user", content: text, timestamp: Date.now() },
     });
+
+    // Bundle dispatch: if a bundle handler is installed and an active bundle
+    // exists, dispatch the turn into the bundle. If the handler returns true,
+    // the bundle handled the turn; skip the static brain entirely.
+    if (this.bundlePromptHandler) {
+      try {
+        const handled = await this.bundlePromptHandler(sessionId, text);
+        if (handled) {
+          return;
+        }
+        // Bundle handler returned false → fall through to static brain
+      } catch (err) {
+        this.logger.error("[AgentRuntime] Bundle dispatch failed, falling back to static brain", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Fall through to static brain
+      }
+    }
 
     const existingAgent = this.sessionAgents.get(sessionId);
     if (existingAgent?.state.isStreaming) {

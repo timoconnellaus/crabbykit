@@ -114,6 +114,8 @@ export type { CostEvent } from "./costs/index.js";
 export {
   type AgentDefinition,
   type AgentSetup,
+  type BundleConfig,
+  type BundleRegistry,
   defineAgent,
 } from "./define-agent.js";
 // MCP client

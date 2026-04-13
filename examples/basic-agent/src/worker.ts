@@ -1,3 +1,4 @@
+import { LlmService, SpineService } from "@claw-for-cloudflare/agent-bundle/host";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
@@ -8,6 +9,8 @@ import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
 import { appRegistry } from "@claw-for-cloudflare/app-registry";
 import { batchTool } from "@claw-for-cloudflare/batch-tool";
 import { browserbase } from "@claw-for-cloudflare/browserbase";
+import { D1BundleRegistry } from "@claw-for-cloudflare/bundle-registry";
+import { bundleWorkshop } from "@claw-for-cloudflare/bundle-workshop";
 import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
 import {
   CloudflareSandboxProvider,
@@ -17,7 +20,7 @@ import {
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
-import { heartbeat, HeartbeatConfigSchema } from "@claw-for-cloudflare/heartbeat";
+import { HeartbeatConfigSchema, heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { r2Storage } from "@claw-for-cloudflare/r2-storage";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
@@ -25,7 +28,7 @@ import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-regi
 import { skills } from "@claw-for-cloudflare/skills";
 import { explorer } from "@claw-for-cloudflare/subagent-explorer";
 import { taskTracker } from "@claw-for-cloudflare/task-tracker";
-import { tavilyWebSearch, TavilyConfigSchema } from "@claw-for-cloudflare/tavily-web-search";
+import { TavilyConfigSchema, tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
 import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
@@ -58,6 +61,12 @@ export interface Env {
   // Browserbase (set via .dev.vars or wrangler secret put)
   BROWSERBASE_API_KEY: string;
   BROWSERBASE_PROJECT_ID: string;
+  // Bundle brain override
+  BUNDLE_DB: D1Database;
+  BUNDLE_KV: KVNamespace;
+  AGENT_AUTH_KEY: string;
+  SPINE_SERVICE: Fetcher;
+  LLM_SERVICE: Fetcher;
   // Default public URL used by channels (e.g. Telegram) when registering
   // webhooks. Optional — the add-account flow falls back to deriving one
   // from the incoming request origin when this isn't set.
@@ -87,10 +96,9 @@ const EXAMPLE_SKILL_SEEDS = [
  */
 const agentConfig = {
   personality: Type.Object({
-    tone: Type.Union(
-      [Type.Literal("formal"), Type.Literal("casual"), Type.Literal("terse")],
-      { default: "casual" },
-    ),
+    tone: Type.Union([Type.Literal("formal"), Type.Literal("casual"), Type.Literal("terse")], {
+      default: "casual",
+    }),
     verbosity: Type.Integer({ default: 3, minimum: 1, maximum: 5 }),
   }),
   heartbeat: HeartbeatConfigSchema,
@@ -111,6 +119,19 @@ export const BasicAgent = defineAgent<Env>({
     agentName: "Basic Agent",
     agentDescription: "A helpful agent that can search, compute, and manage files.",
     timezone: "UTC",
+  },
+
+  // Bundle brain override — opt-in. When a bundle is registered via the
+  // workshop tools, turns dispatch into it. Static brain above is always
+  // the fallback.
+  bundle: {
+    registry: (env) => new D1BundleRegistry(env.BUNDLE_DB, env.BUNDLE_KV),
+    loader: (env) => env.LOADER,
+    authKey: (env) => env.AGENT_AUTH_KEY,
+    bundleEnv: (env) => ({
+      LLM: env.LLM_SERVICE,
+      SPINE: env.SPINE_SERVICE,
+    }),
   },
 
   tools: () => [
@@ -252,6 +273,44 @@ export const BasicAgent = defineAgent<Env>({
           { id: "code-review", enabled: true },
         ],
       }),
+      // Bundle workshop — author, build, test, deploy bundle brains.
+      // Wired to the sandbox for file operations and bun build.
+      bundleWorkshop({
+        registry: new D1BundleRegistry(env.BUNDLE_DB, env.BUNDLE_KV),
+        exec: (cmd, opts) =>
+          sandboxProvider.exec(cmd, opts).then((r) => ({
+            stdout: r.stdout ?? "",
+            stderr: r.stderr ?? "",
+            exitCode: r.exitCode ?? 1,
+          })),
+        readFile: async (path) => {
+          try {
+            const r = await sandboxProvider.exec(`cat ${JSON.stringify(path)}`);
+            return r.exitCode === 0 ? (r.stdout ?? null) : null;
+          } catch {
+            return null;
+          }
+        },
+        writeFile: async (path, content) => {
+          // Ensure parent dir exists, then write via heredoc
+          const dir = path.substring(0, path.lastIndexOf("/"));
+          await sandboxProvider.exec(`mkdir -p ${JSON.stringify(dir)}`);
+          // Use base64 to avoid shell escaping issues with content
+          const b64 = btoa(content);
+          await sandboxProvider.exec(
+            `echo ${JSON.stringify(b64)} | base64 -d > ${JSON.stringify(path)}`,
+          );
+        },
+        exists: async (path) => {
+          try {
+            const r = await sandboxProvider.exec(`test -e ${JSON.stringify(path)}`);
+            return r.exitCode === 0;
+          } catch {
+            return false;
+          }
+        },
+        isElevated: () => true, // Sandbox elevation is managed by the sandbox capability
+      }),
     ];
   },
 
@@ -365,4 +424,12 @@ export const BasicAgent = defineAgent<Env>({
 // required by @cloudflare/containers 0.2.x when SandboxContainer intercepts
 // outbound HTTP via `outboundByHost` — the container runtime reaches into
 // `ctx.exports.ContainerProxy` at startup and throws if it isn't bound.
-export { AiService, BackendStorage, ContainerProxy, DbService, SandboxContainer };
+export {
+  AiService,
+  BackendStorage,
+  ContainerProxy,
+  DbService,
+  LlmService,
+  SandboxContainer,
+  SpineService,
+};

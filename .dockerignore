@@ -1,0 +1,31 @@
+# Build context = repo root (set via wrangler `image_build_context`).
+# Prune everything that isn't needed by packages/cloudflare-sandbox/container/Dockerfile
+# so context transfer stays small.
+
+**/node_modules
+**/dist
+**/.tanstack
+**/.wrangler
+**/.claude
+**/.vite
+**/coverage
+**/.DS_Store
+.git
+.github
+.venv
+
+# Exclude all workspace test dirs — none are COPY'd into the image.
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/test
+**/tests
+
+# Openspec + planning docs
+openspec
+.planning
+
+# Examples / e2e other than what the Dockerfile references
+examples
+e2e
+tools
