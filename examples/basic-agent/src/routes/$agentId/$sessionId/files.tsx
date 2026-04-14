@@ -1,16 +1,9 @@
-import { FilesPanel } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute } from "@tanstack/react-router";
-import { filesStyles } from "../../../styles/files";
 
+// FilesPanel is rendered by the parent session layout with a display
+// toggle so tree state + open file persist across tab switches. This
+// route file only exists so the `/files` URL matches and the parent
+// layout's `activeTab` memo resolves to "files".
 export const Route = createFileRoute("/$agentId/$sessionId/files")({
-  component: FilesRoute,
+  component: () => null,
 });
-
-function FilesRoute() {
-  return (
-    <>
-      <style>{filesStyles}</style>
-      <FilesPanel />
-    </>
-  );
-}

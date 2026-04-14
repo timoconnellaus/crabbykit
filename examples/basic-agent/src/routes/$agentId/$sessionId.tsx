@@ -3,7 +3,7 @@ import {
   useAgentConnection,
 } from "@claw-for-cloudflare/agent-runtime/client";
 import type { SandboxBadgeProps, SubagentInfo } from "@claw-for-cloudflare/agent-ui";
-import { useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
+import { FilesPanel, useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentRecord } from "../../components/agent-picker";
@@ -12,6 +12,7 @@ import type { PendingA2ATask } from "../../components/pending-tasks";
 import { TabBar } from "../../components/tab-bar";
 import type { AppSummary } from "../../context/chat-context";
 import { ChatContextProvider } from "../../context/chat-context";
+import { filesStyles } from "../../styles/files";
 
 export const Route = createFileRoute("/$agentId/$sessionId")({
   ssr: false,
@@ -288,7 +289,19 @@ function SessionLayoutInner(props: SessionLayoutInnerProps) {
           >
             <ChatView />
           </div>
-          {activeTab !== "chat" && <Outlet />}
+          {/* Files stays mounted (hidden) to preserve tree + open file across tab switches */}
+          <div
+            style={{
+              display: activeTab === "files" ? "flex" : "none",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+            }}
+          >
+            <style>{filesStyles}</style>
+            <FilesPanel />
+          </div>
+          {activeTab !== "chat" && activeTab !== "files" && <Outlet />}
         </div>
       </div>
     </ChatContextProvider>
