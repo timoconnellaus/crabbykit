@@ -62,7 +62,7 @@ The SDK is designed to be applied back to [gia-cloud](../gia-cloud) (where it or
 ### Bundle Brain Override Packages
 - **`packages/agent-bundle`** — Bundle authoring API (`defineBundleAgent`), `BundleEnv` type constraint, small async bundle runtime, `SpineService` WorkerEntrypoint (bridges bundle RPC to DO's sync stores), `LlmService` (multi-provider LLM proxy with credential isolation), capability token mint/verify/HKDF utilities, `InMemoryBundleRegistry` for tests.
 - **`packages/bundle-registry`** — D1-backed bundle version store with content-addressed IDs (SHA-256), KV bundle bytes storage, KV readback verification on deploy, atomic `setActive`/`rollback` via `db.batch()`, self-seeding migration, append-only deployment audit log.
-- **`packages/bundle-workshop`** — Agent-facing capability with 7 tools: `bundle_init`, `bundle_build`, `bundle_test`, `bundle_deploy`, `bundle_disable`, `bundle_rollback`, `bundle_versions`. Self-editing deploys by default (safe because static brain is always the fallback). Per-agent deploy rate limiting.
+- **`packages/agent-workshop`** — Agent-facing capability with 7 tools: `workshop_init`, `workshop_build`, `workshop_test`, `workshop_deploy`, `workshop_disable`, `workshop_rollback`, `workshop_versions`. Self-editing deploys by default (safe because static brain is always the fallback). Per-agent deploy rate limiting.
 
 ### Internal Packages (not published)
 - **`packages/agent-core`** — Fork of pi-agent-core. The LLM agent loop (inference, tool calls, streaming).
@@ -86,7 +86,7 @@ packages/vibe-coder        — Live app preview with console capture
 packages/browserbase        — Browser automation via Browserbase (CDP + snapshots)
 packages/agent-bundle       — Bundle authoring + host dispatch + security tokens
 packages/bundle-registry    — D1/KV bundle version store
-packages/bundle-workshop    — Agent-facing bundle authoring tools
+packages/agent-workshop     — Agent-facing bundle authoring tools
 packages/channel-telegram   — Telegram channel (reference implementation of defineChannel)
 packages/task-tracker       — DAG-based task management (deps, ready-work)
 packages/subagent           — Same-DO child agent spawning
@@ -208,21 +208,21 @@ The basic-agent example includes full bundle brain override support. The agent c
 1. Start the dev server: `cd examples/basic-agent && bun dev`
 2. Open the UI and send a prompt — the static brain responds
 3. Ask the agent to create a bundle: *"Create a bundle called my-brain that adds a current_time tool"*
-4. The agent runs `bundle_init` → edits `src/index.ts` → `bundle_build` → `bundle_test` → `bundle_deploy`
+4. The agent runs `workshop_init` → edits `src/index.ts` → `workshop_build` → `workshop_test` → `workshop_deploy`
 5. On the next turn, the bundle brain handles the prompt instead of the static brain
-6. To revert: ask the agent to run `bundle_disable`, or call `POST /bundle/disable` directly
+6. To revert: ask the agent to run `workshop_disable`, or call `POST /bundle/disable` directly
 
 ### Bundle tools available
 
 | Tool | Purpose |
 |------|---------|
-| `bundle_init` | Scaffold a new bundle workspace in the sandbox |
-| `bundle_build` | Compile with `bun build --target=browser --format=esm` |
-| `bundle_test` | Validate the built bundle |
-| `bundle_deploy` | Register as active brain (self-editing by default) |
-| `bundle_disable` | Revert to static brain |
-| `bundle_rollback` | Swap to previous version |
-| `bundle_versions` | List deployment history |
+| `workshop_init` | Scaffold a new bundle workspace in the sandbox |
+| `workshop_build` | Compile with `bun build --target=browser --format=esm` |
+| `workshop_test` | Validate the built bundle |
+| `workshop_deploy` | Register as active brain (self-editing by default) |
+| `workshop_disable` | Revert to static brain |
+| `workshop_rollback` | Swap to previous version |
+| `workshop_versions` | List deployment history |
 
 ### Wrangler bindings required
 
@@ -257,7 +257,7 @@ A minimal standalone demo exists at `examples/bundle-agent-phase2/` with an InMe
 
 **Capability service pattern:** Capability packages that hold secrets expose four subpaths: `index` (legacy static, unchanged), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy), `schemas` (shared tool schemas). Tavily is the pilot implementation.
 
-**Self-editing is safe by default:** `bundle_deploy` targets the invoking agent's own bundle pointer. The static brain (defined at compile time via `defineAgent` fields) is always the fallback — disabling the bundle reverts to it.
+**Self-editing is safe by default:** `workshop_deploy` targets the invoking agent's own bundle pointer. The static brain (defined at compile time via `defineAgent` fields) is always the fallback — disabling the bundle reverts to it.
 
 ### Modes are the scoping mechanism
 

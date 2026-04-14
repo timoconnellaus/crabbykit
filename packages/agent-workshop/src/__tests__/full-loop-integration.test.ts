@@ -1,28 +1,19 @@
 /**
- * Bundle workshop full-loop integration (task 6.28).
+ * Agent workshop full-loop integration (task 6.28).
  *
  * Drives init → build → test → deploy → disable end-to-end against:
- *  - a realistic in-memory sandbox (maps "filesystem" + "exec")
+ *  - a minimal shell interpreter that backs a fake sandbox container
  *  - a real InMemoryBundleRegistry from agent-bundle
  *
- * This is not a real Cloudflare container (task notes specify
- * "mocked-network sandbox container"), but it exercises every seam in
- * the workshop capability that would fire against a real container.
- *
- * Covered:
- *  - scaffolds package.json / tsconfig.json / src/index.ts
- *  - runs bun install + bun build
- *  - runs bundle_test against built artifact
- *  - deploys bundle, active pointer updates, KV bytes land
- *  - audit log entries broadcast for each tool
- *  - bundle_disable reverts pointer
- *  - bundle_rollback on two sequential deploys
- *  - rate limit rejection after the configured cap
+ * The fake sandbox only understands the commands workshop actually
+ * emits (test -e, cat, mkdir -p + base64 -d, bun install, bun build).
+ * That's enough to exercise every seam in the workshop capability that
+ * would fire against a real container.
  */
 
 import { InMemoryBundleRegistry } from "@claw-for-cloudflare/agent-bundle/host";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type BundleWorkshopOptions, bundleWorkshop } from "../index.js";
+import { agentWorkshop, type WorkshopExecResult } from "../index.js";
 
 /** Extract text from a wrapped AgentToolResult. */
 function textOf(result: unknown): string {
@@ -32,56 +23,97 @@ function textOf(result: unknown): string {
   return JSON.stringify(result);
 }
 
+/** Remove surrounding double quotes and unescape shell-quoted content. */
+function unquote(s: string): string {
+  const trimmed = s.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/\\(["\\$`])/g, "$1");
+  }
+  return trimmed;
+}
+
 /**
- * A fake sandbox that models a filesystem as a Map<path, content> and an
- * exec() function that recognizes bun install / bun build and updates
- * state accordingly. Not an actual container — but enough for the
- * workshop flow.
+ * A minimal shell interpreter over a Map-backed fake filesystem. Same
+ * dispatch rules as workshop.test.ts — duplicated locally to keep each
+ * test suite self-contained.
  */
 function createFakeSandbox() {
   const files = new Map<string, string>();
   const execLog: string[] = [];
 
-  // Implement an exec-like shim that:
-  //  - succeeds on "bun install --ignore-scripts"
-  //  - on "bun build" writes a realistic bundle artifact to disk
-  //  - on anything else returns success with empty output
-  const exec: BundleWorkshopOptions["exec"] = vi
-    .fn()
-    .mockImplementation(async (cmd: string, opts?: { cwd?: string }) => {
+  function dirExists(path: string): boolean {
+    if (files.has(path)) return true;
+    const prefix = path.endsWith("/") ? path : `${path}/`;
+    for (const key of files.keys()) {
+      if (key.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  const sandboxExec = vi
+    .fn<
+      (
+        sessionId: string,
+        command: string,
+        opts?: { signal?: AbortSignal },
+      ) => Promise<WorkshopExecResult>
+    >()
+    .mockImplementation(async (_sessionId, cmd) => {
       execLog.push(cmd);
-      if (cmd.startsWith("bun install")) {
+
+      const testE = cmd.match(/^test -e (.+)$/);
+      if (testE) {
+        return {
+          stdout: "",
+          stderr: "",
+          exitCode: dirExists(unquote(testE[1])) ? 0 : 1,
+        };
+      }
+
+      const cat = cmd.match(/^cat (.+)$/);
+      if (cat) {
+        const path = unquote(cat[1]);
+        const content = files.get(path);
+        if (content == null) {
+          return {
+            stdout: "",
+            stderr: `cat: ${path}: No such file or directory`,
+            exitCode: 1,
+          };
+        }
+        return { stdout: content, stderr: "", exitCode: 0 };
+      }
+
+      const write = cmd.match(/^mkdir -p (.+?) && echo (.+?) \| base64 -d > (.+)$/);
+      if (write) {
+        const path = unquote(write[3]);
+        const b64 = unquote(write[2]);
+        files.set(path, atob(b64));
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+
+      if (cmd.includes("bun install")) {
         return { stdout: "installed 0 packages", stderr: "", exitCode: 0 };
       }
-      if (cmd.startsWith("bun build")) {
-        // Parse the output path from the command
-        const match = cmd.match(/--outfile=(\S+)/);
-        const outfile = match
-          ? `${opts?.cwd ?? ""}/${match[1]}`.replace(/\/+/g, "/")
-          : `${opts?.cwd}/dist/bundle.js`;
-        // Write a minimal bundle artifact (ESM default export)
+
+      if (cmd.includes("bun build")) {
+        const cdMatch = cmd.match(/^cd (.+?) && /);
+        const cwd = cdMatch ? unquote(cdMatch[1]) : "/workspace";
+        const outfileMatch = cmd.match(/--outfile=(\S+)/);
+        const outfile = outfileMatch
+          ? `${cwd}/${outfileMatch[1]}`.replace(/\/+/g, "/")
+          : `${cwd}/dist/bundle.js`;
         files.set(
           outfile,
           "export default { async fetch() { return new Response('bundle-live'); } };",
         );
         return { stdout: "Bundle: 45 modules", stderr: "", exitCode: 0 };
       }
+
       return { stdout: "", stderr: "", exitCode: 0 };
     });
 
-  return {
-    files,
-    execLog,
-    options: {
-      exec,
-      readFile: async (path: string) => files.get(path) ?? null,
-      writeFile: async (path: string, content: string) => {
-        files.set(path, content);
-      },
-      exists: async (path: string) => files.has(path),
-      isElevated: () => true,
-    },
-  };
+  return { files, execLog, sandboxExec };
 }
 
 function createMockContext(agentId = "agent-int") {
@@ -106,7 +138,7 @@ function createMockContext(agentId = "agent-int") {
 }
 
 async function runTool(
-  cap: ReturnType<typeof bundleWorkshop>,
+  cap: ReturnType<typeof agentWorkshop>,
   name: string,
   args: Record<string, unknown>,
   ctx = createMockContext(),
@@ -120,37 +152,37 @@ async function runTool(
   return textOf(result);
 }
 
-describe("Bundle workshop full-loop integration", () => {
+describe("Agent workshop full-loop integration", () => {
   let sandbox: ReturnType<typeof createFakeSandbox>;
   let registry: InMemoryBundleRegistry;
-  let cap: ReturnType<typeof bundleWorkshop>;
+  let cap: ReturnType<typeof agentWorkshop>;
 
   beforeEach(() => {
     sandbox = createFakeSandbox();
     registry = new InMemoryBundleRegistry();
-    cap = bundleWorkshop({ ...sandbox.options, registry });
+    cap = agentWorkshop({ registry, sandboxExec: sandbox.sandboxExec });
   });
 
   it("executes init → build → deploy → disable end-to-end", async () => {
     const ctx = createMockContext("agent-42");
 
     // 1. Init
-    const initOut = await runTool(cap, "bundle_init", { name: "demo" }, ctx);
+    const initOut = await runTool(cap, "workshop_init", { name: "demo" }, ctx);
     expect(initOut).toContain("success");
     expect(sandbox.files.has("/workspace/bundles/demo/package.json")).toBe(true);
     expect(sandbox.files.has("/workspace/bundles/demo/src/index.ts")).toBe(true);
-    expect(sandbox.execLog.some((c) => c.startsWith("bun install"))).toBe(true);
+    expect(sandbox.execLog.some((c) => c.includes("bun install"))).toBe(true);
 
     // 2. Build
-    const buildOut = await runTool(cap, "bundle_build", { name: "demo" }, ctx);
+    const buildOut = await runTool(cap, "workshop_build", { name: "demo" }, ctx);
     expect(buildOut).toContain("successful");
     expect(sandbox.files.has("/workspace/bundles/demo/dist/bundle.js")).toBe(true);
-    expect(sandbox.execLog.some((c) => c.startsWith("bun build"))).toBe(true);
+    expect(sandbox.execLog.some((c) => c.includes("bun build"))).toBe(true);
 
     // 3. Deploy — should land in registry with self-pointing active
     const deployOut = await runTool(
       cap,
-      "bundle_deploy",
+      "workshop_deploy",
       { name: "demo", rationale: "first deploy" },
       ctx,
     );
@@ -168,11 +200,11 @@ describe("Bundle workshop full-loop integration", () => {
     const auditEvents = broadcastCalls.filter((c) => c[0] === "workshop_audit");
     expect(auditEvents.length).toBeGreaterThanOrEqual(2);
     const loggedTools = auditEvents.map((c) => (c[1] as { tool: string }).tool);
-    expect(loggedTools).toContain("bundle_init");
-    expect(loggedTools).toContain("bundle_deploy");
+    expect(loggedTools).toContain("workshop_init");
+    expect(loggedTools).toContain("workshop_deploy");
 
     // 5. Disable — reverts active pointer
-    const disableOut = await runTool(cap, "bundle_disable", { rationale: "end of demo" }, ctx);
+    const disableOut = await runTool(cap, "workshop_disable", { rationale: "end of demo" }, ctx);
     expect(disableOut).toContain("disabled");
     expect(await registry.getActiveForAgent("agent-42")).toBeNull();
   });
@@ -180,9 +212,9 @@ describe("Bundle workshop full-loop integration", () => {
   it("two sequential deploys produce distinct content-addressed versions", async () => {
     const ctx = createMockContext("agent-two");
 
-    await runTool(cap, "bundle_init", { name: "rb" }, ctx);
-    await runTool(cap, "bundle_build", { name: "rb" }, ctx);
-    await runTool(cap, "bundle_deploy", { name: "rb" }, ctx);
+    await runTool(cap, "workshop_init", { name: "rb" }, ctx);
+    await runTool(cap, "workshop_build", { name: "rb" }, ctx);
+    await runTool(cap, "workshop_deploy", { name: "rb" }, ctx);
     const v1 = await registry.getActiveForAgent("agent-two");
     expect(v1).not.toBeNull();
 
@@ -192,7 +224,7 @@ describe("Bundle workshop full-loop integration", () => {
       "export default { async fetch() { return new Response('bundle-live-v2'); } };",
     );
 
-    await runTool(cap, "bundle_deploy", { name: "rb" }, ctx);
+    await runTool(cap, "workshop_deploy", { name: "rb" }, ctx);
     const v2 = await registry.getActiveForAgent("agent-two");
     expect(v2).not.toBeNull();
     expect(v2).not.toBe(v1);
@@ -200,61 +232,63 @@ describe("Bundle workshop full-loop integration", () => {
     // previous pointer now reflects v1
     expect(registry.getPointer("agent-two")?.previousVersionId).toBe(v1);
 
-    // Note: bundle_rollback requires the D1BundleRegistry implementation
+    // Note: workshop_rollback requires the D1BundleRegistry implementation
     // (in-memory registry only exposes the minimal 3-method surface).
     // Rollback is covered by packages/bundle-registry's integration tests.
   });
 
   it("enforces the deploy rate limit", async () => {
     const ctx = createMockContext("agent-ratelimit");
-    cap = bundleWorkshop({
-      ...sandbox.options,
+    cap = agentWorkshop({
       registry,
+      sandboxExec: sandbox.sandboxExec,
       deployRateLimitPerMinute: 2,
     });
 
-    await runTool(cap, "bundle_init", { name: "rl" }, ctx);
-    await runTool(cap, "bundle_build", { name: "rl" }, ctx);
+    await runTool(cap, "workshop_init", { name: "rl" }, ctx);
+    await runTool(cap, "workshop_build", { name: "rl" }, ctx);
 
-    const first = await runTool(cap, "bundle_deploy", { name: "rl" }, ctx);
+    const first = await runTool(cap, "workshop_deploy", { name: "rl" }, ctx);
     expect(first).toContain("deployed successfully");
     // Mutate bytes so the second deploy is a distinct content hash
     sandbox.files.set(
       "/workspace/bundles/rl/dist/bundle.js",
       "export default { async fetch() { return new Response('round-2'); } };",
     );
-    const second = await runTool(cap, "bundle_deploy", { name: "rl" }, ctx);
+    const second = await runTool(cap, "workshop_deploy", { name: "rl" }, ctx);
     expect(second).toContain("deployed successfully");
 
     sandbox.files.set(
       "/workspace/bundles/rl/dist/bundle.js",
       "export default { async fetch() { return new Response('round-3'); } };",
     );
-    const third = await runTool(cap, "bundle_deploy", { name: "rl" }, ctx);
+    const third = await runTool(cap, "workshop_deploy", { name: "rl" }, ctx);
     expect(third.toLowerCase()).toMatch(/rate limit|too many/);
   });
 
-  it("bundle_versions surfaces the active version after a deploy", async () => {
+  it("workshop_versions surfaces the active version after a deploy", async () => {
     const ctx = createMockContext("agent-hist");
-    await runTool(cap, "bundle_init", { name: "hist" }, ctx);
-    await runTool(cap, "bundle_build", { name: "hist" }, ctx);
-    await runTool(cap, "bundle_deploy", { name: "hist", rationale: "release-a" }, ctx);
+    await runTool(cap, "workshop_init", { name: "hist" }, ctx);
+    await runTool(cap, "workshop_build", { name: "hist" }, ctx);
+    await runTool(cap, "workshop_deploy", { name: "hist", rationale: "release-a" }, ctx);
 
-    const versionsOut = await runTool(cap, "bundle_versions", {}, ctx);
+    const versionsOut = await runTool(cap, "workshop_versions", {}, ctx);
     const active = await registry.getActiveForAgent("agent-hist");
     expect(active).not.toBeNull();
     expect(versionsOut).toContain(active!);
     // Full deployment history text requires D1BundleRegistry.listDeployments
   });
 
-  it("gates every tool behind the elevation check", async () => {
-    const unelevated = bundleWorkshop({
-      ...sandbox.options,
-      registry,
-      isElevated: () => false,
+  it("surfaces elevation-required errors from sandboxExec", async () => {
+    const notElevatedExec = vi.fn().mockResolvedValue({
+      stdout: "",
+      stderr:
+        "Sandbox is not elevated for this session. Call the `elevate` tool first before using workshop tools.",
+      exitCode: 126,
     });
+    const gated = agentWorkshop({ registry, sandboxExec: notElevatedExec });
     const ctx = createMockContext();
-    const initOut = await runTool(unelevated, "bundle_init", { name: "x" }, ctx);
+    const initOut = await runTool(gated, "workshop_init", { name: "x" }, ctx);
     expect(initOut.toLowerCase()).toMatch(/elevat/);
   });
 });

@@ -87,7 +87,7 @@ RUN chmod -R a-w /opt/claw-sdk/ && \
     ln -sf /opt/claw-sdk/agent-bundle /node_modules/@claw-for-cloudflare/agent-bundle
 
 # Generate integrity manifest for vendored packages (SHA-256 per file).
-# bundle_build verifies this before running bun build to detect tampering.
+# workshop_build verifies this before running bun build to detect tampering.
 RUN find /opt/claw-sdk/ -type f -exec sha256sum {} \; | \
     jq -R -s 'split("\n") | map(select(length > 0)) | map(split("  ") | {key: .[1], value: .[0]}) | from_entries' \
     > /opt/claw-sdk/INTEGRITY.json && \

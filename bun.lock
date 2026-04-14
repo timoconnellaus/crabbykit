@@ -43,12 +43,12 @@
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@claw-for-cloudflare/agent-ui": "workspace:*",
+        "@claw-for-cloudflare/agent-workshop": "workspace:*",
         "@claw-for-cloudflare/ai-proxy": "workspace:*",
         "@claw-for-cloudflare/app-registry": "workspace:*",
         "@claw-for-cloudflare/batch-tool": "workspace:*",
         "@claw-for-cloudflare/browserbase": "workspace:*",
         "@claw-for-cloudflare/bundle-registry": "workspace:*",
-        "@claw-for-cloudflare/bundle-workshop": "workspace:*",
         "@claw-for-cloudflare/channel-telegram": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
@@ -279,6 +279,21 @@
         "react-dom": "^18.0.0 || ^19.0.0",
       },
     },
+    "packages/agent-workshop": {
+      "name": "@claw-for-cloudflare/agent-workshop",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/bundle-registry": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@claw-for-cloudflare/agent-bundle": "workspace:*",
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/ai": {
       "name": "@claw-for-cloudflare/ai",
       "version": "0.0.1",
@@ -368,21 +383,6 @@
         "typescript": "^5.7.0",
         "vitest": "^3.2.0",
         "wrangler": "^4.0.0",
-      },
-    },
-    "packages/bundle-workshop": {
-      "name": "@claw-for-cloudflare/bundle-workshop",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/bundle-registry": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@claw-for-cloudflare/agent-bundle": "workspace:*",
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
       },
     },
     "packages/channel-telegram": {
@@ -783,6 +783,8 @@
 
     "@claw-for-cloudflare/agent-ui": ["@claw-for-cloudflare/agent-ui@workspace:packages/agent-ui"],
 
+    "@claw-for-cloudflare/agent-workshop": ["@claw-for-cloudflare/agent-workshop@workspace:packages/agent-workshop"],
+
     "@claw-for-cloudflare/ai": ["@claw-for-cloudflare/ai@workspace:packages/ai"],
 
     "@claw-for-cloudflare/ai-proxy": ["@claw-for-cloudflare/ai-proxy@workspace:packages/ai-proxy"],
@@ -794,8 +796,6 @@
     "@claw-for-cloudflare/browserbase": ["@claw-for-cloudflare/browserbase@workspace:packages/browserbase"],
 
     "@claw-for-cloudflare/bundle-registry": ["@claw-for-cloudflare/bundle-registry@workspace:packages/bundle-registry"],
-
-    "@claw-for-cloudflare/bundle-workshop": ["@claw-for-cloudflare/bundle-workshop@workspace:packages/bundle-workshop"],
 
     "@claw-for-cloudflare/channel-telegram": ["@claw-for-cloudflare/channel-telegram@workspace:packages/channel-telegram"],
 

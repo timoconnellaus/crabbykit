@@ -38,7 +38,7 @@ docker build -f packages/cloudflare-sandbox/container/Dockerfile -t claw-sandbox
 
 ### Integrity verification
 
-`/opt/claw-sdk/INTEGRITY.json` contains SHA-256 hashes of every vendored file, generated at image build time. `bundle_build` verifies this manifest before running `bun build` to detect tampering by adversarial bundle code.
+`/opt/claw-sdk/INTEGRITY.json` contains SHA-256 hashes of every vendored file, generated at image build time. `workshop_build` verifies this manifest before running `bun build` to detect tampering by adversarial bundle code.
 
 The vendored SDK at `/opt/claw-sdk/` is mounted read-only (`chmod -R a-w`) to prevent modification at runtime.
 

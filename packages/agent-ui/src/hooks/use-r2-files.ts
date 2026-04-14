@@ -91,7 +91,7 @@ const CAPABILITY_ID = "r2-storage";
  * subscribers.
  */
 export function useR2Files(): UseR2FilesReturn {
-  const { send, subscribe, currentSessionIdRef } = useAgentConnection();
+  const { send, subscribe, currentSessionIdRef, state } = useAgentConnection();
 
   const [directories, setDirectories] = useState<Map<string, R2DirListing>>(() => new Map());
   const [files, setFiles] = useState<Map<string, R2FileContent>>(() => new Map());
@@ -398,10 +398,15 @@ export function useR2Files(): UseR2FilesReturn {
     return unsubscribe;
   }, [subscribe, listDir]);
 
-  // Load root directory on first mount once a session is available.
+  // Load root directory once a session is available. Re-fires when the
+  // session id changes (initial join after WebSocket open, or switch).
   useEffect(() => {
+    if (!state.currentSessionId) return;
     listDir("");
-  }, [listDir]);
+    for (const path of expandedDirsRef.current) {
+      if (path !== "") listDir(path);
+    }
+  }, [state.currentSessionId, listDir]);
 
   return {
     directories,

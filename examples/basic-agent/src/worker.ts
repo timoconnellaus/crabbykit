@@ -6,12 +6,12 @@ import type { AgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineAgent, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
 import { defineMode } from "@claw-for-cloudflare/agent-runtime/modes";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
+import { agentWorkshop } from "@claw-for-cloudflare/agent-workshop";
 import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
 import { appRegistry } from "@claw-for-cloudflare/app-registry";
 import { batchTool } from "@claw-for-cloudflare/batch-tool";
 import { browserbase } from "@claw-for-cloudflare/browserbase";
 import { D1BundleRegistry } from "@claw-for-cloudflare/bundle-registry";
-import { bundleWorkshop } from "@claw-for-cloudflare/bundle-workshop";
 import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
 import {
   CloudflareSandboxProvider,
@@ -274,43 +274,47 @@ export const BasicAgent = defineAgent<Env>({
           { id: "code-review", enabled: true },
         ],
       }),
-      // Bundle workshop — author, build, test, deploy bundle brains.
-      // Wired to the sandbox for file operations and bun build.
-      bundleWorkshop({
+      // Agent workshop — author, build, test, deploy bundle brains.
+      // Every container operation routes through the sandbox capability's
+      // `exec` tool so elevation, container health, and de-elevation timer
+      // reset behave identically to the agent running bash directly.
+      agentWorkshop({
         registry: new D1BundleRegistry(env.BUNDLE_DB, env.BUNDLE_KV),
-        exec: (cmd, opts) =>
-          sandboxProvider.exec(cmd, opts).then((r) => ({
-            stdout: r.stdout ?? "",
-            stderr: r.stderr ?? "",
-            exitCode: r.exitCode ?? 1,
-          })),
-        readFile: async (path) => {
-          try {
-            const r = await sandboxProvider.exec(`cat ${JSON.stringify(path)}`);
-            return r.exitCode === 0 ? (r.stdout ?? null) : null;
-          } catch {
-            return null;
+        sandboxExec: async (sid, command, opts) => {
+          const execTool = resolveToolsForSession(sid).tools.find((t) => t.name === "exec");
+          if (!execTool) {
+            return {
+              stdout: "",
+              stderr: "sandbox exec tool not registered",
+              exitCode: 1,
+            };
           }
-        },
-        writeFile: async (path, content) => {
-          // Ensure parent dir exists, then write via heredoc
-          const dir = path.substring(0, path.lastIndexOf("/"));
-          await sandboxProvider.exec(`mkdir -p ${JSON.stringify(dir)}`);
-          // Use base64 to avoid shell escaping issues with content
-          const b64 = btoa(content);
-          await sandboxProvider.exec(
-            `echo ${JSON.stringify(b64)} | base64 -d > ${JSON.stringify(path)}`,
-          );
-        },
-        exists: async (path) => {
-          try {
-            const r = await sandboxProvider.exec(`test -e ${JSON.stringify(path)}`);
-            return r.exitCode === 0;
-          } catch {
-            return false;
+          const result = (await execTool.execute(
+            { command },
+            { toolCallId: `workshop-${Date.now()}`, signal: opts?.signal },
+          )) as {
+            details?: {
+              error?: string;
+              exitCode?: number;
+              stdout?: string;
+              stderr?: string;
+            };
+          };
+          const details = result.details ?? {};
+          if (details.error === "not_elevated") {
+            return {
+              stdout: "",
+              stderr:
+                "Sandbox is not elevated for this session. Call the `elevate` tool first before using workshop tools.",
+              exitCode: 126,
+            };
           }
+          return {
+            stdout: details.stdout ?? "",
+            stderr: details.stderr ?? "",
+            exitCode: details.exitCode ?? 1,
+          };
         },
-        isElevated: () => true, // Sandbox elevation is managed by the sandbox capability
       }),
     ];
   },

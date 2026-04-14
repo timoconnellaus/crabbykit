@@ -12,7 +12,7 @@
     "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/bundle-registry": "workspace:*",
-    "@claw-for-cloudflare/bundle-workshop": "workspace:*",
+    "@claw-for-cloudflare/agent-workshop": "workspace:*",
     "@claw-for-cloudflare/batch-tool": "workspace:*",
     "@claw-for-cloudflare/browserbase": "workspace:*",
     "@claw-for-cloudflare/channel-telegram": "workspace:*",

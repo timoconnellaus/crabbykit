@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/bundle-workshop",
+  "name": "@claw-for-cloudflare/agent-workshop",
   "version": "0.0.1",
   "private": true,
   "type": "module",
