@@ -10,11 +10,11 @@ import type {
   AgentRuntimeOptions,
   Logger,
   ScheduleManager,
-  SubagentProfile,
 } from "./agent-runtime.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
 import type { ConfigNamespace } from "./config/types.js";
+import type { Mode } from "./modes/define-mode.js";
 import { buildDefaultSystemPromptSections, toPromptString } from "./prompt/build-system-prompt.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
@@ -24,15 +24,7 @@ import type { Schedule } from "./scheduling/types.js";
 import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import { CfWebSocketTransport } from "./transport/cloudflare.js";
 
-export type {
-  A2AClientOptions,
-  A2AConfig,
-  AgentConfig,
-  AgentContext,
-  Logger,
-  ScheduleManager,
-  SubagentProfile,
-};
+export type { A2AClientOptions, A2AConfig, AgentConfig, AgentContext, Logger, ScheduleManager };
 
 /**
  * Thin Cloudflare shell around {@link AgentRuntime}. Consumers extend this
@@ -121,9 +113,21 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
   }
 
   /**
-   * Override to register subagent profiles.
+   * Override to register session-level modes. When the returned array
+   * has one or more modes, `/mode`, `enter_mode`, and `exit_mode` are
+   * conditionally registered. An empty array keeps the feature
+   * dormant; a single mode still yields a meaningful in/out toggle.
    */
-  getSubagentProfiles(): SubagentProfile[] {
+  getModes(): Mode[] {
+    return [];
+  }
+
+  /**
+   * Override to register subagent spawn modes. Each mode is a named
+   * {@link Mode} (shared type with {@link getModes}) that `call_subagent`
+   * and `start_subagent` can reference to spawn a scoped child.
+   */
+  getSubagentModes(): Mode[] {
     return [];
   }
 

@@ -6,6 +6,7 @@ import { AgentPicker } from "./agent-picker";
 const TABS = [
   { id: "chat", label: "Chat" },
   { id: "apps", label: "Apps" },
+  { id: "files", label: "Files" },
   { id: "schedules", label: "Schedules" },
   { id: "skills", label: "Skills" },
   { id: "channels", label: "Channels" },

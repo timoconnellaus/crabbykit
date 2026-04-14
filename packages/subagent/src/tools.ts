@@ -3,12 +3,12 @@ import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type, toolResult } from "@claw-for-cloudflare/agent-runtime";
 import type { SubagentHost, SubagentRunResult } from "./host.js";
 import { PendingSubagentStore } from "./pending-store.js";
-import { resolveProfile } from "./resolve.js";
-import type { SubagentProfile } from "./types.js";
+import { resolveSubagentSpawn } from "./resolve.js";
+import type { Mode } from "./types.js";
 
 export interface SubagentToolDeps {
   getHost: () => SubagentHost;
-  getProfiles: () => SubagentProfile[];
+  getModes: () => Mode[];
   getParentSessionId: () => string;
   getParentSystemPrompt: () => string;
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
@@ -17,15 +17,15 @@ export interface SubagentToolDeps {
   getBroadcast: () => (name: string, data: Record<string, unknown>) => void;
 }
 
-function profileChoices(profiles: SubagentProfile[]): string {
-  return profiles.map((p) => `- ${p.id}: ${p.description}`).join("\n");
+function modeChoices(modes: Mode[]): string {
+  return modes.map((m) => `- ${m.id}: ${m.description}`).join("\n");
 }
 
-function formatResult(profileId: string, result: SubagentRunResult): string {
+function formatResult(modeId: string, result: SubagentRunResult): string {
   if (result.success) {
-    return `[Subagent "${profileId}" completed]\n${result.responseText}`;
+    return `[Subagent "${modeId}" completed]\n${result.responseText}`;
   }
-  return `[Subagent "${profileId}" failed]\n${result.error ?? "Unknown error"}`;
+  return `[Subagent "${modeId}" failed]\n${result.error ?? "Unknown error"}`;
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
@@ -35,10 +35,10 @@ export function createCallSubagentTool(deps: SubagentToolDeps): AgentTool<any> {
     description:
       "Call a subagent and wait for its response. Use for quick tasks " +
       "that need an immediate answer. The subagent runs in its own session " +
-      "with a specialized profile.",
+      "with a specialized mode (scoped tools and system prompt).",
     parameters: Type.Object({
-      profile: Type.String({
-        description: "Subagent profile ID to use",
+      mode: Type.String({
+        description: "Subagent mode ID to use",
       }),
       prompt: Type.String({
         description: "The task or question for the subagent",
@@ -46,21 +46,23 @@ export function createCallSubagentTool(deps: SubagentToolDeps): AgentTool<any> {
       taskId: Type.Optional(Type.String({ description: "Associated task ID (for tracking)" })),
     }),
     execute: async (args) => {
-      const profiles = deps.getProfiles();
-      const profile = profiles.find((p) => p.id === args.profile);
-      if (!profile) {
-        return toolResult.error(
-          `Unknown profile "${args.profile}". Available:\n${profileChoices(profiles)}`,
-        );
+      const modes = deps.getModes();
+      const mode = modes.find((m) => m.id === args.mode);
+      if (!mode) {
+        return toolResult.error(`Unknown mode "${args.mode}". Available:\n${modeChoices(modes)}`);
       }
 
       const host = deps.getHost();
       const parentSessionId = deps.getParentSessionId();
-      const resolved = resolveProfile(profile, deps.getParentSystemPrompt(), deps.getParentTools());
+      const resolved = resolveSubagentSpawn(
+        mode,
+        deps.getParentSystemPrompt(),
+        deps.getParentTools(),
+      );
 
       // Create child session
       const session = host.createSubagentSession({
-        name: `[${profile.name}] ${args.prompt.slice(0, 50)}`,
+        name: `[${mode.name}] ${args.prompt.slice(0, 50)}`,
         parentSessionId,
       });
 
@@ -73,16 +75,16 @@ export function createCallSubagentTool(deps: SubagentToolDeps): AgentTool<any> {
           prompt: args.prompt,
         });
 
-        return toolResult.text(formatResult(profile.id, result), {
-          profileId: profile.id,
+        return toolResult.text(formatResult(mode.id, result), {
+          modeId: mode.id,
           childSessionId: session.id,
           taskId: args.taskId,
           success: result.success,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
-        return toolResult.error(`Subagent "${profile.id}" failed: ${message}`, {
-          profileId: profile.id,
+        return toolResult.error(`Subagent "${mode.id}" failed: ${message}`, {
+          modeId: mode.id,
           childSessionId: session.id,
         });
       }
@@ -99,8 +101,8 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       "The result will arrive asynchronously — the subagent steers you " +
       "when done if you're active, or starts a new turn if you're idle.",
     parameters: Type.Object({
-      profile: Type.String({
-        description: "Subagent profile ID to use",
+      mode: Type.String({
+        description: "Subagent mode ID to use",
       }),
       prompt: Type.String({
         description: "The task for the subagent",
@@ -108,23 +110,25 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       taskId: Type.Optional(Type.String({ description: "Associated task ID (for tracking)" })),
     }),
     execute: async (args) => {
-      const profiles = deps.getProfiles();
-      const profile = profiles.find((p) => p.id === args.profile);
-      if (!profile) {
-        return toolResult.error(
-          `Unknown profile "${args.profile}". Available:\n${profileChoices(profiles)}`,
-        );
+      const modes = deps.getModes();
+      const mode = modes.find((m) => m.id === args.mode);
+      if (!mode) {
+        return toolResult.error(`Unknown mode "${args.mode}". Available:\n${modeChoices(modes)}`);
       }
 
       const host = deps.getHost();
       const parentSessionId = deps.getParentSessionId();
       const storage = deps.getStorage();
       const broadcast = deps.getBroadcast();
-      const resolved = resolveProfile(profile, deps.getParentSystemPrompt(), deps.getParentTools());
+      const resolved = resolveSubagentSpawn(
+        mode,
+        deps.getParentSystemPrompt(),
+        deps.getParentTools(),
+      );
 
       // Create child session
       const session = host.createSubagentSession({
-        name: `[${profile.name}] ${args.prompt.slice(0, 50)}`,
+        name: `[${mode.name}] ${args.prompt.slice(0, 50)}`,
         parentSessionId,
       });
 
@@ -134,7 +138,7 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       const pendingStore = new PendingSubagentStore(storage);
       await pendingStore.save({
         subagentId,
-        profileId: profile.id,
+        modeId: mode.id,
         childSessionId: session.id,
         parentSessionId,
         prompt: args.prompt,
@@ -147,7 +151,7 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       // Broadcast initial status
       broadcast("subagent_status", {
         subagentId,
-        profileId: profile.id,
+        modeId: mode.id,
         state: "running",
         prompt: args.prompt,
       });
@@ -163,7 +167,7 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
         },
         async (result) => {
           // Completion callback — mirrors A2A dual-path pattern
-          const resultText = formatResult(profile.id, result);
+          const resultText = formatResult(mode.id, result);
 
           await pendingStore.updateState(subagentId, result.success ? "completed" : "failed");
 
@@ -182,7 +186,7 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
           // Broadcast completion
           broadcast("subagent_status", {
             subagentId,
-            profileId: profile.id,
+            modeId: mode.id,
             state: result.success ? "completed" : "failed",
             result: resultText,
           });
@@ -193,11 +197,11 @@ export function createStartSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       );
 
       return toolResult.text(
-        `Subagent "${profile.name}" started (${subagentId}). ` +
+        `Subagent "${mode.name}" started (${subagentId}). ` +
           "The result will arrive asynchronously.",
         {
           subagentId,
-          profileId: profile.id,
+          modeId: mode.id,
           childSessionId: session.id,
           taskId: args.taskId,
         },
@@ -227,7 +231,7 @@ export function createCheckSubagentTool(deps: SubagentToolDeps): AgentTool<any> 
       }
 
       return toolResult.text(
-        `Subagent "${pending.profileId}" (${pending.subagentId}): ${pending.state}\n` +
+        `Subagent "${pending.modeId}" (${pending.subagentId}): ${pending.state}\n` +
           `Prompt: ${pending.prompt}`,
         { pending },
       );
@@ -253,7 +257,7 @@ export function createCancelSubagentTool(deps: SubagentToolDeps): AgentTool<any>
       }
 
       if (pending.state !== "running") {
-        return toolResult.text(`Subagent "${pending.profileId}" is already ${pending.state}.`, {
+        return toolResult.text(`Subagent "${pending.modeId}" is already ${pending.state}.`, {
           state: pending.state,
         });
       }
@@ -266,11 +270,11 @@ export function createCancelSubagentTool(deps: SubagentToolDeps): AgentTool<any>
 
         deps.getBroadcast()("subagent_status", {
           subagentId: args.subagentId,
-          profileId: pending.profileId,
+          modeId: pending.modeId,
           state: "canceled",
         });
 
-        return toolResult.text(`Subagent "${pending.profileId}" (${args.subagentId}) canceled.`, {
+        return toolResult.text(`Subagent "${pending.modeId}" (${args.subagentId}) canceled.`, {
           canceled: true,
         });
       } catch (err) {

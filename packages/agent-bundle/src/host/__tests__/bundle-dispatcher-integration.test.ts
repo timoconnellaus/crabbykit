@@ -21,8 +21,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineBundleAgent } from "../../bundle/define.js";
 import type { BundleEnv } from "../../bundle/types.js";
-import { verifyToken } from "../../security/capability-token.js";
-import { deriveSubkey } from "../../security/capability-token.js";
+import { deriveSubkey, verifyToken } from "../../security/capability-token.js";
 import type { BundleConfig } from "../bundle-config.js";
 import { BundleDispatcher } from "../bundle-dispatcher.js";
 import { InMemoryBundleRegistry } from "../in-memory-registry.js";
@@ -38,9 +37,7 @@ interface FakeLoaderOptions {
   onFactoryCall?: (env: Record<string, unknown>) => void;
 }
 
-function makeFakeLoader(
-  options: FakeLoaderOptions = {},
-): WorkerLoader & { callCount: number } {
+function makeFakeLoader(options: FakeLoaderOptions = {}): WorkerLoader & { callCount: number } {
   let callCount = 0;
   const loader = {
     get getCallCount() {
@@ -61,9 +58,7 @@ function makeFakeLoader(
         options.onFactoryCall?.(init.env);
         const source = init.modules[init.mainModule];
         const encoded = encodeURIComponent(source);
-        const mod = (await import(
-          `data:text/javascript;charset=utf-8,${encoded}`
-        )) as {
+        const mod = (await import(`data:text/javascript;charset=utf-8,${encoded}`)) as {
           default: { fetch: (req: Request, env: unknown) => Promise<Response> };
         };
         return { mod, env: init.env };
@@ -162,11 +157,7 @@ describe("BundleDispatcher.hasActiveBundle", () => {
   it("returns false when no bundle is registered", async () => {
     const registry = new InMemoryBundleRegistry();
     const loader = makeFakeLoader();
-    const dispatcher = new BundleDispatcher(
-      makeConfig(registry, loader),
-      {} as TestEnv,
-      "agent-1",
-    );
+    const dispatcher = new BundleDispatcher(makeConfig(registry, loader), {} as TestEnv, "agent-1");
     expect(await dispatcher.hasActiveBundle()).toBe(false);
   });
 
@@ -200,11 +191,7 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
         lastEnvSeen = env;
       },
     });
-    dispatcher = new BundleDispatcher(
-      makeConfig(registry, loader),
-      {} as TestEnv,
-      "agent-1",
-    );
+    dispatcher = new BundleDispatcher(makeConfig(registry, loader), {} as TestEnv, "agent-1");
     await dispatcher.hasActiveBundle();
   });
 
@@ -217,10 +204,7 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
 
     // Verify the token under the same subkey the dispatcher used
     const subkey = await deriveSubkey(TEST_AUTH_KEY, "claw/spine-v1");
-    const outcome = await verifyToken(
-      (lastEnvSeen as BundleEnv).__SPINE_TOKEN as string,
-      subkey,
-    );
+    const outcome = await verifyToken((lastEnvSeen as BundleEnv).__SPINE_TOKEN as string, subkey);
     expect(outcome.valid).toBe(true);
     if (outcome.valid) {
       expect(outcome.payload.aid).toBe("agent-1");
@@ -261,11 +245,7 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
   it("invokes the loader's get() with the active version ID", async () => {
     const seen: string[] = [];
     const spyLoader = makeFakeLoader({ onGetCall: (v) => seen.push(v) });
-    dispatcher = new BundleDispatcher(
-      makeConfig(registry, spyLoader),
-      {} as TestEnv,
-      "agent-1",
-    );
+    dispatcher = new BundleDispatcher(makeConfig(registry, spyLoader), {} as TestEnv, "agent-1");
     await dispatcher.hasActiveBundle();
     await dispatcher.dispatchTurn("session-1", "x");
     expect(seen).toEqual(["v-ref"]);
@@ -300,9 +280,7 @@ describe("BundleDispatcher auto-revert on repeated load failures", () => {
           getEntrypoint() {
             return {
               fetch(_req: Request): Promise<Response> {
-                return Promise.reject(
-                  new Error("synthetic isolate boot failure"),
-                );
+                return Promise.reject(new Error("synthetic isolate boot failure"));
               },
             };
           },
@@ -374,10 +352,9 @@ describe("defineBundleAgent reference check", () => {
       metadata: { name: "Smoke" },
     });
 
-    const smoke = await bundle.fetch(
-      new Request("https://bundle/smoke", { method: "POST" }),
-      { __SPINE_TOKEN: "tok" } as BundleEnv,
-    );
+    const smoke = await bundle.fetch(new Request("https://bundle/smoke", { method: "POST" }), {
+      __SPINE_TOKEN: "tok",
+    } as BundleEnv);
     expect(smoke.status).toBe(200);
     const smokeBody = (await smoke.json()) as Record<string, unknown>;
     expect(smokeBody.status).toBe("ok");

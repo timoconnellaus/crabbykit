@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { verifyKvReadback, type ReadbackKv } from "../readback.js";
+import { type ReadbackKv, verifyKvReadback } from "../readback.js";
 
 /**
  * Fake KV where bytes become visible to `get` only after N `get` calls.
@@ -50,17 +50,13 @@ describe("verifyKvReadback", () => {
 
   it("retries across the polling schedule until bytes become visible (simulated lag)", async () => {
     const kv = makeLaggyKv(4);
-    await expect(
-      verifyKvReadback(kv, "bundle:abc", { sleep: noSleep }),
-    ).resolves.toBeUndefined();
+    await expect(verifyKvReadback(kv, "bundle:abc", { sleep: noSleep })).resolves.toBeUndefined();
     expect(kv.getCalls).toBe(4);
   });
 
   it("throws a descriptive timeout error when bytes never become visible", async () => {
     const kv = makeLaggyKv(null);
-    await expect(
-      verifyKvReadback(kv, "bundle:never", { sleep: noSleep }),
-    ).rejects.toThrow(
+    await expect(verifyKvReadback(kv, "bundle:never", { sleep: noSleep })).rejects.toThrow(
       /KV readback verification timed out for key: bundle:never/,
     );
     // All 7 polls should have been exercised
@@ -91,8 +87,8 @@ describe("verifyKvReadback", () => {
         throw new Error("kv network partition");
       }),
     };
-    await expect(
-      verifyKvReadback(kv, "k", { delays: [0], sleep: noSleep }),
-    ).rejects.toThrow("kv network partition");
+    await expect(verifyKvReadback(kv, "k", { delays: [0], sleep: noSleep })).rejects.toThrow(
+      "kv network partition",
+    );
   });
 });

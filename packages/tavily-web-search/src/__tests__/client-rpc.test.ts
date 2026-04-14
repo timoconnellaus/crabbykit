@@ -10,8 +10,8 @@
  *  - result formatting
  */
 
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -89,10 +89,7 @@ describe("web_search tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
-    const result = await search.execute!(
-      { query: "lambda calculus", maxResults: 3 },
-      ctx as never,
-    );
+    const result = await search.execute!({ query: "lambda calculus", maxResults: 3 }, ctx as never);
 
     expect(service.search).toHaveBeenCalledOnce();
     const [token, passedArgs, hash] = service.search.mock.calls[0];
@@ -129,9 +126,9 @@ describe("web_search tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, "web_search");
 
-    await expect(
-      search.execute!({ query: "q" }, ctx as never),
-    ).rejects.toThrow("Missing __SPINE_TOKEN");
+    await expect(search.execute!({ query: "q" }, ctx as never)).rejects.toThrow(
+      "Missing __SPINE_TOKEN",
+    );
     expect(service.search).not.toHaveBeenCalled();
   });
 
@@ -157,10 +154,7 @@ describe("web_fetch tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
-    const result = await fetch.execute!(
-      { url: "https://a.example" },
-      ctx as never,
-    );
+    const result = await fetch.execute!({ url: "https://a.example" }, ctx as never);
 
     expect(service.extract).toHaveBeenCalledOnce();
     const [token, passedArgs, hash] = service.extract.mock.calls[0];
@@ -177,9 +171,9 @@ describe("web_fetch tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
-    await expect(
-      fetch.execute!({ url: "https://a" }, ctx as never),
-    ).rejects.toThrow("Missing __SPINE_TOKEN");
+    await expect(fetch.execute!({ url: "https://a" }, ctx as never)).rejects.toThrow(
+      "Missing __SPINE_TOKEN",
+    );
     expect(service.extract).not.toHaveBeenCalled();
   });
 
@@ -191,10 +185,7 @@ describe("web_fetch tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetch = toolByName(tools, "web_fetch");
 
-    const result = await fetch.execute!(
-      { url: "https://a" },
-      ctx as never,
-    );
+    const result = await fetch.execute!({ url: "https://a" }, ctx as never);
     expect(textOf(result)).toBe("No content extracted.");
   });
 });

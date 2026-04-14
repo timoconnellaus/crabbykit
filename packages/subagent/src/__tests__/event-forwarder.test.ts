@@ -4,7 +4,7 @@ import { createEventForwarder } from "../event-forwarder.js";
 
 const META: SubagentEventMeta = {
   subagentId: "sub-1",
-  profileId: "explorer",
+  modeId: "explorer",
   childSessionId: "child-session-1",
   taskId: "task-42",
 };
@@ -19,7 +19,7 @@ describe("createEventForwarder", () => {
     expect(broadcastState).toHaveBeenCalledTimes(1);
     expect(broadcastState).toHaveBeenCalledWith("event", {
       subagentId: "sub-1",
-      profileId: "explorer",
+      modeId: "explorer",
       childSessionId: "child-session-1",
       taskId: "task-42",
       event: { type: "agent_start" },
@@ -48,7 +48,7 @@ describe("createEventForwarder", () => {
 
     const data = broadcastState.mock.calls[0][1];
     expect(data.subagentId).toBe("sub-1");
-    expect(data.profileId).toBe("explorer");
+    expect(data.modeId).toBe("explorer");
     expect(data.childSessionId).toBe("child-session-1");
     expect(data.taskId).toBe("task-42");
   });

@@ -36,6 +36,31 @@ export interface SessionSyncMessage {
   cursor?: number;
   /** Whether more entries exist beyond this page. */
   hasMore?: boolean;
+  /**
+   * Active {@link import("../modes/define-mode.js").Mode} id + display
+   * name at sync time, or `undefined` when no mode is active. Clients
+   * use this to initialize their mode badge on connection establish /
+   * session switch.
+   */
+  activeMode?: { id: string; name: string };
+}
+
+/**
+ * Server → client notification that the session's active
+ * {@link import("../modes/define-mode.js").Mode} changed. Emitted
+ * immediately after a `mode_change` session entry is appended and
+ * after the metadata cache has been updated in the same transaction.
+ *
+ * Both `entered` and `exited` event kinds carry `modeId` and
+ * `modeName` — exit events name the mode that just closed, not the
+ * previous mode, matching the shape in design D10.
+ */
+export interface ModeEventMessage {
+  type: "mode_event";
+  sessionId: string;
+  event:
+    | { kind: "entered"; modeId: string; modeName: string }
+    | { kind: "exited"; modeId: string; modeName: string };
 }
 
 export interface SessionListMessage {
@@ -157,6 +182,7 @@ export type ServerMessage =
   | InjectMessageMessage
   | SystemPromptMessage
   | CapabilityStateMessage
+  | ModeEventMessage
   | PongMessage;
 
 // --- Client → Server messages ---
@@ -218,6 +244,7 @@ export interface CustomResponseMessage {
 
 export interface RequestSystemPromptMessage {
   type: "request_system_prompt";
+  sessionId: string;
 }
 
 export interface PingMessage {

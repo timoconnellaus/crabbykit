@@ -10,6 +10,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 - **Real-time streaming** — WebSocket transport with discriminated union protocol
 - **Tool execution** — Schema-validated tools with structured responses
 - **Capability system** — Composable extensions for adding tools, prompt sections, MCP servers, schedules, and lifecycle hooks
+- **Modes** — Named filters over the agent's tool surface and prompt (planning, research, …). `/mode <id>`, `enter_mode`, `exit_mode`, and the mode badge are auto-registered when 1+ modes are defined — a single mode still gives you an "in vs out" toggle. `planMode` ships built-in. Imported from `@claw-for-cloudflare/agent-runtime/modes`.
 - **Cost tracking** — Per-call cost emission, persistence, and real-time broadcast
 - **React UI** — Drop-in chat components with styling isolation
 
@@ -95,8 +96,15 @@ defineAgent<Env>({
     r2Storage({ /* ... */ }),
   ],
 
-  // Subagent profiles, slash commands, A2A client wiring.
-  subagentProfiles: ({ env }) => [/* ... */],
+  // Session-level modes. With 1+ modes the runtime registers `/mode`,
+  // `enter_mode`, `exit_mode`, and the mode badge — a single mode still
+  // yields an "in vs out" toggle. Import `planMode` and `defineMode`
+  // from `@claw-for-cloudflare/agent-runtime/modes`.
+  modes: () => [planMode],
+
+  // Modes used to spawn subagents via call_subagent / start_subagent.
+  // Same `Mode` type as the `modes` slot above.
+  subagentModes: ({ env }) => [/* ... */],
   commands: (ctx) => [/* defineCommand(...) */],
   a2a: ({ env }) => ({ getAgentStub: (id) => env.AGENT.get(env.AGENT.idFromName(id)) }),
 

@@ -35,10 +35,7 @@ async function buildEnv(
   } as LlmEnv & { _emitCostMock: ReturnType<typeof vi.fn> };
 }
 
-async function makeToken(
-  agentId = "agent-1",
-  sessionId = "session-1",
-): Promise<string> {
+async function makeToken(agentId = "agent-1", sessionId = "session-1"): Promise<string> {
   const subkey = await deriveSubkey(MASTER_KEY, "llm-service");
   return mintToken({ agentId, sessionId }, subkey);
 }
@@ -83,10 +80,7 @@ describe("LlmService token handling", () => {
     const env = await buildEnv();
     const svc = makeService(env);
     const otherSubkey = await deriveSubkey("other-master", "llm-service");
-    const badToken = await mintToken(
-      { agentId: "a", sessionId: "s" },
-      otherSubkey,
-    );
+    const badToken = await mintToken({ agentId: "a", sessionId: "s" }, otherSubkey);
     await expect(
       svc.infer(badToken, {
         provider: "openrouter",
@@ -250,9 +244,7 @@ describe("LlmService error sanitization and credential redaction", () => {
   it("surfaces ERR_UPSTREAM_OTHER on generic fetch failure with no leaked message", async () => {
     const env = await buildEnv();
     const svc = makeService(env);
-    mockFetch.mockRejectedValue(
-      new Error(`network blew up while using key ${SECRET_OPENAI}`),
-    );
+    mockFetch.mockRejectedValue(new Error(`network blew up while using key ${SECRET_OPENAI}`));
     const token = await makeToken();
     try {
       await svc.infer(token, {
@@ -301,8 +293,7 @@ describe("LlmService cost emission", () => {
       messages: [],
     });
 
-    const emitCost = (env as unknown as { _emitCostMock: ReturnType<typeof vi.fn> })
-      ._emitCostMock;
+    const emitCost = (env as unknown as { _emitCostMock: ReturnType<typeof vi.fn> })._emitCostMock;
     expect(emitCost).toHaveBeenCalledOnce();
     const [forwardedToken, event] = emitCost.mock.calls[0] as [string, Record<string, unknown>];
     expect(forwardedToken).toBe(token);

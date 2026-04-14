@@ -23,7 +23,7 @@ function mockStorage() {
 function makePending(overrides?: Partial<PendingSubagent>): PendingSubagent {
   return {
     subagentId: "sub-1",
-    profileId: "explorer",
+    modeId: "explorer",
     childSessionId: "child-session-1",
     parentSessionId: "parent-session",
     prompt: "Find auth modules",
@@ -44,7 +44,7 @@ describe("PendingSubagentStore", () => {
 
     expect(retrieved).toBeDefined();
     expect(retrieved!.subagentId).toBe("sub-1");
-    expect(retrieved!.profileId).toBe("explorer");
+    expect(retrieved!.modeId).toBe("explorer");
   });
 
   it("returns undefined for non-existent", async () => {

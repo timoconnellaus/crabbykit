@@ -1,42 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { explorer, filterReadOnlyTools, isReadOnlyTool } from "../explorer.js";
 
-describe("explorer profile", () => {
-  it("returns a valid SubagentProfile", () => {
-    const profile = explorer();
+describe("explorer mode factory", () => {
+  it("returns a valid Mode shape", () => {
+    const mode = explorer();
 
-    expect(profile.id).toBe("explorer");
-    expect(profile.name).toBe("Explorer");
-    expect(profile.description).toBeTruthy();
-    expect(typeof profile.systemPrompt).toBe("function");
-    expect(profile.tools).toBeUndefined();
-    expect(profile.model).toBeUndefined();
+    expect(mode.id).toBe("explorer");
+    expect(mode.name).toBe("Explorer");
+    expect(mode.description).toBeTruthy();
+    expect(typeof mode.systemPromptOverride).toBe("function");
+    expect(mode.tools).toBeUndefined();
+    expect(mode.model).toBeUndefined();
   });
 
-  it("resolves system prompt with parent context", () => {
-    const profile = explorer();
-    const prompt =
-      typeof profile.systemPrompt === "function"
-        ? profile.systemPrompt("Parent prompt here")
-        : profile.systemPrompt;
+  it("systemPromptOverride function form receives base prompt and returns rewritten prompt", () => {
+    const mode = explorer();
+    const override = mode.systemPromptOverride;
+    const out =
+      typeof override === "function"
+        ? override("Parent prompt here", {} as any)
+        : (override ?? "");
 
-    expect(prompt).toContain("READ-ONLY");
-    expect(prompt).toContain("Parent prompt here");
+    expect(out).toContain("READ-ONLY");
+    expect(out).toContain("Parent prompt here");
   });
 
   it("accepts model override", () => {
-    const profile = explorer({ model: "google/gemini-2.5-flash" });
-    expect(profile.model).toBe("google/gemini-2.5-flash");
+    const mode = explorer({ model: "google/gemini-2.5-flash" });
+    expect(mode.model).toBe("google/gemini-2.5-flash");
   });
 
-  it("accepts custom tools list", () => {
-    const profile = explorer({ tools: ["file_read", "custom_search"] });
-    expect(profile.tools).toEqual(["file_read", "custom_search"]);
+  it("wraps custom tool list in an allow filter", () => {
+    const mode = explorer({ tools: ["file_read", "custom_search"] });
+    expect(mode.tools).toEqual({ allow: ["file_read", "custom_search"] });
   });
 
   it("no model override by default", () => {
-    const profile = explorer();
-    expect(profile.model).toBeUndefined();
+    const mode = explorer();
+    expect(mode.model).toBeUndefined();
   });
 });
 

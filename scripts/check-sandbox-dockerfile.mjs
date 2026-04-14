@@ -25,10 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
-const dockerfilePath = join(
-  repoRoot,
-  "packages/cloudflare-sandbox/container/Dockerfile",
-);
+const dockerfilePath = join(repoRoot, "packages/cloudflare-sandbox/container/Dockerfile");
 
 const REQUIRED_COPY_SOURCES = [
   "packages/agent-bundle/src/bundle",
@@ -38,10 +35,7 @@ const REQUIRED_COPY_SOURCES = [
   "packages/tavily-web-search/package.vendored.json",
 ];
 
-const REQUIRED_INTEGRITY_MARKERS = [
-  "INTEGRITY.json",
-  "sha256sum",
-];
+const REQUIRED_INTEGRITY_MARKERS = ["INTEGRITY.json", "sha256sum"];
 
 function fail(message) {
   console.error(`✗ ${message}`);

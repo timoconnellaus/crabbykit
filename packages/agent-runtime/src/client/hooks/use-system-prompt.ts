@@ -15,8 +15,9 @@ export function useSystemPrompt(): UseSystemPromptReturn {
   const { send, state } = useAgentConnection();
 
   const requestSystemPrompt = useCallback(() => {
-    send({ type: "request_system_prompt" });
-  }, [send]);
+    if (!state.currentSessionId) return;
+    send({ type: "request_system_prompt", sessionId: state.currentSessionId });
+  }, [send, state.currentSessionId]);
 
   return {
     systemPrompt: state.systemPrompt,

@@ -16,8 +16,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_ROOT = resolve(__dirname, "../../../../..");
+const Dirname = dirname(fileURLToPath(import.meta.url));
+const WORKSPACE_ROOT = resolve(Dirname, "../../../../..");
 
 const BUNDLE_SIDE_FILES = [
   // agent-bundle authoring surface
@@ -45,18 +45,12 @@ const FORBIDDEN_TOKENS = [
 ];
 
 describe("Bundle-side credential isolation", () => {
-  it.each(BUNDLE_SIDE_FILES)(
-    "%s contains no secret names or URL strings",
-    async (rel) => {
-      const content = await readFile(resolve(WORKSPACE_ROOT, rel), "utf8");
-      for (const token of FORBIDDEN_TOKENS) {
-        expect(
-          content.includes(token),
-          `forbidden token '${token}' found in ${rel}`,
-        ).toBe(false);
-      }
-    },
-  );
+  it.each(BUNDLE_SIDE_FILES)("%s contains no secret names or URL strings", async (rel) => {
+    const content = await readFile(resolve(WORKSPACE_ROOT, rel), "utf8");
+    for (const token of FORBIDDEN_TOKENS) {
+      expect(content.includes(token), `forbidden token '${token}' found in ${rel}`).toBe(false);
+    }
+  });
 
   it("tavily client.ts uses 'import type' for TavilyService (never a value import)", async () => {
     const content = await readFile(

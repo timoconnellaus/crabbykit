@@ -175,9 +175,9 @@ describe("D1BundleRegistry batch atomicity", () => {
     fake = makeFakeD1({ failBatchOnCall: 2 });
     registry = new D1BundleRegistry(fake.db, makeFakeKv());
 
-    await expect(
-      registry.setActive("agent-1", "ver-abc"),
-    ).rejects.toThrow("D1_BATCH_PARTIAL_FAILURE");
+    await expect(registry.setActive("agent-1", "ver-abc")).rejects.toThrow(
+      "D1_BATCH_PARTIAL_FAILURE",
+    );
 
     // batchCalls only records successful batches — the schema batch
     // succeeded but the setActive batch threw, so only one recorded.
@@ -195,9 +195,7 @@ describe("D1BundleRegistry batch atomicity", () => {
     });
     registry = new D1BundleRegistry(fake.db, makeFakeKv());
 
-    await expect(registry.rollback("agent-1")).rejects.toThrow(
-      "D1_BATCH_PARTIAL_FAILURE",
-    );
+    await expect(registry.rollback("agent-1")).rejects.toThrow("D1_BATCH_PARTIAL_FAILURE");
   });
 
   it("rollback throws a clear error when no previous version exists (before any batch runs)", async () => {
@@ -216,10 +214,7 @@ describe("D1BundleRegistry batch atomicity", () => {
 
   it("createVersion wraps the schema in a batch and the version insert in a run (atomic single-row write)", async () => {
     // Stub readback so the test finishes quickly
-    const readback = vi.spyOn(
-      await import("../readback.js"),
-      "verifyKvReadback",
-    );
+    const readback = vi.spyOn(await import("../readback.js"), "verifyKvReadback");
     readback.mockResolvedValue(undefined);
 
     await registry.createVersion({ bytes: FAST_BYTES });
@@ -227,9 +222,7 @@ describe("D1BundleRegistry batch atomicity", () => {
     // At least the schema batch ran once
     expect(fake.getBatchCount()).toBeGreaterThanOrEqual(1);
     // And the version row was inserted via a single run() (atomic)
-    expect(fake.runCalls.some((c) => /INTO bundle_versions/.test(c.sql))).toBe(
-      true,
-    );
+    expect(fake.runCalls.some((c) => /INTO bundle_versions/.test(c.sql))).toBe(true);
     // KV received the bytes
     expect(kv.puts.length).toBe(1);
     readback.mockRestore();

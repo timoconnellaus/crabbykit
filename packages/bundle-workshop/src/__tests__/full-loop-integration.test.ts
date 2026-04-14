@@ -22,7 +22,7 @@
 
 import { InMemoryBundleRegistry } from "@claw-for-cloudflare/agent-bundle/host";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { bundleWorkshop, type BundleWorkshopOptions } from "../index.js";
+import { type BundleWorkshopOptions, bundleWorkshop } from "../index.js";
 
 /** Extract text from a wrapped AgentToolResult. */
 function textOf(result: unknown): string {
@@ -137,20 +137,14 @@ describe("Bundle workshop full-loop integration", () => {
     // 1. Init
     const initOut = await runTool(cap, "bundle_init", { name: "demo" }, ctx);
     expect(initOut).toContain("success");
-    expect(sandbox.files.has("/workspace/bundles/demo/package.json")).toBe(
-      true,
-    );
-    expect(sandbox.files.has("/workspace/bundles/demo/src/index.ts")).toBe(
-      true,
-    );
+    expect(sandbox.files.has("/workspace/bundles/demo/package.json")).toBe(true);
+    expect(sandbox.files.has("/workspace/bundles/demo/src/index.ts")).toBe(true);
     expect(sandbox.execLog.some((c) => c.startsWith("bun install"))).toBe(true);
 
     // 2. Build
     const buildOut = await runTool(cap, "bundle_build", { name: "demo" }, ctx);
     expect(buildOut).toContain("successful");
-    expect(sandbox.files.has("/workspace/bundles/demo/dist/bundle.js")).toBe(
-      true,
-    );
+    expect(sandbox.files.has("/workspace/bundles/demo/dist/bundle.js")).toBe(true);
     expect(sandbox.execLog.some((c) => c.startsWith("bun build"))).toBe(true);
 
     // 3. Deploy — should land in registry with self-pointing active
@@ -170,25 +164,15 @@ describe("Bundle workshop full-loop integration", () => {
     expect(deployments.at(-1)?.rationale).toBe("first deploy");
 
     // 4. Audit logs fired for the write-path tools (init + deploy)
-    const broadcastCalls = (ctx.broadcast as ReturnType<typeof vi.fn>).mock
-      .calls;
-    const auditEvents = broadcastCalls.filter(
-      (c) => c[0] === "workshop_audit",
-    );
+    const broadcastCalls = (ctx.broadcast as ReturnType<typeof vi.fn>).mock.calls;
+    const auditEvents = broadcastCalls.filter((c) => c[0] === "workshop_audit");
     expect(auditEvents.length).toBeGreaterThanOrEqual(2);
-    const loggedTools = auditEvents.map(
-      (c) => (c[1] as { tool: string }).tool,
-    );
+    const loggedTools = auditEvents.map((c) => (c[1] as { tool: string }).tool);
     expect(loggedTools).toContain("bundle_init");
     expect(loggedTools).toContain("bundle_deploy");
 
     // 5. Disable — reverts active pointer
-    const disableOut = await runTool(
-      cap,
-      "bundle_disable",
-      { rationale: "end of demo" },
-      ctx,
-    );
+    const disableOut = await runTool(cap, "bundle_disable", { rationale: "end of demo" }, ctx);
     expect(disableOut).toContain("disabled");
     expect(await registry.getActiveForAgent("agent-42")).toBeNull();
   });
@@ -254,12 +238,7 @@ describe("Bundle workshop full-loop integration", () => {
     const ctx = createMockContext("agent-hist");
     await runTool(cap, "bundle_init", { name: "hist" }, ctx);
     await runTool(cap, "bundle_build", { name: "hist" }, ctx);
-    await runTool(
-      cap,
-      "bundle_deploy",
-      { name: "hist", rationale: "release-a" },
-      ctx,
-    );
+    await runTool(cap, "bundle_deploy", { name: "hist", rationale: "release-a" }, ctx);
 
     const versionsOut = await runTool(cap, "bundle_versions", {}, ctx);
     const active = await registry.getActiveForAgent("agent-hist");

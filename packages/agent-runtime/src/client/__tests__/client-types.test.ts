@@ -36,9 +36,10 @@ describe("Client Types", () => {
         inject_message: true,
         system_prompt: true,
         capability_state: true,
+        mode_event: true,
         pong: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(12);
+      expect(Object.keys(handlers)).toHaveLength(13);
     });
 
     it("discriminates client messages by type", () => {

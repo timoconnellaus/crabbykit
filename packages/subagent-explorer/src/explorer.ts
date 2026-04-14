@@ -1,4 +1,4 @@
-import type { SubagentProfile } from "@claw-for-cloudflare/subagent";
+import type { Mode } from "@claw-for-cloudflare/subagent";
 
 /** Default read-only tool name patterns. */
 const DEFAULT_READ_ONLY_PATTERNS = [
@@ -31,34 +31,39 @@ export interface ExplorerOptions {
   /** Override the default model. E.g., "google/gemini-2.5-flash" for speed. */
   model?: string;
   /**
-   * Override the tool allowlist. By default, tools are filtered to
-   * read-only operations using name pattern matching.
+   * Explicit tool allow list. When provided, only tools whose names
+   * appear in this array are exposed to the explorer subagent. When
+   * omitted, the mode inherits the parent's full tool surface — use
+   * {@link filterReadOnlyTools} at the registration site if you want
+   * to constrain to read-only tools by name pattern.
    */
   tools?: string[];
 }
 
 /**
- * Create an explorer subagent profile.
+ * Create an explorer subagent {@link Mode}.
  *
  * The explorer is a read-only codebase search agent optimized for
  * finding information quickly. Uses a fast model by default.
  *
  * @example
  * ```ts
- * getSubagentProfiles() {
- *   return [
- *     explorer({ model: "google/gemini-2.5-flash" }),
- *   ];
- * }
+ * import { defineAgent } from "@claw-for-cloudflare/agent-runtime";
+ * import { explorer } from "@claw-for-cloudflare/subagent-explorer";
+ *
+ * defineAgent({
+ *   subagentModes: () => [explorer({ model: "google/gemini-2.5-flash" })],
+ *   // ...
+ * });
  * ```
  */
-export function explorer(options?: ExplorerOptions): SubagentProfile {
+export function explorer(options?: ExplorerOptions): Mode {
   return {
     id: "explorer",
     name: "Explorer",
     description: "Fast, read-only codebase search agent",
-    systemPrompt: EXPLORER_SYSTEM_PROMPT,
-    tools: options?.tools,
+    systemPromptOverride: (base: string) => EXPLORER_SYSTEM_PROMPT(base),
+    tools: options?.tools ? { allow: options.tools } : undefined,
     model: options?.model,
   };
 }
@@ -67,8 +72,8 @@ export function explorer(options?: ExplorerOptions): SubagentProfile {
  * Default read-only tool filter. Returns true if the tool name
  * contains any of the default read-only patterns.
  *
- * Used by the subagent capability when the explorer profile
- * doesn't specify an explicit tools list.
+ * Used at mode registration time to constrain explorer's tool surface
+ * to read-only operations based on the parent agent's actual tool set.
  */
 export function isReadOnlyTool(toolName: string): boolean {
   const lower = toolName.toLowerCase();

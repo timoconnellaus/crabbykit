@@ -50,6 +50,7 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
           messages: syncMessages,
           currentSessionId: msg.sessionId,
           agentStatus: msg.streamMessage ? "streaming" : "idle",
+          activeMode: msg.activeMode ?? null,
         });
         refs.currentSessionIdRef.current = msg.sessionId;
         refs.streamMessageRef.current = msg.streamMessage ?? null;
@@ -332,6 +333,19 @@ export function createMessageHandler(dispatch: Dispatch<ChatAction>, refs: Messa
             capabilityId: msg.capabilityId,
             data: msg.data,
           });
+        }
+        break;
+      }
+
+      case "mode_event": {
+        if (msg.sessionId !== refs.currentSessionIdRef.current) break;
+        if (msg.event.kind === "entered") {
+          dispatch({
+            type: "SET_ACTIVE_MODE",
+            activeMode: { id: msg.event.modeId, name: msg.event.modeName },
+          });
+        } else {
+          dispatch({ type: "SET_ACTIVE_MODE", activeMode: null });
         }
         break;
       }

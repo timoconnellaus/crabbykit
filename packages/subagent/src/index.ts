@@ -10,7 +10,7 @@ export type {
   SubagentRunResult,
 } from "./host.js";
 export { PendingSubagentStore } from "./pending-store.js";
-export { resolveProfile } from "./resolve.js";
+export { resolveSubagentSpawn } from "./resolve.js";
 export type { SubagentToolDeps } from "./tools.js";
 export {
   createCallSubagentTool,
@@ -19,8 +19,8 @@ export {
   createStartSubagentTool,
 } from "./tools.js";
 export type {
+  Mode,
   PendingSubagent,
-  ResolvedProfile,
-  SubagentProfile,
+  ResolvedSubagentSpawn,
   SubagentState,
 } from "./types.js";

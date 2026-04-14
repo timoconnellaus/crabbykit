@@ -5,7 +5,7 @@ import type { AgentEvent } from "@claw-for-cloudflare/agent-core";
  */
 export interface SubagentEventMeta {
   subagentId: string;
-  profileId: string;
+  modeId: string;
   childSessionId: string;
   taskId?: string;
 }
@@ -28,7 +28,7 @@ export function createEventForwarder(
   return (event: AgentEvent) => {
     broadcastState("event", {
       subagentId: meta.subagentId,
-      profileId: meta.profileId,
+      modeId: meta.modeId,
       childSessionId: meta.childSessionId,
       taskId: meta.taskId,
       event,

@@ -35,6 +35,14 @@ export {
 } from "./components/chat-utils";
 export type { CommandPickerProps } from "./components/command-picker";
 export { CommandPicker } from "./components/command-picker";
+export type { FileEditorProps } from "./components/file-editor";
+export { FileEditor } from "./components/file-editor";
+export type { FileIconProps } from "./components/file-icon";
+export { FileIcon } from "./components/file-icon";
+export type { FileTreeProps } from "./components/file-tree";
+export { FileTree } from "./components/file-tree";
+export type { FilesPanelProps } from "./components/files-panel";
+export { FilesPanel } from "./components/files-panel";
 export type { MessageProps } from "./components/message";
 export { Message } from "./components/message";
 export type { MessageListProps } from "./components/message-list";
@@ -73,6 +81,17 @@ export type { ToolCallEntryProps } from "./components/tool-call-entry";
 export { ToolCallEntry } from "./components/tool-call-entry";
 export type { ChannelInfo } from "./hooks/use-channels";
 export { useChannels } from "./hooks/use-channels";
+export type {
+  R2DirEntry,
+  R2DirListing,
+  R2FileBrowserState,
+  R2FileConflict,
+  R2FileContent,
+  R2FileError,
+  R2FileSaved,
+  UseR2FilesReturn,
+} from "./hooks/use-r2-files";
+export { useR2Files } from "./hooks/use-r2-files";
 // Task state hook
 export type { TaskItem, UseTaskStateReturn } from "./hooks/use-task-state";
 export { useTaskState } from "./hooks/use-task-state";

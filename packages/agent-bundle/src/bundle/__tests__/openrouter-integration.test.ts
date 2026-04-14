@@ -25,8 +25,8 @@ import { describe, expect, it, vi } from "vitest";
 import { defineBundleAgent } from "../define.js";
 import type { BundleEnv } from "../types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = resolve(__dirname, "../../..");
+const Dirname = dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = resolve(Dirname, "../../..");
 
 function makeLlmMock() {
   return {
@@ -107,9 +107,7 @@ describe("OpenRouter bundle — full inference path", () => {
     // in the NDJSON stream. This locks in that contract.
     const llm = makeLlmMock();
     llm.infer.mockResolvedValue({
-      content: [
-        { type: "tool_use", id: "t1", name: "get_time", input: {} },
-      ],
+      content: [{ type: "tool_use", id: "t1", name: "get_time", input: {} }],
       toolCalls: [{ id: "t1", name: "get_time", arguments: "{}" }],
     });
 
@@ -155,10 +153,7 @@ describe("Credential isolation in compiled bundle source", () => {
   });
 
   it("the bundle subpath's ModelConfig type has no apiKey field", async () => {
-    const types = await readFile(
-      resolve(PACKAGE_ROOT, "src/bundle/types.ts"),
-      "utf8",
-    );
+    const types = await readFile(resolve(PACKAGE_ROOT, "src/bundle/types.ts"), "utf8");
     // The comment is allowed to mention apiKey in prose; the runtime
     // interface must not declare it.
     const match = types.match(/interface BundleModelConfig[^}]+\}/);

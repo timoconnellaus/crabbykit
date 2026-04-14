@@ -40,6 +40,7 @@ function defaultState(): AgentConnectionContextValue["state"] {
     costs: [],
     systemPrompt: null,
     capabilityState: {},
+    activeMode: null,
     error: null,
   };
 }

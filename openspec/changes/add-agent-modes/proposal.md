@@ -10,7 +10,7 @@ Agents that expose many tools suffer measurable performance degradation: tool de
 - **NEW**: `getModes()` and `getSubagentModes()` override methods on `AgentDO` (subclass escape hatch).
 - **NEW**: `mode_change` session entry variant (first-class, added to `SessionEntryType` union). Recorded on entry/exit, walked by `resolveActiveMode()` to determine the session's current mode.
 - **NEW**: `mode_event` transport `ServerMessage` variant. Broadcast on mode transitions and included in `session_sync` so reconnecting clients see the active mode.
-- **NEW**: `activeMode` state on the `useAgentChat()` client hook. Mode badge shown in `StatusBar`.
+- **NEW**: `activeMode: { id: string; name: string } | null` state on the `AgentConnectionProvider` reducer, exposed via a new `useActiveMode()` selector hook (matching the decomposed client-hook pattern — `useAgentChat` no longer exists). Mode badge shown in `StatusBar`, which reads via `useActiveMode()`.
 - **NEW**: `/mode <id>` slash command. `enter_mode(id)` / `exit_mode()` agent tools (Claude Code ExitPlanMode-style).
 - **NEW**: `filterToolsAndSections()` pure low-level filter (tools + sections + mode → filtered tools + sections). Wrapped by a higher-level `applyMode()` helper for the main session that adds the resolved-capabilities plumbing. Both take `activeMode: Mode | null` as an **explicit parameter** (not looked up internally) so the inspection path can preview any mode without a live session. The subagent package calls the low-level `filterToolsAndSections` directly without constructing fake `ResolvedCapabilities`.
 - **NEW**: Active mode is cached on session metadata (updated when appending a `mode_change` entry) so `ensureAgent` resolution is O(1). A `resolveActiveMode()` helper exists as a consistency fallback that walks session entries from leaf toward root.
@@ -33,7 +33,9 @@ Agents that expose many tools suffer measurable performance degradation: tool de
 
 ## Impact
 
-- **Affected packages**: `packages/agent-runtime` (core runtime + new `modes/` subpath export + client hook + transport types + session entry types), `packages/subagent` (type rename + tool param rename + storage field rename + delegation to shared filter), `packages/subagent-explorer` (export rename + type migration), `packages/agent-ui` (mode badge in `StatusBar`).
+- **Affected packages**: `packages/agent-runtime` (core runtime + new `modes/` subpath export + connection-provider reducer + new `useActiveMode` hook + transport types + session entry types), `packages/subagent` (type rename + tool param rename + storage field rename + delegation to shared filter), `packages/subagent-explorer` (factory return type migration — the export is the factory `explorer(options?)`, NOT a constant named `explorerProfile`), `packages/agent-ui` (mode badge in `StatusBar` via `useActiveMode()`).
+
+- **NOT modified in v1**: bundle-brain dispatch path. See design Non-Goals — bundle turns bypass `ensureAgent` and therefore bypass `applyMode`. Static-brain fallback remains authoritative.
 - **Affected examples**: `examples/basic-agent` — update any references to `SubagentProfile` / `profile` tool parameter.
 - **Public API surface**: new subpath `@claw-for-cloudflare/agent-runtime/modes` added to `package.json` exports.
 - **Wire format**: new `ServerMessage.type: "mode_event"` variant. Older clients silently ignore unknown variants (no default case in switch, forward-compat safe). `session_sync` payload gains optional `activeMode` field.

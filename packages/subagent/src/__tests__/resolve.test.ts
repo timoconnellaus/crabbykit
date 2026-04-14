@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveProfile } from "../resolve.js";
-import type { SubagentProfile } from "../types.js";
+import { resolveSubagentSpawn } from "../resolve.js";
+import type { Mode } from "../types.js";
 
 // Minimal mock tools
 function mockTool(name: string) {
@@ -14,7 +14,7 @@ function mockTool(name: string) {
 }
 
 const PARENT_PROMPT = "You are a helpful agent.";
-const PARENT_TOOLS = [
+const PARENT_TOOLS: any[] = [
   mockTool("file_read"),
   mockTool("file_write"),
   mockTool("file_edit"),
@@ -23,100 +23,125 @@ const PARENT_TOOLS = [
   mockTool("tavily_search"),
 ];
 
-describe("resolveProfile", () => {
-  it("resolves static system prompt", () => {
-    const profile: SubagentProfile = {
+describe("resolveSubagentSpawn", () => {
+  it("resolves static systemPromptOverride", () => {
+    const mode: Mode = {
       id: "test",
       name: "Test",
       description: "Test agent",
-      systemPrompt: "Custom prompt",
+      systemPromptOverride: "Custom prompt",
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.systemPrompt).toBe("Custom prompt");
-    expect(resolved.profile).toBe(profile);
+    expect(resolved.mode).toBe(mode);
   });
 
-  it("resolves function system prompt with parent context", () => {
-    const profile: SubagentProfile = {
+  it("resolves function systemPromptOverride with parent prompt", () => {
+    const mode: Mode = {
       id: "test",
       name: "Test",
       description: "Test agent",
-      systemPrompt: (parent) => `${parent}\n\nAdditional instructions.`,
+      systemPromptOverride: (base) => `${base}\n\nAdditional instructions.`,
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.systemPrompt).toBe("You are a helpful agent.\n\nAdditional instructions.");
   });
 
-  it("inherits all parent tools when no allowlist", () => {
-    const profile: SubagentProfile = {
+  it("inherits the parent prompt when systemPromptOverride is absent", () => {
+    const mode: Mode = {
       id: "test",
       name: "Test",
       description: "Test agent",
-      systemPrompt: "Test",
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
+
+    expect(resolved.systemPrompt).toBe(PARENT_PROMPT);
+  });
+
+  it("inherits all parent tools when no filter", () => {
+    const mode: Mode = {
+      id: "test",
+      name: "Test",
+      description: "Test agent",
+    };
+
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.tools).toHaveLength(PARENT_TOOLS.length);
     expect(resolved.tools.map((t) => t.name)).toEqual(PARENT_TOOLS.map((t) => t.name));
   });
 
-  it("filters tools by allowlist", () => {
-    const profile: SubagentProfile = {
+  it("filters tools by allow list", () => {
+    const mode: Mode = {
       id: "explorer",
       name: "Explorer",
       description: "Read-only explorer",
-      systemPrompt: "Explore the codebase",
-      tools: ["file_read", "grep", "file_list"],
+      tools: { allow: ["file_read", "grep", "file_list"] },
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.tools).toHaveLength(3);
     expect(resolved.tools.map((t) => t.name)).toEqual(["file_read", "grep", "file_list"]);
   });
 
-  it("filters to empty when no tools match", () => {
-    const profile: SubagentProfile = {
+  it("filters to empty when no tools match allow list", () => {
+    const mode: Mode = {
       id: "test",
       name: "Test",
       description: "Test",
-      systemPrompt: "Test",
-      tools: ["non_existent_tool"],
+      tools: { allow: ["non_existent_tool"] },
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.tools).toHaveLength(0);
   });
 
+  it("filters tools by deny list", () => {
+    const mode: Mode = {
+      id: "safe",
+      name: "Safe",
+      description: "No writes",
+      tools: { deny: ["file_write", "file_edit"] },
+    };
+
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
+
+    expect(resolved.tools.map((t) => t.name)).toEqual([
+      "file_read",
+      "grep",
+      "file_list",
+      "tavily_search",
+    ]);
+  });
+
   it("passes through model override", () => {
-    const profile: SubagentProfile = {
+    const mode: Mode = {
       id: "fast",
       name: "Fast",
       description: "Fast agent",
-      systemPrompt: "Be fast",
       model: "google/gemini-2.5-flash",
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.modelId).toBe("google/gemini-2.5-flash");
   });
 
   it("returns undefined modelId when no override", () => {
-    const profile: SubagentProfile = {
+    const mode: Mode = {
       id: "default",
       name: "Default",
       description: "Default",
-      systemPrompt: "Default",
     };
 
-    const resolved = resolveProfile(profile, PARENT_PROMPT, PARENT_TOOLS);
+    const resolved = resolveSubagentSpawn(mode, PARENT_PROMPT, PARENT_TOOLS);
 
     expect(resolved.modelId).toBeUndefined();
   });

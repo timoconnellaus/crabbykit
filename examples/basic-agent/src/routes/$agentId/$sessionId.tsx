@@ -154,6 +154,7 @@ function SessionLayoutInner(props: SessionLayoutInnerProps) {
   const activeTab = useMemo(() => {
     const pathname = routerState.location.pathname;
     if (pathname.endsWith("/apps")) return "apps";
+    if (pathname.endsWith("/files")) return "files";
     if (pathname.endsWith("/schedules")) return "schedules";
     if (pathname.endsWith("/skills")) return "skills";
     if (pathname.endsWith("/channels")) return "channels";

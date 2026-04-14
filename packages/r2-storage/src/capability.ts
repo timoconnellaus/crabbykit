@@ -9,6 +9,7 @@ import { createFileMoveTool } from "./file-move.js";
 import { createFileReadTool } from "./file-read.js";
 import { createFileTreeTool } from "./file-tree.js";
 import { createFileWriteTool } from "./file-write.js";
+import { broadcastAgentMutation, dispatchUiAction } from "./ui-bridge.js";
 
 const DEFAULT_MAX_READ_BYTES = 512 * 1024;
 
@@ -64,5 +65,9 @@ export function r2Storage(options: R2StorageOptions): Capability {
       createFileTreeTool(getBucket, getPrefix),
       createFileFindTool(getBucket, getPrefix),
     ],
+    onAction: (action, data, ctx) => dispatchUiAction(action, data, ctx, getBucket, getPrefix),
+    hooks: {
+      afterToolExecution: broadcastAgentMutation,
+    },
   };
 }

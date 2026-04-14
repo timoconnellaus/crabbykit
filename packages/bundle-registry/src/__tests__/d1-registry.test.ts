@@ -103,9 +103,7 @@ describe("D1BundleRegistry.createVersion", () => {
   it("rejects bundles exceeding the 25 MiB limit", async () => {
     const registry = makeRegistry();
     const huge = new Uint8Array(26 * 1024 * 1024).buffer;
-    await expect(registry.createVersion({ bytes: huge })).rejects.toThrow(
-      /exceeds .* byte limit/,
-    );
+    await expect(registry.createVersion({ bytes: huge })).rejects.toThrow(/exceeds .* byte limit/);
   });
 
   it("sanitizes metadata (strips unknown keys, enforces length limits)", async () => {
@@ -122,9 +120,7 @@ describe("D1BundleRegistry.createVersion", () => {
     });
     expect(version.metadata?.name).toBe("my-bundle");
     expect(version.metadata?.description?.length).toBeLessThanOrEqual(1024);
-    expect(
-      (version.metadata as unknown as Record<string, unknown>).attacker,
-    ).toBeUndefined();
+    expect((version.metadata as unknown as Record<string, unknown>).attacker).toBeUndefined();
   });
 });
 
@@ -224,9 +220,7 @@ describe("D1BundleRegistry.listDeployments", () => {
     expect(deployments).toHaveLength(2);
     expect(deployments[0].versionId).toBe(v2.versionId);
     expect(deployments[1].versionId).toBe(v1.versionId);
-    expect(deployments[0].deployedAt).toBeGreaterThanOrEqual(
-      deployments[1].deployedAt,
-    );
+    expect(deployments[0].deployedAt).toBeGreaterThanOrEqual(deployments[1].deployedAt);
   });
 
   it("caps limit at 100", async () => {
@@ -303,8 +297,6 @@ describe("two sequential deploys", () => {
     // Two deployment log entries; active pointer still the same hash
     const deployments = await registry.listDeployments("agent-dup");
     expect(deployments).toHaveLength(2);
-    expect(deployments.every((d) => d.versionId === first.versionId)).toBe(
-      true,
-    );
+    expect(deployments.every((d) => d.versionId === first.versionId)).toBe(true);
   });
 });

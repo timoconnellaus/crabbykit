@@ -93,10 +93,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     const search = tools.find((t) => t.name === "web_search");
     expect(search).toBeDefined();
 
-    const result = await search!.execute!(
-      { query: "rust ownership" },
-      ctx as never,
-    );
+    const result = await search!.execute!({ query: "rust ownership" }, ctx as never);
 
     // 1. Bundle received the service response
     expect(textOf(result)).toContain("Ownership in Rust");
@@ -120,8 +117,9 @@ describe("Tavily bundle integration — client → service → cost emission", (
     const service = new TavilyService({} as never, {
       TAVILY_API_KEY: TAVILY_SECRET,
       TAVILY_SUBKEY: {} as CryptoKey,
-      SPINE: { emitCost: vi.fn().mockResolvedValue(undefined) } as unknown as
-        TavilyServiceEnv["SPINE"],
+      SPINE: {
+        emitCost: vi.fn().mockResolvedValue(undefined),
+      } as unknown as TavilyServiceEnv["SPINE"],
     });
     const spy = vi.spyOn(service, "search");
     mockFetch.mockImplementation(async () => mockFetchResponse({ results: [] }));
@@ -159,10 +157,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetchTool = tools.find((t) => t.name === "web_fetch")!;
 
-    const result = await fetchTool.execute!(
-      { url: "https://example.com/post" },
-      ctx as never,
-    );
+    const result = await fetchTool.execute!({ url: "https://example.com/post" }, ctx as never);
     expect(textOf(result)).toBe("page content");
 
     expect(emitCost).toHaveBeenCalledOnce();

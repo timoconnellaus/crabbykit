@@ -33,6 +33,7 @@ export {
   useAgentConnection,
 } from "./agent-connection-provider.js";
 export type { CommandInfo, CommandResultTag, QueuedItem, ToolState } from "./chat-reducer.js";
+export { useActiveMode } from "./hooks/use-active-mode.js";
 export type { AgentConfigSnapshot, UseAgentConfigReturn } from "./hooks/use-agent-config.js";
 export { useAgentConfig } from "./hooks/use-agent-config.js";
 export type { UseChatSessionReturn } from "./hooks/use-chat-session.js";

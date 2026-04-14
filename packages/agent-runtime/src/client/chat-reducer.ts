@@ -43,6 +43,12 @@ export interface ChatState {
   systemPrompt: { sections: PromptSection[]; raw: string } | null;
   /** Generic capability state keyed by capability ID. Populated by capability_state sync events. */
   capabilityState: Record<string, unknown>;
+  /**
+   * Active session-level mode, or `null` when no mode is active.
+   * Initialized from `session_sync.activeMode` on connection and
+   * session switch; updated on `mode_event` messages.
+   */
+  activeMode: { id: string; name: string } | null;
   error: string | null;
 }
 
@@ -65,6 +71,7 @@ export type ChatAction =
       messages: AgentMessage[];
       currentSessionId: string;
       agentStatus: AgentStatus;
+      activeMode: { id: string; name: string } | null;
     }
   | { type: "AGENT_END" }
   | {
@@ -92,6 +99,7 @@ export type ChatAction =
       toolResultMessage: AgentMessage;
     }
   | { type: "SET_CAPABILITY_STATE"; capabilityId: string; data: unknown }
+  | { type: "SET_ACTIVE_MODE"; activeMode: { id: string; name: string } | null }
   | { type: "ERROR_RECEIVED"; message: string };
 
 export function createInitialState(sessionId: string | undefined): ChatState {
@@ -107,6 +115,7 @@ export function createInitialState(sessionId: string | undefined): ChatState {
     costs: [],
     systemPrompt: null,
     capabilityState: {},
+    activeMode: null,
     error: null,
   };
 }
@@ -161,8 +170,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         thinking: null,
         completedThinking: null,
         capabilityState: {},
+        activeMode: action.activeMode,
         error: null,
       };
+    case "SET_ACTIVE_MODE":
+      return { ...state, activeMode: action.activeMode };
     case "AGENT_END":
       return {
         ...state,

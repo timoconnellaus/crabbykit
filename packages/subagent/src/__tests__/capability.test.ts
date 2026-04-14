@@ -8,7 +8,7 @@ vi.mock("cloudflare:workers", () => ({ DurableObject: MockDurableObject }));
 const { subagentCapability, createSubagentAuthChecker } = await import("../capability.js");
 
 import type { SubagentHost } from "../host.js";
-import type { SubagentProfile } from "../types.js";
+import type { Mode } from "../types.js";
 
 function mockHost(): SubagentHost {
   return {
@@ -23,18 +23,18 @@ function mockHost(): SubagentHost {
   };
 }
 
-const TEST_PROFILE: SubagentProfile = {
+const TEST_MODE: Mode = {
   id: "explorer",
   name: "Explorer",
   description: "Read-only search",
-  systemPrompt: "Explore",
+  systemPromptOverride: "Explore",
 };
 
 describe("subagentCapability", () => {
   it("has correct id and metadata", () => {
     const cap = subagentCapability({
       host: mockHost(),
-      profiles: [TEST_PROFILE],
+      modes: [TEST_MODE],
       getSystemPrompt: () => "Parent prompt",
       getParentTools: () => [],
     });
@@ -46,7 +46,7 @@ describe("subagentCapability", () => {
   it("provides 4 tools", () => {
     const cap = subagentCapability({
       host: mockHost(),
-      profiles: [TEST_PROFILE],
+      modes: [TEST_MODE],
       getSystemPrompt: () => "Parent prompt",
       getParentTools: () => [],
     });
@@ -83,7 +83,7 @@ describe("subagentCapability", () => {
   it("provides prompt sections listing profiles", () => {
     const cap = subagentCapability({
       host: mockHost(),
-      profiles: [TEST_PROFILE],
+      modes: [TEST_MODE],
       getSystemPrompt: () => "",
       getParentTools: () => [],
     });
@@ -96,7 +96,7 @@ describe("subagentCapability", () => {
   it("onConnect detects orphaned subagents", async () => {
     const cap = subagentCapability({
       host: mockHost(),
-      profiles: [],
+      modes: [],
       getSystemPrompt: () => "",
       getParentTools: () => [],
     });
@@ -105,7 +105,7 @@ describe("subagentCapability", () => {
     // Simulate a pending subagent left from before hibernation
     storage.set("subagent:orphan-1", {
       subagentId: "orphan-1",
-      profileId: "explorer",
+      modeId: "explorer",
       childSessionId: "child-1",
       parentSessionId: "parent-1",
       prompt: "Search something",

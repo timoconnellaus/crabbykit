@@ -6,11 +6,11 @@ import {
   type AgentContext,
   AgentRuntime,
   type AgentRuntimeOptions,
-  type SubagentProfile,
 } from "./agent-runtime.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
 import type { ConfigNamespace } from "./config/types.js";
+import type { Mode } from "./modes/define-mode.js";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
 import type { RuntimeContext } from "./runtime-context.js";
 import type { Scheduler } from "./scheduling/scheduler-types.js";
@@ -41,7 +41,8 @@ export interface AgentDelegate<_TEnv = Record<string, unknown>> {
   buildSystemPrompt?(context: AgentContext): string;
   getPromptOptions?(): PromptOptions;
   getCapabilities?(): Capability[];
-  getSubagentProfiles?(): SubagentProfile[];
+  getModes?(): Mode[];
+  getSubagentModes?(): Mode[];
   getConfigNamespaces?(): ConfigNamespace[];
   getAgentConfigSchema?(): Record<string, TObject>;
   getA2AClientOptions?(): A2AClientOptions | null;
@@ -119,8 +120,12 @@ export function createDelegatingRuntime<TEnv>(
       return host.getCapabilities ? host.getCapabilities() : super.getCapabilities();
     }
 
-    getSubagentProfiles(): SubagentProfile[] {
-      return host.getSubagentProfiles ? host.getSubagentProfiles() : super.getSubagentProfiles();
+    getModes(): Mode[] {
+      return host.getModes ? host.getModes() : super.getModes();
+    }
+
+    getSubagentModes(): Mode[] {
+      return host.getSubagentModes ? host.getSubagentModes() : super.getSubagentModes();
     }
 
     getConfigNamespaces(): ConfigNamespace[] {

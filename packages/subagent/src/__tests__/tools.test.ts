@@ -13,7 +13,7 @@ const {
 } = await import("../tools.js");
 
 import type { SubagentHost, SubagentRunResult } from "../host.js";
-import type { SubagentProfile } from "../types.js";
+import type { Mode } from "../types.js";
 
 // ============================================================================
 // Helpers
@@ -22,12 +22,12 @@ import type { SubagentProfile } from "../types.js";
 const PARENT_SESSION = "parent-session";
 const CHILD_SESSION = "child-session-1";
 
-const TEST_PROFILE: SubagentProfile = {
+const TEST_MODE: Mode = {
   id: "explorer",
   name: "Explorer",
   description: "Read-only codebase search",
-  systemPrompt: "Explore the codebase",
-  tools: ["file_read", "grep"],
+  systemPromptOverride: "Explore the codebase",
+  tools: { allow: ["file_read", "grep"] },
 };
 
 function mockTool(name: string) {
@@ -82,7 +82,7 @@ function setup(hostOverrides?: Partial<SubagentHost>) {
 
   const deps = {
     getHost: () => host,
-    getProfiles: () => [TEST_PROFILE],
+    getModes: () => [TEST_MODE],
     getParentSessionId: () => PARENT_SESSION,
     getParentSystemPrompt: () => "Parent prompt",
     getParentTools: () => [mockTool("file_read"), mockTool("grep"), mockTool("file_write")],
@@ -93,8 +93,13 @@ function setup(hostOverrides?: Partial<SubagentHost>) {
   return { host, storage, broadcast, deps };
 }
 
-async function exec(tool: { execute: Function }, args: Record<string, unknown>) {
-  return tool.execute(args, { toolCallId: "test", signal: undefined });
+async function exec(
+  tool: {
+    execute: (args: Record<string, unknown>, ctx: unknown) => Promise<unknown> | unknown;
+  },
+  args: Record<string, unknown>,
+) {
+  return (await tool.execute(args, { toolCallId: "test", signal: undefined })) as any;
 }
 
 function textContent(result: { content: Array<{ text: string }> }): string {
@@ -111,7 +116,7 @@ describe("call_subagent tool", () => {
     const tool = createCallSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "explorer",
+      mode: "explorer",
       prompt: "Find auth modules",
     });
 
@@ -129,16 +134,16 @@ describe("call_subagent tool", () => {
     expect(result.details.success).toBe(true);
   });
 
-  it("returns error for unknown profile", async () => {
+  it("returns error for unknown mode", async () => {
     const { deps } = setup();
     const tool = createCallSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "nonexistent",
+      mode: "nonexistent",
       prompt: "Do something",
     });
 
-    expect(textContent(result)).toContain('Unknown profile "nonexistent"');
+    expect(textContent(result)).toContain('Unknown mode "nonexistent"');
     expect(textContent(result)).toContain("explorer");
   });
 
@@ -153,7 +158,7 @@ describe("call_subagent tool", () => {
     const tool = createCallSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "explorer",
+      mode: "explorer",
       prompt: "Fail please",
     });
 
@@ -168,22 +173,22 @@ describe("call_subagent tool", () => {
     const tool = createCallSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "explorer",
+      mode: "explorer",
       prompt: "Break",
     });
 
     expect(textContent(result)).toContain("Connection lost");
   });
 
-  it("filters tools to profile allowlist", async () => {
+  it("filters tools to mode allow list", async () => {
     const { host, deps } = setup();
     const tool = createCallSubagentTool(deps);
 
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     const runCall = (host.runSubagentBlocking as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const toolNames = runCall.tools.map((t: any) => t.name);
-    // Explorer profile allows ["file_read", "grep"], parent has ["file_read", "grep", "file_write"]
+    // Explorer mode allows ["file_read", "grep"], parent has ["file_read", "grep", "file_write"]
     expect(toolNames).toEqual(["file_read", "grep"]);
   });
 });
@@ -198,7 +203,7 @@ describe("start_subagent tool", () => {
     const tool = createStartSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "explorer",
+      mode: "explorer",
       prompt: "Find auth modules",
     });
 
@@ -211,40 +216,40 @@ describe("start_subagent tool", () => {
     const { storage, deps } = setup();
     const tool = createStartSubagentTool(deps);
 
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     const stored = await storage.get(`subagent:${CHILD_SESSION}`);
     expect(stored).toBeDefined();
     expect((stored as any).state).toBe("running");
-    expect((stored as any).profileId).toBe("explorer");
+    expect((stored as any).modeId).toBe("explorer");
   });
 
   it("broadcasts initial status", async () => {
     const { broadcast, deps } = setup();
     const tool = createStartSubagentTool(deps);
 
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     expect(broadcast).toHaveBeenCalledWith(
       "subagent_status",
-      expect.objectContaining({ state: "running", profileId: "explorer" }),
+      expect.objectContaining({ state: "running", modeId: "explorer" }),
     );
   });
 
-  it("returns error for unknown profile", async () => {
+  it("returns error for unknown mode", async () => {
     const { deps } = setup();
     const tool = createStartSubagentTool(deps);
 
     const result = await exec(tool, {
-      profile: "nonexistent",
+      mode: "nonexistent",
       prompt: "Do something",
     });
 
-    expect(textContent(result)).toContain("Unknown profile");
+    expect(textContent(result)).toContain("Unknown mode");
   });
 
   it("completion callback steers when parent is streaming", async () => {
-    let capturedCallback: Function | undefined;
+    let capturedCallback: ((result: SubagentRunResult) => void | Promise<void>) | undefined;
     const { host, deps } = setup({
       startSubagentAsync: vi.fn().mockImplementation((_opts, cb) => {
         capturedCallback = cb;
@@ -253,7 +258,7 @@ describe("start_subagent tool", () => {
     });
 
     const tool = createStartSubagentTool(deps);
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     // Simulate completion
     await capturedCallback!({ responseText: "Found stuff", success: true });
@@ -266,7 +271,7 @@ describe("start_subagent tool", () => {
   });
 
   it("completion callback prompts when parent is idle", async () => {
-    let capturedCallback: Function | undefined;
+    let capturedCallback: ((result: SubagentRunResult) => void | Promise<void>) | undefined;
     const { host, deps } = setup({
       startSubagentAsync: vi.fn().mockImplementation((_opts, cb) => {
         capturedCallback = cb;
@@ -275,7 +280,7 @@ describe("start_subagent tool", () => {
     });
 
     const tool = createStartSubagentTool(deps);
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     await capturedCallback!({ responseText: "Found stuff", success: true });
 
@@ -287,7 +292,7 @@ describe("start_subagent tool", () => {
   });
 
   it("completion callback handles prompt failure gracefully", async () => {
-    let capturedCallback: Function | undefined;
+    let capturedCallback: ((result: SubagentRunResult) => void | Promise<void>) | undefined;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const { deps } = setup({
       startSubagentAsync: vi.fn().mockImplementation((_opts, cb) => {
@@ -298,7 +303,7 @@ describe("start_subagent tool", () => {
     });
 
     const tool = createStartSubagentTool(deps);
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     // Should not throw
     await capturedCallback!({ responseText: "Found stuff", success: true });
@@ -307,7 +312,7 @@ describe("start_subagent tool", () => {
   });
 
   it("completion callback handles failed result", async () => {
-    let capturedCallback: Function | undefined;
+    let capturedCallback: ((result: SubagentRunResult) => void | Promise<void>) | undefined;
     const { broadcast, deps } = setup({
       startSubagentAsync: vi.fn().mockImplementation((_opts, cb) => {
         capturedCallback = cb;
@@ -316,7 +321,7 @@ describe("start_subagent tool", () => {
     });
 
     const tool = createStartSubagentTool(deps);
-    await exec(tool, { profile: "explorer", prompt: "Search" });
+    await exec(tool, { mode: "explorer", prompt: "Search" });
 
     await capturedCallback!({
       responseText: "",
@@ -342,7 +347,7 @@ describe("check_subagent tool", () => {
     // Pre-populate storage
     await storage.put(`subagent:${CHILD_SESSION}`, {
       subagentId: CHILD_SESSION,
-      profileId: "explorer",
+      modeId: "explorer",
       prompt: "Find auth",
       state: "running",
     });
@@ -372,7 +377,7 @@ describe("cancel_subagent tool", () => {
     const { host, storage, broadcast, deps } = setup();
     await storage.put(`subagent:${CHILD_SESSION}`, {
       subagentId: CHILD_SESSION,
-      profileId: "explorer",
+      modeId: "explorer",
       childSessionId: CHILD_SESSION,
       state: "running",
     });
@@ -400,7 +405,7 @@ describe("cancel_subagent tool", () => {
     const { storage, deps } = setup();
     await storage.put(`subagent:${CHILD_SESSION}`, {
       subagentId: CHILD_SESSION,
-      profileId: "explorer",
+      modeId: "explorer",
       state: "completed",
     });
 

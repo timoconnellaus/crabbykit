@@ -29,6 +29,7 @@ The closest existing primitive is `SubagentProfile` in `packages/subagent`, whic
 - **No composition model.** Modes are an opt-in filter layer. Agents without modes work exactly as today; adding modes is purely additive.
 - **No mode nesting or stacking.** A session has at most one active mode at a time.
 - **No per-capability `modes?:` field.** Capabilities contribute capabilities; modes are separate data defined alongside the agent or exported as named constants from capability packages. This may be revisited as a v2 refinement.
+- **No mode filtering on the bundle-brain dispatch path.** The bundle prompt handler at `agent-runtime.ts:1570` runs before `ensureAgent` and short-circuits the turn when a bundle handles it. Bundles resolve their own tools inside the Worker Loader isolate, so `applyMode` never runs. In v1, a bundle that wishes to honor modes MUST resolve the active mode via SpineService and apply its own filter. Wiring host-side mode filtering into the bundle dispatch payload is tracked as a v1.1 follow-up. Rationale: the static brain is always the fallback, bundle-mode integration is a coherent separate feature, and bundling it into v1 would balloon the change.
 
 ## Decisions
 
@@ -182,14 +183,16 @@ New `ServerMessage.type: "mode_event"` variant:
 ```ts
 | { type: "mode_event"; sessionId: string;
     event: { kind: "entered"; modeId: string; modeName: string }
-         | { kind: "exited"; previousModeId: string }; }
+         | { kind: "exited";  modeId: string; modeName: string }; }
 ```
+
+Both kinds carry `modeId` + `modeName` (matching field names across the discriminated union so client-side handling is symmetric — exit carries the ID of the mode that just closed).
 
 Emitted:
 - Immediately after appending a `mode_change` session entry
 - As part of `session_sync` payload for reconnecting clients (new optional `activeMode` field)
 
-Client-side: `useAgentChat()` tracks `activeMode: { id, name } | null`. `StatusBar` shows a badge when set. All additive — existing clients ignore unknown message types silently (no default case in the switch, forward-compat safe).
+Client-side: the `AgentConnectionProvider` reducer tracks `activeMode: { id; name } | null` in its state, and a new `useActiveMode()` selector hook exposes it to consumers. `StatusBar` reads via `useActiveMode()`. The old `useAgentChat()` shim has already been decomposed into `useChatSession` / `useAgentConnection` / capability-specific hooks — the mode state follows that same decomposed pattern rather than resurrecting a monolithic hook. All additive — existing clients ignore unknown message types silently (no default case in the switch, forward-compat safe).
 
 ### D11. Greenfield renames, no back-compat aliases
 
@@ -201,7 +204,7 @@ Because the SDK has no deployed consumers yet:
 - `PendingSubagent.profileId` → `modeId`. Hard rename of the JSON field.
 - Subagent tool parameters `profile: string` → `mode: string`. Hard rename.
 - Broadcast field `profileId` → `modeId`. Hard rename.
-- `explorerProfile` → `explorerMode`. Hard rename, no re-export.
+- `packages/subagent-explorer` factory `explorer(options?)` return type: `SubagentProfile` → `Mode`. The factory name stays (the current export is the factory function, not a constant; earlier drafts of this spec mistakenly referenced `explorerProfile`). Body migrates `tools: string[]` → `tools: { allow }` and `systemPrompt` → `systemPromptOverride`. The `isReadOnlyTool` and `filterReadOnlyTools` helpers are retained.
 
 No deprecation JSDoc, no dual exports, no transition cycles. Everything aligns on the new vocabulary from day one.
 
@@ -253,6 +256,8 @@ Rationale: the composition semantics are ambiguous (is `deny` applied before or 
 | **Single-mode agents get no machinery** — a consumer with one mode might expect `/mode` to work. | Documented rule in the design: one mode is a baked-in config, not a choice. The doc example shows the 0/1/2+ breakdown clearly. |
 | **Capability authors may want `context.mode`** — a case may surface where `capabilityConfig` merge isn't enough. | `context.mode` can be added non-breakingly later. Starting without it forces rigorous use of the existing config pipeline, which may prove sufficient. |
 | **`mode_event` broadcast back-compat** — adding a new `ServerMessage` variant could theoretically break older clients. | Verified: the client `message-handler.ts` switch has no default case, so unknown variants fall through silently. Forward-compat is bulletproof. |
+| **Name collision with `model_change`** — the new `"mode_change"` session entry variant differs from the existing `"model_change"` variant by a single letter. A typo at a dispatch site would silently mis-route. | Require a JSDoc line on both variants in `session/types.ts` explicitly cross-referencing the other. String-literal dispatches ride on TS exhaustiveness checks anyway, so a typo becomes a compile error. |
+| **Bundle-brain dispatch bypasses `applyMode`** — bundle turns short-circuit before `ensureAgent`, so mode filtering does not apply to bundles in v1. A bundle carrying a write tool could run under `planMode` without being filtered. | D14 (new): scoped out of v1 as an explicit non-goal. Static brain is always the fallback. v1.1 follow-up: host reads `activeModeId` from metadata before calling `bundlePromptHandler` and passes it into the dispatch payload; bundle runtime imports `filterToolsAndSections` from `agent-runtime/modes`. Documented so authors of bundles that replace high-trust tools know the gap exists. |
 | **Mode proliferation / decision fatigue** — users confronted with 10 modes may not know which to pick. | Consumer responsibility. The SDK ships one reference mode; consumers add the ones they need. The `description` field on `Mode` is shown in `/mode` autocomplete. |
 | **Active mode resolution cost** — walking session entries per turn would be O(n) in session length and silently add latency to long sessions. | D12: cache `activeModeId` on the session metadata row; update in the same transaction as the `mode_change` entry append. Walk is a consistency fallback and branching-time initializer only. |
 | **`allow`/`deny` ambiguity** — consumers setting both on the same filter creates silent order-dependent behavior. | D13: `defineMode()` throws if both are specified on the same filter. Fail loud at authoring time. |

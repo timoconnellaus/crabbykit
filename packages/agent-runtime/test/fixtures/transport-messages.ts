@@ -17,6 +17,7 @@ export const sessionSyncMessage: ServerMessage = {
     source: "websocket",
     sender: null,
     leafId: "entry_5",
+    activeModeId: null,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T01:00:00Z",
   },

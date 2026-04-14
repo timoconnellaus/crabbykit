@@ -25,19 +25,25 @@ export class SessionStore {
         source TEXT NOT NULL DEFAULT 'websocket',
         sender TEXT,
         leaf_id TEXT,
+        active_mode_id TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
 
-    // Idempotent migration for databases created before the `sender` column
-    // existed. `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` is invalid SQLite
-    // syntax, so we introspect via PRAGMA first and only issue the ALTER
-    // when the column is actually missing.
+    // Idempotent migration for databases created before the `sender` /
+    // `active_mode_id` columns existed. `ALTER TABLE ... ADD COLUMN IF
+    // NOT EXISTS` is invalid SQLite syntax, so we introspect via PRAGMA
+    // first and only issue the ALTER when the column is actually
+    // missing.
     const existingCols = this.sql.exec<{ name: string }>("PRAGMA table_info(sessions)").toArray();
     const hasSenderCol = existingCols.some((c) => c.name === "sender");
     if (!hasSenderCol) {
       this.sql.exec("ALTER TABLE sessions ADD COLUMN sender TEXT");
+    }
+    const hasActiveModeCol = existingCols.some((c) => c.name === "active_mode_id");
+    if (!hasActiveModeCol) {
+      this.sql.exec("ALTER TABLE sessions ADD COLUMN active_mode_id TEXT");
     }
 
     // Partial index on (source, sender) where sender is non-null. Supports
@@ -169,13 +175,27 @@ export class SessionStore {
       now,
     );
 
-    // Update session leaf_id and updated_at
-    this.sql.exec(
-      "UPDATE sessions SET leaf_id = ?, updated_at = ? WHERE id = ?",
-      id,
-      now,
-      sessionId,
-    );
+    // Mode-change entries update the metadata cache atomically with
+    // the leaf/updated_at bump — a single UPDATE keeps entry and
+    // cache in lock-step.
+    if (entry.type === "mode_change") {
+      const data = entry.data as { enter?: string; exit?: string };
+      const nextActiveModeId = typeof data.enter === "string" ? data.enter : null;
+      this.sql.exec(
+        "UPDATE sessions SET leaf_id = ?, updated_at = ?, active_mode_id = ? WHERE id = ?",
+        id,
+        now,
+        nextActiveModeId,
+        sessionId,
+      );
+    } else {
+      this.sql.exec(
+        "UPDATE sessions SET leaf_id = ?, updated_at = ? WHERE id = ?",
+        id,
+        now,
+        sessionId,
+      );
+    }
 
     // Cast to discriminated union — caller guarantees type/data alignment
     return {
@@ -316,7 +336,10 @@ export class SessionStore {
 
   /**
    * Branch from a specific entry - update leaf_id so subsequent
-   * appends fork from that point.
+   * appends fork from that point. Re-seeds the branch's active mode
+   * cache by walking the parent chain from the new leaf: if the most
+   * recent `mode_change` entry is an enter, the cache takes that ID;
+   * otherwise it clears to `null`.
    */
   branch(sessionId: string, fromEntryId: string): void {
     const entry = this.sql
@@ -331,11 +354,62 @@ export class SessionStore {
       throw new Error(`Entry not found: ${fromEntryId} in session ${sessionId}`);
     }
 
+    const activeModeIdAtBranch = this.walkActiveModeIdAt(sessionId, fromEntryId);
     this.sql.exec(
-      "UPDATE sessions SET leaf_id = ?, updated_at = datetime('now') WHERE id = ?",
+      "UPDATE sessions SET leaf_id = ?, updated_at = datetime('now'), active_mode_id = ? WHERE id = ?",
       fromEntryId,
+      activeModeIdAtBranch,
       sessionId,
     );
+  }
+
+  /**
+   * Walk a session's entry chain from `leafEntryId` toward the root
+   * and return the mode ID of the most recent `mode_change` enter
+   * entry, or `null` if the most recent change is an exit (or no
+   * mode_change entries exist). Used by `branch()` to seed the cache
+   * and as a consistency-repair helper.
+   */
+  private walkActiveModeIdAt(sessionId: string, leafEntryId: string): string | null {
+    const entries = this.getEntries(sessionId);
+    const entryMap = new Map<string, SessionEntry>();
+    for (const e of entries) entryMap.set(e.id, e);
+
+    let current: SessionEntry | undefined = entryMap.get(leafEntryId);
+    while (current) {
+      if (current.type === "mode_change") {
+        const data = current.data;
+        if ("exit" in data) return null;
+        if ("enter" in data) return data.enter;
+      }
+      current = current.parentId ? entryMap.get(current.parentId) : undefined;
+    }
+    return null;
+  }
+
+  /**
+   * Set the cached active mode id on a session's metadata row. Used
+   * by consistency repair and branch-time seeding. During normal
+   * operation, `appendEntry` updates this field atomically when it
+   * writes a `mode_change` entry.
+   */
+  setActiveMode(sessionId: string, modeId: string | null): void {
+    this.sql.exec(
+      "UPDATE sessions SET active_mode_id = ?, updated_at = datetime('now') WHERE id = ?",
+      modeId,
+      sessionId,
+    );
+  }
+
+  /**
+   * Read the cached active mode ID from session metadata. O(1) — does
+   * NOT walk the entry log. Returns `null` when no mode is active or
+   * the session does not exist.
+   */
+  readActiveModeId(sessionId: string): string | null {
+    const row = this.sql.exec("SELECT active_mode_id FROM sessions WHERE id = ?", sessionId).one();
+    if (!row) return null;
+    return (row.active_mode_id as string | null | undefined) ?? null;
   }
 
   /**
@@ -380,6 +454,7 @@ export class SessionStore {
       source: row.source as string,
       sender: (row.sender as string | null | undefined) ?? null,
       leafId: (row.leaf_id as string) ?? null,
+      activeModeId: (row.active_mode_id as string | null | undefined) ?? null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     };

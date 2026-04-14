@@ -23,8 +23,7 @@ export interface VerifyReadbackOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const realSleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Polls `kv.get(key)` on the given schedule until it returns non-null.

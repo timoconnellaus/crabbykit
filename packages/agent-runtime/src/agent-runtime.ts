@@ -32,6 +32,10 @@ import type { ConfigNamespace } from "./config/types.js";
 import type { CostEvent } from "./costs/types.js";
 import { isRuntimeError } from "./errors/runtime-error.js";
 import { McpManager } from "./mcp/mcp-manager.js";
+import { applyMode } from "./modes/apply-mode.js";
+import { createModeCommand } from "./modes/commands.js";
+import type { Mode } from "./modes/define-mode.js";
+import { createEnterModeTool, createExitModeTool } from "./modes/tools.js";
 import {
   buildDefaultSystemPromptSections,
   estimateTextTokens,
@@ -187,20 +191,6 @@ function normalizePublicUrl(raw: unknown): string | undefined {
   if (typeof raw !== "string") return undefined;
   const trimmed = raw.trim().replace(/\/$/, "");
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-/**
- * A subagent profile defines the configuration for a child agent.
- * Defined here to avoid a circular dependency between agent-runtime and subagent packages.
- * The full SubagentProfile type in @claw-for-cloudflare/subagent extends this.
- */
-export interface SubagentProfile {
-  id: string;
-  name: string;
-  description: string;
-  systemPrompt: string | ((parentPrompt: string) => string);
-  tools?: string[];
-  model?: string;
 }
 
 export interface AgentContext {
@@ -524,10 +514,120 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   }
 
   /**
-   * Override to register subagent profiles.
+   * Override to register subagent spawn modes. Each mode describes a
+   * named scoped view of the agent that can be used to spawn a child
+   * subagent via `call_subagent` / `start_subagent`. Shares the same
+   * {@link Mode} type as the main-session `getModes()` slot.
    */
-  getSubagentProfiles(): SubagentProfile[] {
+  getSubagentModes(): Mode[] {
     return [];
+  }
+
+  /**
+   * Override to register session-level modes. When the returned array
+   * has one or more modes, the runtime conditionally registers
+   * `/mode`, `enter_mode`, `exit_mode`, and a "current mode" prompt
+   * indicator. A single registered mode still yields two effective
+   * states (in vs out) so the toggle is meaningful. Zero modes keeps
+   * the feature dormant.
+   */
+  getModes(): Mode[] {
+    return [];
+  }
+
+  private cachedModes: Mode[] | null = null;
+  private getCachedModes(): Mode[] {
+    if (!this.cachedModes) this.cachedModes = this.getModes();
+    return this.cachedModes;
+  }
+
+  /**
+   * True when the runtime has 1+ registered modes. Gates conditional
+   * registration of `/mode`, `enter_mode`, `exit_mode`, and the
+   * "current mode" prompt indicator.
+   *
+   * Even a single registered mode yields two effective states — "in
+   * the mode" vs "out of the mode (null)" — so the toggle is
+   * meaningful. 0 modes keeps the feature fully dormant; an agent
+   * without any modes is indistinguishable from a pre-feature agent.
+   */
+  private get modesActive(): boolean {
+    return this.getCachedModes().length >= 1;
+  }
+
+  /**
+   * Look up the session's currently active mode (if any) for transport
+   * payloads. Reads the cached `activeModeId` from session metadata —
+   * does NOT walk the entry log — and resolves it against
+   * `getCachedModes()`. Returns `undefined` when no mode is active or
+   * the cached id references an unknown mode.
+   */
+  protected assembleActiveModeForSync(sessionId: string): { id: string; name: string } | undefined {
+    const activeModeId = this.sessionStore.readActiveModeId(sessionId);
+    if (!activeModeId) return undefined;
+    const mode = this.getCachedModes().find((m) => m.id === activeModeId);
+    if (!mode) return undefined;
+    return { id: mode.id, name: mode.name };
+  }
+
+  /**
+   * Append a `mode_change` enter entry for the given session and
+   * broadcast a `mode_event`. The session metadata cache is updated
+   * atomically inside `sessionStore.appendEntry` per design D12.
+   *
+   * @throws when the mode id is unknown — callers (slash command,
+   *         agent tool) are expected to validate up front and surface
+   *         a user-visible error.
+   */
+  enterModeOnSession(sessionId: string, modeId: string): Mode {
+    const mode = this.getCachedModes().find((m) => m.id === modeId);
+    if (!mode) {
+      throw new Error(`Unknown mode: ${modeId}`);
+    }
+    this.sessionStore.appendEntry(sessionId, {
+      type: "mode_change",
+      data: { enter: mode.id },
+    });
+    this.broadcastToSession(sessionId, {
+      type: "mode_event",
+      sessionId,
+      event: { kind: "entered", modeId: mode.id, modeName: mode.name },
+    });
+    return mode;
+  }
+
+  /**
+   * Append a `mode_change` exit entry for the given session and
+   * broadcast a `mode_event`. No-op (and returns null) when no mode
+   * is active. Otherwise returns the mode that was exited.
+   */
+  exitModeOnSession(sessionId: string): Mode | null {
+    const activeModeId = this.sessionStore.readActiveModeId(sessionId);
+    if (!activeModeId) return null;
+    const mode = this.getCachedModes().find((m) => m.id === activeModeId);
+    this.sessionStore.appendEntry(sessionId, {
+      type: "mode_change",
+      data: { exit: activeModeId },
+    });
+    if (mode) {
+      this.broadcastToSession(sessionId, {
+        type: "mode_event",
+        sessionId,
+        event: { kind: "exited", modeId: mode.id, modeName: mode.name },
+      });
+    }
+    return mode ?? null;
+  }
+
+  /**
+   * Read the session's active {@link Mode} from metadata, resolved
+   * against the cached mode list. Returns `null` when no mode is
+   * active or the cached id is unknown.
+   */
+  readActiveModeForSession(sessionId: string): Mode | null {
+    const activeModeId = this.sessionStore.readActiveModeId(sessionId);
+    if (!activeModeId) return null;
+    return this.getCachedModes().find((m) => m.id === activeModeId) ?? null;
   }
 
   /**
@@ -1035,6 +1135,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           : null,
         cursor: lastSeq,
         hasMore,
+        activeMode: this.assembleActiveModeForSync(sessionId),
       });
     }
 
@@ -1115,6 +1216,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           streamMessage: null,
           cursor: lastSeq,
           hasMore,
+          activeMode: this.assembleActiveModeForSync(sessionId),
         });
         // Re-send global capability state that session_sync clears on the client.
         this.sendCommandList(connection, sessionId);
@@ -1205,6 +1307,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
               : null,
             cursor: lastSeq,
             hasMore,
+            activeMode: this.assembleActiveModeForSync(msg.sessionId),
           });
           // Re-send global capability state that session_sync clears on the client.
           this.sendCommandList(connection, msg.sessionId);
@@ -1229,6 +1332,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           session,
           messages: [],
           streamMessage: null,
+          activeMode: this.assembleActiveModeForSync(session.id),
         });
         // Re-send global capability state that session_sync clears on the client.
         this.sendCommandList(connection, session.id);
@@ -1273,6 +1377,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
                 streamMessage: null,
                 cursor: delLastSeq,
                 hasMore: delHasMore,
+                activeMode: this.assembleActiveModeForSync(target.id),
               });
               // Re-send global capability state that session_sync clears on the client.
               this.sendCommandList(conn, target.id);
@@ -1316,6 +1421,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
             : null,
           cursor: pageLastSeq,
           hasMore: pageHasMore,
+          activeMode: this.assembleActiveModeForSync(msg.sessionId),
         });
         break;
       }
@@ -1331,7 +1437,11 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       }
 
       case "request_system_prompt": {
-        const sections = this.getSystemPromptSections();
+        const inspectModeId = this.sessionStore.readActiveModeId(msg.sessionId);
+        const inspectMode = inspectModeId
+          ? (this.getCachedModes().find((m) => m.id === inspectModeId) ?? null)
+          : null;
+        const sections = this.getSystemPromptSections(inspectMode);
         const raw = toPromptString(sections);
         connection.send({ type: "system_prompt", sections, raw } as ServerMessage);
         break;
@@ -1354,8 +1464,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * Delegates to {@link assembleAllSections} with a fresh inspection context
    * so that the inspection panel always matches what inference would see
    * (modulo session-state-dependent capability state).
+   *
+   * Accepts an optional `modeOverride` so callers (e.g. `?mode=plan` on
+   * the inspection endpoint) can preview the prompt under a mode
+   * without an active session. Null / undefined override means "no
+   * mode active" and matches the default inspection rendering.
    */
-  private getSystemPromptSections(): PromptSection[] {
+  private getSystemPromptSections(modeOverride?: Mode | null): PromptSection[] {
     const context = this.createInspectionContext();
     const capabilities = this.getCachedCapabilities();
     const resolved = resolveCapabilities(
@@ -1365,7 +1480,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       undefined,
       this.agentConfigSnapshot,
     );
-    return this.assembleAllSections(context, capabilities, resolved);
+    return this.assembleAllSections(context, capabilities, resolved, modeOverride ?? null);
   }
 
   /**
@@ -1406,7 +1521,19 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       createConfigSchema(configContext),
     ];
     const a2aClientTools = this.createA2AClientTools(context.sessionId);
-    return [...baseTools, ...configTools, ...a2aClientTools, ...resolved.tools];
+    // biome-ignore lint/suspicious/noExplicitAny: mode-tool AgentTool generic variance
+    const modeTools: any[] = [];
+    if (this.modesActive) {
+      const deps = {
+        getModes: () => this.getCachedModes(),
+        enterMode: (sid: string, id: string) => this.enterModeOnSession(sid, id),
+        exitMode: (sid: string) => this.exitModeOnSession(sid),
+        readActiveMode: (sid: string) => this.readActiveModeForSession(sid),
+        getSessionId: () => context.sessionId,
+      };
+      modeTools.push(createEnterModeTool(deps), createExitModeTool(deps));
+    }
+    return [...baseTools, ...configTools, ...a2aClientTools, ...modeTools, ...resolved.tools];
   }
 
   /**
@@ -1448,16 +1575,60 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * Section order: base (identity/safety/runtime/additional/custom) →
    * tool sections → capability sections. This ordering matches the on-wire
    * system prompt the LLM actually receives.
+   *
+   * The `activeMode` parameter is **explicit** (never looked up internally
+   * from sessionId) so the inspection path can preview any mode without a
+   * live session and remain byte-identical to the inference path. Null
+   * means "no mode active".
    */
   private assembleAllSections(
     context: AgentContext,
     capabilities: Capability[],
     resolved: ResolvedCapabilities,
+    activeMode: Mode | null,
   ): PromptSection[] {
     const baseSections = this.resolveBaseSections(context);
     const allTools = this.collectAllTools(context, capabilities, resolved);
-    const toolSections = buildToolPromptSections(allTools);
-    return [...baseSections, ...toolSections, ...resolved.promptSections];
+    const applied = applyMode(resolved, capabilities, allTools, activeMode, context);
+    const toolSections = buildToolPromptSections(applied.tools);
+
+    const filteredBase =
+      activeMode && applied.systemPromptOverride
+        ? [
+            {
+              name: "System Prompt (mode override)",
+              key: `mode-override-${activeMode.id}`,
+              content: applied.systemPromptOverride(toPromptString(baseSections)),
+              lines: 0,
+              tokens: 0,
+              source: { type: "custom" as const },
+              included: true,
+            },
+          ]
+        : baseSections;
+    // Recompute line/token counts for the override wrapper only.
+    if (activeMode && applied.systemPromptOverride) {
+      const out = filteredBase[0];
+      out.lines = out.content.split("\n").length;
+      out.tokens = estimateTextTokens(out.content);
+    }
+
+    const appendSection: PromptSection[] =
+      applied.promptAppend && applied.promptAppend.length > 0
+        ? [
+            {
+              name: `Mode: ${activeMode?.name ?? ""}`,
+              key: `mode-append-${activeMode?.id ?? "unknown"}`,
+              content: applied.promptAppend,
+              lines: applied.promptAppend.split("\n").length,
+              tokens: estimateTextTokens(applied.promptAppend),
+              source: { type: "custom" },
+              included: true,
+            },
+          ]
+        : [];
+
+    return [...filteredBase, ...toolSections, ...applied.promptSections, ...appendSection];
   }
 
   /** Create a minimal AgentContext for prompt inspection (no active session). */
@@ -1483,7 +1654,38 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   private async handleCapabilityAction(msg: CapabilityActionMessage): Promise<void> {
     const { capabilityId, action, data, sessionId } = msg;
 
-    const resolved = this.resolvedCapabilitiesCache;
+    // Prefer the live cache (populated during inference). When idle — e.g.
+    // the UI fires an action before the first prompt — resolve on the fly
+    // so UI-only capabilities (r2-storage file browser, telegram
+    // add-account, …) don't require an inference turn to function.
+    let resolved = this.resolvedCapabilitiesCache;
+    if (!resolved?.onActionHandlers.has(capabilityId)) {
+      const capabilities = this.getCachedCapabilities();
+      if (capabilities.some((c) => c.id === capabilityId && c.onAction)) {
+        const context: AgentContext = {
+          agentId: this.runtimeContext.agentId,
+          publicUrl: this.publicUrl,
+          sessionId,
+          stepNumber: 0,
+          emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+          broadcast: this.createSessionBroadcast(sessionId),
+          broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+          requestFromClient: () => Promise.reject(new Error("Not available")),
+          storage: createNoopStorage(),
+          broadcastState: () => {},
+          schedules: this.buildScheduleManager(),
+          rateLimit: this.rateLimiter,
+        };
+        resolved = resolveCapabilities(
+          capabilities,
+          context,
+          (capId) => createCapabilityStorage(this.kvStore, capId),
+          (capId) => this.createCapabilityBroadcastState(capId, sessionId),
+          this.agentConfigSnapshot,
+        );
+      }
+    }
+
     if (resolved?.onActionHandlers.has(capabilityId)) {
       const handler = resolved.onActionHandlers.get(capabilityId)!;
       const hookCtx: CapabilityHookContext = {
@@ -1492,6 +1694,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         sessionId,
         sessionStore: this.sessionStore,
         storage: createNoopStorage(),
+        broadcastState: this.createCapabilityBroadcastState(capabilityId, sessionId),
         capabilityIds: this.getCachedCapabilities().map((c) => c.id),
       };
       await handler(action, data, hookCtx);
@@ -1676,6 +1879,18 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       execute: () => ({ text: "Cleared" }),
     });
 
+    if (this.modesActive) {
+      commandMap.set(
+        "mode",
+        createModeCommand({
+          getModes: () => this.getCachedModes(),
+          enterMode: (sid, id) => this.enterModeOnSession(sid, id),
+          exitMode: (sid) => this.exitModeOnSession(sid),
+          readActiveMode: (sid) => this.readActiveModeForSession(sid),
+        }),
+      );
+    }
+
     for (const cmd of baseCommands) {
       commandMap.set(cmd.name, cmd);
     }
@@ -1700,6 +1915,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       session: newSession,
       messages: [],
       streamMessage: null,
+      activeMode: this.assembleActiveModeForSync(newSession.id),
     });
     // Re-send global capability state that session_sync clears on the client.
     this.sendCommandList(connection, newSession.id);
@@ -1742,6 +1958,19 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         } catch {
           parsedArgs = rawArgs;
         }
+      }
+      // Always pass the raw argument string through on an
+      // out-of-band `_raw` key so simple commands that want the
+      // unparsed tail (e.g. `/mode plan`) can read it without
+      // declaring a TypeBox schema. The `_raw` sentinel is ignored
+      // by commands that declare parameters and validate via
+      // TypeBox.
+      if (parsedArgs === undefined || parsedArgs === null) {
+        // biome-ignore lint/style/useNamingConvention: _raw is an out-of-band protocol key for commands that don't declare TypeBox parameters
+        parsedArgs = { _raw: rawArgs ?? "" };
+      } else if (typeof parsedArgs === "object") {
+        // biome-ignore lint/style/useNamingConvention: _raw is an out-of-band protocol key for commands that don't declare TypeBox parameters
+        (parsedArgs as Record<string, unknown>)._raw = rawArgs ?? "";
       }
 
       const context: CommandContext = {
@@ -1817,13 +2046,27 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       await this.syncCapabilitySchedules(resolved.schedules);
     }
 
+    // Resolve the active mode via the O(1) metadata cache — we MUST NOT
+    // walk the session entry log on the inference hot path. The walk
+    // form exists only for branch init and consistency repair (see
+    // `resolveActiveMode` in modes/).
+    const activeModeId = this.sessionStore.readActiveModeId(sessionId);
+    const activeMode = activeModeId
+      ? (this.getCachedModes().find((m) => m.id === activeModeId) ?? null)
+      : null;
+
     // Build the full section list (base + tools + capabilities) and the
     // exact tool list via the shared helpers so inspection can reproduce it
     // byte-for-byte. Then apply defaultToolTimeout wrapping to the tools
-    // that actually execute.
-    const allSections = this.assembleAllSections(context, capabilities, resolved);
+    // that actually execute. `assembleAllSections` internally delegates
+    // mode filtering through `applyMode` — we recompute the filtered
+    // tool list here (not via a second applyMode call) so that inference
+    // and inspection both derive from the single collectAllTools path.
+    const allSections = this.assembleAllSections(context, capabilities, resolved, activeMode);
     const systemPrompt = toPromptString(allSections);
-    let allTools = this.collectAllTools(context, capabilities, resolved);
+    const rawTools = this.collectAllTools(context, capabilities, resolved);
+    const appliedForTools = applyMode(resolved, capabilities, rawTools, activeMode, context);
+    let allTools = appliedForTools.tools;
     if (config.defaultToolTimeout) {
       allTools = applyDefaultTimeout(allTools, config.defaultToolTimeout);
     }

@@ -124,25 +124,18 @@ describe("TavilyService.search", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(
-      async () =>
-        new Response(`{"error":"bad key ${TAVILY_SECRET}"}`, { status: 401 }),
+      async () => new Response(`{"error":"bad key ${TAVILY_SECRET}"}`, { status: 401 }),
     );
 
-    await expect(svc.search("tok", { query: "q" })).rejects.toThrow(
-      /^ERR_UPSTREAM_AUTH$/,
-    );
+    await expect(svc.search("tok", { query: "q" })).rejects.toThrow(/^ERR_UPSTREAM_AUTH$/);
   });
 
   it("sanitizes 429 to ERR_UPSTREAM_RATE", async () => {
     const env = buildEnv();
     const svc = makeService(env);
-    mockFetch.mockImplementation(
-      async () => new Response("rate", { status: 429 }),
-    );
+    mockFetch.mockImplementation(async () => new Response("rate", { status: 429 }));
 
-    await expect(svc.search("tok", { query: "q" })).rejects.toThrow(
-      "ERR_UPSTREAM_RATE",
-    );
+    await expect(svc.search("tok", { query: "q" })).rejects.toThrow("ERR_UPSTREAM_RATE");
   });
 
   it("sanitizes generic network errors to ERR_UPSTREAM_OTHER with no secret leakage", async () => {
@@ -165,9 +158,9 @@ describe("TavilyService.search", () => {
   it("rejects calls whose schemaHash does not match the service's own hash", async () => {
     const env = buildEnv();
     const svc = makeService(env);
-    await expect(
-      svc.search("tok", { query: "q" }, "mismatched-hash"),
-    ).rejects.toThrow("ERR_SCHEMA_VERSION");
+    await expect(svc.search("tok", { query: "q" }, "mismatched-hash")).rejects.toThrow(
+      "ERR_SCHEMA_VERSION",
+    );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -175,9 +168,7 @@ describe("TavilyService.search", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-    await expect(
-      svc.search("tok", { query: "q" }, SCHEMA_CONTENT_HASH),
-    ).resolves.toBeDefined();
+    await expect(svc.search("tok", { query: "q" }, SCHEMA_CONTENT_HASH)).resolves.toBeDefined();
   });
 });
 
@@ -202,9 +193,7 @@ describe("TavilyService.extract", () => {
   it("emits a cost event on success", async () => {
     const env = buildEnv();
     const svc = makeService(env);
-    mockFetch.mockImplementation(async () =>
-      jsonResponse({ results: [{ raw_content: "x" }] }),
-    );
+    mockFetch.mockImplementation(async () => jsonResponse({ results: [{ raw_content: "x" }] }));
 
     await svc.extract("tok", { url: "https://a" });
     expect(env._emitCostMock).toHaveBeenCalledOnce();
@@ -225,19 +214,15 @@ describe("TavilyService.extract", () => {
   it("sanitizes 401 upstream errors", async () => {
     const env = buildEnv();
     const svc = makeService(env);
-    mockFetch.mockImplementation(
-      async () => new Response("nope", { status: 403 }),
-    );
-    await expect(svc.extract("tok", { url: "https://a" })).rejects.toThrow(
-      "ERR_UPSTREAM_AUTH",
-    );
+    mockFetch.mockImplementation(async () => new Response("nope", { status: 403 }));
+    await expect(svc.extract("tok", { url: "https://a" })).rejects.toThrow("ERR_UPSTREAM_AUTH");
   });
 
   it("rejects schema drift", async () => {
     const env = buildEnv();
     const svc = makeService(env);
-    await expect(
-      svc.extract("tok", { url: "https://a" }, "bad-hash"),
-    ).rejects.toThrow("ERR_SCHEMA_VERSION");
+    await expect(svc.extract("tok", { url: "https://a" }, "bad-hash")).rejects.toThrow(
+      "ERR_SCHEMA_VERSION",
+    );
   });
 });

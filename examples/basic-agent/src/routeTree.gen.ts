@@ -15,12 +15,14 @@ import { Route as AgentIdIndexRouteImport } from './routes/$agentId/index'
 import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as AgentIdSkillsRouteImport } from './routes/$agentId/skills'
 import { Route as AgentIdSchedulesRouteImport } from './routes/$agentId/schedules'
+import { Route as AgentIdFilesRouteImport } from './routes/$agentId/files'
 import { Route as AgentIdChatRouteImport } from './routes/$agentId/chat'
 import { Route as AgentIdChannelsRouteImport } from './routes/$agentId/channels'
 import { Route as AgentIdAppsRouteImport } from './routes/$agentId/apps'
 import { Route as AgentIdSessionIdRouteImport } from './routes/$agentId/$sessionId'
 import { Route as AgentIdSessionIdSkillsRouteImport } from './routes/$agentId/$sessionId/skills'
 import { Route as AgentIdSessionIdSchedulesRouteImport } from './routes/$agentId/$sessionId/schedules'
+import { Route as AgentIdSessionIdFilesRouteImport } from './routes/$agentId/$sessionId/files'
 import { Route as AgentIdSessionIdChatRouteImport } from './routes/$agentId/$sessionId/chat'
 import { Route as AgentIdSessionIdChannelsRouteImport } from './routes/$agentId/$sessionId/channels'
 import { Route as AgentIdSessionIdAppsRouteImport } from './routes/$agentId/$sessionId/apps'
@@ -60,6 +62,11 @@ const AgentIdSchedulesRoute = AgentIdSchedulesRouteImport.update({
   path: '/schedules',
   getParentRoute: () => AgentIdRoute,
 } as any)
+const AgentIdFilesRoute = AgentIdFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AgentIdRoute,
+} as any)
 const AgentIdChatRoute = AgentIdChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -91,6 +98,11 @@ const AgentIdSessionIdSchedulesRoute =
     path: '/schedules',
     getParentRoute: () => AgentIdSessionIdRoute,
   } as any)
+const AgentIdSessionIdFilesRoute = AgentIdSessionIdFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AgentIdSessionIdRoute,
+} as any)
 const AgentIdSessionIdChatRoute = AgentIdSessionIdChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -142,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
+  '/$agentId/files': typeof AgentIdFilesRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
@@ -149,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
   '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/files': typeof AgentIdSessionIdFilesRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
@@ -163,6 +177,7 @@ export interface FileRoutesByTo {
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
+  '/$agentId/files': typeof AgentIdFilesRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
@@ -170,6 +185,7 @@ export interface FileRoutesByTo {
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
   '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/files': typeof AgentIdSessionIdFilesRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
@@ -186,6 +202,7 @@ export interface FileRoutesById {
   '/$agentId/apps': typeof AgentIdAppsRoute
   '/$agentId/channels': typeof AgentIdChannelsRoute
   '/$agentId/chat': typeof AgentIdChatRoute
+  '/$agentId/files': typeof AgentIdFilesRoute
   '/$agentId/schedules': typeof AgentIdSchedulesRoute
   '/$agentId/skills': typeof AgentIdSkillsRoute
   '/api/agents': typeof ApiAgentsRoute
@@ -193,6 +210,7 @@ export interface FileRoutesById {
   '/$agentId/$sessionId/apps': typeof AgentIdSessionIdAppsRoute
   '/$agentId/$sessionId/channels': typeof AgentIdSessionIdChannelsRoute
   '/$agentId/$sessionId/chat': typeof AgentIdSessionIdChatRoute
+  '/$agentId/$sessionId/files': typeof AgentIdSessionIdFilesRoute
   '/$agentId/$sessionId/schedules': typeof AgentIdSessionIdSchedulesRoute
   '/$agentId/$sessionId/skills': typeof AgentIdSessionIdSkillsRoute
   '/api/agent/$agentId/$': typeof ApiAgentAgentIdSplatRoute
@@ -210,6 +228,7 @@ export interface FileRouteTypes {
     | '/$agentId/apps'
     | '/$agentId/channels'
     | '/$agentId/chat'
+    | '/$agentId/files'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
@@ -217,6 +236,7 @@ export interface FileRouteTypes {
     | '/$agentId/$sessionId/apps'
     | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/files'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
@@ -231,6 +251,7 @@ export interface FileRouteTypes {
     | '/$agentId/apps'
     | '/$agentId/channels'
     | '/$agentId/chat'
+    | '/$agentId/files'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
@@ -238,6 +259,7 @@ export interface FileRouteTypes {
     | '/$agentId/$sessionId/apps'
     | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/files'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
@@ -253,6 +275,7 @@ export interface FileRouteTypes {
     | '/$agentId/apps'
     | '/$agentId/channels'
     | '/$agentId/chat'
+    | '/$agentId/files'
     | '/$agentId/schedules'
     | '/$agentId/skills'
     | '/api/agents'
@@ -260,6 +283,7 @@ export interface FileRouteTypes {
     | '/$agentId/$sessionId/apps'
     | '/$agentId/$sessionId/channels'
     | '/$agentId/$sessionId/chat'
+    | '/$agentId/$sessionId/files'
     | '/$agentId/$sessionId/schedules'
     | '/$agentId/$sessionId/skills'
     | '/api/agent/$agentId/$'
@@ -324,6 +348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentIdSchedulesRouteImport
       parentRoute: typeof AgentIdRoute
     }
+    '/$agentId/files': {
+      id: '/$agentId/files'
+      path: '/files'
+      fullPath: '/$agentId/files'
+      preLoaderRoute: typeof AgentIdFilesRouteImport
+      parentRoute: typeof AgentIdRoute
+    }
     '/$agentId/chat': {
       id: '/$agentId/chat'
       path: '/chat'
@@ -364,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/schedules'
       fullPath: '/$agentId/$sessionId/schedules'
       preLoaderRoute: typeof AgentIdSessionIdSchedulesRouteImport
+      parentRoute: typeof AgentIdSessionIdRoute
+    }
+    '/$agentId/$sessionId/files': {
+      id: '/$agentId/$sessionId/files'
+      path: '/files'
+      fullPath: '/$agentId/$sessionId/files'
+      preLoaderRoute: typeof AgentIdSessionIdFilesRouteImport
       parentRoute: typeof AgentIdSessionIdRoute
     }
     '/$agentId/$sessionId/chat': {
@@ -429,6 +467,7 @@ interface AgentIdSessionIdRouteChildren {
   AgentIdSessionIdAppsRoute: typeof AgentIdSessionIdAppsRoute
   AgentIdSessionIdChannelsRoute: typeof AgentIdSessionIdChannelsRoute
   AgentIdSessionIdChatRoute: typeof AgentIdSessionIdChatRoute
+  AgentIdSessionIdFilesRoute: typeof AgentIdSessionIdFilesRoute
   AgentIdSessionIdSchedulesRoute: typeof AgentIdSessionIdSchedulesRoute
   AgentIdSessionIdSkillsRoute: typeof AgentIdSessionIdSkillsRoute
 }
@@ -437,6 +476,7 @@ const AgentIdSessionIdRouteChildren: AgentIdSessionIdRouteChildren = {
   AgentIdSessionIdAppsRoute: AgentIdSessionIdAppsRoute,
   AgentIdSessionIdChannelsRoute: AgentIdSessionIdChannelsRoute,
   AgentIdSessionIdChatRoute: AgentIdSessionIdChatRoute,
+  AgentIdSessionIdFilesRoute: AgentIdSessionIdFilesRoute,
   AgentIdSessionIdSchedulesRoute: AgentIdSessionIdSchedulesRoute,
   AgentIdSessionIdSkillsRoute: AgentIdSessionIdSkillsRoute,
 }
@@ -449,6 +489,7 @@ interface AgentIdRouteChildren {
   AgentIdAppsRoute: typeof AgentIdAppsRoute
   AgentIdChannelsRoute: typeof AgentIdChannelsRoute
   AgentIdChatRoute: typeof AgentIdChatRoute
+  AgentIdFilesRoute: typeof AgentIdFilesRoute
   AgentIdSchedulesRoute: typeof AgentIdSchedulesRoute
   AgentIdSkillsRoute: typeof AgentIdSkillsRoute
   AgentIdIndexRoute: typeof AgentIdIndexRoute
@@ -459,6 +500,7 @@ const AgentIdRouteChildren: AgentIdRouteChildren = {
   AgentIdAppsRoute: AgentIdAppsRoute,
   AgentIdChannelsRoute: AgentIdChannelsRoute,
   AgentIdChatRoute: AgentIdChatRoute,
+  AgentIdFilesRoute: AgentIdFilesRoute,
   AgentIdSchedulesRoute: AgentIdSchedulesRoute,
   AgentIdSkillsRoute: AgentIdSkillsRoute,
   AgentIdIndexRoute: AgentIdIndexRoute,

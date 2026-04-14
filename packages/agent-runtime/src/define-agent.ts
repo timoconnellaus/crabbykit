@@ -7,11 +7,11 @@ import type {
   AgentContext,
   ErrorInfo,
   Logger,
-  SubagentProfile,
 } from "./agent-runtime.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
+import type { Mode } from "./modes/define-mode.js";
 import {
   buildDefaultSystemPromptSections,
   estimateTextTokens,
@@ -128,8 +128,9 @@ export interface AgentDefinitionHooks {
  * - `prompt: string` overrides the system prompt verbatim; capability sections
  *   are NOT appended. `prompt: PromptOptions` customizes the default sections;
  *   capability sections still append.
- * - `capabilities`, `subagentProfiles`, `a2a`, `hooks`, and `fetch` all receive
- *   the same {@link AgentSetup} reference so they can close over env bindings.
+ * - `capabilities`, `modes`, `subagentModes`, `a2a`, `hooks`, and `fetch` all
+ *   receive the same {@link AgentSetup} reference so they can close over env
+ *   bindings.
  * - There is no `name`/`description`/`configNamespaces`/`agentOptions` slot
  *   here — use {@link PromptOptions.agentName}/`agentDescription` for naming
  *   and fall back to `extends AgentDO` for the more advanced escape hatches.
@@ -182,8 +183,22 @@ export interface AgentDefinition<TEnv = Record<string, unknown>> {
   /** Capabilities — function receiving the agent setup context. */
   capabilities?: (setup: AgentSetup<TEnv>) => Capability[];
 
-  /** Subagent profiles — function receiving the agent setup context. */
-  subagentProfiles?: (setup: AgentSetup<TEnv>) => SubagentProfile[];
+  /**
+   * Session-level modes. When the returned array has one or more
+   * modes, the runtime conditionally registers `/mode`, `enter_mode`,
+   * and `exit_mode` — even a single registered mode yields two
+   * effective states (in the mode vs out, `null`) so the toggle is
+   * meaningful. Zero modes keeps the feature dormant.
+   */
+  modes?: (setup: AgentSetup<TEnv>) => Mode[];
+
+  /**
+   * Subagent spawn modes. Each mode describes a named scoped view used
+   * by `call_subagent` / `start_subagent` when constructing a child.
+   * Shares the same {@link Mode} type as the main-session `modes` slot;
+   * a mode can appear in both.
+   */
+  subagentModes?: (setup: AgentSetup<TEnv>) => Mode[];
 
   /** Slash commands — function receiving the per-session {@link CommandContext}. */
   commands?: (context: CommandContext) => Command[];
@@ -634,8 +649,12 @@ export function defineAgent<TEnv = Record<string, unknown>>(
       return this._setup.configSchema;
     }
 
-    getSubagentProfiles(): SubagentProfile[] {
-      return definition.subagentProfiles ? definition.subagentProfiles(this._setup) : [];
+    getModes(): Mode[] {
+      return definition.modes ? definition.modes(this._setup) : [];
+    }
+
+    getSubagentModes(): Mode[] {
+      return definition.subagentModes ? definition.subagentModes(this._setup) : [];
     }
 
     getCommands(context: CommandContext): Command[] {

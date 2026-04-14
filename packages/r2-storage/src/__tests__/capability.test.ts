@@ -53,8 +53,13 @@ describe("r2Storage", () => {
     expect(names).toContain("file_find");
   });
 
-  it("has no lifecycle hooks", () => {
+  it("exposes an afterToolExecution hook for UI file_changed broadcasts", () => {
     const cap = r2Storage({ storage: mockStorage() });
-    expect(cap.hooks).toBeUndefined();
+    expect(cap.hooks?.afterToolExecution).toBeInstanceOf(Function);
+  });
+
+  it("exposes an onAction handler for the UI bridge", () => {
+    const cap = r2Storage({ storage: mockStorage() });
+    expect(cap.onAction).toBeInstanceOf(Function);
   });
 });

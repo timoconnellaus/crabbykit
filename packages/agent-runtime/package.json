@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client/index.ts",
+    "./modes": "./src/modes/index.ts",
     "./test-utils": "./src/test-utils.ts"
   },
   "dependencies": {

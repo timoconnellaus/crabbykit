@@ -4,6 +4,7 @@ import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
 import type { AgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineAgent, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
+import { defineMode } from "@claw-for-cloudflare/agent-runtime/modes";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
 import { appRegistry } from "@claw-for-cloudflare/app-registry";
@@ -314,7 +315,53 @@ export const BasicAgent = defineAgent<Env>({
     ];
   },
 
-  subagentProfiles: () => [explorer({ model: "google/gemini-2.5-flash" })],
+  subagentModes: () => [explorer({ model: "google/gemini-2.5-flash" })],
+
+  // A single registered mode gives us two effective states — "in plan
+  // mode" and "out of plan mode (null)" — so the /mode toggle is
+  // meaningful with just one entry.
+  modes: () => [
+    defineMode({
+      id: "plan",
+      name: "Planning",
+      description:
+        "Read-only exploration mode. Investigate the task and produce a plan before executing changes.",
+      // Allow-list: only read/query/delegate tools. Everything not
+      // listed here (writes, exec, container/preview, browser
+      // interaction, bundle authoring, agent mutation, config mutation,
+      // …) is filtered out.
+      tools: {
+        allow: [
+          // Web search & fetch
+          "web_search",
+          "web_fetch",
+          // Read-only file operations
+          "file_read",
+          "file_list",
+          "file_tree",
+          "file_find",
+          // Semantic memory
+          "memory_search",
+          "memory_get",
+          // Agent management — list + delegate (call/start), no create/delete/attach
+          "agent_list",
+          "call_agent",
+          "start_task",
+          "check_task",
+          // Mode transition
+          "exit_mode",
+        ],
+      },
+      promptAppend: `# Planning mode
+
+You are operating in planning mode. Your goal is to investigate and produce a concrete plan, not to execute changes. Rules:
+
+- Your tool surface is restricted to read-only tools (web search, file read/list/find, memory search, agent delegation, task tracking).
+- Gather context via web_search, file_read, and memory_search. Delegate investigation to subagents via call_agent / start_task when useful.
+- Produce a concrete plan: files to touch, changes to make, risks, verification steps.
+- When the plan is ready, stop and present it. Wait for the user to confirm before leaving planning mode via \`/mode\` or \`exit_mode\`.`,
+    }),
+  ],
 
   a2a: ({ env }) => ({
     getAgentStub: (id: string) => {

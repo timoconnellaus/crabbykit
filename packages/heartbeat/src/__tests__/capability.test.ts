@@ -189,7 +189,9 @@ describe("heartbeat capability", () => {
 
     it("falls back to deprecated options when no mapping provided", () => {
       const cap = heartbeat({ every: "45m", retention: 4 });
-      const schedule = cap.schedules!({ rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext)[0] as PromptScheduleConfig;
+      const schedule = cap.schedules!({
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext)[0] as PromptScheduleConfig;
       expect(schedule.cron).toBe("45m");
       expect(schedule.retention).toBe(4);
     });

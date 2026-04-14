@@ -259,6 +259,40 @@ A minimal standalone demo exists at `examples/bundle-agent-phase2/` with an InMe
 
 **Self-editing is safe by default:** `bundle_deploy` targets the invoking agent's own bundle pointer. The static brain (defined at compile time via `defineAgent` fields) is always the fallback — disabling the bundle reverts to it.
 
+### Modes are the scoping mechanism
+
+A `Mode` is a named filter over the agent's tool surface and prompt that can be activated for a single session (or used to spawn a subagent). Modes are the SDK's answer to "tool overload" — agents with 30+ tools across many capabilities suffer real selection-accuracy degradation, and modes let consumers expose a small, focused subset (planning, research, vibe-dev, …) without rewriting the agent.
+
+**Where it lives.** All mode primitives live at the subpath `@claw-for-cloudflare/agent-runtime/modes`. Import surface:
+
+```ts
+import {
+  defineMode,
+  planMode,
+  filterToolsAndSections, // low-level pure filter (used by packages/subagent)
+  applyMode,              // high-level wrapper (used by ensureAgent)
+  resolveActiveMode,      // walk-form helper (branch init / consistency repair)
+  type Mode,
+  type AppliedMode,
+} from "@claw-for-cloudflare/agent-runtime/modes";
+```
+
+Nothing mode-related is exported from the main `@claw-for-cloudflare/agent-runtime` barrel — agents that don't use modes never import the file.
+
+**Two slots on `defineAgent`.** `modes: () => Mode[]` registers session-level modes (for `/mode <id>` and `enter_mode` / `exit_mode`). `subagentModes: () => Mode[]` registers modes used to spawn subagents via `call_subagent` / `start_subagent`. The same `Mode` constant may appear in both slots. The slot is named `subagentModes` (not the shorter `subagents`) so `getSubagentModes()` can't be confused with "return the subagent instances themselves." Both slots default to `[]`.
+
+**Conditional registration is gated on `>= 1` modes.** With 0 modes, `/mode`, `enter_mode`, `exit_mode`, and the "current mode" prompt indicator are NOT registered — an agent without modes is byte-identical to a pre-feature agent. With 1+ modes the machinery turns on: even a single registered mode yields two effective states ("in the mode" vs "out of the mode, null") so the toggle is meaningful. (The original spec gated at `>= 2`; we relaxed it after building the example and realizing the "enter vs exit" toggle is the point.)
+
+**`defineMode()` rejects conflicting allow + deny.** A `Mode.tools` or `Mode.capabilities` filter may set `allow` OR `deny`, never both. Setting both throws at factory time — there is no resolution rule to remember.
+
+**Mode-change events are first-class.** Mode transitions are recorded as `mode_change` session entries with payload `{ enter: id }` or `{ exit: id }` (the exit variant carries the mode id being exited, never a boolean sentinel — so post-hoc reconstruction of mode history is local). The session metadata row caches `activeModeId` so `ensureAgent` resolves the active mode in O(1) without walking the entry log; the walk-form `resolveActiveMode` exists only for branch initialization and consistency repair. Transitions broadcast a `mode_event` server message and are surfaced on the client via `useActiveMode()` (a decomposed selector hook on the connection provider's reducer state).
+
+**Mode filtering is tools + sections only.** Capability lifecycle hooks (`onConnect`, `afterToolExecution`, `httpHandlers`, `schedules`) keep firing regardless of the active mode — modes are a session-level concept, not a capability lifecycle concern. Excluded capability sections are not dropped; they're flipped to `included: false` with `excludedReason: "Filtered by mode: <id>"` so the rich-prompt-inspection panel can show *why* a section is missing.
+
+**Bundle dispatch path is NOT mode-aware in v1.** The bundle prompt handler short-circuits before `ensureAgent`, so `applyMode` doesn't run for bundle turns. The static brain remains the authoritative fallback. Wiring host-side mode filtering into the bundle dispatch payload is a v1.1 follow-up.
+
+**`SubagentProfile` was removed.** The subagent package now imports `Mode` (re-exported from `@claw-for-cloudflare/agent-runtime/modes`). Tool parameter `profile: string` → `mode: string`, broadcast field `profileId` → `modeId`, `PendingSubagent.profileId` → `modeId`. `packages/subagent-explorer`'s factory now returns `Mode` and uses `tools: { allow }` instead of `tools: string[]`; the factory name (`explorer`) is unchanged. No deprecation aliases — the SDK is greenfield.
+
 ### Capabilities are the extension model
 
 All agent extensions go through the `Capability` interface. Capabilities are stateless factories — they receive `AgentContext`, return tools/prompts/hooks. No side effects in `tools()` or `promptSections()`.
@@ -328,9 +362,9 @@ public override surface:
   `buildSystemPrompt(ctx)` (@deprecated string-returning form — kept for
   back-compat; the runtime wraps its output in a single "custom" section
   when the section-returning method wasn't also overridden),
-  `getPromptOptions()`, `getCapabilities()`, `getSubagentProfiles()`,
-  `getConfigNamespaces()`, `getA2AClientOptions()`, `getCommands(ctx)`,
-  `getAgentOptions()`
+  `getPromptOptions()`, `getCapabilities()`, `getModes()`,
+  `getSubagentModes()`, `getConfigNamespaces()`, `getA2AClientOptions()`,
+  `getCommands(ctx)`, `getAgentOptions()`
 - Lifecycle hooks: `validateAuth?`, `onTurnEnd?`, `onAgentEnd?`,
   `onSessionCreated?`, `onScheduleFire?`
 

@@ -1,4 +1,8 @@
-import { useAgentConnection, useChatSession } from "@claw-for-cloudflare/agent-runtime/client";
+import {
+  useActiveMode,
+  useAgentConnection,
+  useChatSession,
+} from "@claw-for-cloudflare/agent-runtime/client";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 import type { BrowserState } from "../hooks/use-browser";
 import { BrowserBadge } from "./browser-badge";
@@ -17,6 +21,7 @@ export interface StatusBarProps extends ComponentPropsWithoutRef<"div"> {
 export function StatusBar({ sandboxState, browserState, children, ...props }: StatusBarProps) {
   const { connectionStatus } = useAgentConnection();
   const { agentStatus, costs } = useChatSession();
+  const activeMode = useActiveMode();
 
   const totalCost = useMemo(() => {
     if (costs.length === 0) return null;
@@ -37,6 +42,12 @@ export function StatusBar({ sandboxState, browserState, children, ...props }: St
       {...props}
     >
       <span data-agent-ui="status-dot" title={connectionStatus} />
+
+      {activeMode && (
+        <span data-agent-ui="status-mode" data-mode-id={activeMode.id} title={activeMode.name}>
+          Mode: {activeMode.name}
+        </span>
+      )}
 
       {sandboxState && <SandboxBadge {...sandboxState} />}
 

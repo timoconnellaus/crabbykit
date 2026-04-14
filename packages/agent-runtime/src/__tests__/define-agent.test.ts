@@ -22,7 +22,8 @@ describe("defineAgent", () => {
     expect(Agent.prototype.buildSystemPrompt).toBeTypeOf("function");
     expect(Agent.prototype.getPromptOptions).toBeTypeOf("function");
     expect(Agent.prototype.getCapabilities).toBeTypeOf("function");
-    expect(Agent.prototype.getSubagentProfiles).toBeTypeOf("function");
+    expect(Agent.prototype.getSubagentModes).toBeTypeOf("function");
+    expect(Agent.prototype.getModes).toBeTypeOf("function");
     expect(Agent.prototype.getCommands).toBeTypeOf("function");
     expect(Agent.prototype.getA2AClientOptions).toBeTypeOf("function");
   });

@@ -1,34 +1,45 @@
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { ResolvedProfile, SubagentProfile } from "./types.js";
+import { filterToolsAndSections } from "@claw-for-cloudflare/agent-runtime/modes";
+import type { Mode, ResolvedSubagentSpawn } from "./types.js";
 
 /**
- * Resolve a subagent profile against parent context.
+ * Resolve a {@link Mode} into a concrete spawn configuration for a
+ * child subagent.
  *
- * - Resolves systemPrompt (string or function)
- * - Filters parent tools by allowlist (if specified)
- * - Passes through model override
+ * - Resolves `systemPromptOverride` (string, function, or undefined)
+ *   into a final system prompt string. Function form receives the
+ *   parent's system prompt as the `base` parameter and the parent's
+ *   {@link import("@claw-for-cloudflare/agent-runtime").AgentContext}
+ *   as the second parameter (per design D11 / spec). When absent,
+ *   the parent's base prompt is used unchanged.
+ * - Filters the parent's tool list via the shared
+ *   {@link filterToolsAndSections} helper — `Mode.tools.allow` /
+ *   `Mode.tools.deny` are applied. Passing an empty section list to
+ *   the helper is fine; subagents have no prompt-section plumbing.
+ * - Passes through `mode.model` as `modelId` (applied to the child
+ *   agent by the subagent host).
  */
-export function resolveProfile(
-  profile: SubagentProfile,
+export function resolveSubagentSpawn(
+  mode: Mode,
   parentSystemPrompt: string,
   // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
   parentTools: AgentTool<any>[],
-): ResolvedProfile {
-  // Resolve system prompt
-  const systemPrompt =
-    typeof profile.systemPrompt === "function"
-      ? profile.systemPrompt(parentSystemPrompt)
-      : profile.systemPrompt;
+  // biome-ignore lint/suspicious/noExplicitAny: parent AgentContext shape is intentionally untyped here — the subagent package is one level above agent-runtime and doesn't import AgentContext. systemPromptOverride functions that need it read it positionally.
+  parentContext?: any,
+): ResolvedSubagentSpawn {
+  let systemPrompt = parentSystemPrompt;
+  if (typeof mode.systemPromptOverride === "function") {
+    systemPrompt = mode.systemPromptOverride(parentSystemPrompt, parentContext);
+  } else if (typeof mode.systemPromptOverride === "string") {
+    systemPrompt = mode.systemPromptOverride;
+  }
 
-  // Filter tools by allowlist
-  const tools = profile.tools
-    ? parentTools.filter((t) => profile.tools!.includes(t.name))
-    : parentTools;
+  const { tools } = filterToolsAndSections(parentTools, [], mode);
 
   return {
-    profile,
+    mode,
     systemPrompt,
     tools,
-    modelId: profile.model,
+    modelId: mode.model,
   };
 }

@@ -7,16 +7,16 @@ import {
   createCheckSubagentTool,
   createStartSubagentTool,
 } from "./tools.js";
-import type { SubagentProfile } from "./types.js";
+import type { Mode } from "./types.js";
 
 export interface SubagentCapabilityOptions {
   /** The host that implements subagent execution. */
   host: SubagentHost;
-  /** Available subagent profiles. */
-  profiles: SubagentProfile[];
-  /** The parent agent's system prompt (for profile resolution). */
+  /** Available subagent spawn modes. */
+  modes: Mode[];
+  /** The parent agent's system prompt (for mode resolution). */
   getSystemPrompt: () => string;
-  /** The parent agent's resolved tools (for profile tool filtering). */
+  /** The parent agent's resolved tools (for mode tool filtering). */
   getParentTools: () => unknown[];
 }
 
@@ -53,7 +53,7 @@ export function subagentCapability(options: SubagentCapabilityOptions): Capabili
       _storage = context.storage;
       const deps = {
         getHost: () => options.host,
-        getProfiles: () => options.profiles,
+        getModes: () => options.modes,
         getParentSessionId: () => context.sessionId,
         getParentSystemPrompt: options.getSystemPrompt,
         // biome-ignore lint/suspicious/noExplicitAny: AgentTool generic variance
@@ -72,7 +72,7 @@ export function subagentCapability(options: SubagentCapabilityOptions): Capabili
 
     promptSections: () => [
       "You can spawn subagent child agents for specialized tasks. " +
-        `Available profiles: ${options.profiles.map((p) => `${p.id} (${p.description})`).join(", ")}. ` +
+        `Available modes: ${options.modes.map((m) => `${m.id} (${m.description})`).join(", ")}. ` +
         "Use call_subagent for quick tasks needing an immediate answer. " +
         "Use start_subagent for background work — the result arrives asynchronously.",
     ],
@@ -94,7 +94,7 @@ export function subagentCapability(options: SubagentCapabilityOptions): Capabili
             count: active.length,
             subagents: active.map((s) => ({
               subagentId: s.subagentId,
-              profileId: s.profileId,
+              modeId: s.modeId,
               prompt: s.prompt,
             })),
           });

@@ -15,7 +15,10 @@ import { createDeleteSecretTool, createListSecretsTool, createSaveSecretTool } f
 // ---------------------------------------------------------------------------
 
 function makeContext(storage?: CapabilityStorage): AgentContext {
-  return { storage: storage ?? createMockStorage(), rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext;
+  return {
+    storage: storage ?? createMockStorage(),
+    rateLimit: { consume: async () => ({ allowed: true }) },
+  } as unknown as AgentContext;
 }
 
 // ---------------------------------------------------------------------------

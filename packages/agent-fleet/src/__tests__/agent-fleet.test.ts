@@ -586,7 +586,11 @@ describe("agentFleet capability", () => {
   it("returns 5 tools", () => {
     const cap = agentFleet(makeOptions());
     const storage = createMockStorage();
-    const tools = cap.tools!({ storage, sessionId: "s1", rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+    const tools = cap.tools!({
+      storage,
+      sessionId: "s1",
+      rateLimit: { consume: async () => ({ allowed: true }) },
+    } as unknown as AgentContext);
     expect(tools).toHaveLength(5);
     const names = tools.map((t) => t.name);
     expect(names).toContain("agent_list");
@@ -606,7 +610,10 @@ describe("agentFleet capability", () => {
     it("returns 401 when auth headers are missing", async () => {
       const cap = agentFleet(makeOptions());
       const storage = createMockStorage();
-      const handlers = cap.httpHandlers!({ storage, rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+      const handlers = cap.httpHandlers!({
+        storage,
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext);
       expect(handlers).toHaveLength(1);
       const handler = handlers[0];
       expect(handler.method).toBe("POST");
@@ -626,7 +633,10 @@ describe("agentFleet capability", () => {
       const options = makeOptions({ secret: "correct-secret" });
       const cap = agentFleet(options);
       const storage = createMockStorage();
-      cap.httpHandlers!({ storage, rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+      cap.httpHandlers!({
+        storage,
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext);
 
       // Sign with wrong secret
       const token = await signToken("sender-1", "parent-1", "wrong-secret");
@@ -639,7 +649,10 @@ describe("agentFleet capability", () => {
         body: JSON.stringify({ ownerId: "owner-1", parentAgentId: "sender-1" }),
       });
 
-      const handlers = cap.httpHandlers!({ storage, rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+      const handlers = cap.httpHandlers!({
+        storage,
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext);
       const response = await handlers[0].handler(request, httpCtx);
       expect(response.status).toBe(401);
       const body = (await response.json()) as { error: string };
@@ -663,7 +676,10 @@ describe("agentFleet capability", () => {
         body: JSON.stringify({ ownerId: "owner-1", parentAgentId: "parent-1" }),
       });
 
-      const handlers = cap.httpHandlers!({ storage, rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+      const handlers = cap.httpHandlers!({
+        storage,
+        rateLimit: { consume: async () => ({ allowed: true }) },
+      } as unknown as AgentContext);
       const response = await handlers[0].handler(request, httpCtx);
       expect(response.status).toBe(200);
       const body = (await response.json()) as { ok: boolean };
@@ -743,7 +759,11 @@ describe("agentFleet capability", () => {
     // but are somehow called before tools() runs. We can verify the pattern
     // works correctly by ensuring tools() initializes storage.
     const storage = createMockStorage();
-    const tools = cap.tools!({ storage, sessionId: "s1", rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+    const tools = cap.tools!({
+      storage,
+      sessionId: "s1",
+      rateLimit: { consume: async () => ({ allowed: true }) },
+    } as unknown as AgentContext);
     expect(tools).toHaveLength(5);
   });
 });

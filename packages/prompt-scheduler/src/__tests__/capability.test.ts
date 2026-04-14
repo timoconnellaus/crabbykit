@@ -77,7 +77,9 @@ describe("promptScheduler", () => {
 
   it("returns prompt sections with scheduling instructions", () => {
     const cap = promptScheduler();
-    const sections = cap.promptSections!({ rateLimit: { consume: async () => ({ allowed: true }) } } as unknown as AgentContext);
+    const sections = cap.promptSections!({
+      rateLimit: { consume: async () => ({ allowed: true }) },
+    } as unknown as AgentContext);
 
     expect(sections).toHaveLength(1);
     expect(sections[0]).toContain("config_set");

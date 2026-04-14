@@ -47,7 +47,6 @@ export type {
   ErrorSource,
   Logger,
   ScheduleManager,
-  SubagentProfile,
 } from "./agent-runtime.js";
 // Platform-agnostic runtime
 export { AgentRuntime } from "./agent-runtime.js";
@@ -171,6 +170,8 @@ export type {
   MessageEntry,
   MessageEntryData,
   MessageMetadata,
+  ModeChangeEntry,
+  ModeChangeEntryData,
   ModelChangeEntry,
   ModelChangeEntryData,
   Session,
@@ -204,6 +205,7 @@ export type {
   CustomResponseMessage,
   ErrorMessage,
   InjectMessageMessage,
+  ModeEventMessage,
   NewSessionMessage,
   PingMessage,
   PongMessage,
