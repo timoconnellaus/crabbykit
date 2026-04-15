@@ -136,7 +136,7 @@ export class McpManager {
     }
 
     // Store the auth code for the provider to use on next connect
-    const row = this.sql.exec("SELECT * FROM mcp_servers WHERE id = ?", serverId).one();
+    const row = this.sql.exec("SELECT * FROM mcp_servers WHERE id = ?", serverId).toArray()[0];
     if (!row) throw new Error(`Server not found: ${serverId}`);
 
     // Update auth_data with the authorization code

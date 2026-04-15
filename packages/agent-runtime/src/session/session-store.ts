@@ -101,18 +101,20 @@ export class SessionStore {
    * NULL sender (WebSocket sessions) are never returned here.
    */
   findBySourceAndSender(source: string, sender: string): Session | null {
+    // `.one()` throws on zero rows (Cloudflare SqlStorage semantics), so use
+    // `.toArray()[0]` when the caller's contract is "return null if missing".
     const row = this.sql
       .exec("SELECT * FROM sessions WHERE source = ? AND sender = ?", source, sender)
-      .one();
+      .toArray()[0];
     if (!row) return null;
     return this.rowToSession(row);
   }
 
   get(sessionId: string): Session | null {
-    const row = this.sql.exec("SELECT * FROM sessions WHERE id = ?", sessionId).one();
-
+    const row = this.sql
+      .exec("SELECT * FROM sessions WHERE id = ?", sessionId)
+      .toArray()[0];
     if (!row) return null;
-
     return this.rowToSession(row);
   }
 
@@ -348,7 +350,7 @@ export class SessionStore {
         fromEntryId,
         sessionId,
       )
-      .one();
+      .toArray()[0];
 
     if (!entry) {
       throw new Error(`Entry not found: ${fromEntryId} in session ${sessionId}`);
@@ -407,7 +409,9 @@ export class SessionStore {
    * the session does not exist.
    */
   readActiveModeId(sessionId: string): string | null {
-    const row = this.sql.exec("SELECT active_mode_id FROM sessions WHERE id = ?", sessionId).one();
+    const row = this.sql
+      .exec("SELECT active_mode_id FROM sessions WHERE id = ?", sessionId)
+      .toArray()[0];
     if (!row) return null;
     return (row.active_mode_id as string | null | undefined) ?? null;
   }
