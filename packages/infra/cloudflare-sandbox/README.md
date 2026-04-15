@@ -11,16 +11,16 @@ The Dockerfile vendors workspace packages that need to be available inside the c
 | Path in container | Source | Purpose |
 |-------------------|--------|---------|
 | `/usr/local/lib/claw-vite-plugin/` | `container/claw-vite-plugin/` (prebuilt blob) | Vite plugin for vibe-coded apps |
-| `/usr/local/lib/claw-container-db/` | `packages/container-db/src/index.ts` | DB client for container apps |
-| `/opt/claw-sdk/agent-bundle/` | `packages/agent-bundle/src/bundle/` | Bundle authoring API (`defineBundleAgent`) |
-| `/opt/claw-sdk/tavily-client/` | `packages/tavily-web-search/src/{client,schemas}.ts` | Tavily bundle-side client |
+| `/usr/local/lib/claw-container-db/` | `packages/infra/container-db/src/index.ts` | DB client for container apps |
+| `/opt/claw-sdk/agent-bundle/` | `packages/runtime/agent-bundle/src/bundle/` | Bundle authoring API (`defineBundleAgent`) |
+| `/opt/claw-sdk/tavily-client/` | `packages/capabilities/tavily-web-search/src/{client,schemas}.ts` | Tavily bundle-side client |
 
 ### When to rebuild
 
 Rebuild the container image when:
-- Any file in `packages/agent-bundle/src/bundle/` changes
-- `packages/tavily-web-search/src/client.ts` or `src/schemas.ts` changes
-- `packages/container-db/src/index.ts` changes
+- Any file in `packages/runtime/agent-bundle/src/bundle/` changes
+- `packages/capabilities/tavily-web-search/src/client.ts` or `src/schemas.ts` changes
+- `packages/infra/container-db/src/index.ts` changes
 - `container/claw-vite-plugin/` contents change
 - The Dockerfile itself changes
 
@@ -33,7 +33,7 @@ The image is built automatically by wrangler when deploying or running `wrangler
 cd examples/basic-agent && bun dev
 
 # Manual rebuild (if needed)
-docker build -f packages/cloudflare-sandbox/container/Dockerfile -t claw-sandbox .
+docker build -f packages/infra/cloudflare-sandbox/container/Dockerfile -t claw-sandbox .
 ```
 
 ### Integrity verification

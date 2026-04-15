@@ -6,40 +6,61 @@ Originated in [gia-cloud](../gia-cloud); designed to be applied back there and o
 
 ## Packages
 
+Packages live under `packages/<bucket>/<name>/` — seven role-based buckets. See "### Workspace layout" under Architecture Rules for the dependency direction invariants enforced by `scripts/check-package-deps.ts`.
+
 ```
-agent-runtime          Core: AgentDO, sessions, capabilities, transport, scheduling, MCP client, cost tracking
-agent-ui               React components (data-agent-ui selectors)
-agent-core / ai        Forks of pi-agent-core / pi-ai (LLM loop, model providers)
-compaction-summary     LLM-based conversation compaction
-tavily-web-search      Web search/fetch via Tavily
-prompt-scheduler       Schedule management as agent tools
-r2-storage             R2 file storage (9 file_* tools)
-vector-memory          Semantic memory (Vectorize + R2)
-sandbox                Shell execution with elevation model
-cloudflare-sandbox     Sandbox provider via Container DO
-vibe-coder             Live app preview + console capture
-container-db           env.DB-compatible client over http://db.internal
-browserbase            Browser automation via Browserbase (CDP + a11y snapshots)
-channel-telegram       Reference channel via defineChannel
-skill-registry         D1-backed skill registry
-skills                 Skills capability (skill_load tool)
-task-tracker           DAG task management
-subagent               Same-DO child agent spawning
-subagent-explorer      Pre-built explorer subagent profile
-a2a                    Agent-to-Agent protocol (A2A v1.0)
-agent-fleet            Fleet management
-agent-peering          HMAC peer-to-peer
-agent-registry         D1 agent registry
-agent-auth             HTTP auth utilities
-agent-storage          Shared R2 identity (bucket + namespace prefix)
-credential-store       Secure credential storage
-heartbeat              Periodic heartbeat
-vite-plugin            Vite plugin for CLAW dev (bundled into containers)
-agent-bundle           Bundle authoring API + SpineService + LlmService + token utils
-bundle-registry        D1/KV bundle version store (content-addressed, atomic setActive)
-agent-workshop         Agent-facing bundle tools (workshop_init/build/test/deploy/disable/rollback/versions)
-examples/basic-agent   Full-stack example (Vite + Worker)
-e2e/agent-runtime      E2E (pool-workers + wrangler dev w/ containers)
+runtime/                 The engine and bundle system plumbing
+  agent-runtime          Core: AgentDO, sessions, capabilities, transport, scheduling, MCP client, cost tracking
+  agent-core / ai        Forks of pi-agent-core / pi-ai (LLM loop, model providers)
+  ai-proxy               AiService + aiProxy for host-side LLM inference proxying
+  agent-bundle           Bundle authoring API + SpineService + LlmService + token utils
+  bundle-registry        D1/KV bundle version store (content-addressed, atomic setActive)
+  agent-workshop         Agent-facing bundle tools (workshop_init/build/test/deploy/disable/rollback/versions)
+
+infra/                   Native-binding-holding, deploy-time-wired providers
+  agent-storage          Shared R2 identity (bucket + namespace prefix)
+  agent-auth             HTTP auth utilities
+  credential-store       Secure credential storage
+  skill-registry         D1-backed skill registry
+  agent-registry         D1 agent registry
+  app-registry           D1-backed app registry (deploy/rollback/delete tools)
+  container-db           env.DB-compatible client over http://db.internal
+  cloudflare-sandbox     Sandbox provider via Container DO
+
+capabilities/            Brain-facing tools, hooks, and turn-lifecycle behaviors
+  tavily-web-search      Web search/fetch via Tavily
+  file-tools             Nine file_* tools backed by agentStorage (R2)
+  vector-memory          Semantic memory (Vectorize + R2)
+  browserbase            Browser automation via Browserbase (CDP + a11y snapshots)
+  skills                 Skills capability (skill_load tool)
+  prompt-scheduler       Schedule management as agent tools
+  task-tracker           DAG task management
+  sandbox                Shell execution with elevation model (tool side + provider contract)
+  vibe-coder             Live app preview + console capture
+  batch-tool             Batch tool-call execution
+  subagent               Same-DO child agent spawning
+  subagent-explorer      Pre-built explorer subagent profile
+  doom-loop-detection    Repeated-tool-call loop detector
+  tool-output-truncation Truncate oversized tool results
+  compaction-summary     LLM-based conversation compaction
+  heartbeat              Periodic heartbeat
+
+channels/                Input surfaces that deliver messages to agents
+  channel-telegram       Reference channel via defineChannel
+
+federation/              Multi-agent coordination
+  a2a                    Agent-to-Agent protocol (A2A v1.0)
+  agent-fleet            Fleet management
+  agent-peering          HMAC peer-to-peer
+
+ui/                      Client-side React
+  agent-ui               React components (data-agent-ui selectors)
+
+dev/                     Build / dev tooling
+  vite-plugin            Vite plugin for CLAW dev (bundled into containers)
+
+examples/basic-agent     Full-stack example (Vite + Worker)
+e2e/agent-runtime        E2E (pool-workers + wrangler dev w/ containers)
 ```
 
 ## Commands
@@ -57,6 +78,34 @@ Per-package: `cd packages/X && bun test`. Example dev server: `cd examples/basic
 `examples/basic-agent` ships an interactive `claw` CLI (`bun link` once) wrapping debug HTTP endpoints under `/agent/:agentId/debug/*`. Implementation lives in `examples/basic-agent/src/debug-capability.ts` + `cli/index.ts` — not in runtime.
 
 ## Architecture Rules
+
+### Workspace layout
+
+Packages live in seven role-based buckets under `packages/`. Every package belongs to exactly one bucket matching its dominant role. New packages MUST be placed in the correct bucket; a depth-one directory (e.g. `packages/foo/`) is not picked up by the `packages/*/*` workspace glob and will surface as a module-not-found error at install time.
+
+- `runtime/` — the engine and bundle system. Answers "what runs the agent?"
+- `infra/` — native-binding-holding providers (storage identity, D1 registries, credential store, container sandbox provider). Answers "what holds the native CF bindings and secrets?"
+- `capabilities/` — brain-facing tools, hooks, and turn-lifecycle behaviors. Answers "what tools can the brain call?"
+- `channels/` — input surfaces that deliver messages to agents. Answers "how do messages get into agents from outside?"
+- `federation/` — multi-agent coordination. Answers "how do agents talk to each other?"
+- `ui/` — client-side React. Answers "what does the end user see?"
+- `dev/` — build and development tooling. Answers "what's build-time only?"
+
+**Dependency direction rules** (enforced by `scripts/check-package-deps.ts`, invoked from `bun run lint`):
+
+```
+runtime/       → runtime/
+infra/         → runtime, infra
+capabilities/  → runtime, infra, capabilities
+channels/      → runtime, infra, capabilities, channels
+federation/    → runtime, infra, federation
+ui/            → runtime (only @claw-for-cloudflare/agent-runtime)
+dev/           → any bucket (build-time exempt)
+```
+
+Forbidden edges: runtime → anything-below, infra → capabilities/channels/federation/ui, capabilities → channels/federation/ui, channels → federation/ui, federation → capabilities/channels/ui, ui → infra/capabilities/channels/federation. The central invariant: **`runtime/` does not know what a capability is.**
+
+Type-only imports (`import type` / `export type`) are allowed across every boundary — they describe contracts, not runtime edges. Value imports are restricted per the table above, with a single documented exception in the lint script for `runtime/agent-runtime` → `federation/a2a` (the runtime currently hard-depends on A2A's executor and task store; the A2A first-class promotion in flight moves a2a into `runtime/` and removes the exception).
 
 ### `defineAgent()` is the primary consumer API
 
@@ -164,7 +213,7 @@ Module-level named constants only — no inline magic numbers. `const DEFAULT_MA
 - Integration tests run in Cloudflare Workers pool via `@cloudflare/vitest-pool-workers`. UI tests in jsdom. Test fixtures generated separately (`vitest.generate.config.ts`). No mocking `SessionStore` — real SQLite via Workers pool. Every public function needs at least one test.
 - **Test helpers** at `@claw-for-cloudflare/agent-runtime/test-utils` (NOT the barrel): `createMockStorage()`, `textOf(result)`, `TOOL_CTX`.
 - **DO test isolation:** `isolatedStorage` is **disabled** in `vitest.config.ts` — pool-workers' storage frame checker doesn't handle SQLite WAL `.sqlite-shm` files (cloudflare/workers-sdk#5629). Instead: **unique DO name per describe block** (`getStub("a2a-do-1")`). Never reuse names across blocks. Await all DO ops; drain fire-and-forget via `/wait-idle`. Keep DO count reasonable.
-- File locations: `packages/agent-runtime/test/` (integration), `packages/*/src/**/__tests__/` (unit), `packages/agent-ui/src/**/*.test.tsx` (components).
+- File locations: `packages/runtime/agent-runtime/test/` (integration), `packages/*/*/src/**/__tests__/` (unit), `packages/ui/agent-ui/src/**/*.test.tsx` (components).
 
 ## Documentation Maintenance
 

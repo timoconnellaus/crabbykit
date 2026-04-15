@@ -165,7 +165,7 @@ user on their most recent channel).
    prompt to handle prompt-injection defensively until the CLAW-wide
    sanitization primitive lands.
 
-See `packages/channel-telegram/README.md` for a concrete end-to-end
+See `packages/channels/channel-telegram/README.md` for a concrete end-to-end
 example including bot setup, config shape, and a Cloudflare Quick Tunnel
 smoke test.
 

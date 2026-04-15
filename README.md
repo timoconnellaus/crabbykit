@@ -16,28 +16,79 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 
 ## Packages
 
+Packages are organised under `packages/<bucket>/<name>/` in seven role-based buckets. The dependency direction between buckets is enforced by `scripts/check-package-deps.ts` which runs during `bun run lint`.
+
+### `runtime/` — engine and bundle plumbing
+
 | Package | Description |
 |---------|-------------|
 | `agent-runtime` | Core runtime — AgentDO base class, session store, capability system, transport protocol, scheduling, MCP client |
-| `agent-ui` | Composable React chat components (MessageList, ChatInput, StatusBar, ChannelsPanel, etc.) driven by the decomposed client hooks (`useChatSession`, `useSessions`, `useSchedules`, …) |
-| `compaction-summary` | LLM-based conversation compaction capability |
-| `tavily-web-search` | Web search + fetch tools via Tavily API |
-| `prompt-scheduler` | Schedule management exposed as agent tools |
-| `r2-storage` | R2-backed file storage (read, write, edit, delete, list, tree, find) |
-| `vector-memory` | Semantic memory search backed by Cloudflare Vectorize + R2 |
-| `sandbox` | Controlled shell execution with elevation model and process management |
-| `cloudflare-sandbox` | Sandbox provider implementation for Cloudflare Containers |
-| `vibe-coder` | Live app preview with console capture (show_preview, hide_preview, get_console_logs) |
-| `browserbase` | Browser automation via Browserbase — CDP client, accessibility snapshots, cookie persistence |
-| `channel-telegram` | Telegram channel reference built on `defineChannel` — webhook verification, dual-bucket rate limiting, chunked outbound, bot-token redaction |
-| `container-db` | Tiny client library for container apps providing `env.DB`-compatible interface over `db.internal` |
-| `skill-registry` | D1-backed skill registry with self-seeding and `SkillRegistry` interface |
-| `skills` | On-demand procedural knowledge capability (skill_load tool, auto-update, agent-assisted merge) |
+| `agent-core` | LLM agent loop (internal, not published) |
+| `ai` | Model provider abstraction (internal, not published) |
+| `ai-proxy` | Host-side LLM inference proxy (`AiService` + `aiProxy`) |
 | `agent-bundle` | Bundle brain override — `defineBundleAgent` authoring API, `SpineService` RPC bridge, `LlmService` multi-provider proxy, capability token security |
 | `bundle-registry` | D1/KV bundle version store with content-addressed IDs, KV readback verification, atomic operations |
 | `agent-workshop` | Agent-facing bundle authoring tools (init, build, test, deploy, disable, rollback, versions) |
 
-Internal (not published): `agent-core` (LLM agent loop), `ai` (model provider abstraction).
+### `infra/` — native-binding providers
+
+| Package | Description |
+|---------|-------------|
+| `agent-storage` | Shared R2 identity (bucket + namespace prefix) passed to other capabilities |
+| `agent-auth` | HTTP auth utilities |
+| `credential-store` | Secure credential storage |
+| `skill-registry` | D1-backed skill registry with self-seeding and `SkillRegistry` interface |
+| `agent-registry` | D1-backed agent registry |
+| `app-registry` | D1-backed app registry (deploy/rollback/delete tools) |
+| `container-db` | Tiny client library for container apps providing `env.DB`-compatible interface over `db.internal` |
+| `cloudflare-sandbox` | Sandbox provider implementation for Cloudflare Containers |
+
+### `capabilities/` — brain-facing tools and hooks
+
+| Package | Description |
+|---------|-------------|
+| `tavily-web-search` | Web search + fetch tools via Tavily API |
+| `file-tools` | Nine file_* tools (read, write, edit, delete, list, tree, find, copy, move) backed by `agentStorage` |
+| `vector-memory` | Semantic memory search backed by Cloudflare Vectorize + R2 |
+| `browserbase` | Browser automation via Browserbase — CDP client, accessibility snapshots, cookie persistence |
+| `skills` | On-demand procedural knowledge capability (skill_load tool, auto-update, agent-assisted merge) |
+| `prompt-scheduler` | Schedule management exposed as agent tools |
+| `task-tracker` | DAG task management |
+| `sandbox` | Controlled shell execution with elevation model, tool surface, and `SandboxProvider` contract |
+| `vibe-coder` | Live app preview with console capture (show_preview, hide_preview, get_console_logs) |
+| `batch-tool` | Batch tool-call execution |
+| `subagent` | Same-DO child agent spawning |
+| `subagent-explorer` | Pre-built explorer subagent profile |
+| `doom-loop-detection` | Repeated-tool-call loop detector |
+| `tool-output-truncation` | Truncate oversized tool results |
+| `compaction-summary` | LLM-based conversation compaction capability |
+| `heartbeat` | Periodic heartbeat |
+
+### `channels/` — input surfaces
+
+| Package | Description |
+|---------|-------------|
+| `channel-telegram` | Telegram channel reference built on `defineChannel` — webhook verification, dual-bucket rate limiting, chunked outbound, bot-token redaction |
+
+### `federation/` — multi-agent coordination
+
+| Package | Description |
+|---------|-------------|
+| `a2a` | Agent-to-Agent protocol v1.0 |
+| `agent-fleet` | Fleet management |
+| `agent-peering` | HMAC peer-to-peer |
+
+### `ui/` — client-side React
+
+| Package | Description |
+|---------|-------------|
+| `agent-ui` | Composable React chat components (MessageList, ChatInput, StatusBar, ChannelsPanel, etc.) driven by the decomposed client hooks (`useChatSession`, `useSessions`, `useSchedules`, …) |
+
+### `dev/` — build-time tooling
+
+| Package | Description |
+|---------|-------------|
+| `vite-plugin` | Vite plugin for CLAW dev (bundled into containers) |
 
 ## Quick Start
 
@@ -93,7 +144,7 @@ defineAgent<Env>({
   // sessionStore, transport, resolveToolsForSession.
   capabilities: ({ env, agentId, sqlStore }) => [
     compactionSummary({ /* ... */ }),
-    r2Storage({ /* ... */ }),
+    fileTools({ /* ... */ }),
   ],
 
   // Session-level modes. With 1+ modes the runtime registers `/mode`,
