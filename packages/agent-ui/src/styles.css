@@ -1953,6 +1953,12 @@
   background: var(--agent-ui-danger-bg-subtle);
 }
 
+[data-agent-ui="session-item-delete"][data-confirming] {
+  color: var(--agent-ui-danger);
+  background: var(--agent-ui-danger-bg-subtle);
+  font-weight: 700;
+}
+
 [data-agent-ui="session-item"][data-active] {
   background: var(--agent-ui-primary-highlight);
   border-color: var(--agent-ui-primary-highlight-border);
