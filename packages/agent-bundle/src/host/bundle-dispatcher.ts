@@ -12,6 +12,68 @@ import type { BundleConfig, BundleDispatchState, BundleRegistry } from "./bundle
 
 const DEFAULT_MAX_LOAD_FAILURES = 3;
 const SPINE_SUBKEY_LABEL = "claw/spine-v1";
+const BUNDLE_ENVELOPE_VERSION = 1;
+
+/**
+ * Module format accepted by Worker Loader. Mirrors the shape returned by
+ * @cloudflare/worker-bundler. Workshop serializes these inside the
+ * version-1 JSON envelope.
+ */
+type BundleLoaderModule =
+  | string
+  | {
+      js?: string;
+      cjs?: string;
+      text?: string;
+      json?: unknown;
+    };
+
+interface BundlePayload {
+  mainModule: string;
+  modules: Record<string, BundleLoaderModule>;
+}
+
+interface BundleEnvelopeV1 {
+  v: typeof BUNDLE_ENVELOPE_VERSION;
+  mainModule: string;
+  modules: Record<string, BundleLoaderModule>;
+}
+
+/**
+ * Decode bundle bytes into the shape Worker Loader expects.
+ *
+ * Version 1 envelope: the bytes are JSON of `{v:1, mainModule, modules}`
+ * written by workshop after calling `@cloudflare/worker-bundler#createWorker`.
+ *
+ * Legacy fallback: for bundles persisted before the workshop migration,
+ * the bytes are the raw JS of a single-file bundle and we wrap them in
+ * a synthetic `{mainModule: "bundle.js", modules: {"bundle.js": source}}`.
+ * Any bytes that fail JSON.parse, aren't an object, or lack the envelope
+ * `v` sentinel fall through to legacy so pre-migration KV entries still load.
+ */
+export function decodeBundlePayload(source: string): BundlePayload {
+  const trimmed = source.trimStart();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(source) as unknown;
+      if (isBundleEnvelopeV1(parsed)) {
+        return { mainModule: parsed.mainModule, modules: parsed.modules };
+      }
+    } catch {
+      // Fall through to legacy shape.
+    }
+  }
+  return { mainModule: "bundle.js", modules: { "bundle.js": source } };
+}
+
+function isBundleEnvelopeV1(value: unknown): value is BundleEnvelopeV1 {
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (record.v !== BUNDLE_ENVELOPE_VERSION) return false;
+  if (typeof record.mainModule !== "string") return false;
+  if (record.modules === null || typeof record.modules !== "object") return false;
+  return true;
+}
 
 /**
  * Agent event from the bundle's NDJSON response stream.
@@ -125,11 +187,12 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
         }
 
         const source = new TextDecoder().decode(bytes);
+        const { mainModule, modules } = decodeBundlePayload(source);
         return {
           compatibilityDate: "2025-12-01",
           compatibilityFlags: ["nodejs_compat"],
-          mainModule: "bundle.js",
-          modules: { "bundle.js": source },
+          mainModule,
+          modules,
           env: { ...bundleEnv, __SPINE_TOKEN: token },
           globalOutbound: null, // No direct outbound network access
         };

@@ -7,12 +7,14 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
+    "@claw-for-cloudflare/agent-storage": "workspace:*",
     "@claw-for-cloudflare/bundle-registry": "workspace:*",
+    "@cloudflare/worker-bundler": "^0.1.1",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
-    "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@cloudflare/workers-types": "^4.20250109.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"

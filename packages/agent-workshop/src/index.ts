@@ -2,92 +2,202 @@
  * Agent Workshop — agent-facing capability for authoring, building,
  * testing, deploying, and managing bundle brains.
  *
- * Tools: workshop_init, workshop_build, workshop_test, workshop_deploy,
- *        workshop_disable, workshop_rollback, workshop_versions
+ * Tools:
+ *   workshop_init, workshop_file_read, workshop_file_write,
+ *   workshop_file_edit, workshop_file_list, workshop_file_delete,
+ *   workshop_build, workshop_test, workshop_deploy,
+ *   workshop_disable, workshop_rollback, workshop_versions
  *
- * Every container interaction routes through a single `sandboxExec`
- * callback that must delegate to the sandbox capability's `exec` tool.
- * That guarantees workshop behaves identically to the bash tool:
- *   - the session must be elevated (agent calls `elevate` first)
- *   - the container is woken / restarted if dead
- *   - the sandbox idle de-elevation timer is reset on every call
+ * Build runs in-process inside the host Worker via
+ * `@cloudflare/worker-bundler#createWorker` — there is no container,
+ * no shell, no elevation gate. Source files live in R2 under
+ * `{namespace}/workshop/bundles/{name}/...` via the shared
+ * `AgentStorage` handle. The compiled agent-bundle runtime is injected
+ * as a virtual file at build time from `BUNDLE_RUNTIME_SOURCE`, so
+ * every build picks up the current SDK runtime automatically without
+ * rewriting files in R2.
  */
 
+import { BUNDLE_RUNTIME_SOURCE } from "@claw-for-cloudflare/agent-bundle/bundle-runtime-source";
 import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { BundleRegistryWriter } from "@claw-for-cloudflare/bundle-registry";
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { BundleRegistryWriter, CreateVersionOpts } from "@claw-for-cloudflare/bundle-registry";
 import { MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
 
-export interface WorkshopExecResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+// `@cloudflare/worker-bundler` pulls in esbuild-wasm, which eagerly loads a
+// `.wasm` file at module evaluation. That works inside a real Worker isolate
+// but fails when a Node test runner imports this file — the wasm asset is not
+// resolvable from Node's loader. Lazy-import keeps workshop safe to unit-test
+// with vitest in Node while still using the real bundler at runtime.
+type CreateWorker = typeof import("@cloudflare/worker-bundler").createWorker;
+let cachedCreateWorker: CreateWorker | null = null;
+async function loadCreateWorker(): Promise<CreateWorker> {
+  if (!cachedCreateWorker) {
+    const mod = await import("@cloudflare/worker-bundler");
+    cachedCreateWorker = mod.createWorker;
+  }
+  return cachedCreateWorker;
 }
+
+const DEFAULT_DEPLOY_RATE_LIMIT = 5;
+const BUNDLE_PREFIX = "workshop/bundles";
+const RUNTIME_VIRTUAL_PATH = "_claw/bundle-runtime.js";
+const BUNDLE_ENVELOPE_VERSION = 1;
+const MAX_PATH_BYTES = 512;
 
 export interface AgentWorkshopOptions {
   /**
    * Bundle registry instance. Must satisfy `BundleRegistryWriter` because
    * `workshop_deploy` writes bundle bytes via `createVersion()` before
-   * flipping the active pointer with `setActive()`. The narrow `BundleRegistry`
-   * (read-only) is insufficient — it has no way to persist bytes, and a
-   * `setActive` call against a never-persisted version will leave the next
-   * dispatch turn looking up bytes that don't exist.
+   * flipping the active pointer with `setActive()`. The narrow read-only
+   * `BundleRegistry` is insufficient — it has no way to persist bytes, and
+   * a `setActive` call against a never-persisted version would leave the
+   * next dispatch turn looking up bytes that don't exist.
    */
   registry: BundleRegistryWriter;
   /**
-   * Run a shell command through the sandbox for the given session. Must
-   * route through the sandbox capability's `exec` tool so elevation,
-   * container health, and de-elevation timer reset behave identically to
-   * a direct bash call from the agent.
-   *
-   * When the session is not elevated, return a non-zero exit with stderr
-   * that tells the agent to run `elevate` first — workshop bubbles that
-   * message up verbatim so the agent knows what to do.
+   * Shared R2 storage identity (bucket + namespace) used to persist bundle
+   * source files. Workshop writes under the prefix
+   * `{namespace}/workshop/bundles/{name}/...`, which is isolated from other
+   * capabilities sharing the same bucket (r2-storage, vector-memory, …).
    */
-  sandboxExec: (
-    sessionId: string,
-    command: string,
-    opts?: { signal?: AbortSignal },
-  ) => Promise<WorkshopExecResult>;
+  storage: AgentStorage;
   /** Maximum deploys per minute per agent. Default: 5. */
   deployRateLimitPerMinute?: number;
 }
 
-const DEFAULT_DEPLOY_RATE_LIMIT = 5;
-const BUNDLE_WORKSPACE_BASE = "/workspace/bundles";
+interface PathValidationOk {
+  valid: true;
+  normalizedPath: string;
+}
+interface PathValidationErr {
+  valid: false;
+  error: string;
+}
+type PathValidation = PathValidationOk | PathValidationErr;
 
-/** Quote a string for use inside a double-quoted shell argument. */
-function shQuote(s: string): string {
-  return `"${s.replace(/(["\\$`])/g, "\\$1")}"`;
+/**
+ * Validate a relative path supplied by the agent. Rejects null bytes,
+ * `..` traversal, absolute paths, and paths exceeding the size limit.
+ * Mirrors `packages/r2-storage/src/paths.ts::validatePath` — copied so
+ * workshop has no dependency on r2-storage being enabled.
+ */
+function validateRelativePath(path: string): PathValidation {
+  if (typeof path !== "string") {
+    return { valid: false, error: "Path must be a string" };
+  }
+  if (path.includes("\0")) {
+    return { valid: false, error: "Path must not contain null bytes" };
+  }
+
+  const normalized = path.replace(/\\/g, "/");
+  for (const segment of normalized.split("/")) {
+    if (segment === "..") {
+      return { valid: false, error: "Path must not contain '..' segments" };
+    }
+  }
+
+  let clean = normalized;
+  while (clean.startsWith("/") || clean.startsWith("./")) {
+    clean = clean.startsWith("./") ? clean.slice(2) : clean.slice(1);
+  }
+  if (clean === ".") clean = "";
+
+  if (clean.length === 0) {
+    return { valid: false, error: "Path must not be empty after normalization" };
+  }
+  if (new TextEncoder().encode(clean).byteLength > MAX_PATH_BYTES) {
+    return { valid: false, error: "Path must not exceed 512 bytes" };
+  }
+  return { valid: true, normalizedPath: clean };
 }
 
-function parentDir(path: string): string {
-  const idx = path.lastIndexOf("/");
-  return idx > 0 ? path.substring(0, idx) : "/";
+function validateBundleName(name: string): string | null {
+  if (typeof name !== "string" || name.length === 0) {
+    return "Bundle name must be a non-empty string";
+  }
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name)) {
+    return "Bundle name must contain only letters, digits, dot, underscore, and dash";
+  }
+  if (name.length > 64) {
+    return "Bundle name must not exceed 64 characters";
+  }
+  return null;
+}
+
+function bundlePrefix(namespace: string, name: string): string {
+  return `${namespace}/${BUNDLE_PREFIX}/${name}`;
+}
+
+function fileR2Key(namespace: string, name: string, relPath: string): string {
+  return `${bundlePrefix(namespace, name)}/${relPath}`;
+}
+
+interface LoadedBundleFiles {
+  files: Record<string, string>;
+  /** Count of R2 objects read, excluding the injected virtual runtime file. */
+  userFileCount: number;
+  totalBytes: number;
+}
+
+/**
+ * Interface for the R2 API workshop needs. Kept narrow so tests can supply
+ * a tiny in-memory bucket without pulling in the full Cloudflare types.
+ */
+interface R2Like {
+  get(key: string): Promise<{ text(): Promise<string> } | null>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown>;
+  delete(key: string): Promise<void>;
+  head(key: string): Promise<unknown | null>;
+  list(opts: { prefix: string }): Promise<{
+    objects: Array<{ key: string }>;
+    truncated?: boolean;
+    cursor?: string;
+  }>;
+}
+
+/**
+ * Runtime-source provider. Indirected so tests can inject a different
+ * runtime string to verify the auto-upgrade-on-rebuild guarantee.
+ */
+export interface WorkshopInternals {
+  /** Override the runtime source injected at build time (tests only). */
+  getBundleRuntimeSource?: () => string;
+  /** Override `createWorker` for isolated unit tests. */
+  createWorker?: CreateWorker;
 }
 
 /**
  * Create the agent workshop capability.
+ *
+ * The second `internals` argument is test-only. Production consumers pass
+ * only `options` — the defaults pull `BUNDLE_RUNTIME_SOURCE` from the
+ * agent-bundle package and `createWorker` from `@cloudflare/worker-bundler`.
  */
-export function agentWorkshop(options: AgentWorkshopOptions): Capability {
+export function agentWorkshop(
+  options: AgentWorkshopOptions,
+  internals: WorkshopInternals = {},
+): Capability {
+  const getRuntimeSource = internals.getBundleRuntimeSource ?? (() => BUNDLE_RUNTIME_SOURCE);
+  const runCreateWorker: CreateWorker = internals.createWorker
+    ? internals.createWorker
+    : async (opts) => (await loadCreateWorker())(opts);
   const deployCounters = new Map<string, { count: number; resetAt: number }>();
 
   function checkDeployRate(agentId: string): boolean {
     const limit = options.deployRateLimitPerMinute ?? DEFAULT_DEPLOY_RATE_LIMIT;
     const now = Date.now();
     const entry = deployCounters.get(agentId);
-
     if (!entry || entry.resetAt <= now) {
       deployCounters.set(agentId, { count: 1, resetAt: now + 60_000 });
       return true;
     }
-
     if (entry.count >= limit) return false;
     entry.count++;
     return true;
   }
 
-  // Audit logging helper — appends workshop_audit custom session entry
   async function auditLog(
     context: AgentContext,
     tool: string,
@@ -106,48 +216,105 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
         timestamp: Date.now(),
       });
     } catch {
-      // Audit logging is best-effort
+      // Audit logging is best-effort.
     }
   }
 
-  // --- Sandbox shell helpers (all route through options.sandboxExec) ---
-
-  function sh(
-    sessionId: string,
-    command: string,
-    signal?: AbortSignal,
-  ): Promise<WorkshopExecResult> {
-    return options.sandboxExec(sessionId, command, signal ? { signal } : undefined);
+  function getBucket(): R2Like {
+    return options.storage.bucket() as unknown as R2Like;
   }
 
-  async function sbExists(sessionId: string, path: string): Promise<WorkshopExecResult> {
-    return sh(sessionId, `test -e ${shQuote(path)}`);
-  }
-
-  async function sbReadFile(sessionId: string, path: string): Promise<string | null> {
-    const r = await sh(sessionId, `cat ${shQuote(path)}`);
-    return r.exitCode === 0 ? r.stdout : null;
-  }
-
-  async function sbWriteFile(
-    sessionId: string,
-    path: string,
-    content: string,
-  ): Promise<WorkshopExecResult> {
-    const dir = parentDir(path);
-    const b64 = btoa(content);
-    const cmd = `mkdir -p ${shQuote(dir)} && echo ${shQuote(b64)} | base64 -d > ${shQuote(path)}`;
-    return sh(sessionId, cmd);
+  function getNamespace(): string {
+    return options.storage.namespace();
   }
 
   /**
-   * Format a shell failure (e.g. a write or exec error) for presentation
-   * to the agent. Surfaces stderr so "Not elevated" messages bubble up
-   * verbatim and the agent knows to run `elevate` first.
+   * List all R2 objects under the bundle prefix, fetch their contents,
+   * and merge the compiled agent-bundle runtime as a virtual file at
+   * `_claw/bundle-runtime.js` ready to be passed to `createWorker`.
+   *
+   * Exported for tests that want to assert the runtime-injection contract
+   * without invoking `createWorker`.
    */
-  function failureText(label: string, result: WorkshopExecResult): string {
-    const detail = result.stderr || result.stdout || `exit code ${result.exitCode}`;
-    return `${label}: ${detail.trim()}`;
+  async function loadBundleFiles(name: string): Promise<LoadedBundleFiles> {
+    const namespace = getNamespace();
+    const prefix = `${bundlePrefix(namespace, name)}/`;
+    const bucket = getBucket();
+    const files: Record<string, string> = {};
+    let totalBytes = 0;
+    let userFileCount = 0;
+
+    const listed = await bucket.list({ prefix });
+    for (const obj of listed.objects) {
+      const rel = obj.key.slice(prefix.length);
+      if (!rel) continue;
+      const got = await bucket.get(obj.key);
+      if (!got) continue;
+      const contents = await got.text();
+      files[rel] = contents;
+      totalBytes += contents.length;
+      userFileCount++;
+    }
+
+    // Inject the pre-compiled bundle runtime as a virtual file. This
+    // happens on EVERY build — never persisted to R2 — so existing bundles
+    // automatically pick up runtime changes the next time they are built.
+    files[RUNTIME_VIRTUAL_PATH] = getRuntimeSource();
+
+    return { files, userFileCount, totalBytes };
+  }
+
+  /**
+   * Build a bundle end-to-end: list files → merge runtime → createWorker.
+   * Returns the raw bundler output plus summary statistics.
+   */
+  async function buildBundle(name: string): Promise<{
+    mainModule: string;
+    modules: Record<string, unknown>;
+    userFileCount: number;
+  }> {
+    const loaded = await loadBundleFiles(name);
+    if (loaded.userFileCount === 0) {
+      throw new Error(`No files under workshop/bundles/${name}/. Run workshop_init first.`);
+    }
+
+    const result = await runCreateWorker({ files: loaded.files });
+    return {
+      mainModule: result.mainModule,
+      modules: result.modules as Record<string, unknown>,
+      userFileCount: loaded.userFileCount,
+    };
+  }
+
+  function starterIndex(name: string): string {
+    return [
+      'import { defineBundleAgent } from "./_claw/bundle-runtime.js";',
+      "",
+      "export default defineBundleAgent({",
+      '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
+      `  prompt: { agentName: "${name}" },`,
+      "  metadata: {",
+      `    name: "${name}",`,
+      `    description: "Bundle brain for ${name}",`,
+      "  },",
+      "});",
+      "",
+    ].join("\n");
+  }
+
+  function starterPackageJson(name: string): string {
+    return `${JSON.stringify(
+      {
+        name,
+        type: "module",
+        // No dependencies by default — the agent-bundle runtime is
+        // injected at build time from the host worker, not resolved
+        // from npm. Add real npm deps here if the bundle needs them.
+        dependencies: {},
+      },
+      null,
+      2,
+    )}\n`;
   }
 
   return {
@@ -156,179 +323,220 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
     description: "Author, build, test, deploy, and manage bundle brains",
 
     tools: (context: AgentContext): AnyAgentTool[] => {
-      const sessionId = context.sessionId;
+      const namespace = getNamespace();
+      const bucket = getBucket();
+
+      function resolveFileKey(
+        name: string,
+        path: string,
+      ): { key: string; relPath: string } | string {
+        const nameErr = validateBundleName(name);
+        if (nameErr) return nameErr;
+        const pathVal = validateRelativePath(path);
+        if (!pathVal.valid) return pathVal.error;
+        if (pathVal.normalizedPath.startsWith("_claw/")) {
+          return "Path '_claw/' is reserved for the injected bundle runtime and may not be written.";
+        }
+        return {
+          key: fileR2Key(namespace, name, pathVal.normalizedPath),
+          relPath: pathVal.normalizedPath,
+        };
+      }
 
       return [
-        // --- workshop_init ---
         defineTool({
           name: "workshop_init",
           description:
-            "Scaffold a new bundle workspace with package.json, tsconfig, and starter code",
-          parameters: Type.Object({
-            name: Type.String({ description: "Bundle workspace name (used as directory name)" }),
-          }),
-          execute: async (args, execCtx) => {
-            const dir = `${BUNDLE_WORKSPACE_BASE}/${args.name}`;
-
-            const existsResult = await sbExists(sessionId, dir);
-            if (existsResult.exitCode !== 0 && existsResult.stderr) {
-              // Shell command itself failed (likely not elevated) — bubble up
-              return failureText("Error", existsResult);
-            }
-            if (existsResult.exitCode === 0) {
-              await auditLog(context, "workshop_init", args, "error", "ALREADY_EXISTS");
-              return `Error: Workspace "${args.name}" already exists at ${dir}. Choose a different name.`;
-            }
-
-            // Scaffold files
-            const packageJsonWrite = await sbWriteFile(
-              sessionId,
-              `${dir}/package.json`,
-              JSON.stringify(
-                {
-                  name: args.name,
-                  type: "module",
-                  dependencies: {
-                    "@claw-for-cloudflare/agent-bundle": "file:/opt/claw-sdk/agent-bundle",
-                  },
-                },
-                null,
-                2,
-              ),
-            );
-            if (packageJsonWrite.exitCode !== 0) {
-              return failureText("Failed to write package.json", packageJsonWrite);
-            }
-
-            const tsconfigWrite = await sbWriteFile(
-              sessionId,
-              `${dir}/tsconfig.json`,
-              JSON.stringify(
-                {
-                  compilerOptions: {
-                    target: "ES2022",
-                    module: "ES2022",
-                    moduleResolution: "bundler",
-                    strict: true,
-                    skipLibCheck: true,
-                    noEmit: true,
-                  },
-                  include: ["src/**/*.ts"],
-                },
-                null,
-                2,
-              ),
-            );
-            if (tsconfigWrite.exitCode !== 0) {
-              return failureText("Failed to write tsconfig.json", tsconfigWrite);
-            }
-
-            const indexWrite = await sbWriteFile(
-              sessionId,
-              `${dir}/src/index.ts`,
-              [
-                'import { defineBundleAgent } from "@claw-for-cloudflare/agent-bundle/bundle";',
-                "",
-                "export default defineBundleAgent({",
-                '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
-                `  prompt: { agentName: "${args.name}" },`,
-                "  metadata: {",
-                `    name: "${args.name}",`,
-                `    description: "Bundle brain for ${args.name}",`,
-                "  },",
-                "});",
-                "",
-              ].join("\n"),
-            );
-            if (indexWrite.exitCode !== 0) {
-              return failureText("Failed to write src/index.ts", indexWrite);
-            }
-
-            // Run bun install inside the workspace directory
-            const install = await sh(
-              sessionId,
-              `cd ${shQuote(dir)} && bun install --ignore-scripts`,
-              execCtx?.signal,
-            );
-
-            if (install.exitCode !== 0) {
-              await auditLog(context, "workshop_init", args, "error", "INSTALL_FAILED");
-              return `Workspace scaffolded at ${dir} but bun install failed:\n${install.stderr || install.stdout}`;
-            }
-
-            await auditLog(context, "workshop_init", args, "success");
-            return `Bundle workspace "${args.name}" created at ${dir}.\nFiles: package.json, tsconfig.json, src/index.ts\nbun install: success`;
-          },
-        }),
-
-        // --- workshop_build ---
-        defineTool({
-          name: "workshop_build",
-          description: "Compile a bundle workspace into dist/bundle.js using bun build",
+            "Scaffold a new bundle workspace with package.json and a defineBundleAgent starter. Files persist in R2 under workshop/bundles/{name}/.",
           parameters: Type.Object({
             name: Type.String({ description: "Bundle workspace name" }),
-          }),
-          execute: async (args, execCtx) => {
-            const dir = `${BUNDLE_WORKSPACE_BASE}/${args.name}`;
-            const srcPath = `${dir}/src/index.ts`;
-
-            const srcCheck = await sbExists(sessionId, srcPath);
-            if (srcCheck.exitCode !== 0 && srcCheck.stderr) {
-              return failureText("Error", srcCheck);
-            }
-            if (srcCheck.exitCode !== 0) {
-              return `Error: No src/index.ts found in ${dir}. Run workshop_init first.`;
-            }
-
-            // Verify vendored package integrity (if available). We use
-            // a single shell chain: cat returns content (caller ignores).
-            // Full integrity verification is a TODO; today we just check
-            // the file is there.
-            await sbReadFile(sessionId, "/opt/claw-sdk/INTEGRITY.json");
-
-            const build = await sh(
-              sessionId,
-              `cd ${shQuote(dir)} && bun build src/index.ts --target=browser --format=esm --outfile=dist/bundle.js --external "cloudflare:workers" --external "cloudflare:sockets"`,
-              execCtx?.signal,
-            );
-
-            if (build.exitCode !== 0) {
-              return `Build failed:\n${build.stderr}\n${build.stdout}`;
-            }
-
-            return `Build successful.\n${build.stdout}`;
-          },
-        }),
-
-        // --- workshop_test ---
-        defineTool({
-          name: "workshop_test",
-          description: "Test a built bundle by loading it in a scratch isolate and running a prompt",
-          parameters: Type.Object({
-            name: Type.String({ description: "Bundle workspace name" }),
-            prompt: Type.Optional(Type.String({ description: 'Test prompt (default: "hello")' })),
           }),
           execute: async (args) => {
-            const bundlePath = `${BUNDLE_WORKSPACE_BASE}/${args.name}/dist/bundle.js`;
-            const source = await sbReadFile(sessionId, bundlePath);
-
-            if (!source) {
-              return `Error: No built bundle at ${bundlePath}. Run workshop_build first.`;
+            const nameErr = validateBundleName(args.name);
+            if (nameErr) {
+              await auditLog(context, "workshop_init", args, "error", "INVALID_NAME");
+              return `Error: ${nameErr}`;
             }
-
-            // Basic validation: check the bundle has a default export
-            if (!source.includes("export")) {
-              return "Error: Bundle does not appear to have an export. Check your src/index.ts.";
+            const pkgKey = fileR2Key(namespace, args.name, "package.json");
+            const existing = await bucket.head(pkgKey);
+            if (existing) {
+              await auditLog(context, "workshop_init", args, "error", "ALREADY_EXISTS");
+              return `Error: Workspace "${args.name}" already exists. Choose a different name or edit it directly with workshop_file_* tools.`;
             }
-
-            return `Bundle test passed (${source.length} bytes). Bundle loads and has exports.\nNote: Full isolate-based testing requires a live Worker Loader — use workshop_deploy for end-to-end validation.`;
+            await bucket.put(pkgKey, starterPackageJson(args.name));
+            await bucket.put(
+              fileR2Key(namespace, args.name, "src/index.ts"),
+              starterIndex(args.name),
+            );
+            await auditLog(context, "workshop_init", args, "success");
+            return `Bundle workspace "${args.name}" created.\nFiles: package.json, src/index.ts\nEdit with workshop_file_edit, then workshop_build → workshop_test → workshop_deploy.`;
           },
         }),
 
-        // --- workshop_deploy ---
+        defineTool({
+          name: "workshop_file_read",
+          description: "Read a file from a bundle workspace in R2",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+            path: Type.String({ description: "Relative path within the workspace" }),
+          }),
+          execute: async (args) => {
+            const resolved = resolveFileKey(args.name, args.path);
+            if (typeof resolved === "string") return `Error: ${resolved}`;
+            const obj = await bucket.get(resolved.key);
+            if (!obj) return `Error: File not found: ${resolved.relPath}`;
+            return await obj.text();
+          },
+        }),
+
+        defineTool({
+          name: "workshop_file_write",
+          description: "Write (create or overwrite) a file in a bundle workspace",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+            path: Type.String({ description: "Relative path within the workspace" }),
+            content: Type.String({ description: "File contents" }),
+          }),
+          execute: async (args) => {
+            const resolved = resolveFileKey(args.name, args.path);
+            if (typeof resolved === "string") {
+              await auditLog(context, "workshop_file_write", args, "error", "BAD_PATH");
+              return `Error: ${resolved}`;
+            }
+            await bucket.put(resolved.key, args.content);
+            await auditLog(context, "workshop_file_write", args, "success");
+            return `Wrote ${resolved.relPath} (${args.content.length} bytes)`;
+          },
+        }),
+
+        defineTool({
+          name: "workshop_file_edit",
+          description:
+            "Replace an exact string in an existing file. Fails if the string is not found exactly once.",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+            path: Type.String({ description: "Relative path within the workspace" }),
+            oldString: Type.String({ description: "Exact string to replace" }),
+            newString: Type.String({ description: "Replacement string" }),
+          }),
+          execute: async (args) => {
+            const resolved = resolveFileKey(args.name, args.path);
+            if (typeof resolved === "string") return `Error: ${resolved}`;
+            const obj = await bucket.get(resolved.key);
+            if (!obj) return `Error: File not found: ${resolved.relPath}`;
+            const current = await obj.text();
+            const first = current.indexOf(args.oldString);
+            if (first === -1) return "Error: oldString not found in file";
+            const second = current.indexOf(args.oldString, first + args.oldString.length);
+            if (second !== -1) {
+              return "Error: oldString matches more than once; include more surrounding context";
+            }
+            const next =
+              current.slice(0, first) +
+              args.newString +
+              current.slice(first + args.oldString.length);
+            await bucket.put(resolved.key, next);
+            await auditLog(context, "workshop_file_edit", args, "success");
+            return `Edited ${resolved.relPath}`;
+          },
+        }),
+
+        defineTool({
+          name: "workshop_file_list",
+          description: "List files in a bundle workspace",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+          }),
+          execute: async (args) => {
+            const nameErr = validateBundleName(args.name);
+            if (nameErr) return `Error: ${nameErr}`;
+            const prefix = `${bundlePrefix(namespace, args.name)}/`;
+            const listed = await bucket.list({ prefix });
+            if (listed.objects.length === 0) {
+              return `(empty) Workspace "${args.name}" has no files. Run workshop_init first.`;
+            }
+            const rels = listed.objects
+              .map((o) => o.key.slice(prefix.length))
+              .filter((rel) => rel && !rel.startsWith("_claw/"))
+              .sort();
+            return rels.join("\n");
+          },
+        }),
+
+        defineTool({
+          name: "workshop_file_delete",
+          description: "Delete a file from a bundle workspace",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+            path: Type.String({ description: "Relative path within the workspace" }),
+          }),
+          execute: async (args) => {
+            const resolved = resolveFileKey(args.name, args.path);
+            if (typeof resolved === "string") return `Error: ${resolved}`;
+            await bucket.delete(resolved.key);
+            await auditLog(context, "workshop_file_delete", args, "success");
+            return `Deleted ${resolved.relPath}`;
+          },
+        }),
+
+        defineTool({
+          name: "workshop_build",
+          description:
+            "Compile a bundle workspace in-process via @cloudflare/worker-bundler. No container required.",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+          }),
+          execute: async (args) => {
+            const nameErr = validateBundleName(args.name);
+            if (nameErr) return `Error: ${nameErr}`;
+            try {
+              const built = await buildBundle(args.name);
+              const moduleCount = Object.keys(built.modules).length;
+              await auditLog(context, "workshop_build", args, "success");
+              return `Build successful.\n  main module: ${built.mainModule}\n  modules: ${moduleCount}\n  source files: ${built.userFileCount}`;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              await auditLog(context, "workshop_build", args, "error", "BUILD_FAILED");
+              return `Build failed: ${msg}`;
+            }
+          },
+        }),
+
+        defineTool({
+          name: "workshop_test",
+          description:
+            "Smoke-test a bundle by rebuilding and validating the output has a main module with a default export.",
+          parameters: Type.Object({
+            name: Type.String({ description: "Bundle workspace name" }),
+          }),
+          execute: async (args) => {
+            const nameErr = validateBundleName(args.name);
+            if (nameErr) return `Error: ${nameErr}`;
+            let built: Awaited<ReturnType<typeof buildBundle>>;
+            try {
+              built = await buildBundle(args.name);
+            } catch (err) {
+              return `Test failed (build error): ${err instanceof Error ? err.message : String(err)}`;
+            }
+            const mainContent = extractModuleContent(built.modules[built.mainModule]);
+            if (!mainContent) {
+              return `Test failed: main module "${built.mainModule}" is missing or empty`;
+            }
+            if (!hasDefaultExport(mainContent)) {
+              return `Test failed: main module "${built.mainModule}" has no default export`;
+            }
+            const envelope = encodeEnvelope(built.mainModule, built.modules);
+            if (envelope.byteLength > MAX_BUNDLE_SIZE_BYTES) {
+              return `Test failed: bundle exceeds ${MAX_BUNDLE_SIZE_BYTES} byte limit (${envelope.byteLength} bytes)`;
+            }
+            return `Test passed.\n  main module: ${built.mainModule}\n  envelope size: ${envelope.byteLength} bytes\n  modules: ${Object.keys(built.modules).length}`;
+          },
+        }),
+
         defineTool({
           name: "workshop_deploy",
-          description: "Deploy a built bundle as the active brain for this agent (or a target agent)",
+          description:
+            "Deploy a built bundle as the active brain for this agent (or a target agent)",
           parameters: Type.Object({
             name: Type.String({ description: "Bundle workspace name" }),
             rationale: Type.Optional(Type.String({ description: "Why this deployment" })),
@@ -337,91 +545,77 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
             ),
           }),
           execute: async (args) => {
+            const nameErr = validateBundleName(args.name);
+            if (nameErr) return `Error: ${nameErr}`;
             const agentId = args.targetAgentId ?? context.agentId;
-
-            // Rate limit
             if (!checkDeployRate(agentId)) {
               return "Error: Deploy rate limit exceeded (ERR_DEPLOY_RATE_LIMITED). Wait and try again.";
             }
 
-            const bundlePath = `${BUNDLE_WORKSPACE_BASE}/${args.name}/dist/bundle.js`;
-            const source = await sbReadFile(sessionId, bundlePath);
-
-            if (!source) {
-              return `Error: No built bundle at ${bundlePath}. Run workshop_build first.`;
-            }
-
-            const bytes = new TextEncoder().encode(source);
-
-            if (bytes.byteLength > MAX_BUNDLE_SIZE_BYTES) {
-              return `Error: Bundle exceeds ${MAX_BUNDLE_SIZE_BYTES} byte limit (${bytes.byteLength} bytes).`;
-            }
-
-            // Pre-deploy smoke test: verify bundle has expected structure
-            if (!source.includes("export")) {
-              await auditLog(context, "workshop_deploy", args, "error", "SMOKE_FAILED");
-              return "Error: Pre-deploy smoke test failed — bundle has no exports. Check your bundle source.";
-            }
-
-            // Build the ArrayBuffer view that createVersion needs.
-            const buf = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(buf).set(bytes);
-
-            // Extract metadata from bundle source (basic heuristic —
-            // full metadata extraction via POST /metadata requires Worker Loader)
-            let metadata: string | undefined;
-            const metadataMatch = source.match(/metadata:\s*\{([^}]+)\}/);
-            if (metadataMatch) {
-              metadata = metadataMatch[0];
-            }
-
-            // Persist bytes to KV first (createVersion writes the bytes
-            // and a D1 row keyed by the content-addressed hash). Then flip
-            // the active pointer with setActive. Doing it in this order
-            // means the dispatcher will always find the bytes for whatever
-            // versionId the pointer references — the previous code path
-            // skipped createVersion entirely and left setActive pointing
-            // at a never-persisted version (Bundle bytes not found ...).
-            let versionId: string;
+            let built: Awaited<ReturnType<typeof buildBundle>>;
             try {
-              const version = await options.registry.createVersion({
-                bytes: buf,
+              built = await buildBundle(args.name);
+            } catch (err) {
+              await auditLog(context, "workshop_deploy", args, "error", "BUILD_FAILED");
+              return `Deploy failed (build error): ${err instanceof Error ? err.message : String(err)}`;
+            }
+
+            const mainContent = extractModuleContent(built.modules[built.mainModule]);
+            if (!hasDefaultExport(mainContent)) {
+              await auditLog(context, "workshop_deploy", args, "error", "SMOKE_FAILED");
+              return "Error: Pre-deploy smoke test failed — main module has no default export";
+            }
+
+            const envelope = encodeEnvelope(built.mainModule, built.modules);
+            if (envelope.byteLength > MAX_BUNDLE_SIZE_BYTES) {
+              return `Error: Bundle exceeds ${MAX_BUNDLE_SIZE_BYTES} byte limit (${envelope.byteLength} bytes)`;
+            }
+
+            let version: Awaited<ReturnType<typeof options.registry.createVersion>>;
+            try {
+              const opts: CreateVersionOpts = {
+                bytes: envelope,
                 createdBy: context.sessionId,
-              });
-              versionId = version.versionId;
-              await options.registry.setActive(agentId, versionId, {
+              };
+              version = await options.registry.createVersion(opts);
+            } catch (err) {
+              await auditLog(context, "workshop_deploy", args, "error", "CREATE_VERSION_FAILED");
+              return `Deploy failed: ${err instanceof Error ? err.message : String(err)}`;
+            }
+
+            try {
+              await options.registry.setActive(agentId, version.versionId, {
                 rationale: args.rationale ?? "workshop_deploy",
                 sessionId: context.sessionId,
               });
             } catch (err) {
-              await auditLog(context, "workshop_deploy", args, "error", "REGISTRY_FAILED");
-              return `Deploy failed: ${err instanceof Error ? err.message : String(err)}`;
+              await auditLog(context, "workshop_deploy", args, "error", "SET_ACTIVE_FAILED");
+              return `Deploy failed at setActive: ${err instanceof Error ? err.message : String(err)}`;
             }
 
-            // Self-deploy: refresh this DO's hot-path cache so the next
-            // turn picks up the new pointer instead of a stale cached
-            // value. Cross-agent deploys can't reach the target DO from
-            // here — the target must POST /bundle/refresh out-of-band.
+            // Notify the DO's hot cache so the next turn picks up the new
+            // bundle. No-op on agents without bundle dispatch installed.
             if (agentId === context.agentId) {
-              await context.notifyBundlePointerChanged();
+              await context.notifyBundlePointerChanged?.();
             }
 
-            await auditLog(context, "workshop_deploy", { ...args, versionId }, "success");
-
+            await auditLog(
+              context,
+              "workshop_deploy",
+              { ...args, versionId: version.versionId },
+              "success",
+            );
             return [
               "Bundle deployed successfully.",
-              `  Version: ${versionId.slice(0, 12)}...`,
-              `  Size: ${bytes.byteLength} bytes`,
+              `  Version: ${version.versionId.slice(0, 12)}...`,
+              `  Size: ${envelope.byteLength} bytes`,
+              `  Main module: ${built.mainModule}`,
               `  Target: ${agentId === context.agentId ? "self" : agentId}`,
               `  Rationale: ${args.rationale ?? "(none)"}`,
-              metadata ? `  Metadata: ${metadata}` : undefined,
-            ]
-              .filter(Boolean)
-              .join("\n");
+            ].join("\n");
           },
         }),
 
-        // --- workshop_disable ---
         defineTool({
           name: "workshop_disable",
           description: "Disable the active bundle, reverting to the static brain",
@@ -433,31 +627,18 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
           }),
           execute: async (args) => {
             const agentId = args.targetAgentId ?? context.agentId;
-
-            try {
-              await options.registry.setActive(agentId, null, {
-                rationale: args.rationale ?? "workshop_disable",
-                sessionId: context.sessionId,
-              });
-            } catch (err) {
-              return `Disable failed: ${err instanceof Error ? err.message : String(err)}`;
-            }
-
-            // Self-disable: refresh this DO's hot-path cache. Cross-agent
-            // disables require the target to POST /bundle/refresh.
+            await options.registry.setActive(agentId, null, {
+              rationale: args.rationale ?? "workshop_disable",
+              sessionId: context.sessionId,
+            });
             if (agentId === context.agentId) {
-              await context.notifyBundlePointerChanged();
+              await context.notifyBundlePointerChanged?.();
             }
-
+            await auditLog(context, "workshop_disable", args, "success");
             return `Bundle disabled for ${agentId === context.agentId ? "self" : agentId}. Static brain will run on next turn.`;
           },
         }),
 
-        // --- workshop_rollback ---
-        // NOTE: when this stub is fleshed out, the success path MUST
-        // call `context.notifyBundlePointerChanged()` after the
-        // `registry.setActive` so the cache stays coherent — same
-        // pattern as workshop_deploy and workshop_disable above.
         defineTool({
           name: "workshop_rollback",
           description: "Roll back to the previous bundle version",
@@ -469,36 +650,18 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
           }),
           execute: async (args) => {
             const agentId = args.targetAgentId ?? context.agentId;
-
-            try {
-              const current = await options.registry.getActiveForAgent(agentId);
-              if (!current) {
-                return "Error: No active bundle to roll back from. Use workshop_disable instead.";
-              }
-
-              // Note: full rollback requires the extended registry interface
-              // (D1BundleRegistry.rollback). For the base BundleRegistry interface,
-              // rollback is not directly available. This tool will be enhanced
-              // when wired to D1BundleRegistry.
-              return "Rollback requires the D1BundleRegistry. Use workshop_disable to revert to static brain.";
-            } catch (err) {
-              return `Rollback failed: ${err instanceof Error ? err.message : String(err)}`;
+            const current = await options.registry.getActiveForAgent(agentId);
+            if (!current) {
+              return "Error: No active bundle to roll back from. Use workshop_disable instead.";
             }
+            return "Rollback requires the extended D1BundleRegistry.rollback method (not yet exposed on BundleRegistryWriter). Use workshop_disable to revert to the static brain.";
           },
         }),
 
-        // --- workshop_versions ---
         defineTool({
           name: "workshop_versions",
-          description: "List recent bundle deployment history",
+          description: "Show active bundle status for an agent",
           parameters: Type.Object({
-            limit: Type.Optional(
-              Type.Number({
-                description: "Max results (default: 20, max: 100)",
-                minimum: 1,
-                maximum: 100,
-              }),
-            ),
             targetAgentId: Type.Optional(
               Type.String({ description: "Target agent ID (default: self)" }),
             ),
@@ -506,12 +669,11 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
           execute: async (args) => {
             const agentId = args.targetAgentId ?? context.agentId;
             const activeId = await options.registry.getActiveForAgent(agentId);
-
             return [
               `Bundle status for ${agentId === context.agentId ? "self" : agentId}:`,
               `  Active version: ${activeId ?? "(none — static brain)"}`,
               "",
-              "Note: Full deployment history requires D1BundleRegistry.listDeployments.",
+              "Full deployment history requires D1BundleRegistry.listDeployments.",
             ].join("\n");
           },
         }),
@@ -525,20 +687,65 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
         content: [
           "You have the Agent Workshop capability. You can author, build, test, deploy, and manage bundle brains.",
           "",
-          "Workshop tools run shell commands inside the sandbox, so the sandbox must be elevated first — call the `elevate` tool before running any workshop tool.",
+          "Bundle source files live in R2 under `workshop/bundles/{name}/`. Build is in-process — no container, no elevation required.",
           "",
           "Workflow:",
-          "1. `elevate` — activate the sandbox (one-time per session)",
-          "2. `workshop_init` — scaffold a new bundle workspace",
-          "3. Edit src/index.ts with the desired brain logic",
-          "4. `workshop_build` — compile to dist/bundle.js",
-          "5. `workshop_test` — validate the build",
-          "6. `workshop_deploy` — deploy as your active brain (self-editing by default)",
-          "7. `workshop_disable` — revert to static brain if needed",
+          "1. `workshop_init` — scaffold a new bundle workspace (creates package.json + src/index.ts)",
+          "2. `workshop_file_read` / `workshop_file_write` / `workshop_file_edit` — author the bundle",
+          "3. `workshop_build` — compile via @cloudflare/worker-bundler",
+          "4. `workshop_test` — smoke-test the compiled output",
+          "5. `workshop_deploy` — deploy as your active brain (self-editing by default)",
+          "6. `workshop_disable` — revert to static brain if needed",
+          "",
+          "The `@claw-for-cloudflare/agent-bundle` runtime is injected at build time — import it from `./_claw/bundle-runtime.js` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
           "",
           "Self-editing is safe: the static brain is always available as a fallback.",
         ].join("\n"),
       },
     ],
   };
+}
+
+/**
+ * Encode a built bundle into the v1 JSON envelope the dispatcher expects.
+ * Exported for tests that want to assert the payload shape without driving
+ * a full deploy.
+ */
+export function encodeEnvelope(mainModule: string, modules: Record<string, unknown>): ArrayBuffer {
+  const payload = JSON.stringify({
+    v: BUNDLE_ENVELOPE_VERSION,
+    mainModule,
+    modules,
+  });
+  const bytes = new TextEncoder().encode(payload);
+  const buf = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buf).set(bytes);
+  return buf;
+}
+
+/**
+ * Return true if the bundled source exposes a default export. Accepts both
+ * the literal `export default` form written by hand in src/index.ts and the
+ * rewritten `export { <name> as default }` / `export {default as default}`
+ * forms emitted by bundlers that hoist the default through a named binding.
+ * Exported for unit tests.
+ */
+export function hasDefaultExport(source: string | undefined): boolean {
+  if (!source) return false;
+  if (source.includes("export default")) return true;
+  return /export\s*\{[^}]*\bas\s+default\b/.test(source);
+}
+
+/**
+ * Extract the raw JS content from a `createWorker` module entry, which
+ * may be either a string or a structured `{js?, cjs?, text?, json?}`
+ * module. Returns undefined when no text-form content is available.
+ */
+function extractModuleContent(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const obj = value as { js?: string; cjs?: string; text?: string };
+    return obj.js ?? obj.cjs ?? obj.text;
+  }
+  return undefined;
 }

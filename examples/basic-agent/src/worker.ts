@@ -275,46 +275,12 @@ export const BasicAgent = defineAgent<Env>({
         ],
       }),
       // Agent workshop — author, build, test, deploy bundle brains.
-      // Every container operation routes through the sandbox capability's
-      // `exec` tool so elevation, container health, and de-elevation timer
-      // reset behave identically to the agent running bash directly.
+      // Build runs in-process via @cloudflare/worker-bundler; source files
+      // live in R2 under `{namespace}/workshop/bundles/{name}/` via the
+      // shared AgentStorage handle. No container required.
       agentWorkshop({
         registry: new D1BundleRegistry(env.BUNDLE_DB, env.BUNDLE_KV),
-        sandboxExec: async (sid, command, opts) => {
-          const execTool = resolveToolsForSession(sid).tools.find((t) => t.name === "exec");
-          if (!execTool) {
-            return {
-              stdout: "",
-              stderr: "sandbox exec tool not registered",
-              exitCode: 1,
-            };
-          }
-          const result = (await execTool.execute(
-            { command },
-            { toolCallId: `workshop-${Date.now()}`, signal: opts?.signal },
-          )) as {
-            details?: {
-              error?: string;
-              exitCode?: number;
-              stdout?: string;
-              stderr?: string;
-            };
-          };
-          const details = result.details ?? {};
-          if (details.error === "not_elevated") {
-            return {
-              stdout: "",
-              stderr:
-                "Sandbox is not elevated for this session. Call the `elevate` tool first before using workshop tools.",
-              exitCode: 126,
-            };
-          }
-          return {
-            stdout: details.stdout ?? "",
-            stderr: details.stderr ?? "",
-            exitCode: details.exitCode ?? 1,
-          };
-        },
+        storage,
       }),
     ];
   },

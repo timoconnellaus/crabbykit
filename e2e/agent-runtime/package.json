@@ -8,7 +8,6 @@
     "test:dev": "vitest run --config vitest.dev.config.ts"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.1.0",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
     "@claw-for-cloudflare/channel-telegram": "workspace:*",
@@ -16,7 +15,8 @@
     "@claw-for-cloudflare/compaction-summary": "workspace:*",
     "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
     "@claw-for-cloudflare/r2-storage": "workspace:*",
-    "@claw-for-cloudflare/sandbox": "workspace:*"
+    "@claw-for-cloudflare/sandbox": "workspace:*",
+    "@cloudflare/containers": "^0.1.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.0",

@@ -6,6 +6,21 @@ import type { BundleRegistry } from "@claw-for-cloudflare/agent-runtime";
 
 export type { BundleRegistry };
 
+/**
+ * Extended registry interface for code paths that must persist bytes
+ * (e.g., workshop_deploy). The narrow runtime `BundleRegistry` is
+ * read-only — it can flip pointers but has no way to store a version
+ * blob, so a `setActive` call against a never-persisted version would
+ * leave the next dispatch turn looking up bytes that don't exist.
+ *
+ * `D1BundleRegistry` satisfies this wider interface by virtue of its
+ * `createVersion` method, which writes bytes to KV and inserts the
+ * corresponding D1 row.
+ */
+export interface BundleRegistryWriter extends BundleRegistry {
+  createVersion(opts: CreateVersionOpts): Promise<BundleVersion>;
+}
+
 export interface BundleVersion {
   versionId: string;
   kvKey: string;
