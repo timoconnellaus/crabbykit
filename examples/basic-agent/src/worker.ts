@@ -21,9 +21,9 @@ import {
 import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
+import { fileTools } from "@claw-for-cloudflare/file-tools";
 import { HeartbeatConfigSchema, heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
-import { fileTools } from "@claw-for-cloudflare/file-tools";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
 import { skills } from "@claw-for-cloudflare/skills";

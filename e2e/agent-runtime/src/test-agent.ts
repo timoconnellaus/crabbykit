@@ -7,12 +7,7 @@
  */
 
 import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
-import type {
-  AgentConfig,
-  AgentContext,
-  Capability,
-  CapabilityHookContext,
-} from "@claw-for-cloudflare/agent-runtime";
+import type { AgentConfig, AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
 import {
   AgentDO,
   createCapabilityStorage,
@@ -22,8 +17,8 @@ import {
 } from "@claw-for-cloudflare/agent-runtime";
 import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
-import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { fileTools } from "@claw-for-cloudflare/file-tools";
+import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 
 // --- Mock LLM infrastructure ---
 

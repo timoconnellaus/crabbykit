@@ -10,8 +10,8 @@
   "scripts": {
     "test": "bun run --filter '*' test",
     "typecheck": "bun run --filter '*' typecheck",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
+    "lint": "biome check . && bun scripts/check-package-deps.ts",
+    "lint:fix": "biome check --write . && bun scripts/check-package-deps.ts",
     "format": "biome format --write ."
   },
   "devDependencies": {
