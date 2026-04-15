@@ -4,22 +4,22 @@ on:
   push:
     branches: [main]
     paths:
-      - "packages/cloudflare-sandbox/container/**"
-      - "packages/agent-bundle/src/bundle/**"
-      - "packages/agent-bundle/package.vendored.json"
-      - "packages/tavily-web-search/src/client.ts"
-      - "packages/tavily-web-search/src/schemas.ts"
-      - "packages/tavily-web-search/package.vendored.json"
+      - "packages/infra/cloudflare-sandbox/container/**"
+      - "packages/runtime/agent-bundle/src/bundle/**"
+      - "packages/runtime/agent-bundle/package.vendored.json"
+      - "packages/capabilities/tavily-web-search/src/client.ts"
+      - "packages/capabilities/tavily-web-search/src/schemas.ts"
+      - "packages/capabilities/tavily-web-search/package.vendored.json"
       - "scripts/check-sandbox-dockerfile.mjs"
       - ".github/workflows/sandbox-container.yml"
   pull_request:
     paths:
-      - "packages/cloudflare-sandbox/container/**"
-      - "packages/agent-bundle/src/bundle/**"
-      - "packages/agent-bundle/package.vendored.json"
-      - "packages/tavily-web-search/src/client.ts"
-      - "packages/tavily-web-search/src/schemas.ts"
-      - "packages/tavily-web-search/package.vendored.json"
+      - "packages/infra/cloudflare-sandbox/container/**"
+      - "packages/runtime/agent-bundle/src/bundle/**"
+      - "packages/runtime/agent-bundle/package.vendored.json"
+      - "packages/capabilities/tavily-web-search/src/client.ts"
+      - "packages/capabilities/tavily-web-search/src/schemas.ts"
+      - "packages/capabilities/tavily-web-search/package.vendored.json"
       - "scripts/check-sandbox-dockerfile.mjs"
       - ".github/workflows/sandbox-container.yml"
 
@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: packages/cloudflare-sandbox/container/Dockerfile
+          file: packages/infra/cloudflare-sandbox/container/Dockerfile
           push: false
           load: true
           tags: claw-sandbox:ci

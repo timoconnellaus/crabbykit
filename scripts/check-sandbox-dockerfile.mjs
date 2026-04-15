@@ -25,14 +25,14 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
-const dockerfilePath = join(repoRoot, "packages/cloudflare-sandbox/container/Dockerfile");
+const dockerfilePath = join(repoRoot, "packages/infra/cloudflare-sandbox/container/Dockerfile");
 
 const REQUIRED_COPY_SOURCES = [
-  "packages/agent-bundle/src/bundle",
-  "packages/agent-bundle/package.vendored.json",
-  "packages/tavily-web-search/src/client.ts",
-  "packages/tavily-web-search/src/schemas.ts",
-  "packages/tavily-web-search/package.vendored.json",
+  "packages/runtime/agent-bundle/src/bundle",
+  "packages/runtime/agent-bundle/package.vendored.json",
+  "packages/capabilities/tavily-web-search/src/client.ts",
+  "packages/capabilities/tavily-web-search/src/schemas.ts",
+  "packages/capabilities/tavily-web-search/package.vendored.json",
 ];
 
 const REQUIRED_INTEGRITY_MARKERS = ["INTEGRITY.json", "sha256sum"];
@@ -88,10 +88,10 @@ async function main() {
   // manifest that the container image build generates. Failing here
   // doesn't block the image build, but it catches orphaned references.
   const hashedFiles = [
-    "packages/agent-bundle/package.vendored.json",
-    "packages/tavily-web-search/src/client.ts",
-    "packages/tavily-web-search/src/schemas.ts",
-    "packages/tavily-web-search/package.vendored.json",
+    "packages/runtime/agent-bundle/package.vendored.json",
+    "packages/capabilities/tavily-web-search/src/client.ts",
+    "packages/capabilities/tavily-web-search/src/schemas.ts",
+    "packages/capabilities/tavily-web-search/package.vendored.json",
   ];
 
   const manifest = {};

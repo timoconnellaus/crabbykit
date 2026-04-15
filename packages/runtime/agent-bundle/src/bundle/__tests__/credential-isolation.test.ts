@@ -17,17 +17,17 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const Dirname = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_ROOT = resolve(Dirname, "../../../../..");
+const WORKSPACE_ROOT = resolve(Dirname, "../../../../../..");
 
 const BUNDLE_SIDE_FILES = [
   // agent-bundle authoring surface
-  "packages/agent-bundle/src/bundle/define.ts",
-  "packages/agent-bundle/src/bundle/types.ts",
-  "packages/agent-bundle/src/bundle/runtime.ts",
-  "packages/agent-bundle/src/bundle/spine-clients.ts",
+  "packages/runtime/agent-bundle/src/bundle/define.ts",
+  "packages/runtime/agent-bundle/src/bundle/types.ts",
+  "packages/runtime/agent-bundle/src/bundle/runtime.ts",
+  "packages/runtime/agent-bundle/src/bundle/spine-clients.ts",
   // Tavily client (ships in the vendored /opt/claw-sdk/ snapshot)
-  "packages/tavily-web-search/src/client.ts",
-  "packages/tavily-web-search/src/schemas.ts",
+  "packages/capabilities/tavily-web-search/src/client.ts",
+  "packages/capabilities/tavily-web-search/src/schemas.ts",
 ];
 
 const FORBIDDEN_TOKENS = [
@@ -54,7 +54,7 @@ describe("Bundle-side credential isolation", () => {
 
   it("tavily client.ts uses 'import type' for TavilyService (never a value import)", async () => {
     const content = await readFile(
-      resolve(WORKSPACE_ROOT, "packages/tavily-web-search/src/client.ts"),
+      resolve(WORKSPACE_ROOT, "packages/capabilities/tavily-web-search/src/client.ts"),
       "utf8",
     );
     // A value import from ./service would pull credentials into the bundle
@@ -68,7 +68,7 @@ describe("Bundle-side credential isolation", () => {
 
   it("bundle-side BundleModelConfig interface has no apiKey field", async () => {
     const types = await readFile(
-      resolve(WORKSPACE_ROOT, "packages/agent-bundle/src/bundle/types.ts"),
+      resolve(WORKSPACE_ROOT, "packages/runtime/agent-bundle/src/bundle/types.ts"),
       "utf8",
     );
     const match = types.match(/interface BundleModelConfig[\s\S]*?\n\}/);

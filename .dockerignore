@@ -1,5 +1,5 @@
 # Build context = repo root (set via wrangler `image_build_context`).
-# Prune everything that isn't needed by packages/cloudflare-sandbox/container/Dockerfile
+# Prune everything that isn't needed by packages/infra/cloudflare-sandbox/container/Dockerfile
 # so context transfer stays small.
 
 **/node_modules

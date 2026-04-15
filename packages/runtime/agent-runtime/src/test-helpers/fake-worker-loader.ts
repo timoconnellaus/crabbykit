@@ -3,7 +3,7 @@
  *
  * Synthesizes a runnable entrypoint by evaluating the bundle source via
  * `new Function`. This avoids the data:text/javascript dynamic-import trick
- * used in `packages/agent-bundle/src/host/__tests__/bundle-dispatcher-integration.test.ts`,
+ * used in `packages/runtime/agent-bundle/src/host/__tests__/bundle-dispatcher-integration.test.ts`,
  * which breaks under `@cloudflare/vitest-pool-workers` because vite-node's
  * module resolver intercepts `import("data:...")` before the workerd isolate
  * gets a chance to handle it (see `.../known-issues/#module-resolution`).

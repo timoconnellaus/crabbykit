@@ -1,8 +1,8 @@
 /**
  * Prompt types — the single source of truth for system-prompt structure,
- * shared by both the host-side runtime (`packages/agent-runtime`) and the
+ * shared by both the host-side runtime (`packages/runtime/agent-runtime`) and the
  * bundle-side runtime (this subpath). Lives here because the container
- * vendors `packages/agent-bundle/src/bundle/` at `/opt/claw-sdk/`, which
+ * vendors `packages/runtime/agent-bundle/src/bundle/` at `/opt/claw-sdk/`, which
  * is the ONLY location the loader isolate can reach at bundle runtime.
  * agent-runtime re-exports everything in this directory.
  */

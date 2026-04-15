@@ -49,7 +49,7 @@ WORKDIR /app
 
 # Compile nm-mount-helper (setuid root binary for bind-mounts) and
 # nm-intercept (LD_PRELOAD library that calls the helper on node_modules mkdir)
-COPY packages/cloudflare-sandbox/container/nm-mount-helper.c packages/cloudflare-sandbox/container/nm-intercept.c /tmp/
+COPY packages/infra/cloudflare-sandbox/container/nm-mount-helper.c packages/infra/cloudflare-sandbox/container/nm-intercept.c /tmp/
 RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
     chmod u+s /usr/local/bin/nm-mount-helper && \
     gcc -shared -fPIC -o /usr/local/lib/nm-intercept.so /tmp/nm-intercept.c -ldl && \
@@ -65,24 +65,24 @@ RUN cd /app && BUN_INSTALL=/tmp/bun-build bun install node-pty && \
 # Install @claw-for-cloudflare/vite-plugin so vibe-coded apps can import it.
 # Placed at /node_modules/ (root) so ESM resolution finds it from any project path.
 # (Committed prebuilt .js blob — not rebuilt from workspace TS at image build.)
-COPY packages/cloudflare-sandbox/container/claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
+COPY packages/infra/cloudflare-sandbox/container/claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
 RUN mkdir -p /node_modules/@claw-for-cloudflare && \
     ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
 
 # Install @claw-for-cloudflare/container-db so vibe-coded apps can import it.
 # Copies the workspace source directly — no intermediate staging.
-COPY packages/container-db/src/index.ts /usr/local/lib/claw-container-db/index.ts
+COPY packages/infra/container-db/src/index.ts /usr/local/lib/claw-container-db/index.ts
 RUN ln -sf /usr/local/lib/claw-container-db /node_modules/@claw-for-cloudflare/container-db
 
 # Vendor bundle-authoring SDK packages at /opt/claw-sdk/ (read-only at runtime).
 # Only bundle-side subpaths are vendored — no host-side WorkerEntrypoints.
 # Sources COPY'd directly from workspace; tiny `package.vendored.json` stubs
 # live next to each source package and are renamed to package.json on copy.
-COPY packages/agent-bundle/src/bundle /opt/claw-sdk/agent-bundle/src/bundle
-COPY packages/agent-bundle/package.vendored.json /opt/claw-sdk/agent-bundle/package.json
-COPY packages/tavily-web-search/src/client.ts /opt/claw-sdk/tavily-client/src/client.ts
-COPY packages/tavily-web-search/src/schemas.ts /opt/claw-sdk/tavily-client/src/schemas.ts
-COPY packages/tavily-web-search/package.vendored.json /opt/claw-sdk/tavily-client/package.json
+COPY packages/runtime/agent-bundle/src/bundle /opt/claw-sdk/agent-bundle/src/bundle
+COPY packages/runtime/agent-bundle/package.vendored.json /opt/claw-sdk/agent-bundle/package.json
+COPY packages/capabilities/tavily-web-search/src/client.ts /opt/claw-sdk/tavily-client/src/client.ts
+COPY packages/capabilities/tavily-web-search/src/schemas.ts /opt/claw-sdk/tavily-client/src/schemas.ts
+COPY packages/capabilities/tavily-web-search/package.vendored.json /opt/claw-sdk/tavily-client/package.json
 RUN chmod -R a-w /opt/claw-sdk/ && \
     ln -sf /opt/claw-sdk/agent-bundle /node_modules/@claw-for-cloudflare/agent-bundle
 
@@ -94,16 +94,16 @@ RUN find /opt/claw-sdk/ -type f -exec sha256sum {} \; | \
     chmod a-w /opt/claw-sdk/INTEGRITY.json
 
 # Copy container scripts and sandbox server
-COPY packages/cloudflare-sandbox/container/startup.sh \
-     packages/cloudflare-sandbox/container/nm-guard.sh \
-     packages/cloudflare-sandbox/container/restic-syncd.sh \
-     packages/cloudflare-sandbox/container/server.ts \
-     packages/cloudflare-sandbox/container/constants.ts \
-     packages/cloudflare-sandbox/container/types.ts \
-     packages/cloudflare-sandbox/container/state.ts \
-     packages/cloudflare-sandbox/container/helpers.ts \
-     packages/cloudflare-sandbox/container/sessions.ts \
-     packages/cloudflare-sandbox/container/routes.ts \
+COPY packages/infra/cloudflare-sandbox/container/startup.sh \
+     packages/infra/cloudflare-sandbox/container/nm-guard.sh \
+     packages/infra/cloudflare-sandbox/container/restic-syncd.sh \
+     packages/infra/cloudflare-sandbox/container/server.ts \
+     packages/infra/cloudflare-sandbox/container/constants.ts \
+     packages/infra/cloudflare-sandbox/container/types.ts \
+     packages/infra/cloudflare-sandbox/container/state.ts \
+     packages/infra/cloudflare-sandbox/container/helpers.ts \
+     packages/infra/cloudflare-sandbox/container/sessions.ts \
+     packages/infra/cloudflare-sandbox/container/routes.ts \
      /app/
 RUN chmod +x /app/startup.sh /app/nm-guard.sh /app/restic-syncd.sh
 

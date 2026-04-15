@@ -2508,7 +2508,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       // Fire `Capability.afterTurn` hooks once per `handlePrompt` /
       // `handleAgentPrompt` invocation. The agent emits `agent_end` exactly
       // once regardless of termination mode (natural_stop, error, aborted,
-      // max_iterations — see packages/agent-core/src/agent.ts and the
+      // max_iterations — see packages/runtime/agent-core/src/agent.ts and the
       // AgentEvent discriminated union in agent-core/src/types.ts). Firing
       // here therefore delivers a single dispatch per user message, which is
       // the only shape that makes sense for chat-like channels: a user
