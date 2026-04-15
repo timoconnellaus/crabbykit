@@ -117,6 +117,8 @@ export type {
   BundleVersionMetadata,
   CreateBundleVersionOpts,
 } from "./bundle-config.js";
+// SpineHost — host DO contract consumed by bundle-host's SpineService
+export type { SpineHost } from "./spine-host.js";
 // defineAgent factory
 export {
   type AgentDefinition,

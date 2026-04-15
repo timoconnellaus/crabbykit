@@ -716,3 +716,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 }
 
 export type { CompactionConfig } from "./agent-runtime.js";
+
+// SpineHost is the nominal contract that `bundle-host`'s `SpineService`
+// consumes. The host DO implements the contract via the internal
+// `/spine/*` HTTP route table in `agent-runtime.ts` (see the
+// `handleSpineRequest` switch statement) rather than as direct methods,
+// so a structural `const _check: SpineHost = new AgentDO(...)` would
+// not compile. The drift check lives in `bundle-host`'s integration
+// tests, which exercise every route end-to-end.
+

@@ -9,11 +9,16 @@
  * Per-turn RPC budget enforcement prevents denial-of-service from a bundle.
  */
 
+import type { SpineHost } from "@claw-for-cloudflare/agent-runtime";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { SpineBudgetConfig } from "../budget-tracker.js";
 import { BudgetTracker } from "../budget-tracker.js";
+
+// Re-export SpineHost so existing host-side consumers keep a stable
+// import path through the `bundle-host` barrel.
+export type { SpineHost };
 
 export const SPINE_SUBKEY_LABEL = "claw/spine-v1";
 
@@ -56,43 +61,6 @@ export interface SpineEnv {
   AGENT: DurableObjectNamespace;
   /** Optional budget configuration. */
   SPINE_BUDGET?: SpineBudgetConfig;
-}
-
-// --- Host bridge interface ---
-
-/**
- * Interface that the host DO must implement to receive bridged calls.
- * The SpineService calls these methods on the DO via the namespace binding.
- */
-export interface SpineHost {
-  // Session store (sync on DO side)
-  spineAppendEntry(sessionId: string, entry: unknown): unknown;
-  spineGetEntries(sessionId: string, options?: unknown): unknown[];
-  spineGetSession(sessionId: string): unknown;
-  spineCreateSession(init?: unknown): unknown;
-  spineListSessions(filter?: unknown): unknown[];
-  spineBuildContext(sessionId: string): unknown;
-  spineGetCompactionCheckpoint(sessionId: string): unknown;
-
-  // KV store (async on DO side)
-  spineKvGet(capabilityId: string, key: string): Promise<unknown>;
-  spineKvPut(capabilityId: string, key: string, value: unknown, options?: unknown): Promise<void>;
-  spineKvDelete(capabilityId: string, key: string): Promise<void>;
-  spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]>;
-
-  // Scheduler
-  spineScheduleCreate(schedule: unknown): Promise<unknown>;
-  spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void>;
-  spineScheduleDelete(scheduleId: string): Promise<void>;
-  spineScheduleList(): Promise<unknown[]>;
-  spineAlarmSet(timestamp: number): Promise<void>;
-
-  // Transport (sync broadcast on DO side)
-  spineBroadcast(sessionId: string, event: unknown): void;
-  spineBroadcastGlobal(event: unknown): void;
-
-  // Cost emission
-  spineEmitCost(sessionId: string, costEvent: unknown): void;
 }
 
 // --- SpineService ---

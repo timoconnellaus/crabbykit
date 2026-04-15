@@ -38,5 +38,10 @@ export { InMemoryBundleRegistry } from "./in-memory-registry.js";
 export { deriveMintSubkey, mintToken } from "./security/mint.js";
 export type { InferRequest, InferResponse, LlmEnv } from "./services/llm-service.js";
 export { LlmService } from "./services/llm-service.js";
-export type { SpineBudgetConfig, SpineEnv, SpineErrorCode } from "./services/spine-service.js";
+export type {
+  SpineBudgetConfig,
+  SpineEnv,
+  SpineErrorCode,
+  SpineHost,
+} from "./services/spine-service.js";
 export { SpineError, SpineService } from "./services/spine-service.js";
