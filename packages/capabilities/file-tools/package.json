@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/r2-storage",
+  "name": "@claw-for-cloudflare/file-tools",
   "version": "0.0.1",
   "private": true,
   "type": "module",

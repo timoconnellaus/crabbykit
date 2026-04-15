@@ -12,5 +12,5 @@ export function isMemoryPath(path: string): boolean {
   return false;
 }
 
-// Re-export from r2-storage to avoid duplicate definition.
-export { toR2Key } from "@claw-for-cloudflare/r2-storage";
+// Re-export from file-tools to avoid duplicate definition.
+export { toR2Key } from "@claw-for-cloudflare/file-tools";

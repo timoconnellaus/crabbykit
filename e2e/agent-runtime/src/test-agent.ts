@@ -2,7 +2,7 @@
  * E2E test agent with mock LLM but real capabilities.
  *
  * Uses the same MockPiAgent pattern as the runtime's TestAgentDO,
- * but wires up real capability packages (r2-storage, prompt-scheduler)
+ * but wires up real capability packages (file-tools, prompt-scheduler)
  * against real local bindings (R2 via miniflare, DO SQLite).
  */
 
@@ -23,7 +23,7 @@ import {
 import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
-import { r2Storage } from "@claw-for-cloudflare/r2-storage";
+import { fileTools } from "@claw-for-cloudflare/file-tools";
 
 // --- Mock LLM infrastructure ---
 
@@ -297,7 +297,7 @@ export class E2EAgent extends AgentDO<Env> {
       namespace: this.ctx.id.toString(),
     });
 
-    const capabilities: Capability[] = [r2Storage({ storage }), promptScheduler()];
+    const capabilities: Capability[] = [fileTools({ storage }), promptScheduler()];
 
     // Telegram channel (only registered when a test has set accounts).
     const telegram = buildTelegramCapability();

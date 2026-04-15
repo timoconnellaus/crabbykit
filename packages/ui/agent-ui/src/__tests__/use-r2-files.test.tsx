@@ -21,7 +21,7 @@ function makeWrapper(handle: MockProviderHandle, currentSessionId: string | null
 }
 
 function broadcast(handle: MockProviderHandle, event: string, data: unknown) {
-  const listeners = handle.subscribers.get("r2-storage");
+  const listeners = handle.subscribers.get("file-tools");
   if (!listeners) return;
   for (const fn of listeners) fn(event, data);
 }
@@ -35,7 +35,7 @@ describe("useR2Files", () => {
     const initial = handle.sent[0];
     expect(initial).toMatchObject({
       type: "capability_action",
-      capabilityId: "r2-storage",
+      capabilityId: "file-tools",
       action: "list",
       sessionId: "sess_1",
     });

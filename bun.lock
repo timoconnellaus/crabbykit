@@ -16,8 +16,8 @@
         "@claw-for-cloudflare/channel-telegram": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
+        "@claw-for-cloudflare/file-tools": "workspace:*",
         "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
-        "@claw-for-cloudflare/r2-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
         "@cloudflare/containers": "^0.1.0",
       },
@@ -54,9 +54,9 @@
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
         "@claw-for-cloudflare/credential-store": "workspace:*",
         "@claw-for-cloudflare/doom-loop-detection": "workspace:*",
+        "@claw-for-cloudflare/file-tools": "workspace:*",
         "@claw-for-cloudflare/heartbeat": "workspace:*",
         "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
-        "@claw-for-cloudflare/r2-storage": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
         "@claw-for-cloudflare/skill-registry": "workspace:*",
         "@claw-for-cloudflare/skills": "workspace:*",
@@ -165,6 +165,23 @@
         "vitest": "^3.2.0",
       },
     },
+    "packages/capabilities/file-tools": {
+      "name": "@claw-for-cloudflare/file-tools",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/capabilities/heartbeat": {
       "name": "@claw-for-cloudflare/heartbeat",
       "version": "0.0.1",
@@ -184,23 +201,6 @@
       "dependencies": {
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/capabilities/r2-storage": {
-      "name": "@claw-for-cloudflare/r2-storage",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
@@ -329,7 +329,7 @@
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/r2-storage": "workspace:*",
+        "@claw-for-cloudflare/file-tools": "workspace:*",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
@@ -814,11 +814,11 @@
 
     "@claw-for-cloudflare/doom-loop-detection": ["@claw-for-cloudflare/doom-loop-detection@workspace:packages/capabilities/doom-loop-detection"],
 
+    "@claw-for-cloudflare/file-tools": ["@claw-for-cloudflare/file-tools@workspace:packages/capabilities/file-tools"],
+
     "@claw-for-cloudflare/heartbeat": ["@claw-for-cloudflare/heartbeat@workspace:packages/capabilities/heartbeat"],
 
     "@claw-for-cloudflare/prompt-scheduler": ["@claw-for-cloudflare/prompt-scheduler@workspace:packages/capabilities/prompt-scheduler"],
-
-    "@claw-for-cloudflare/r2-storage": ["@claw-for-cloudflare/r2-storage@workspace:packages/capabilities/r2-storage"],
 
     "@claw-for-cloudflare/sandbox": ["@claw-for-cloudflare/sandbox@workspace:packages/capabilities/sandbox"],
 

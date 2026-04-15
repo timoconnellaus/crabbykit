@@ -23,7 +23,7 @@ import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
 import { HeartbeatConfigSchema, heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
-import { r2Storage } from "@claw-for-cloudflare/r2-storage";
+import { fileTools } from "@claw-for-cloudflare/file-tools";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
 import { skills } from "@claw-for-cloudflare/skills";
@@ -205,7 +205,7 @@ export const BasicAgent = defineAgent<Env>({
         tavilyApiKey: () => env.TAVILY_API_KEY,
         config: (c) => c.search as import("@claw-for-cloudflare/tavily-web-search").TavilyConfig,
       }),
-      r2Storage({ storage }),
+      fileTools({ storage }),
       vectorMemory({
         storage,
         vectorizeIndex: () => env.MEMORY_INDEX,

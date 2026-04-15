@@ -10,7 +10,7 @@
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-core": "workspace:*",
     "@claw-for-cloudflare/agent-storage": "workspace:*",
-    "@claw-for-cloudflare/r2-storage": "workspace:*",
+    "@claw-for-cloudflare/file-tools": "workspace:*",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {

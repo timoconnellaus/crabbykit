@@ -1,6 +1,6 @@
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { describe, expect, it } from "vitest";
-import { r2Storage } from "../capability.js";
+import { fileTools } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";
 
 function mockStorage(bucket?: R2Bucket) {
@@ -10,12 +10,12 @@ function mockStorage(bucket?: R2Bucket) {
   };
 }
 
-describe("r2Storage", () => {
+describe("fileTools", () => {
   it("returns a valid Capability with correct shape", () => {
-    const cap = r2Storage({ storage: mockStorage() });
+    const cap = fileTools({ storage: mockStorage() });
 
-    expect(cap.id).toBe("r2-storage");
-    expect(cap.name).toBe("R2 File Storage");
+    expect(cap.id).toBe("file-tools");
+    expect(cap.name).toBe("File Tools");
     expect(cap.description).toBeTruthy();
     expect(cap.tools).toBeInstanceOf(Function);
     // promptSections were intentionally removed — tool descriptions are sufficient.
@@ -23,7 +23,7 @@ describe("r2Storage", () => {
   });
 
   it("provides seven file tools", () => {
-    const cap = r2Storage({ storage: mockStorage() });
+    const cap = fileTools({ storage: mockStorage() });
 
     const context = {
       agentId: "test-agent",
@@ -55,12 +55,12 @@ describe("r2Storage", () => {
   });
 
   it("exposes an afterToolExecution hook for UI file_changed broadcasts", () => {
-    const cap = r2Storage({ storage: mockStorage() });
+    const cap = fileTools({ storage: mockStorage() });
     expect(cap.hooks?.afterToolExecution).toBeInstanceOf(Function);
   });
 
   it("exposes an onAction handler for the UI bridge", () => {
-    const cap = r2Storage({ storage: mockStorage() });
+    const cap = fileTools({ storage: mockStorage() });
     expect(cap.onAction).toBeInstanceOf(Function);
   });
 });

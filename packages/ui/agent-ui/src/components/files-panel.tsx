@@ -8,7 +8,7 @@ export interface FilesPanelProps extends ComponentPropsWithoutRef<"div"> {}
 /**
  * Top-level file browser panel. Combines a directory tree with a
  * CodeMirror editor that reads the agent's R2 workspace over the
- * `r2-storage` capability's UI bridge.
+ * `file-tools` capability's UI bridge.
  */
 export function FilesPanel(props: FilesPanelProps) {
   const {

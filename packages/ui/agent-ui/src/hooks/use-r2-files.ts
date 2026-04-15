@@ -2,8 +2,8 @@ import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * UI-facing types for the r2-storage capability's UI bridge. These
- * mirror the events emitted by `packages/r2-storage/src/ui-bridge.ts`
+ * UI-facing types for the file-tools capability's UI bridge. These
+ * mirror the events emitted by `packages/capabilities/file-tools/src/ui-bridge.ts`
  * and are duplicated here so `agent-ui` does not take a hard dependency
  * on the capability package.
  */
@@ -75,10 +75,10 @@ export interface UseR2FilesReturn extends R2FileBrowserState {
   clearConflict: () => void;
 }
 
-const CAPABILITY_ID = "r2-storage";
+const CAPABILITY_ID = "file-tools";
 
 /**
- * Hook wrapping the r2-storage capability's UI bridge. Subscribes to
+ * Hook wrapping the file-tools capability's UI bridge. Subscribes to
  * `dir_listing` / `file_content` / `file_saved` / `file_conflict` /
  * `file_changed` / `file_error` broadcasts, and exposes helpers that
  * send `capability_action` messages.
@@ -286,7 +286,7 @@ export function useR2Files(): UseR2FilesReturn {
   const clearError = useCallback(() => setError(null), []);
   const clearConflict = useCallback(() => setConflict(null), []);
 
-  // Subscribe to capability_state events for r2-storage.
+  // Subscribe to capability_state events for file-tools.
   useEffect(() => {
     const unsubscribe = subscribe(CAPABILITY_ID, (event, data) => {
       switch (event) {

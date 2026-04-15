@@ -43,7 +43,7 @@ describe("planMode built-in", () => {
     const importLines = source.split("\n").filter((line) => /^\s*import\b/.test(line));
     for (const line of importLines) {
       expect(line).not.toMatch(/@claw-for-cloudflare\/(?!agent-runtime)/);
-      expect(line).not.toMatch(/r2-storage|sandbox|vibe-coder|browserbase|tavily/);
+      expect(line).not.toMatch(/file-tools|sandbox|vibe-coder|browserbase|tavily/);
     }
   });
 

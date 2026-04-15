@@ -13,7 +13,7 @@ export interface AgentStorageOptions {
 /**
  * Create a shared storage identity for an agent.
  *
- * Pass the returned object to r2Storage, vectorMemory, and
+ * Pass the returned object to fileTools, vectorMemory, and
  * CloudflareSandboxProvider to ensure they all operate on the
  * same R2 namespace.
  */

@@ -25,7 +25,7 @@ function sampleSkill(overrides: Partial<Parameters<D1SkillRegistry["upsert"]>[0]
     name: "Code Review",
     description: "Reviews code changes for bugs, security issues, and style",
     version: "1.0.0",
-    requiresCapabilities: ["r2-storage"],
+    requiresCapabilities: ["file-tools"],
     skillMd: SAMPLE_SKILL_MD,
     ...overrides,
   };
@@ -67,7 +67,7 @@ describe("upsert", () => {
     expect(record!.name).toBe("Code Review");
     expect(record!.version).toBe("1.0.0");
     expect(record!.contentHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(record!.requiresCapabilities).toEqual(["r2-storage"]);
+    expect(record!.requiresCapabilities).toEqual(["file-tools"]);
     expect(record!.skillMd).toBe(SAMPLE_SKILL_MD);
     expect(record!.createdAt).toBeTruthy();
     expect(record!.updatedAt).toBeTruthy();
@@ -167,7 +167,7 @@ describe("get", () => {
       name: "Code Review",
       description: "Reviews code changes for bugs, security issues, and style",
       version: "1.0.0",
-      requiresCapabilities: ["r2-storage"],
+      requiresCapabilities: ["file-tools"],
       skillMd: SAMPLE_SKILL_MD,
     });
   });

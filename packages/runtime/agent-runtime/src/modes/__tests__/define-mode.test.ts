@@ -29,7 +29,7 @@ describe("defineMode", () => {
         id: "x",
         name: "X",
         description: "x",
-        capabilities: { allow: ["r2-storage"], deny: ["vibe-coder"] },
+        capabilities: { allow: ["file-tools"], deny: ["vibe-coder"] },
       }),
     ).toThrow(/`capabilities` filter cannot specify both/);
   });
@@ -59,10 +59,10 @@ describe("defineMode", () => {
       name: "X",
       description: "x",
       tools: { allow: ["file_read"] },
-      capabilities: { allow: ["r2-storage"] },
+      capabilities: { allow: ["file-tools"] },
     });
     expect(mode.tools).toEqual({ allow: ["file_read"] });
-    expect(mode.capabilities).toEqual({ allow: ["r2-storage"] });
+    expect(mode.capabilities).toEqual({ allow: ["file-tools"] });
   });
 
   it("accepts deny-only filters", () => {
@@ -81,10 +81,10 @@ describe("defineMode", () => {
       id: "x",
       name: "X",
       description: "x",
-      capabilities: { allow: ["r2-storage"] },
+      capabilities: { allow: ["file-tools"] },
       tools: { deny: ["file_write"] },
     });
-    expect(mode.capabilities).toEqual({ allow: ["r2-storage"] });
+    expect(mode.capabilities).toEqual({ allow: ["file-tools"] });
     expect(mode.tools).toEqual({ deny: ["file_write"] });
   });
 

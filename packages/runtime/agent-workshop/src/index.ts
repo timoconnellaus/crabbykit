@@ -59,7 +59,7 @@ export interface AgentWorkshopOptions {
    * Shared R2 storage identity (bucket + namespace) used to persist bundle
    * source files. Workshop writes under the prefix
    * `{namespace}/workshop/bundles/{name}/...`, which is isolated from other
-   * capabilities sharing the same bucket (r2-storage, vector-memory, …).
+   * capabilities sharing the same bucket (file-tools, vector-memory, …).
    */
   storage: AgentStorage;
   /** Maximum deploys per minute per agent. Default: 5. */
@@ -79,8 +79,8 @@ type PathValidation = PathValidationOk | PathValidationErr;
 /**
  * Validate a relative path supplied by the agent. Rejects null bytes,
  * `..` traversal, absolute paths, and paths exceeding the size limit.
- * Mirrors `packages/r2-storage/src/paths.ts::validatePath` — copied so
- * workshop has no dependency on r2-storage being enabled.
+ * Mirrors `packages/capabilities/file-tools/src/paths.ts::validatePath` — copied so
+ * workshop has no dependency on file-tools being enabled.
  */
 function validateRelativePath(path: string): PathValidation {
   if (typeof path !== "string") {

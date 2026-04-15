@@ -18,7 +18,7 @@ function createHookCtx(): { ctx: CapabilityHookContext; broadcasts: BroadcastCal
     sessionId: "s1",
     sessionStore: {} as CapabilityHookContext["sessionStore"],
     storage: createNoopStorage(),
-    capabilityIds: ["r2-storage"],
+    capabilityIds: ["file-tools"],
     broadcastState: (event, data, scope) => {
       broadcasts.push({ event, data, scope });
     },

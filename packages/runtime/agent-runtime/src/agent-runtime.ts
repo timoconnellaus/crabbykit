@@ -1712,7 +1712,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
     // Prefer the live cache (populated during inference). When idle — e.g.
     // the UI fires an action before the first prompt — resolve on the fly
-    // so UI-only capabilities (r2-storage file browser, telegram
+    // so UI-only capabilities (file-tools file browser, telegram
     // add-account, …) don't require an inference turn to function.
     let resolved = this.resolvedCapabilitiesCache;
     if (!resolved?.onActionHandlers.has(capabilityId)) {

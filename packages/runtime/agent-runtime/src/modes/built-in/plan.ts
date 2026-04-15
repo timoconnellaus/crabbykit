@@ -23,7 +23,7 @@ import type { Mode } from "../define-mode.js";
  *
  * Safe-by-construction caveat: a deny entry that does not match any
  * registered tool is a harmless no-op — `planMode` is safe to apply to
- * agents that do not use `r2-storage`, `sandbox`, `vibe-coder`, or
+ * agents that do not use `file-tools`, `sandbox`, `vibe-coder`, or
  * `browserbase`.
  */
 export const planMode: Mode = {

@@ -1,5 +1,5 @@
 {
-  "name": "r2-storage-test",
+  "name": "file-tools-test",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"]

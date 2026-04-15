@@ -2,15 +2,15 @@ import type { CapabilityHookContext, ToolExecutionEvent } from "@claw-for-cloudf
 import { resolveListPrefix, toR2Key, validatePath } from "./paths.js";
 
 /**
- * UI bridge for the r2-storage capability.
+ * UI bridge for the file-tools capability.
  *
  * Surfaces file operations to a UI panel through the existing
  * `capability_action` / `capability_state` transport, without adding
  * HTTP routes or polluting the agent's session history with tool calls.
  *
  * Protocol:
- * - Client → server: `capability_action { capabilityId: "r2-storage", action, data }`
- * - Server → client: `capability_state { capabilityId: "r2-storage", event, data }`
+ * - Client → server: `capability_action { capabilityId: "file-tools", action, data }`
+ * - Server → client: `capability_state { capabilityId: "file-tools", event, data }`
  *
  * Action              Request data                                   Response event
  * ---------------     --------------------------------------------   ----------------
@@ -21,7 +21,7 @@ import { resolveListPrefix, toR2Key, validatePath } from "./paths.js";
  * `delete`            `{ path }`                                      `file_changed { path }` (and parent invalidate)
  * `rename`            `{ oldPath, newPath }`                          `file_changed { path: oldPath | newPath }`
  *
- * When the agent itself mutates a file via one of the r2-storage tools,
+ * When the agent itself mutates a file via one of the file-tools tools,
  * `afterToolExecution` fires a `file_changed` broadcast so the UI
  * invalidates its cache without a polling loop.
  */
@@ -451,7 +451,7 @@ async function renameDirectory(
 }
 
 /**
- * Dispatch a `capability_action` message for the r2-storage capability.
+ * Dispatch a `capability_action` message for the file-tools capability.
  * Looks up the bucket/prefix from the supplied closures so tests can
  * inject a mock without touching the capability factory signature.
  */

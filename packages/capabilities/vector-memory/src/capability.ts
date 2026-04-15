@@ -57,7 +57,7 @@ export interface VectorMemoryOptions {
  * - `memory_get` — Read a specific memory file
  *
  * Automatically indexes memory files (MEMORY.md, memory/*.md) when they are
- * written via r2-storage's `file_write`/`file_edit` tools, using the
+ * written via file-tools's `file_write`/`file_edit` tools, using the
  * `afterToolExecution` hook.
  *
  * @example
@@ -68,7 +68,7 @@ export interface VectorMemoryOptions {
  *     namespace: agentId,
  *   });
  *   return [
- *     r2Storage({ storage }),
+ *     fileTools({ storage }),
  *     vectorMemory({
  *       storage,
  *       vectorizeIndex: () => this.env.MEMORY_INDEX,

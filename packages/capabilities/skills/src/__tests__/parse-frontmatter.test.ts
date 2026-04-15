@@ -7,7 +7,7 @@ describe("parseFrontmatter", () => {
 name: my-skill
 description: A test skill
 version: 1.0.0
-requiresCapabilities: [sandbox, r2-storage]
+requiresCapabilities: [sandbox, file-tools]
 ---
 
 # Content here
@@ -17,7 +17,7 @@ requiresCapabilities: [sandbox, r2-storage]
       name: "my-skill",
       description: "A test skill",
       version: "1.0.0",
-      requiresCapabilities: ["sandbox", "r2-storage"],
+      requiresCapabilities: ["sandbox", "file-tools"],
     });
   });
 

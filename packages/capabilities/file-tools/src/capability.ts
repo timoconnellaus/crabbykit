@@ -13,7 +13,7 @@ import { broadcastAgentMutation, dispatchUiAction } from "./ui-bridge.js";
 
 const DEFAULT_MAX_READ_BYTES = 512 * 1024;
 
-export interface R2StorageOptions {
+export interface FileToolsOptions {
   /** Shared agent storage identity. Provides the R2 bucket and namespace prefix. */
   storage: AgentStorage;
   /** Maximum bytes to return from file_read (default 512KB). */
@@ -21,7 +21,7 @@ export interface R2StorageOptions {
 }
 
 /**
- * Create an R2-backed file storage capability.
+ * Create a file-tools capability (nine file tools backed by R2 via `agentStorage`).
  *
  * Provides nine tools:
  * - `file_read` — Read file contents with optional offset/limit
@@ -41,18 +41,18 @@ export interface R2StorageOptions {
  *     bucket: () => this.env.STORAGE_BUCKET,
  *     namespace: agentId,
  *   });
- *   return [r2Storage({ storage })];
+ *   return [fileTools({ storage })];
  * }
  * ```
  */
-export function r2Storage(options: R2StorageOptions): Capability {
+export function fileTools(options: FileToolsOptions): Capability {
   const getBucket = options.storage.bucket;
   const getPrefix = options.storage.namespace;
   const maxReadBytes = options.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
 
   return {
-    id: "r2-storage",
-    name: "R2 File Storage",
+    id: "file-tools",
+    name: "File Tools",
     description: "Read, write, edit, copy, move, and search files in R2-backed storage.",
     tools: (_context: AgentContext) => [
       createFileReadTool(getBucket, getPrefix, maxReadBytes),
