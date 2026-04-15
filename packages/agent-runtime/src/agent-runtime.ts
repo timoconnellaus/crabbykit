@@ -250,6 +250,17 @@ export interface AgentContext {
    * or the agent declared no `config`.
    */
   agentConfig?: unknown;
+  /**
+   * Signal the runtime that `bundle-registry.setActive(...)` was just called
+   * for this agent and the per-DO hot-path cache (`activeBundleVersionId`)
+   * must be refreshed. No-op when the agent has no bundle config installed.
+   *
+   * MUST be awaited after a successful in-process bundle pointer mutation.
+   * Out-of-band mutations from another worker / admin script must use the
+   * `POST /bundle/refresh` HTTP endpoint instead — this function only fires
+   * within the DO that owns the agent.
+   */
+  notifyBundlePointerChanged: () => Promise<void>;
 }
 
 /**
@@ -374,6 +385,18 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * POST /client-event endpoint.
    */
   bundleClientEventHandler?: (sessionId: string, event: unknown) => Promise<void>;
+
+  /**
+   * Optional bundle pointer refresher. When set, re-queries
+   * `bundle-registry.getActiveForAgent(...)` and updates the per-DO
+   * `activeBundleVersionId` cache + clears the consecutive failure counter.
+   *
+   * Installed by `defineAgent`'s `_initBundleDispatch` (the single writer of
+   * the bundle pointer cache). Invoked via `AgentContext.notifyBundlePointerChanged`
+   * after any in-process `registry.setActive(...)` call so the next turn sees
+   * the fresh pointer instead of a stale cached value.
+   */
+  bundlePointerRefresher?: () => Promise<void>;
 
   sessionStore: SessionStore;
   scheduleStore: ScheduleStore;
@@ -1646,6 +1669,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: this.buildBundleNotifier(),
     };
   }
 
@@ -1675,6 +1699,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
+          notifyBundlePointerChanged: this.buildBundleNotifier(),
         };
         resolved = resolveCapabilities(
           capabilities,
@@ -1865,6 +1890,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
+          notifyBundlePointerChanged: this.buildBundleNotifier(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2020,6 +2046,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: this.buildBundleNotifier(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
@@ -2190,6 +2217,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: this.buildBundleNotifier(),
     };
 
     const resolved = resolveCapabilities(
@@ -2271,6 +2299,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
+          notifyBundlePointerChanged: this.buildBundleNotifier(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2528,6 +2557,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastState: capBroadcastState,
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
+          notifyBundlePointerChanged: this.buildBundleNotifier(),
         };
         // biome-ignore lint/style/noNonNullAssertion: `hooks` filter guaranteed cap.afterTurn is defined
         await cap.afterTurn!(capContext, sessionId, finalText);
@@ -2683,6 +2713,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           broadcastState: () => {},
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
+          notifyBundlePointerChanged: this.buildBundleNotifier(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2796,6 +2827,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: this.buildBundleNotifier(),
     };
 
     const resolved = resolveCapabilities(
@@ -3353,6 +3385,19 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         sessionId,
         event: { name, data },
       });
+    };
+  }
+
+  /**
+   * Build the `notifyBundlePointerChanged` function exposed on every
+   * `AgentContext`. Delegates to the installed `bundlePointerRefresher`
+   * (set by `defineAgent`'s `_initBundleDispatch` when the agent has a
+   * bundle config). No-op when the refresher is unset, so contexts built
+   * for agents without bundle support are safe.
+   */
+  private buildBundleNotifier(): () => Promise<void> {
+    return async () => {
+      await this.bundlePointerRefresher?.();
     };
   }
 

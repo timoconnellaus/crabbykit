@@ -40,6 +40,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
 
@@ -65,6 +66,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     });
     expect(tools).toHaveLength(2);
   });
@@ -90,6 +92,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     });
     expect(tools).toHaveLength(2);
   });
@@ -120,6 +123,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
     const searchTool = tools[0];
@@ -157,6 +161,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
     await tools[0].execute({ query: "test" }, { toolCallId: "test" });

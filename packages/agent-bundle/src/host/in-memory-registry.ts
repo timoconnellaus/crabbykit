@@ -93,6 +93,58 @@ export class InMemoryBundleRegistry implements BundleRegistry {
     return this.versions.get(versionId)?.bytes ?? null;
   }
 
+  /**
+   * Create (or dedupe) a content-addressed bundle version. Mirrors the
+   * `createVersion` method on the production D1BundleRegistry so this
+   * fixture satisfies the wider `BundleRegistryWriter` interface that
+   * `workshop_deploy` requires. Hash format must match
+   * `bundle-registry`'s `computeVersionId` (SHA-256 hex) so versionIds
+   * are interchangeable across registry implementations.
+   */
+  async createVersion(opts: {
+    bytes: ArrayBuffer;
+    createdBy?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{
+    versionId: string;
+    kvKey: string;
+    sizeBytes: number;
+    createdAt: number;
+    createdBy: string | null;
+    metadata: Record<string, unknown> | null;
+  }> {
+    const hash = await crypto.subtle.digest("SHA-256", opts.bytes);
+    const versionId = Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const existing = this.versions.get(versionId);
+    if (existing) {
+      return {
+        versionId,
+        kvKey: `bundle:${versionId}`,
+        sizeBytes: existing.bytes.byteLength,
+        createdAt: existing.createdAt,
+        createdBy: opts.createdBy ?? null,
+        metadata: (existing.metadata as Record<string, unknown> | undefined) ?? null,
+      };
+    }
+    const createdAt = Date.now();
+    this.versions.set(versionId, {
+      versionId,
+      bytes: opts.bytes,
+      metadata: opts.metadata,
+      createdAt,
+    });
+    return {
+      versionId,
+      kvKey: `bundle:${versionId}`,
+      sizeBytes: opts.bytes.byteLength,
+      createdAt,
+      createdBy: opts.createdBy ?? null,
+      metadata: opts.metadata ?? null,
+    };
+  }
+
   // --- Test helpers ---
 
   getDeployments(agentId?: string): DeploymentLog[] {

@@ -42,6 +42,7 @@ function ctx(overrides?: Partial<AgentContext>): AgentContext {
     broadcastState: () => {},
     schedules: {} as AgentContext["schedules"],
     rateLimit: {} as AgentContext["rateLimit"],
+    notifyBundlePointerChanged: async () => {},
     ...overrides,
   };
 }

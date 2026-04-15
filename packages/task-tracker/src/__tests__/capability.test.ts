@@ -34,6 +34,7 @@ describe("taskTracker capability", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     };
 
     const tools = cap.tools!(context);
@@ -63,6 +64,7 @@ describe("taskTracker capability", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     };
 
     const sections = cap.promptSections!(context);

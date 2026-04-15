@@ -35,7 +35,7 @@ function makeLlmMock() {
 }
 
 describe("OpenRouter bundle — full inference path", () => {
-  it("forwards provider/modelId to env.LLM.infer with the spine token", async () => {
+  it("forwards provider/modelId to env.LLM.infer with the llm token", async () => {
     const llm = makeLlmMock();
     llm.infer.mockResolvedValue({ content: "inference ok" });
 
@@ -53,7 +53,8 @@ describe("OpenRouter bundle — full inference path", () => {
         body: JSON.stringify({ prompt: "hello" }),
       }),
       {
-        __SPINE_TOKEN: "tok-abc",
+        __SPINE_TOKEN: "tok-spine",
+        __LLM_TOKEN: "tok-llm",
         LLM: llm,
       } as unknown as BundleEnv,
     );
@@ -63,12 +64,22 @@ describe("OpenRouter bundle — full inference path", () => {
 
     expect(llm.infer).toHaveBeenCalledOnce();
     const [forwardedToken, request] = llm.infer.mock.calls[0];
-    expect(forwardedToken).toBe("tok-abc");
+    // LlmService must receive the LLM-bound token, not the spine token —
+    // they're signed with different HKDF subkeys.
+    expect(forwardedToken).toBe("tok-llm");
     expect(request).toMatchObject({
       provider: "openrouter",
       modelId: "anthropic/claude-sonnet-4",
-      messages: [{ role: "user", content: "hello" }],
     });
+    // Bundle must prepend a system message built from setup.prompt
+    // (via buildDefaultSystemPrompt) so the bundle's personality actually
+    // reaches the model, followed by the user's turn.
+    const reqMessages = (request as { messages: Array<{ role: string; content: string }> })
+      .messages;
+    expect(reqMessages).toHaveLength(2);
+    expect(reqMessages[0].role).toBe("system");
+    expect(reqMessages[0].content).toContain("OpenRouterBundle");
+    expect(reqMessages[1]).toEqual({ role: "user", content: "hello" });
     // Bundle must never forward an apiKey
     expect(request).not.toHaveProperty("apiKey");
 
@@ -91,7 +102,8 @@ describe("OpenRouter bundle — full inference path", () => {
         body: JSON.stringify({ prompt: "hi" }),
       }),
       {
-        __SPINE_TOKEN: "tok",
+        __SPINE_TOKEN: "tok-spine",
+        __LLM_TOKEN: "tok-llm",
         LLM: llm,
       } as unknown as BundleEnv,
     );
@@ -121,7 +133,8 @@ describe("OpenRouter bundle — full inference path", () => {
         body: JSON.stringify({ prompt: "what time is it?" }),
       }),
       {
-        __SPINE_TOKEN: "tok",
+        __SPINE_TOKEN: "tok-spine",
+        __LLM_TOKEN: "tok-llm",
         LLM: llm,
       } as unknown as BundleEnv,
     );

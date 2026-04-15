@@ -39,6 +39,7 @@ function mockContext(overrides: Partial<AgentContext> = {}): AgentContext {
     schedules: {} as AgentContext["schedules"],
     storage: createMockStorage(),
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     ...overrides,
   };
 }

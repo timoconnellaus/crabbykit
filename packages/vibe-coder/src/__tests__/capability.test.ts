@@ -50,6 +50,7 @@ function mockContext(sessionId = "test-session"): AgentContext {
     rateLimit: {
       consume: vi.fn().mockResolvedValue({ allowed: true }),
     },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

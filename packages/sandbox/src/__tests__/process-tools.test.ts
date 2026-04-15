@@ -75,6 +75,7 @@ function mockContext(sessionId: string, storage: CapabilityStorage): AgentContex
     },
     storage,
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

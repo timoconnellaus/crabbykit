@@ -7,13 +7,23 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { VerifyOutcome } from "../security/capability-token.js";
-import { verifyToken } from "../security/capability-token.js";
+import { deriveVerifyOnlySubkey, verifyToken } from "../security/capability-token.js";
 
 // --- Types ---
 
+export const LLM_SUBKEY_LABEL = "claw/llm-v1";
+
 export interface LlmEnv {
-  /** HKDF-derived verify-only subkey for the LLM service. */
-  LLM_SUBKEY: CryptoKey;
+  /**
+   * Master HMAC secret (string). LlmService derives its own verify-only
+   * subkey from this on first call using the HKDF label
+   * `claw/llm-v1` — must match the label the host dispatcher uses to
+   * MINT the LLM-bound capability token. This replaces the older
+   * `LLM_SUBKEY: CryptoKey` design which couldn't be expressed in
+   * wrangler.jsonc (no binding type for `CryptoKey`) and left
+   * `this.env.LLM_SUBKEY` undefined at runtime → ERR_BAD_TOKEN.
+   */
+  AGENT_AUTH_KEY: string;
   /**
    * Spine service binding for cost emission. Typed as Fetcher to avoid
    * requiring a concrete WorkerEntrypoint type — actual calls go through
@@ -80,10 +90,28 @@ class RateLimiter {
 
 export class LlmService extends WorkerEntrypoint<LlmEnv> {
   private readonly rateLimiter = new RateLimiter();
+  private subkeyPromise: Promise<CryptoKey> | null = null;
+
+  /**
+   * Lazily derive (and cache) the verify-only HKDF subkey from the
+   * master `AGENT_AUTH_KEY`. Verify-only because LlmService should never
+   * be able to mint tokens — only check signatures on tokens minted by
+   * the host dispatcher.
+   */
+  private getSubkey(): Promise<CryptoKey> {
+    if (!this.subkeyPromise) {
+      if (!this.env.AGENT_AUTH_KEY) {
+        throw new Error("LlmService misconfigured: env.AGENT_AUTH_KEY is missing");
+      }
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, LLM_SUBKEY_LABEL);
+    }
+    return this.subkeyPromise;
+  }
 
   async infer(token: string, request: InferRequest): Promise<InferResponse> {
     // 1. Verify token
-    const result: VerifyOutcome = await verifyToken(token, this.env.LLM_SUBKEY);
+    const subkey = await this.getSubkey();
+    const result: VerifyOutcome = await verifyToken(token, subkey);
     if (!result.valid) {
       throw new Error(result.code);
     }
@@ -147,7 +175,8 @@ export class LlmService extends WorkerEntrypoint<LlmEnv> {
    * Bundles consume this across the JSRPC boundary.
    */
   async inferStream(token: string, request: InferRequest): Promise<ReadableStream<Uint8Array>> {
-    const result: VerifyOutcome = await verifyToken(token, this.env.LLM_SUBKEY);
+    const subkey = await this.getSubkey();
+    const result: VerifyOutcome = await verifyToken(token, subkey);
     if (!result.valid) {
       throw new Error(result.code);
     }

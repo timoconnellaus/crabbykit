@@ -95,6 +95,7 @@ function makeAgentContext(storage: CapabilityStorage): AgentContext {
     // biome-ignore lint/suspicious/noExplicitAny: minimal ScheduleManager stub
     schedules: {} as any,
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     // biome-ignore lint/suspicious/noExplicitAny: env is not consulted by the test channel
     env: undefined as any,
   } as AgentContext;

@@ -46,6 +46,7 @@ function makeTestContext(token: string) {
     storage: createNoopStorage(),
     schedules: {} as never,
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
     env: { __SPINE_TOKEN: token },
   };
 }

@@ -70,6 +70,7 @@ describe("subagentCapability", () => {
       schedules: {} as any,
       storage: mockStorage,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     });
 
     expect(tools).toHaveLength(4);

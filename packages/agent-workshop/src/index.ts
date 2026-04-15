@@ -15,8 +15,8 @@
 
 import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { BundleRegistry } from "@claw-for-cloudflare/bundle-registry";
-import { computeVersionId, MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
+import type { BundleRegistryWriter } from "@claw-for-cloudflare/bundle-registry";
+import { MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
 
 export interface WorkshopExecResult {
   stdout: string;
@@ -25,8 +25,15 @@ export interface WorkshopExecResult {
 }
 
 export interface AgentWorkshopOptions {
-  /** Bundle registry instance. */
-  registry: BundleRegistry;
+  /**
+   * Bundle registry instance. Must satisfy `BundleRegistryWriter` because
+   * `workshop_deploy` writes bundle bytes via `createVersion()` before
+   * flipping the active pointer with `setActive()`. The narrow `BundleRegistry`
+   * (read-only) is insufficient — it has no way to persist bytes, and a
+   * `setActive` call against a never-persisted version will leave the next
+   * dispatch turn looking up bytes that don't exist.
+   */
+  registry: BundleRegistryWriter;
   /**
    * Run a shell command through the sandbox for the given session. Must
    * route through the sandbox capability's `exec` tool so elevation,
@@ -356,10 +363,9 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
               return "Error: Pre-deploy smoke test failed — bundle has no exports. Check your bundle source.";
             }
 
-            // Compute version ID
+            // Build the ArrayBuffer view that createVersion needs.
             const buf = new ArrayBuffer(bytes.byteLength);
             new Uint8Array(buf).set(bytes);
-            const versionId = await computeVersionId(buf);
 
             // Extract metadata from bundle source (basic heuristic —
             // full metadata extraction via POST /metadata requires Worker Loader)
@@ -369,8 +375,20 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
               metadata = metadataMatch[0];
             }
 
-            // Create version in registry (handles KV write + readback)
+            // Persist bytes to KV first (createVersion writes the bytes
+            // and a D1 row keyed by the content-addressed hash). Then flip
+            // the active pointer with setActive. Doing it in this order
+            // means the dispatcher will always find the bytes for whatever
+            // versionId the pointer references — the previous code path
+            // skipped createVersion entirely and left setActive pointing
+            // at a never-persisted version (Bundle bytes not found ...).
+            let versionId: string;
             try {
+              const version = await options.registry.createVersion({
+                bytes: buf,
+                createdBy: context.sessionId,
+              });
+              versionId = version.versionId;
               await options.registry.setActive(agentId, versionId, {
                 rationale: args.rationale ?? "workshop_deploy",
                 sessionId: context.sessionId,
@@ -378,6 +396,14 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
             } catch (err) {
               await auditLog(context, "workshop_deploy", args, "error", "REGISTRY_FAILED");
               return `Deploy failed: ${err instanceof Error ? err.message : String(err)}`;
+            }
+
+            // Self-deploy: refresh this DO's hot-path cache so the next
+            // turn picks up the new pointer instead of a stale cached
+            // value. Cross-agent deploys can't reach the target DO from
+            // here — the target must POST /bundle/refresh out-of-band.
+            if (agentId === context.agentId) {
+              await context.notifyBundlePointerChanged();
             }
 
             await auditLog(context, "workshop_deploy", { ...args, versionId }, "success");
@@ -408,16 +434,30 @@ export function agentWorkshop(options: AgentWorkshopOptions): Capability {
           execute: async (args) => {
             const agentId = args.targetAgentId ?? context.agentId;
 
-            await options.registry.setActive(agentId, null, {
-              rationale: args.rationale ?? "workshop_disable",
-              sessionId: context.sessionId,
-            });
+            try {
+              await options.registry.setActive(agentId, null, {
+                rationale: args.rationale ?? "workshop_disable",
+                sessionId: context.sessionId,
+              });
+            } catch (err) {
+              return `Disable failed: ${err instanceof Error ? err.message : String(err)}`;
+            }
+
+            // Self-disable: refresh this DO's hot-path cache. Cross-agent
+            // disables require the target to POST /bundle/refresh.
+            if (agentId === context.agentId) {
+              await context.notifyBundlePointerChanged();
+            }
 
             return `Bundle disabled for ${agentId === context.agentId ? "self" : agentId}. Static brain will run on next turn.`;
           },
         }),
 
         // --- workshop_rollback ---
+        // NOTE: when this stub is fleshed out, the success path MUST
+        // call `context.notifyBundlePointerChanged()` after the
+        // `registry.setActive` so the cache stays coherent — same
+        // pattern as workshop_deploy and workshop_disable above.
         defineTool({
           name: "workshop_rollback",
           description: "Roll back to the previous bundle version",

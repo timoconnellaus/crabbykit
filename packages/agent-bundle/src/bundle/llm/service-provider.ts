@@ -2,7 +2,10 @@
  * ServiceLlmProvider — bundle-side adapter that RPCs to LlmService via service binding.
  *
  * Used automatically when a bundle's model() returns { provider, modelId } without apiKey.
- * Reads the capability token from env.__SPINE_TOKEN.
+ * Reads the capability token from env.__LLM_TOKEN — a per-service token signed
+ * with the LLM HKDF subkey. Do NOT use __SPINE_TOKEN here: SpineService and
+ * LlmService verify with different subkeys, so mixing tokens fails with
+ * ERR_BAD_TOKEN.
  */
 
 import type { BundleEnv } from "../types.js";
@@ -40,9 +43,9 @@ export function createServiceLlmProvider(env: BundleEnv, llmService: LlmServiceB
       maxTokens?: number;
       temperature?: number;
     }) {
-      const token = env.__SPINE_TOKEN;
+      const token = env.__LLM_TOKEN;
       if (!token) {
-        throw new Error("Missing __SPINE_TOKEN — cannot call LlmService without a token");
+        throw new Error("Missing __LLM_TOKEN — cannot call LlmService without a token");
       }
 
       return llmService.infer(token, request);

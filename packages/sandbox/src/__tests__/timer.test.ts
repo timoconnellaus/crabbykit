@@ -24,6 +24,7 @@ function mockContext() {
     },
     storage: createNoopStorage(),
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

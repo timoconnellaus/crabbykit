@@ -134,6 +134,7 @@ function createMockContext(agentId = "agent-int") {
     },
     schedules: {} as never,
     rateLimit: { check: () => true } as never,
+    notifyBundlePointerChanged: vi.fn().mockResolvedValue(undefined),
   };
 }
 

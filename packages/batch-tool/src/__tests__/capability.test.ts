@@ -36,6 +36,7 @@ function getCapTools(getTools: () => AgentTool[]) {
     storage: createNoopStorage(),
     schedules: {} as never,
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
   return cap.tools!(ctx);
 }
@@ -267,6 +268,7 @@ describe("batchTool", () => {
         storage: createNoopStorage(),
         schedules: {} as never,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       };
       const tools = cap.tools!(ctx);
 

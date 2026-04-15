@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveSubkey, mintToken } from "../../security/capability-token.js";
 import type { LlmEnv } from "../llm-service.js";
-import { LlmService } from "../llm-service.js";
+import { LLM_SUBKEY_LABEL, LlmService } from "../llm-service.js";
 
 const SECRET_OPENROUTER = "sk-or-secret-openrouter-xyz";
 const SECRET_ANTHROPIC = "sk-ant-secret-anthropic-xyz";
@@ -20,10 +20,9 @@ const MASTER_KEY = "test-master-key-0123456789abcdef";
 async function buildEnv(
   overrides: Partial<LlmEnv> = {},
 ): Promise<LlmEnv & { _emitCostMock: ReturnType<typeof vi.fn> }> {
-  const subkey = await deriveSubkey(MASTER_KEY, "llm-service");
   const emitCostMock = vi.fn().mockResolvedValue(undefined);
   return {
-    LLM_SUBKEY: subkey,
+    AGENT_AUTH_KEY: MASTER_KEY,
     SPINE: {
       emitCost: emitCostMock,
     } as unknown as LlmEnv["SPINE"],
@@ -36,7 +35,7 @@ async function buildEnv(
 }
 
 async function makeToken(agentId = "agent-1", sessionId = "session-1"): Promise<string> {
-  const subkey = await deriveSubkey(MASTER_KEY, "llm-service");
+  const subkey = await deriveSubkey(MASTER_KEY, LLM_SUBKEY_LABEL);
   return mintToken({ agentId, sessionId }, subkey);
 }
 
@@ -79,7 +78,7 @@ describe("LlmService token handling", () => {
   it("rejects a token signed with a different key", async () => {
     const env = await buildEnv();
     const svc = makeService(env);
-    const otherSubkey = await deriveSubkey("other-master", "llm-service");
+    const otherSubkey = await deriveSubkey("other-master", LLM_SUBKEY_LABEL);
     const badToken = await mintToken({ agentId: "a", sessionId: "s" }, otherSubkey);
     await expect(
       svc.infer(badToken, {

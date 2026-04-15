@@ -8,6 +8,7 @@
  */
 
 import type { TObject } from "@sinclair/typebox";
+import type { PromptOptions } from "./prompt/types.js";
 
 // --- BundleEnv constraint ---
 
@@ -22,10 +23,15 @@ import type { TObject } from "@sinclair/typebox";
  * The host's `bundleEnv` factory catches non-serializable values at runtime
  * with a DataCloneError, falling back to the static brain.
  *
- * The `__SPINE_TOKEN` field is reserved and injected by the host dispatcher.
+ * The `__SPINE_TOKEN` and `__LLM_TOKEN` fields are reserved and injected by
+ * the host dispatcher. Each carries a per-service capability token signed
+ * with that service's HKDF subkey, so SpineService and LlmService can
+ * verify independently. Bundles read whichever token matches the service
+ * they're calling — not interchangeable.
  */
 export interface BundleEnv {
   __SPINE_TOKEN?: string;
+  __LLM_TOKEN?: string;
   [key: string]: unknown;
 }
 
@@ -87,15 +93,12 @@ export interface BundleModelConfig {
 
 // --- Bundle prompt options ---
 
-export interface BundlePromptOptions {
-  agentName?: string;
-  agentDescription?: string;
-  identity?: string | false;
-  safety?: string | false;
-  timezone?: string;
-  runtime?: string | false;
-  additionalSections?: string[];
-}
+/**
+ * Alias of the shared {@link PromptOptions}. Kept as a named re-export so
+ * existing bundle code keeps compiling, but the single source of truth is
+ * `./prompt/types.ts` — the same type the host runtime consumes.
+ */
+export type { PromptOptions as BundlePromptOptions } from "./prompt/types.js";
 
 // --- Bundle metadata ---
 
@@ -121,7 +124,7 @@ export interface BundleAgentSetup<TEnv extends BundleEnv = BundleEnv> {
   /**
    * Prompt configuration or a full string replacement.
    */
-  prompt?: string | BundlePromptOptions;
+  prompt?: string | PromptOptions;
 
   /**
    * Tool factories for this bundle's brain.

@@ -6,6 +6,7 @@ export type {
   BundleDeployment,
   BundleMetadata,
   BundleRegistry,
+  BundleRegistryWriter,
   BundleVersion,
   CreateVersionOpts,
   SetActiveOpts,

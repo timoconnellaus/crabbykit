@@ -28,6 +28,7 @@ function mockContext(): AgentContext {
     storage: createNoopStorage(),
     schedules: {} as AgentContext["schedules"],
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

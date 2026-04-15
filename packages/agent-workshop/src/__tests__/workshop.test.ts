@@ -121,10 +121,21 @@ function createMockRegistry() {
     getActiveForAgent: vi.fn().mockResolvedValue(null),
     setActive: vi.fn().mockResolvedValue(undefined),
     getBytes: vi.fn().mockResolvedValue(null),
+    createVersion: vi
+      .fn()
+      .mockImplementation(async (opts: { bytes: ArrayBuffer; createdBy?: string }) => ({
+        versionId: "deadbeefcafebabe",
+        kvKey: "bundle:deadbeefcafebabe",
+        sizeBytes: opts.bytes.byteLength,
+        createdAt: Date.now(),
+        createdBy: opts.createdBy ?? null,
+        metadata: null,
+      })),
   };
 }
 
 function createMockContext(agentId = "test-agent") {
+  const notifyBundlePointerChanged = vi.fn().mockResolvedValue(undefined);
   return {
     agentId,
     sessionId: "test-session",
@@ -142,6 +153,7 @@ function createMockContext(agentId = "test-agent") {
     },
     schedules: {} as never,
     rateLimit: { check: () => true } as never,
+    notifyBundlePointerChanged,
   };
 }
 
@@ -297,6 +309,71 @@ describe("agentWorkshop", () => {
       );
     });
 
+    it("calls notifyBundlePointerChanged after a successful self-deploy", async () => {
+      const shell = createShellMock();
+      shell.files.set("/workspace/bundles/my-brain/dist/bundle.js", "export default {}");
+      const registry = createMockRegistry();
+      const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
+      const ctx = createMockContext("agent-42");
+      const tools = cap.tools!(ctx as never);
+      const deployTool = tools.find((t) => t.name === "workshop_deploy")!;
+
+      await deployTool.execute(
+        { name: "my-brain" },
+        { toolCallId: "tc1", signal: AbortSignal.timeout(5000) },
+      );
+
+      expect(ctx.notifyBundlePointerChanged).toHaveBeenCalledTimes(1);
+      // setActive must run before the notify (cache must reflect the new
+      // pointer, not race ahead of the registry write).
+      expect(registry.setActive.mock.invocationCallOrder[0]).toBeLessThan(
+        ctx.notifyBundlePointerChanged.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("does NOT call notifyBundlePointerChanged when registry.setActive fails", async () => {
+      const shell = createShellMock();
+      shell.files.set("/workspace/bundles/my-brain/dist/bundle.js", "export default {}");
+      const registry = createMockRegistry();
+      registry.setActive.mockRejectedValue(new Error("D1 down"));
+      const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
+      const ctx = createMockContext("agent-42");
+      const tools = cap.tools!(ctx as never);
+      const deployTool = tools.find((t) => t.name === "workshop_deploy")!;
+
+      const result = await deployTool.execute(
+        { name: "my-brain" },
+        { toolCallId: "tc1", signal: AbortSignal.timeout(5000) },
+      );
+
+      expect(textOf(result)).toContain("Deploy failed");
+      expect(ctx.notifyBundlePointerChanged).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call notifyBundlePointerChanged on cross-agent deploy", async () => {
+      const shell = createShellMock();
+      shell.files.set("/workspace/bundles/my-brain/dist/bundle.js", "export default {}");
+      const registry = createMockRegistry();
+      const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
+      const ctx = createMockContext("agent-self");
+      const tools = cap.tools!(ctx as never);
+      const deployTool = tools.find((t) => t.name === "workshop_deploy")!;
+
+      await deployTool.execute(
+        { name: "my-brain", targetAgentId: "agent-other" },
+        { toolCallId: "tc1", signal: AbortSignal.timeout(5000) },
+      );
+
+      // Cross-agent: this DO's cache is irrelevant; the target DO must
+      // POST /bundle/refresh on its own.
+      expect(ctx.notifyBundlePointerChanged).not.toHaveBeenCalled();
+      expect(registry.setActive).toHaveBeenCalledWith(
+        "agent-other",
+        expect.any(String),
+        expect.any(Object),
+      );
+    });
+
     it("enforces deploy rate limit", async () => {
       const shell = createShellMock();
       shell.files.set("/workspace/bundles/my-brain/dist/bundle.js", "export default {}");
@@ -323,7 +400,8 @@ describe("agentWorkshop", () => {
       const shell = createShellMock();
       const registry = createMockRegistry();
       const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
-      const tools = cap.tools!(createMockContext("agent-1") as never);
+      const ctx = createMockContext("agent-1");
+      const tools = cap.tools!(ctx as never);
       const disableTool = tools.find((t) => t.name === "workshop_disable")!;
 
       const result = await disableTool.execute(
@@ -336,6 +414,42 @@ describe("agentWorkshop", () => {
 
       expect(textOf(result)).toContain("disabled");
       expect(registry.setActive).toHaveBeenCalledWith("agent-1", null, expect.any(Object));
+      expect(ctx.notifyBundlePointerChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT call notifyBundlePointerChanged when registry.setActive fails", async () => {
+      const shell = createShellMock();
+      const registry = createMockRegistry();
+      registry.setActive.mockRejectedValue(new Error("D1 down"));
+      const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
+      const ctx = createMockContext("agent-1");
+      const tools = cap.tools!(ctx as never);
+      const disableTool = tools.find((t) => t.name === "workshop_disable")!;
+
+      const result = await disableTool.execute(
+        { rationale: "bug found" },
+        { toolCallId: "tc1", signal: AbortSignal.timeout(5000) },
+      );
+
+      expect(textOf(result)).toContain("Disable failed");
+      expect(ctx.notifyBundlePointerChanged).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call notifyBundlePointerChanged on cross-agent disable", async () => {
+      const shell = createShellMock();
+      const registry = createMockRegistry();
+      const cap = agentWorkshop({ registry, sandboxExec: shell.sandboxExec });
+      const ctx = createMockContext("agent-self");
+      const tools = cap.tools!(ctx as never);
+      const disableTool = tools.find((t) => t.name === "workshop_disable")!;
+
+      await disableTool.execute(
+        { targetAgentId: "agent-other" },
+        { toolCallId: "tc1", signal: AbortSignal.timeout(5000) },
+      );
+
+      expect(ctx.notifyBundlePointerChanged).not.toHaveBeenCalled();
+      expect(registry.setActive).toHaveBeenCalledWith("agent-other", null, expect.any(Object));
     });
   });
 

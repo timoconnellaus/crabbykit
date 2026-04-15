@@ -692,6 +692,7 @@ describe("agentPeering", () => {
       requestFromClient: () => Promise.reject(new Error("Not available")),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
+      notifyBundlePointerChanged: async () => {},
     });
     expect(handlers).toHaveLength(4);
     const paths = handlers.map((h) => h.path);
@@ -731,6 +732,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       // Now service should work
@@ -756,6 +758,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await setInboundPeer(storage, makePeer({ status: "accepted" }));
@@ -777,6 +780,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await setInboundPeer(storage, makePeer({ status: "pending" }));
@@ -801,6 +805,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await setInboundPeer(storage, makePeer({ agentId: "in-1" }));
@@ -838,6 +843,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       const result = await service.requestPeer(AGENT_B);
@@ -876,6 +882,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await expect(service.requestPeer(AGENT_B)).rejects.toThrow("Handshake failed: 403");
@@ -905,6 +912,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       const result = await service.requestPeer(AGENT_B);
@@ -935,6 +943,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await service.requestPeer(AGENT_B);
@@ -957,6 +966,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       await setInboundPeer(storage, makePeer());
@@ -982,6 +992,7 @@ describe("agentPeering", () => {
         requestFromClient: () => Promise.reject(new Error("Not available")),
         schedules: {} as any,
         rateLimit: { consume: async () => ({ allowed: true }) },
+        notifyBundlePointerChanged: async () => {},
       });
 
       expect(await service.checkRateLimit("sender")).toBe(true);

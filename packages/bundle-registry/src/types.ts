@@ -48,6 +48,25 @@ export interface CreateVersionOpts {
   metadata?: BundleMetadata;
 }
 
+/**
+ * Extended registry interface for writers (workshop tools). The narrow
+ * `BundleRegistry` (re-exported from agent-runtime) is the *reader* surface
+ * the runtime needs at dispatch time. Tools that mutate the registry —
+ * notably `workshop_deploy` — need this wider surface so they can write
+ * bundle bytes via `createVersion` before flipping the pointer with
+ * `setActive`. Implementations that satisfy `BundleRegistryWriter` are also
+ * valid `BundleRegistry` instances.
+ */
+export interface BundleRegistryWriter extends BundleRegistry {
+  /**
+   * Write a new bundle version: stores `opts.bytes` in KV under
+   * `bundle:{versionId}`, verifies readback, and inserts a row in the
+   * `bundle_versions` D1 table. Content-addressed: writing the same bytes
+   * twice returns the same `versionId` and is a no-op for the second call.
+   */
+  createVersion(opts: CreateVersionOpts): Promise<BundleVersion>;
+}
+
 export interface SetActiveOpts {
   rationale?: string;
   sessionId?: string;

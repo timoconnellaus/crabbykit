@@ -11,7 +11,13 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { VerifyOutcome } from "../security/capability-token.js";
-import { NonceTracker, verifyToken } from "../security/capability-token.js";
+import {
+  deriveVerifyOnlySubkey,
+  NonceTracker,
+  verifyToken,
+} from "../security/capability-token.js";
+
+export const SPINE_SUBKEY_LABEL = "claw/spine-v1";
 import type { SpineBudgetConfig } from "./budget-tracker.js";
 import { BudgetTracker } from "./budget-tracker.js";
 
@@ -42,8 +48,14 @@ export class SpineError extends Error {
 // --- SpineService env ---
 
 export interface SpineEnv {
-  /** HKDF-derived verify-only subkey for the spine service. */
-  SPINE_SUBKEY: CryptoKey;
+  /**
+   * Master HMAC secret (string). SpineService derives its own
+   * verify-only subkey from this on first call using the HKDF label
+   * `claw/spine-v1` — must match the host dispatcher's mint label.
+   * Replaces the older `SPINE_SUBKEY: CryptoKey` field which couldn't
+   * be expressed in wrangler.jsonc and was always undefined at runtime.
+   */
+  AGENT_AUTH_KEY: string;
   /** DO namespace binding to reach the agent DO. */
   AGENT: DurableObjectNamespace;
   /** Optional budget configuration. */
@@ -92,6 +104,7 @@ export interface SpineHost {
 export class SpineService extends WorkerEntrypoint<SpineEnv> {
   private readonly nonceTracker = new NonceTracker();
   private readonly budget: BudgetTracker;
+  private subkeyPromise: Promise<CryptoKey> | null = null;
 
   constructor(ctx: ExecutionContext, env: SpineEnv) {
     super(ctx, env);
@@ -100,12 +113,27 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   // --- Token verification (shared by all methods) ---
 
+  /**
+   * Lazily derive (and cache) the verify-only HKDF subkey from the
+   * master `AGENT_AUTH_KEY`. Cached for the life of the WorkerEntrypoint
+   * instance.
+   */
+  private getSubkey(): Promise<CryptoKey> {
+    if (!this.subkeyPromise) {
+      if (!this.env.AGENT_AUTH_KEY) {
+        throw new SpineError(
+          "ERR_INTERNAL",
+          "SpineService misconfigured: env.AGENT_AUTH_KEY is missing",
+        );
+      }
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, SPINE_SUBKEY_LABEL);
+    }
+    return this.subkeyPromise;
+  }
+
   private async verify(token: string): Promise<{ aid: string; sid: string; nonce: string }> {
-    const result: VerifyOutcome = await verifyToken(
-      token,
-      this.env.SPINE_SUBKEY,
-      this.nonceTracker,
-    );
+    const subkey = await this.getSubkey();
+    const result: VerifyOutcome = await verifyToken(token, subkey, this.nonceTracker);
 
     if (!result.valid) {
       throw new SpineError(result.code as SpineErrorCode);

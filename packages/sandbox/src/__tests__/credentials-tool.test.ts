@@ -71,6 +71,7 @@ function mockContext(sessionId = "test-session", storage?: CapabilityStorage): A
     },
     storage: storage ?? createMapStorage(),
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

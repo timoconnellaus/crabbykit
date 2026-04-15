@@ -18,6 +18,17 @@ export {
   createSessionStoreClient,
 } from "./spine-clients.js";
 
+// Single source of truth for the system-prompt builder, re-exported by
+// `@claw-for-cloudflare/agent-runtime` so both the host runtime and the
+// bundle runtime compose the same sections from the same code.
+export {
+  buildDefaultSystemPrompt,
+  buildDefaultSystemPromptSections,
+  estimateTextTokens,
+  toPromptString,
+} from "./prompt/build-system-prompt.js";
+export { identitySection, runtimeSection, safetySection } from "./prompt/sections.js";
+
 export type {
   BundleAgentSetup,
   BundleCapability,
@@ -36,3 +47,4 @@ export type {
   BundleSessionChannel,
   BundleSessionStoreClient,
 } from "./types.js";
+export type { PromptOptions, PromptSection, PromptSectionSource } from "./prompt/types.js";

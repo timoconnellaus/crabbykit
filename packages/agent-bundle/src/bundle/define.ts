@@ -6,6 +6,7 @@
  * DO invokes via Worker Loader.
  */
 
+import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
 import type {
   BundleAgentSetup,
   BundleEnv,
@@ -69,11 +70,17 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
 async function handleTurn<TEnv extends BundleEnv>(
   request: Request,
   env: TEnv,
-  _setup: BundleAgentSetup<TEnv>,
+  setup: BundleAgentSetup<TEnv>,
   resolveModel: () => BundleModelConfig,
 ): Promise<Response> {
-  const token = env.__SPINE_TOKEN;
-  if (!token) {
+  // __SPINE_TOKEN authenticates the bundle's identity to SpineService
+  // (session store, KV, transport). __LLM_TOKEN is a separate capability
+  // token signed with the LLM HKDF subkey and is the ONLY token
+  // LlmService will accept. Passing the spine token to LlmService fails
+  // with ERR_BAD_TOKEN because the two services derive their verify keys
+  // from different HKDF labels.
+  const spineToken = env.__SPINE_TOKEN;
+  if (!spineToken) {
     return Response.json({ error: "Missing __SPINE_TOKEN" }, { status: 401 });
   }
 
@@ -86,6 +93,18 @@ async function handleTurn<TEnv extends BundleEnv>(
 
   const model = resolveModel();
 
+  // Compose the bundle author's `prompt` (string or PromptOptions) into a
+  // single system message using the shared builder. Without this the
+  // bundle's personality — e.g. "talk like a pirate" — never reaches the
+  // LLM and the model defaults to its own voice.
+  const systemPrompt =
+    typeof setup.prompt === "string" ? setup.prompt : buildDefaultSystemPrompt(setup.prompt);
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  messages.push({ role: "user", content: body.prompt });
+
   // Attempt LLM inference via LlmService if available in env.
   // The bundle model config has no apiKey — credentials are on the host side.
   const llmService = (env as Record<string, unknown>).LLM as
@@ -95,11 +114,21 @@ async function handleTurn<TEnv extends BundleEnv>(
   let responseText: string;
 
   if (llmService && typeof llmService.infer === "function") {
+    const llmToken = env.__LLM_TOKEN;
+    if (!llmToken) {
+      return Response.json(
+        {
+          error:
+            "Missing __LLM_TOKEN — host dispatcher did not mint an LLM-bound capability token",
+        },
+        { status: 401 },
+      );
+    }
     try {
-      const result = await llmService.infer(token, {
+      const result = await llmService.infer(llmToken, {
         provider: model.provider,
         modelId: model.modelId,
-        messages: [{ role: "user", content: body.prompt }],
+        messages,
       });
       responseText =
         typeof result.content === "string" ? result.content : JSON.stringify(result.content);

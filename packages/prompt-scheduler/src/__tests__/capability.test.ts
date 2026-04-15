@@ -55,6 +55,7 @@ function mockContext(schedules?: ScheduleManager): AgentContext {
     storage: createNoopStorage(),
     schedules: schedules ?? mockScheduleManager(),
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

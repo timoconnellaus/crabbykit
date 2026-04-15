@@ -64,6 +64,7 @@ function mockContext(storage?: CapabilityStorage): AgentContext {
     },
     storage: storage ?? createMapStorage(),
     rateLimit: { consume: async () => ({ allowed: true }) },
+    notifyBundlePointerChanged: async () => {},
   };
 }
 

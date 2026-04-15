@@ -640,6 +640,7 @@ export class TestAgentDO extends AgentDO {
       broadcastState: () => {},
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: async () => {},
     };
 
     // Resolve capabilities with scoped storage (same as base class)

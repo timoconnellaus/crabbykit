@@ -83,6 +83,7 @@ export function ChatView() {
               </svg>
               prompt
             </button>
+            <DisableBundleButton agentId={agentId} />
           </StatusBar>
           <MessageList />
           <QueuedMessages />
@@ -125,5 +126,59 @@ export function ChatView() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Out-of-band escape hatch button. Disables any active bundle brain on the
+ * agent so the static brain takes over for the next turn. POSTs to the
+ * runtime's `/bundle/disable` HTTP endpoint via the worker's agent proxy
+ * route (`/api/agent/:agentId/bundle/disable`). Always visible — the whole
+ * point is that you need a way out when the bundle is intercepting every
+ * prompt and you can't ask the agent to disable itself.
+ */
+function DisableBundleButton({ agentId }: { agentId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<"idle" | "ok" | "err">("idle");
+
+  const onClick = async () => {
+    if (busy) return;
+    if (
+      !window.confirm(
+        "Disable the active bundle brain on this agent and revert to the static brain? This cannot be undone (you'll need to redeploy to use it again).",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setStatus("idle");
+    try {
+      const res = await fetch(`/api/agent/${encodeURIComponent(agentId)}/bundle/disable`, {
+        method: "POST",
+      });
+      setStatus(res.ok ? "ok" : "err");
+      if (!res.ok) {
+        console.error("[DisableBundleButton] disable failed", res.status, await res.text());
+      }
+    } catch (err) {
+      console.error("[DisableBundleButton] disable threw", err);
+      setStatus("err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      data-agent-ui="disable-bundle-button"
+      data-status={status === "idle" ? undefined : status}
+      onClick={onClick}
+      disabled={busy}
+      title="Disable the active bundle brain (revert to static brain)"
+      style={{ marginLeft: 8 }}
+    >
+      {busy ? "disabling…" : status === "ok" ? "bundle off" : "disable bundle"}
+    </button>
   );
 }

@@ -375,6 +375,7 @@ export function defineAgent<TEnv = Record<string, unknown>>(
       // Mutable dispatch state
       let consecutiveFailures = 0;
       let spineSubkeyPromise: Promise<CryptoKey> | null = null;
+      let llmSubkeyPromise: Promise<CryptoKey> | null = null;
 
       const getSpineSubkey = async (): Promise<CryptoKey> => {
         if (!spineSubkeyPromise) {
@@ -384,6 +385,16 @@ export function defineAgent<TEnv = Record<string, unknown>>(
           })();
         }
         return spineSubkeyPromise;
+      };
+
+      const getLlmSubkey = async (): Promise<CryptoKey> => {
+        if (!llmSubkeyPromise) {
+          llmSubkeyPromise = (async () => {
+            const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
+            return deriveSubkey(masterKey, "claw/llm-v1");
+          })();
+        }
+        return llmSubkeyPromise;
       };
 
       const checkActiveBundle = async (): Promise<string | null> => {
@@ -398,6 +409,18 @@ export function defineAgent<TEnv = Record<string, unknown>>(
         return id;
       };
 
+      // Install the bundle pointer refresher on the runtime. This is the
+      // single authoritative writer of `ctx.storage.activeBundleVersionId`
+      // for in-process pointer mutations. Workshop tools (and any other
+      // capability that calls `bundle-registry.setActive`) MUST call
+      // `AgentContext.notifyBundlePointerChanged()` after a successful
+      // mutation — that runs through here.
+      this.runtime.bundlePointerRefresher = async () => {
+        const id = await registry.getActiveForAgent(agentId);
+        await ctx.storage.put("activeBundleVersionId", id);
+        consecutiveFailures = 0;
+      };
+
       // Install the bundle prompt handler on the runtime
       this.runtime.bundlePromptHandler = async (
         sessionId: string,
@@ -409,9 +432,18 @@ export function defineAgent<TEnv = Record<string, unknown>>(
         }
 
         try {
-          const subkey = await getSpineSubkey();
+          const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
           const { mintToken } = await import("@claw-for-cloudflare/agent-bundle/security");
-          const token = await mintToken({ agentId, sessionId }, subkey);
+          // Mint a separate token per service. Same payload (agentId,
+          // sessionId, nonce, exp) but signed with each service's HKDF
+          // subkey so SpineService and LlmService can verify
+          // independently. Reusing one token across services would
+          // require both services to share a subkey, which defeats the
+          // domain-separation that HKDF labels were added for.
+          const [spineToken, llmToken] = await Promise.all([
+            mintToken({ agentId, sessionId }, spineSubkey),
+            mintToken({ agentId, sessionId }, llmSubkey),
+          ]);
 
           const projectedEnv = bundleConfig.bundleEnv(env);
 
@@ -426,7 +458,11 @@ export function defineAgent<TEnv = Record<string, unknown>>(
               compatibilityFlags: ["nodejs_compat"],
               mainModule: "bundle.js",
               modules: { "bundle.js": source },
-              env: { ...projectedEnv, __SPINE_TOKEN: token },
+              env: {
+                ...projectedEnv,
+                __SPINE_TOKEN: spineToken,
+                __LLM_TOKEN: llmToken,
+              },
               globalOutbound: null,
             };
           });
@@ -524,9 +560,12 @@ export function defineAgent<TEnv = Record<string, unknown>>(
         if (!versionId) return;
 
         try {
-          const subkey = await getSpineSubkey();
+          const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
           const { mintToken: mint } = await import("@claw-for-cloudflare/agent-bundle/security");
-          const token = await mint({ agentId, sessionId }, subkey);
+          const [spineToken, llmToken] = await Promise.all([
+            mint({ agentId, sessionId }, spineSubkey),
+            mint({ agentId, sessionId }, llmSubkey),
+          ]);
           const projectedEnv = bundleConfig.bundleEnv(env);
 
           const worker = loader.get(versionId, async () => {
@@ -538,7 +577,11 @@ export function defineAgent<TEnv = Record<string, unknown>>(
               compatibilityFlags: ["nodejs_compat"],
               mainModule: "bundle.js",
               modules: { "bundle.js": source },
-              env: { ...projectedEnv, __SPINE_TOKEN: token },
+              env: {
+                ...projectedEnv,
+                __SPINE_TOKEN: spineToken,
+                __LLM_TOKEN: llmToken,
+              },
               globalOutbound: null,
             };
           });
@@ -582,10 +625,15 @@ export function defineAgent<TEnv = Record<string, unknown>>(
           return Response.json({ status: "disabled" });
         }
 
-        // POST /bundle/refresh — signal to refresh the cached pointer
+        // POST /bundle/refresh — signal to refresh the cached pointer.
+        // Out-of-band escape hatch: another worker / admin script that
+        // wrote `registry.setActive(...)` directly POSTs here to force
+        // this DO to re-read the active pointer. Delegates to the same
+        // refresher that in-process callers reach via
+        // `AgentContext.notifyBundlePointerChanged`.
         if (url.pathname === "/bundle/refresh" && request.method === "POST") {
-          const id = await registry.getActiveForAgent(agentId);
-          await ctx.storage.put("activeBundleVersionId", id);
+          await this.runtime.bundlePointerRefresher?.();
+          const id = (await ctx.storage.get<string | null>("activeBundleVersionId")) ?? null;
           return Response.json({ status: "refreshed", activeVersionId: id });
         }
 
