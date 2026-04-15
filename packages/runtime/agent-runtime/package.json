@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@claw-for-cloudflare/a2a": "workspace:*",
-    "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@claw-for-cloudflare/agent-core": "workspace:*",
     "@claw-for-cloudflare/ai": "workspace:*",
+    "@claw-for-cloudflare/bundle-host": "workspace:*",
+    "@claw-for-cloudflare/bundle-sdk": "workspace:*",
+    "@claw-for-cloudflare/bundle-token": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@sinclair/typebox": "^0.34.0",
     "nanoid": "^5.1.5"

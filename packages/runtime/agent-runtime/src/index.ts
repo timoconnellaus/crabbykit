@@ -109,6 +109,14 @@ export {
 } from "./config/index.js";
 // Costs
 export type { CostEvent } from "./costs/index.js";
+// Bundle brain override config types (shared with bundle-host)
+export type {
+  BundleAutoRebuildConfig,
+  BundleSourceBucket,
+  BundleVersionInfo,
+  BundleVersionMetadata,
+  CreateBundleVersionOpts,
+} from "./bundle-config.js";
 // defineAgent factory
 export {
   type AgentDefinition,

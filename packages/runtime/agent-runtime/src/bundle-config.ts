@@ -2,10 +2,12 @@
  * Bundle brain override configuration shared by {@link AgentDO.initBundleDispatch}
  * and {@link defineAgent}'s `bundle` field.
  *
- * Inlined here (rather than imported from `@claw-for-cloudflare/agent-bundle`)
- * to avoid a circular workspace dependency: agent-bundle depends on
+ * Inlined here (rather than imported from `@claw-for-cloudflare/bundle-host`)
+ * to avoid a circular workspace dependency: bundle-host depends on
  * agent-runtime for the DO surface, so agent-runtime cannot depend on
- * agent-bundle for its public types.
+ * bundle-host for its public types. `@claw-for-cloudflare/bundle-host`
+ * re-exports these types from its own `bundle-config.ts` barrel so
+ * host-side consumers still import them from the host package.
  */
 
 /**
@@ -71,8 +73,8 @@ export interface BundleRegistry {
 
 /**
  * Narrow R2 surface required by the auto-rebuild path. Mirrors the
- * `BundleSourceBucket` type exported from `@claw-for-cloudflare/agent-bundle/host`
- * but kept local so this package has no import-time dependency on agent-bundle.
+ * `BundleSourceBucket` type exported from `@claw-for-cloudflare/bundle-host`
+ * but kept local so this package has no import-time dependency on bundle-host.
  */
 export interface BundleSourceBucket {
   get(key: string): Promise<{ text(): Promise<string> } | null>;

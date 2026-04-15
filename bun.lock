@@ -566,9 +566,11 @@
       "version": "0.0.1",
       "dependencies": {
         "@claw-for-cloudflare/a2a": "workspace:*",
-        "@claw-for-cloudflare/agent-bundle": "workspace:*",
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/ai": "workspace:*",
+        "@claw-for-cloudflare/bundle-host": "workspace:*",
+        "@claw-for-cloudflare/bundle-sdk": "workspace:*",
+        "@claw-for-cloudflare/bundle-token": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.27.0",
         "@sinclair/typebox": "^0.34.0",
         "nanoid": "^5.1.5",
@@ -630,6 +632,23 @@
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/bundle-host": {
+      "name": "@claw-for-cloudflare/bundle-host",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/bundle-registry": "workspace:*",
+        "@claw-for-cloudflare/bundle-sdk": "workspace:*",
+        "@claw-for-cloudflare/bundle-token": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.1.1",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "esbuild-wasm": "^0.28.0",
         "typescript": "^5.7.0",
         "vitest": "^3.2.0",
       },
@@ -824,6 +843,8 @@
     "@claw-for-cloudflare/batch-tool": ["@claw-for-cloudflare/batch-tool@workspace:packages/capabilities/batch-tool"],
 
     "@claw-for-cloudflare/browserbase": ["@claw-for-cloudflare/browserbase@workspace:packages/capabilities/browserbase"],
+
+    "@claw-for-cloudflare/bundle-host": ["@claw-for-cloudflare/bundle-host@workspace:packages/runtime/bundle-host"],
 
     "@claw-for-cloudflare/bundle-registry": ["@claw-for-cloudflare/bundle-registry@workspace:packages/runtime/bundle-registry"],
 

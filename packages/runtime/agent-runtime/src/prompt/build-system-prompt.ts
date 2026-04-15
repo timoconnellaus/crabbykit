@@ -1,7 +1,7 @@
 /**
  * Re-export the system prompt builder from the canonical location in
- * `@claw-for-cloudflare/agent-bundle/bundle`. See `./types.ts` for why
- * the source lives in agent-bundle.
+ * `@claw-for-cloudflare/bundle-sdk`. See `./types.ts` for why the source
+ * lives in bundle-sdk.
  */
 
 export {
@@ -9,4 +9,4 @@ export {
   buildDefaultSystemPromptSections,
   estimateTextTokens,
   toPromptString,
-} from "@claw-for-cloudflare/agent-bundle/bundle";
+} from "@claw-for-cloudflare/bundle-sdk";

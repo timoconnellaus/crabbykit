@@ -376,8 +376,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const getSpineSubkey = async (): Promise<CryptoKey> => {
       if (!spineSubkeyPromise) {
         spineSubkeyPromise = (async () => {
-          const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
-          return deriveSubkey(masterKey, "claw/spine-v1");
+          const { deriveMintSubkey } = await import("@claw-for-cloudflare/bundle-host");
+          return deriveMintSubkey(masterKey, "claw/spine-v1");
         })();
       }
       return spineSubkeyPromise;
@@ -386,8 +386,8 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const getLlmSubkey = async (): Promise<CryptoKey> => {
       if (!llmSubkeyPromise) {
         llmSubkeyPromise = (async () => {
-          const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
-          return deriveSubkey(masterKey, "claw/llm-v1");
+          const { deriveMintSubkey } = await import("@claw-for-cloudflare/bundle-host");
+          return deriveMintSubkey(masterKey, "claw/llm-v1");
         })();
       }
       return llmSubkeyPromise;
@@ -430,7 +430,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       autoRebuildInFlight = (async () => {
         try {
           const { BUNDLE_RUNTIME_HASH, buildBundle, encodeEnvelope } = await import(
-            "@claw-for-cloudflare/agent-bundle/host"
+            "@claw-for-cloudflare/bundle-host"
           );
           const version = await registry.getVersion!(versionId);
           const storedHash = version?.metadata?.runtimeHash;
@@ -536,7 +536,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       try {
         const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
-        const { mintToken } = await import("@claw-for-cloudflare/agent-bundle/security");
+        const { mintToken } = await import("@claw-for-cloudflare/bundle-host");
         // Separate token per service (same payload, different HKDF
         // subkeys) so SpineService and LlmService verify independently.
         const [spineToken, llmToken] = await Promise.all([
@@ -558,7 +558,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           // Without this decode, envelope bytes get fed to the loader as
           // raw JS and workerd fails with "Unexpected token ':'" on the
           // opening `{"v":1,…}`.
-          const { decodeBundlePayload } = await import("@claw-for-cloudflare/agent-bundle/host");
+          const { decodeBundlePayload } = await import("@claw-for-cloudflare/bundle-host");
           const { mainModule, modules } = decodeBundlePayload(source);
           return {
             compatibilityDate: "2025-12-01",
@@ -629,7 +629,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       try {
         const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
-        const { mintToken: mint } = await import("@claw-for-cloudflare/agent-bundle/security");
+        const { mintToken: mint } = await import("@claw-for-cloudflare/bundle-host");
         const [spineToken, llmToken] = await Promise.all([
           mint({ agentId, sessionId }, spineSubkey),
           mint({ agentId, sessionId }, llmSubkey),
