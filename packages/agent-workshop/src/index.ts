@@ -16,79 +16,34 @@
  * as a virtual file at build time from `BUNDLE_RUNTIME_SOURCE`, so
  * every build picks up the current SDK runtime automatically without
  * rewriting files in R2.
+ *
+ * The low-level build pipeline (`loadBundleFiles`, `buildBundle`,
+ * `encodeEnvelope`) lives in `@claw-for-cloudflare/agent-bundle/host`
+ * so the bundle dispatcher can reuse it for auto-rebuild on runtime
+ * drift — see `bundle-dispatcher.ts` in that package.
  */
 
-import { BUNDLE_RUNTIME_SOURCE } from "@claw-for-cloudflare/agent-bundle/bundle-runtime-source";
+import {
+  BUNDLE_RUNTIME_HASH,
+  BUNDLE_RUNTIME_SOURCE,
+} from "@claw-for-cloudflare/agent-bundle/bundle-runtime-source";
+import type { BuildBundleResult, BundleSourceBucket } from "@claw-for-cloudflare/agent-bundle/host";
+import {
+  buildBundle as buildBundleCore,
+  bundleFileR2Key,
+  bundlePrefix as bundlePrefixFor,
+  encodeEnvelope,
+} from "@claw-for-cloudflare/agent-bundle/host";
 import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
 import type { BundleRegistryWriter, CreateVersionOpts } from "@claw-for-cloudflare/bundle-registry";
 import { MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
 
-// `@cloudflare/worker-bundler` pulls in esbuild-wasm, which eagerly loads a
-// `.wasm` file at module evaluation. That works inside a real Worker isolate
-// but fails when a Node test runner imports this file — the wasm asset is not
-// resolvable from Node's loader. Lazy-import keeps workshop safe to unit-test
-// with vitest in Node while still using the real bundler at runtime.
-type CreateWorker = typeof import("@cloudflare/worker-bundler").createWorker;
-let cachedCreateWorker: CreateWorker | null = null;
-async function loadCreateWorker(): Promise<CreateWorker> {
-  if (!cachedCreateWorker) {
-    const mod = await import("@cloudflare/worker-bundler");
-    cachedCreateWorker = mod.createWorker;
-  }
-  return cachedCreateWorker;
-}
-
 const DEFAULT_DEPLOY_RATE_LIMIT = 5;
-const BUNDLE_PREFIX = "workshop/bundles";
-
-/**
- * Relative virtual paths at which the pre-compiled bundle runtime is
- * injected. Both map to the same `BUNDLE_RUNTIME_SOURCE` so relative
- * imports resolve no matter which shape the bundle author chose:
- *
- *   - `_claw/bundle-runtime.js` — project-root-relative. Bundle source
- *     `../_claw/bundle-runtime.js` from `src/index.ts` walks up out of
- *     `src/` and lands here.
- *   - `src/_claw/bundle-runtime.js` — matches `./_claw/bundle-runtime.js`
- *     from `src/index.ts`. Covers older starters that used the `./`
- *     form verbatim.
- *
- * The reserved `_claw/` prefix still holds — users can write neither
- * `_claw/` nor `src/_claw/`.
- */
-const RELATIVE_RUNTIME_PATHS = [
-  "_claw/bundle-runtime.js",
-  "src/_claw/bundle-runtime.js",
-] as const;
-
-/**
- * Virtual `node_modules/@claw-for-cloudflare/agent-bundle` package that
- * `@cloudflare/worker-bundler`'s `resolvePackage` can find when bundle
- * source uses the natural package import
- * `import from "@claw-for-cloudflare/agent-bundle/bundle"`. The bundler
- * parses the specifier into `(packageName, subpath)`, reads
- * `node_modules/{packageName}/package.json`, uses the `exports` map to
- * resolve `./{subpath}`, and loads
- * `node_modules/{packageName}/{resolvedPath}`. Seeding a full virtual
- * package (package.json + bundle.js) is the ONLY layout that resolver
- * accepts — a bare key at the specifier path is ignored.
- */
-const VIRTUAL_PACKAGE_DIR = "node_modules/@claw-for-cloudflare/agent-bundle";
-const VIRTUAL_PACKAGE_JSON_PATH = `${VIRTUAL_PACKAGE_DIR}/package.json`;
-const VIRTUAL_PACKAGE_BUNDLE_PATH = `${VIRTUAL_PACKAGE_DIR}/bundle.js`;
-const VIRTUAL_PACKAGE_JSON = JSON.stringify({
-  name: "@claw-for-cloudflare/agent-bundle",
-  version: "0.0.0-virtual",
-  type: "module",
-  exports: {
-    "./bundle": "./bundle.js",
-  },
-});
-
-const BUNDLE_ENVELOPE_VERSION = 1;
 const MAX_PATH_BYTES = 512;
+
+export { encodeEnvelope };
 
 export interface AgentWorkshopOptions {
   /**
@@ -170,44 +125,29 @@ function validateBundleName(name: string): string | null {
   return null;
 }
 
-function bundlePrefix(namespace: string, name: string): string {
-  return `${namespace}/${BUNDLE_PREFIX}/${name}`;
-}
-
 function fileR2Key(namespace: string, name: string, relPath: string): string {
-  return `${bundlePrefix(namespace, name)}/${relPath}`;
-}
-
-interface LoadedBundleFiles {
-  files: Record<string, string>;
-  /** Count of R2 objects read, excluding the injected virtual runtime file. */
-  userFileCount: number;
-  totalBytes: number;
+  return bundleFileR2Key(namespace, name, relPath);
 }
 
 /**
- * Interface for the R2 API workshop needs. Kept narrow so tests can supply
- * a tiny in-memory bucket without pulling in the full Cloudflare types.
+ * Narrow R2 surface workshop uses for `workshop_file_*` tools. Wider than
+ * `BundleSourceBucket` (which only needs `get`/`list`) because the file
+ * editor tools must `put`, `head`, and `delete` too.
  */
-interface R2Like {
-  get(key: string): Promise<{ text(): Promise<string> } | null>;
+interface R2Like extends BundleSourceBucket {
   put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown>;
   delete(key: string): Promise<void>;
   head(key: string): Promise<unknown | null>;
-  list(opts: { prefix: string }): Promise<{
-    objects: Array<{ key: string }>;
-    truncated?: boolean;
-    cursor?: string;
-  }>;
 }
 
-/**
- * Runtime-source provider. Indirected so tests can inject a different
- * runtime string to verify the auto-upgrade-on-rebuild guarantee.
- */
+type CreateWorker = typeof import("@cloudflare/worker-bundler").createWorker;
+
+/** Override hooks for unit tests. */
 export interface WorkshopInternals {
   /** Override the runtime source injected at build time (tests only). */
   getBundleRuntimeSource?: () => string;
+  /** Override the runtime hash stamped on deployed bundles (tests only). */
+  getBundleRuntimeHash?: () => string;
   /** Override `createWorker` for isolated unit tests. */
   createWorker?: CreateWorker;
 }
@@ -224,9 +164,7 @@ export function agentWorkshop(
   internals: WorkshopInternals = {},
 ): Capability {
   const getRuntimeSource = internals.getBundleRuntimeSource ?? (() => BUNDLE_RUNTIME_SOURCE);
-  const runCreateWorker: CreateWorker = internals.createWorker
-    ? internals.createWorker
-    : async (opts) => (await loadCreateWorker())(opts);
+  const getRuntimeHash = internals.getBundleRuntimeHash ?? (() => BUNDLE_RUNTIME_HASH);
   const deployCounters = new Map<string, { count: number; resetAt: number }>();
 
   function checkDeployRate(agentId: string): boolean {
@@ -273,73 +211,21 @@ export function agentWorkshop(
   }
 
   /**
-   * List all R2 objects under the bundle prefix, fetch their contents,
-   * and merge the compiled agent-bundle runtime as virtual files at
-   * every path listed in `RUNTIME_VIRTUAL_PATHS`, ready to be passed
-   * to `createWorker`.
-   *
-   * Exported for tests that want to assert the runtime-injection contract
-   * without invoking `createWorker`.
+   * Build a bundle end-to-end via the shared core helper in agent-bundle.
+   * Injects the current `BUNDLE_RUNTIME_SOURCE` (or a test override) from R2
+   * source files and calls `createWorker`. The same core path is used by
+   * the bundle dispatcher's auto-rebuild — keeping the logic here aligned
+   * means runtime drift repairs produce byte-identical bundles to
+   * freshly-built ones.
    */
-  async function loadBundleFiles(name: string): Promise<LoadedBundleFiles> {
-    const namespace = getNamespace();
-    const prefix = `${bundlePrefix(namespace, name)}/`;
-    const bucket = getBucket();
-    const files: Record<string, string> = {};
-    let totalBytes = 0;
-    let userFileCount = 0;
-
-    const listed = await bucket.list({ prefix });
-    for (const obj of listed.objects) {
-      const rel = obj.key.slice(prefix.length);
-      if (!rel) continue;
-      const got = await bucket.get(obj.key);
-      if (!got) continue;
-      const contents = await got.text();
-      files[rel] = contents;
-      totalBytes += contents.length;
-      userFileCount++;
-    }
-
-    // Inject the pre-compiled bundle runtime at every virtual path a
-    // bundle author might use. Done on EVERY build — never persisted
-    // to R2 — so existing bundles pick up runtime changes automatically
-    // on their next build.
-    const runtimeSource = getRuntimeSource();
-    for (const path of RELATIVE_RUNTIME_PATHS) {
-      files[path] = runtimeSource;
-    }
-    // Virtual node_modules package for
-    // `import from "@claw-for-cloudflare/agent-bundle/bundle"`. The
-    // bundler's `resolvePackage` looks up the package.json, follows
-    // the exports map, and reads the resolved file — so we need BOTH
-    // entries present, not just a bare key.
-    files[VIRTUAL_PACKAGE_JSON_PATH] = VIRTUAL_PACKAGE_JSON;
-    files[VIRTUAL_PACKAGE_BUNDLE_PATH] = runtimeSource;
-
-    return { files, userFileCount, totalBytes };
-  }
-
-  /**
-   * Build a bundle end-to-end: list files → merge runtime → createWorker.
-   * Returns the raw bundler output plus summary statistics.
-   */
-  async function buildBundle(name: string): Promise<{
-    mainModule: string;
-    modules: Record<string, unknown>;
-    userFileCount: number;
-  }> {
-    const loaded = await loadBundleFiles(name);
-    if (loaded.userFileCount === 0) {
-      throw new Error(`No files under workshop/bundles/${name}/. Run workshop_init first.`);
-    }
-
-    const result = await runCreateWorker({ files: loaded.files });
-    return {
-      mainModule: result.mainModule,
-      modules: result.modules as Record<string, unknown>,
-      userFileCount: loaded.userFileCount,
-    };
+  async function buildBundle(name: string): Promise<BuildBundleResult> {
+    return buildBundleCore({
+      bucket: getBucket(),
+      namespace: getNamespace(),
+      name,
+      runtimeSource: getRuntimeSource(),
+      createWorker: internals.createWorker,
+    });
   }
 
   function starterIndex(name: string): string {
@@ -506,7 +392,7 @@ export function agentWorkshop(
           execute: async (args) => {
             const nameErr = validateBundleName(args.name);
             if (nameErr) return `Error: ${nameErr}`;
-            const prefix = `${bundlePrefix(namespace, args.name)}/`;
+            const prefix = `${bundlePrefixFor(namespace, args.name)}/`;
             const listed = await bucket.list({ prefix });
             if (listed.objects.length === 0) {
               return `(empty) Workspace "${args.name}" has no files. Run workshop_init first.`;
@@ -632,6 +518,11 @@ export function agentWorkshop(
               const opts: CreateVersionOpts = {
                 bytes: envelope,
                 createdBy: context.sessionId,
+                metadata: {
+                  sourceName: args.name,
+                  runtimeHash: getRuntimeHash(),
+                  buildTimestamp: Date.now(),
+                },
               };
               version = await options.registry.createVersion(opts);
             } catch (err) {
@@ -760,23 +651,6 @@ export function agentWorkshop(
       },
     ],
   };
-}
-
-/**
- * Encode a built bundle into the v1 JSON envelope the dispatcher expects.
- * Exported for tests that want to assert the payload shape without driving
- * a full deploy.
- */
-export function encodeEnvelope(mainModule: string, modules: Record<string, unknown>): ArrayBuffer {
-  const payload = JSON.stringify({
-    v: BUNDLE_ENVELOPE_VERSION,
-    mainModule,
-    modules,
-  });
-  const bytes = new TextEncoder().encode(payload);
-  const buf = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buf).set(bytes);
-  return buf;
 }
 
 /**

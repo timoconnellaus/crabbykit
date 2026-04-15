@@ -8,6 +8,25 @@
  */
 
 export type {
+  BuildBundleOptions,
+  BuildBundleResult,
+  BundleSourceBucket,
+  LoadBundleFilesOptions,
+  LoadedBundleFiles,
+} from "./bundle-builder.js";
+export {
+  BUNDLE_ENVELOPE_VERSION,
+  BUNDLE_RUNTIME_HASH,
+  BUNDLE_RUNTIME_SOURCE,
+  buildBundle,
+  bundleFileR2Key,
+  bundlePrefix,
+  encodeEnvelope,
+  loadBundleFiles,
+  RELATIVE_RUNTIME_PATHS,
+  WORKSHOP_BUNDLE_PREFIX,
+} from "./bundle-builder.js";
+export type {
   BundleConfig,
   BundleDispatchState,
   BundleRegistry,

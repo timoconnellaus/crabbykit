@@ -39,6 +39,19 @@ export interface BundleMetadata {
   authoredBy?: string;
   version?: string;
   buildTimestamp?: number;
+  /**
+   * SHA-256 hex of the `BUNDLE_RUNTIME_SOURCE` that was injected into this
+   * bundle at build time. Drift between this value and the currently loaded
+   * runtime hash indicates the bundle is running old runtime bytes and
+   * should be auto-rebuilt.
+   */
+  runtimeHash?: string;
+  /**
+   * R2 source directory name (e.g. the workshop bundle workspace name). Used
+   * by the auto-rebuild path to locate the authored source files so a new
+   * envelope can be produced with the current runtime injected.
+   */
+  sourceName?: string;
 }
 
 export interface AgentBundle {
@@ -103,6 +116,8 @@ export const METADATA_KEYS = new Set([
   "authoredBy",
   "version",
   "buildTimestamp",
+  "runtimeHash",
+  "sourceName",
 ]);
 
 /** Max length for string metadata fields. */

@@ -138,10 +138,12 @@
         "@claw-for-cloudflare/agent-core": "workspace:*",
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "@claw-for-cloudflare/ai": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.1.1",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20250109.0",
+        "esbuild-wasm": "^0.28.0",
         "typescript": "^5.7.0",
         "vitest": "^3.2.0",
       },

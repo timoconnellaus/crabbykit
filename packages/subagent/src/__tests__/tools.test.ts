@@ -94,9 +94,7 @@ function setup(hostOverrides?: Partial<SubagentHost>) {
 }
 
 async function exec(
-  tool: {
-    execute: (args: Record<string, unknown>, ctx: unknown) => Promise<unknown> | unknown;
-  },
+  tool: { execute: (args: any, ctx: any) => any },
   args: Record<string, unknown>,
 ) {
   return (await tool.execute(args, { toolCallId: "test", signal: undefined })) as any;

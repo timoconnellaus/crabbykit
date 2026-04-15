@@ -405,6 +405,102 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       return id;
     };
 
+    // Drift check state. `autoRebuildAttempted` ensures we do the hash
+    // comparison at most once per DO wake — it's a cold-path check guarded
+    // by a hot-path short-circuit so steady-state dispatch pays a single
+    // boolean compare. `autoRebuildInFlight` collapses concurrent first-turn
+    // triggers into one rebuild.
+    let autoRebuildAttempted = false;
+    let autoRebuildInFlight: Promise<void> | null = null;
+
+    const maybeAutoRebuild = async (versionId: string): Promise<void> => {
+      if (autoRebuildAttempted) return;
+      if (!bundleConfig.autoRebuild) {
+        autoRebuildAttempted = true;
+        return;
+      }
+      if (!registry.getVersion || !registry.createVersion) {
+        autoRebuildAttempted = true;
+        return;
+      }
+      if (autoRebuildInFlight) {
+        await autoRebuildInFlight;
+        return;
+      }
+      autoRebuildInFlight = (async () => {
+        try {
+          const { BUNDLE_RUNTIME_HASH, buildBundle, encodeEnvelope } = await import(
+            "@claw-for-cloudflare/agent-bundle/host"
+          );
+          const version = await registry.getVersion!(versionId);
+          const storedHash = version?.metadata?.runtimeHash;
+          const sourceName = version?.metadata?.sourceName;
+          if (!storedHash || storedHash === BUNDLE_RUNTIME_HASH) {
+            return; // Up-to-date or legacy metadata missing hash — nothing to do.
+          }
+          if (!sourceName) {
+            this.runtime.logger.warn(
+              "[BundleDispatch] auto-rebuild skipped: version metadata missing sourceName",
+              { agentId, versionId, storedHash, currentHash: BUNDLE_RUNTIME_HASH },
+            );
+            return;
+          }
+          this.runtime.logger.info("[BundleDispatch] auto-rebuild triggered: runtime drift", {
+            agentId,
+            oldVersionId: versionId,
+            oldHash: storedHash,
+            currentHash: BUNDLE_RUNTIME_HASH,
+          });
+          const started = Date.now();
+          const autoBucket = bundleConfig.autoRebuild!.bucket(env);
+          const autoNamespace = bundleConfig.autoRebuild!.namespace(env);
+          const built = await buildBundle({
+            bucket: autoBucket,
+            namespace: autoNamespace,
+            name: sourceName,
+          });
+          const envelope = encodeEnvelope(built.mainModule, built.modules);
+          const newVersion = await registry.createVersion!({
+            bytes: envelope,
+            createdBy: "system:auto-rebuild",
+            metadata: {
+              runtimeHash: BUNDLE_RUNTIME_HASH,
+              sourceName,
+              buildTimestamp: Date.now(),
+            },
+          });
+          if (newVersion.versionId === versionId) {
+            this.runtime.logger.info(
+              "[BundleDispatch] auto-rebuild produced identical bytes; nothing to promote",
+              { agentId, versionId },
+            );
+            return;
+          }
+          await registry.setActive(agentId, newVersion.versionId, {
+            rationale: "auto-rebuild: runtime hash drift",
+          });
+          await this.runtime.bundlePointerRefresher?.();
+          this.runtime.logger.info("[BundleDispatch] auto-rebuild completed", {
+            agentId,
+            oldVersionId: versionId,
+            newVersionId: newVersion.versionId,
+            durationMs: Date.now() - started,
+          });
+        } catch (err) {
+          this.runtime.logger.error("[BundleDispatch] auto-rebuild failed", {
+            agentId,
+            versionId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // Never wedge dispatch: fall through with the stale bundle still active.
+        } finally {
+          autoRebuildAttempted = true;
+          autoRebuildInFlight = null;
+        }
+      })();
+      await autoRebuildInFlight;
+    };
+
     // Install the bundle pointer refresher on the runtime. Single
     // authoritative writer of `ctx.storage.activeBundleVersionId` for
     // in-process mutations. Workshop tools (and any other capability that
@@ -422,9 +518,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId: string,
       promptText: string,
     ): Promise<boolean> => {
-      const versionId = await checkActiveBundle();
+      let versionId = await checkActiveBundle();
       if (!versionId) {
         return false; // No active bundle → static brain
+      }
+
+      // One-shot drift check per DO wake. Rebuilds the bundle if the
+      // injected runtime source hash has advanced past the hash stamped
+      // onto the currently-active version at deploy time. After a
+      // successful rebuild, re-read the active pointer so the turn
+      // executes on the new bytes.
+      if (!autoRebuildAttempted) {
+        await maybeAutoRebuild(versionId);
+        const refreshed = await checkActiveBundle();
+        if (refreshed) versionId = refreshed;
       }
 
       try {

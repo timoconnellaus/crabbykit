@@ -34,6 +34,7 @@ function makeWorkshop(overrides: Partial<Parameters<typeof agentWorkshop>[1]> = 
     {
       createWorker: createWorker as never,
       getBundleRuntimeSource: overrides.getBundleRuntimeSource ?? (() => runtimeSource),
+      getBundleRuntimeHash: overrides.getBundleRuntimeHash ?? (() => "fakehash-abcdef"),
     },
   );
   return { cap, storage, mock, registry, versions, active, setActiveCalls, createWorker };
@@ -213,9 +214,7 @@ describe("agentWorkshop — build / test", () => {
     );
     expect(pkgJson.name).toBe("@claw-for-cloudflare/agent-bundle");
     expect(pkgJson.exports?.["./bundle"]).toBe("./bundle.js");
-    expect(call.files["src/index.ts"]).toContain(
-      'from "@claw-for-cloudflare/agent-bundle/bundle"',
-    );
+    expect(call.files["src/index.ts"]).toContain('from "@claw-for-cloudflare/agent-bundle/bundle"');
   });
 
   it("workshop_build surfaces bundler errors", async () => {
@@ -338,6 +337,18 @@ describe("agentWorkshop — deploy / envelope", () => {
     expect(await registry.getActiveForAgent("self")).toBeNull();
     expect(setActiveCalls.at(-1)?.versionId).toBeNull();
     expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("workshop_deploy stamps runtimeHash and sourceName into version metadata", async () => {
+    const { cap, versions } = makeWorkshop();
+    const ctx = createMockContext({ agentId: "agent-meta" });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "branded" });
+    await runTool(findTool(tools, "workshop_deploy"), { name: "branded" });
+    const [entry] = versions.values();
+    expect(entry.version.metadata?.runtimeHash).toBe("fakehash-abcdef");
+    expect(entry.version.metadata?.sourceName).toBe("branded");
+    expect(typeof entry.version.metadata?.buildTimestamp).toBe("number");
   });
 
   it("workshop_versions reports the active version", async () => {
