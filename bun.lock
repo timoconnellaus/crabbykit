@@ -533,23 +533,6 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/runtime/agent-bundle": {
-      "name": "@claw-for-cloudflare/agent-bundle",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/ai": "workspace:*",
-        "@cloudflare/worker-bundler": "^0.1.1",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "esbuild-wasm": "^0.28.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
     "packages/runtime/agent-core": {
       "name": "@claw-for-cloudflare/agent-core",
       "version": "0.0.1",
@@ -817,8 +800,6 @@
     "@claw-for-cloudflare/a2a": ["@claw-for-cloudflare/a2a@workspace:packages/federation/a2a"],
 
     "@claw-for-cloudflare/agent-auth": ["@claw-for-cloudflare/agent-auth@workspace:packages/infra/agent-auth"],
-
-    "@claw-for-cloudflare/agent-bundle": ["@claw-for-cloudflare/agent-bundle@workspace:packages/runtime/agent-bundle"],
 
     "@claw-for-cloudflare/agent-core": ["@claw-for-cloudflare/agent-core@workspace:packages/runtime/agent-core"],
 
