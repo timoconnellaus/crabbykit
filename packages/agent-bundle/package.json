@@ -26,6 +26,7 @@
   },
   "scripts": {
     "build": "bun build.ts",
+    "postinstall": "bun build.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

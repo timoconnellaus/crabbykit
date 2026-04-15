@@ -42,7 +42,51 @@ async function loadCreateWorker(): Promise<CreateWorker> {
 
 const DEFAULT_DEPLOY_RATE_LIMIT = 5;
 const BUNDLE_PREFIX = "workshop/bundles";
-const RUNTIME_VIRTUAL_PATH = "_claw/bundle-runtime.js";
+
+/**
+ * Relative virtual paths at which the pre-compiled bundle runtime is
+ * injected. Both map to the same `BUNDLE_RUNTIME_SOURCE` so relative
+ * imports resolve no matter which shape the bundle author chose:
+ *
+ *   - `_claw/bundle-runtime.js` — project-root-relative. Bundle source
+ *     `../_claw/bundle-runtime.js` from `src/index.ts` walks up out of
+ *     `src/` and lands here.
+ *   - `src/_claw/bundle-runtime.js` — matches `./_claw/bundle-runtime.js`
+ *     from `src/index.ts`. Covers older starters that used the `./`
+ *     form verbatim.
+ *
+ * The reserved `_claw/` prefix still holds — users can write neither
+ * `_claw/` nor `src/_claw/`.
+ */
+const RELATIVE_RUNTIME_PATHS = [
+  "_claw/bundle-runtime.js",
+  "src/_claw/bundle-runtime.js",
+] as const;
+
+/**
+ * Virtual `node_modules/@claw-for-cloudflare/agent-bundle` package that
+ * `@cloudflare/worker-bundler`'s `resolvePackage` can find when bundle
+ * source uses the natural package import
+ * `import from "@claw-for-cloudflare/agent-bundle/bundle"`. The bundler
+ * parses the specifier into `(packageName, subpath)`, reads
+ * `node_modules/{packageName}/package.json`, uses the `exports` map to
+ * resolve `./{subpath}`, and loads
+ * `node_modules/{packageName}/{resolvedPath}`. Seeding a full virtual
+ * package (package.json + bundle.js) is the ONLY layout that resolver
+ * accepts — a bare key at the specifier path is ignored.
+ */
+const VIRTUAL_PACKAGE_DIR = "node_modules/@claw-for-cloudflare/agent-bundle";
+const VIRTUAL_PACKAGE_JSON_PATH = `${VIRTUAL_PACKAGE_DIR}/package.json`;
+const VIRTUAL_PACKAGE_BUNDLE_PATH = `${VIRTUAL_PACKAGE_DIR}/bundle.js`;
+const VIRTUAL_PACKAGE_JSON = JSON.stringify({
+  name: "@claw-for-cloudflare/agent-bundle",
+  version: "0.0.0-virtual",
+  type: "module",
+  exports: {
+    "./bundle": "./bundle.js",
+  },
+});
+
 const BUNDLE_ENVELOPE_VERSION = 1;
 const MAX_PATH_BYTES = 512;
 
@@ -230,8 +274,9 @@ export function agentWorkshop(
 
   /**
    * List all R2 objects under the bundle prefix, fetch their contents,
-   * and merge the compiled agent-bundle runtime as a virtual file at
-   * `_claw/bundle-runtime.js` ready to be passed to `createWorker`.
+   * and merge the compiled agent-bundle runtime as virtual files at
+   * every path listed in `RUNTIME_VIRTUAL_PATHS`, ready to be passed
+   * to `createWorker`.
    *
    * Exported for tests that want to assert the runtime-injection contract
    * without invoking `createWorker`.
@@ -256,10 +301,21 @@ export function agentWorkshop(
       userFileCount++;
     }
 
-    // Inject the pre-compiled bundle runtime as a virtual file. This
-    // happens on EVERY build — never persisted to R2 — so existing bundles
-    // automatically pick up runtime changes the next time they are built.
-    files[RUNTIME_VIRTUAL_PATH] = getRuntimeSource();
+    // Inject the pre-compiled bundle runtime at every virtual path a
+    // bundle author might use. Done on EVERY build — never persisted
+    // to R2 — so existing bundles pick up runtime changes automatically
+    // on their next build.
+    const runtimeSource = getRuntimeSource();
+    for (const path of RELATIVE_RUNTIME_PATHS) {
+      files[path] = runtimeSource;
+    }
+    // Virtual node_modules package for
+    // `import from "@claw-for-cloudflare/agent-bundle/bundle"`. The
+    // bundler's `resolvePackage` looks up the package.json, follows
+    // the exports map, and reads the resolved file — so we need BOTH
+    // entries present, not just a bare key.
+    files[VIRTUAL_PACKAGE_JSON_PATH] = VIRTUAL_PACKAGE_JSON;
+    files[VIRTUAL_PACKAGE_BUNDLE_PATH] = runtimeSource;
 
     return { files, userFileCount, totalBytes };
   }
@@ -288,7 +344,7 @@ export function agentWorkshop(
 
   function starterIndex(name: string): string {
     return [
-      'import { defineBundleAgent } from "./_claw/bundle-runtime.js";',
+      'import { defineBundleAgent } from "@claw-for-cloudflare/agent-bundle/bundle";',
       "",
       "export default defineBundleAgent({",
       '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
@@ -697,7 +753,7 @@ export function agentWorkshop(
           "5. `workshop_deploy` — deploy as your active brain (self-editing by default)",
           "6. `workshop_disable` — revert to static brain if needed",
           "",
-          "The `@claw-for-cloudflare/agent-bundle` runtime is injected at build time — import it from `./_claw/bundle-runtime.js` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
+          "The `@claw-for-cloudflare/agent-bundle` runtime is injected at build time — import it from `@claw-for-cloudflare/agent-bundle/bundle` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
           "",
           "Self-editing is safe: the static brain is always available as a fallback.",
         ].join("\n"),

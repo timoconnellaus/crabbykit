@@ -50,9 +50,12 @@ describe("agentWorkshop — file tools", () => {
     expect(mock.store.has("ns/workshop/bundles/my-brain/src/index.ts")).toBe(true);
     // Runtime must NOT be persisted — it's injected only at build time.
     expect(mock.store.has("ns/workshop/bundles/my-brain/_claw/bundle-runtime.js")).toBe(false);
-    // Starter imports the virtual runtime via a relative path.
+    // Starter imports the virtual runtime via the natural package
+    // path. `workshop_build` injects the runtime bytes at the
+    // `@claw-for-cloudflare/agent-bundle/bundle` virtual file key so
+    // worker-bundler's bare-specifier resolution hits it directly.
     const starter = mock.store.get("ns/workshop/bundles/my-brain/src/index.ts")!;
-    expect(starter).toContain('from "./_claw/bundle-runtime.js"');
+    expect(starter).toContain('from "@claw-for-cloudflare/agent-bundle/bundle"');
     expect(starter).toContain("defineBundleAgent");
   });
 
@@ -184,18 +187,35 @@ describe("agentWorkshop — file tools", () => {
 });
 
 describe("agentWorkshop — build / test", () => {
-  it("workshop_build injects BUNDLE_RUNTIME_SOURCE at _claw/bundle-runtime.js", async () => {
+  it("workshop_build injects BUNDLE_RUNTIME_SOURCE at every reserved runtime path", async () => {
     const createWorker = fakeCreateWorker();
     const { cap } = makeWorkshop({ createWorker });
     const tools = cap.tools!(createMockContext());
     await runTool(findTool(tools, "workshop_init"), { name: "b8" });
     const result = await runTool(findTool(tools, "workshop_build"), { name: "b8" });
     expect(result).toContain("Build successful");
-    // The bundler must have seen the runtime file.
+    // The bundler must have seen the runtime at every injection site
+    // workshop seeds: two relative-path locations for authors using
+    // `./_claw/` or `../_claw/` imports, plus a full virtual
+    // node_modules package for the natural
+    // `@claw-for-cloudflare/agent-bundle/bundle` import that
+    // worker-bundler's resolvePackage can discover via package.json +
+    // exports map.
     expect(createWorker).toHaveBeenCalledTimes(1);
     const call = createWorker.mock.calls[0][0];
     expect(call.files["_claw/bundle-runtime.js"]).toBe(FAKE_RUNTIME);
-    expect(call.files["src/index.ts"]).toContain('from "./_claw/bundle-runtime.js"');
+    expect(call.files["src/_claw/bundle-runtime.js"]).toBe(FAKE_RUNTIME);
+    expect(call.files["node_modules/@claw-for-cloudflare/agent-bundle/bundle.js"]).toBe(
+      FAKE_RUNTIME,
+    );
+    const pkgJson = JSON.parse(
+      call.files["node_modules/@claw-for-cloudflare/agent-bundle/package.json"] as string,
+    );
+    expect(pkgJson.name).toBe("@claw-for-cloudflare/agent-bundle");
+    expect(pkgJson.exports?.["./bundle"]).toBe("./bundle.js");
+    expect(call.files["src/index.ts"]).toContain(
+      'from "@claw-for-cloudflare/agent-bundle/bundle"',
+    );
   });
 
   it("workshop_build surfaces bundler errors", async () => {

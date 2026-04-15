@@ -43,8 +43,11 @@ export function clearMockResponses() {
 /**
  * A lightweight mock Agent that mimics pi-agent-core's Agent interface
  * without actually importing it (avoids partial-json CJS issue).
+ *
+ * Exported so `TestBundleAgentDO` and other hand-rolled integration test
+ * subclasses can reuse the static-brain path without duplicating the mock.
  */
-class MockPiAgent {
+export class MockPiAgent {
   private listeners: Array<(e: AgentEvent) => void> = [];
   private _state: any;
   private tools: Map<string, AgentTool> = new Map();
@@ -328,7 +331,7 @@ export function clearOnScheduleFireHook() {
  * Build a mock compaction capability for testing.
  * Uses a dummy summarizer (no LLM call) matching the old inline behavior.
  */
-function buildMockCompactionCapability(compactionConfig: CompactionConfig): Capability {
+export function buildMockCompactionCapability(compactionConfig: CompactionConfig): Capability {
   const dummySummarize: SummarizeFn = async (msgs, prevSummary) => {
     const content = msgs
       .map((m) => {
@@ -693,6 +696,18 @@ export class TestAgentDO extends AgentDO {
     this.sessionAgents.set(sessionId, agent);
   }
 }
+
+// Re-export the bundle-enabled test DO so wrangler's `main` sees both
+// classes exported from a single module.
+export {
+  resetTestBundleHolders,
+  setTestBundleEnv,
+  setTestBundleLoader,
+  setTestBundleMaxLoadFailures,
+  setTestBundleRegistry,
+  TEST_BUNDLE_AUTH_KEY,
+  TestBundleAgentDO,
+} from "./test-bundle-agent-do.js";
 
 export default {
   async fetch(): Promise<Response> {

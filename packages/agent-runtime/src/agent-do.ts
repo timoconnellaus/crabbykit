@@ -11,6 +11,7 @@ import type {
   Logger,
   ScheduleManager,
 } from "./agent-runtime.js";
+import type { BundleConfig } from "./bundle-config.js";
 import type { Capability } from "./capabilities/types.js";
 import type { Command, CommandContext } from "./commands/define-command.js";
 import type { ConfigNamespace } from "./config/types.js";
@@ -336,6 +337,274 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
   protected getCachedCapabilities(): Capability[] {
     return this.runtime.getCachedCapabilities();
+  }
+
+  /**
+   * Install bundle dispatch on the runtime. Wires `bundlePromptHandler`,
+   * `bundlePointerRefresher`, `bundleClientEventHandler`, and a pre-fetch
+   * handler serving `POST /bundle/disable` and `POST /bundle/refresh`.
+   *
+   * Call this exactly once from a subclass constructor (or from
+   * `defineAgent`'s generated class) when bundle config is present. The
+   * implementation is shared here so both `defineAgent` and hand-rolled
+   * `AgentDO` subclasses exercise the same production code path — critical
+   * for integration tests that need to drive bundle dispatch without
+   * going through `defineAgent`.
+   *
+   * `ctx.storage.activeBundleVersionId` is the single-writer hot-path
+   * cache. In-process mutations to the pointer MUST go through
+   * `AgentContext.notifyBundlePointerChanged()` (which delegates to the
+   * installed `bundlePointerRefresher`). Out-of-process mutations MUST
+   * POST `/bundle/refresh`.
+   */
+  protected initBundleDispatch(
+    ctx: DurableObjectState,
+    env: TEnv,
+    bundleConfig: BundleConfig<TEnv>,
+  ): void {
+    const agentId = this.runtime.runtimeContext.agentId;
+    const registry = bundleConfig.registry(env);
+    const loader = bundleConfig.loader(env);
+    const masterKey = bundleConfig.authKey(env);
+    const maxLoadFailures = bundleConfig.maxLoadFailures ?? 3;
+
+    // Mutable dispatch state
+    let consecutiveFailures = 0;
+    let spineSubkeyPromise: Promise<CryptoKey> | null = null;
+    let llmSubkeyPromise: Promise<CryptoKey> | null = null;
+
+    const getSpineSubkey = async (): Promise<CryptoKey> => {
+      if (!spineSubkeyPromise) {
+        spineSubkeyPromise = (async () => {
+          const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
+          return deriveSubkey(masterKey, "claw/spine-v1");
+        })();
+      }
+      return spineSubkeyPromise;
+    };
+
+    const getLlmSubkey = async (): Promise<CryptoKey> => {
+      if (!llmSubkeyPromise) {
+        llmSubkeyPromise = (async () => {
+          const { deriveSubkey } = await import("@claw-for-cloudflare/agent-bundle/security");
+          return deriveSubkey(masterKey, "claw/llm-v1");
+        })();
+      }
+      return llmSubkeyPromise;
+    };
+
+    const checkActiveBundle = async (): Promise<string | null> => {
+      // Warm path: ctx.storage
+      const cached = await ctx.storage.get<string | null>("activeBundleVersionId");
+      if (cached !== undefined) {
+        return cached;
+      }
+      // Cold path: registry query
+      const id = await registry.getActiveForAgent(agentId);
+      await ctx.storage.put("activeBundleVersionId", id);
+      return id;
+    };
+
+    // Install the bundle pointer refresher on the runtime. Single
+    // authoritative writer of `ctx.storage.activeBundleVersionId` for
+    // in-process mutations. Workshop tools (and any other capability that
+    // calls `bundle-registry.setActive`) MUST call
+    // `AgentContext.notifyBundlePointerChanged()` after mutating — which
+    // runs through here.
+    this.runtime.bundlePointerRefresher = async () => {
+      const id = await registry.getActiveForAgent(agentId);
+      await ctx.storage.put("activeBundleVersionId", id);
+      consecutiveFailures = 0;
+    };
+
+    // Install the bundle prompt handler on the runtime
+    this.runtime.bundlePromptHandler = async (
+      sessionId: string,
+      promptText: string,
+    ): Promise<boolean> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) {
+        return false; // No active bundle → static brain
+      }
+
+      try {
+        const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
+        const { mintToken } = await import("@claw-for-cloudflare/agent-bundle/security");
+        // Separate token per service (same payload, different HKDF
+        // subkeys) so SpineService and LlmService verify independently.
+        const [spineToken, llmToken] = await Promise.all([
+          mintToken({ agentId, sessionId }, spineSubkey),
+          mintToken({ agentId, sessionId }, llmSubkey),
+        ]);
+
+        const projectedEnv = bundleConfig.bundleEnv(env);
+
+        const worker = loader.get(versionId, async () => {
+          const bytes = await registry.getBytes(versionId);
+          if (!bytes) {
+            throw new Error(`Bundle bytes not found for version ${versionId}`);
+          }
+          const source = new TextDecoder().decode(bytes);
+          // Workshop writes a v1 envelope (`{v:1, mainModule, modules}`)
+          // via `@cloudflare/worker-bundler#createWorker`. Legacy bundles
+          // were raw single-file JS; `decodeBundlePayload` handles both.
+          // Without this decode, envelope bytes get fed to the loader as
+          // raw JS and workerd fails with "Unexpected token ':'" on the
+          // opening `{"v":1,…}`.
+          const { decodeBundlePayload } = await import("@claw-for-cloudflare/agent-bundle/host");
+          const { mainModule, modules } = decodeBundlePayload(source);
+          return {
+            compatibilityDate: "2025-12-01",
+            compatibilityFlags: ["nodejs_compat"],
+            mainModule,
+            modules,
+            env: {
+              ...projectedEnv,
+              __SPINE_TOKEN: spineToken,
+              __LLM_TOKEN: llmToken,
+            },
+            globalOutbound: null,
+          };
+        });
+
+        const res = await worker.getEntrypoint().fetch(
+          new Request("https://bundle/turn", {
+            method: "POST",
+            body: JSON.stringify({ prompt: promptText, agentId, sessionId }),
+          }),
+        );
+
+        if (!res.ok) {
+          throw new Error(`Bundle turn returned ${res.status}`);
+        }
+
+        // Drain the body so the bundle's ReadableStream work() promise
+        // resolves and finally{} broadcasts agent_end before we return.
+        // Bundle broadcasts streaming events live via SpineService →
+        // transport.broadcastToSession; the HTTP body itself is a short ack.
+        await res.text();
+
+        consecutiveFailures = 0;
+        return true;
+      } catch (err) {
+        consecutiveFailures++;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        this.runtime.logger.error(
+          `[BundleDispatch] Failure ${consecutiveFailures}/${maxLoadFailures}: ${errMsg}`,
+        );
+
+        if (consecutiveFailures >= maxLoadFailures) {
+          this.runtime.logger.warn("[BundleDispatch] Auto-reverting to static brain");
+          try {
+            await registry.setActive(agentId, null, {
+              rationale: "auto-revert: poison bundle",
+            });
+          } catch (revertErr) {
+            this.runtime.logger.error("[BundleDispatch] Failed to auto-revert", {
+              error: revertErr instanceof Error ? revertErr.message : String(revertErr),
+            });
+          }
+          consecutiveFailures = 0;
+          await ctx.storage.put("activeBundleVersionId", null);
+        }
+
+        return false; // Fall through to static brain
+      }
+    };
+
+    // Install the client event handler for steer/abort during bundle turns.
+    this.runtime.bundleClientEventHandler = async (
+      sessionId: string,
+      event: unknown,
+    ): Promise<void> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return;
+
+      try {
+        const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
+        const { mintToken: mint } = await import("@claw-for-cloudflare/agent-bundle/security");
+        const [spineToken, llmToken] = await Promise.all([
+          mint({ agentId, sessionId }, spineSubkey),
+          mint({ agentId, sessionId }, llmSubkey),
+        ]);
+        const projectedEnv = bundleConfig.bundleEnv(env);
+
+        const worker = loader.get(versionId, async () => {
+          const bytes = await registry.getBytes(versionId);
+          if (!bytes) throw new Error("Bundle bytes not found");
+          const source = new TextDecoder().decode(bytes);
+          return {
+            compatibilityDate: "2025-12-01",
+            compatibilityFlags: ["nodejs_compat"],
+            mainModule: "bundle.js",
+            modules: { "bundle.js": source },
+            env: {
+              ...projectedEnv,
+              __SPINE_TOKEN: spineToken,
+              __LLM_TOKEN: llmToken,
+            },
+            globalOutbound: null,
+          };
+        });
+
+        await worker.getEntrypoint().fetch(
+          new Request("https://bundle/client-event", {
+            method: "POST",
+            body: JSON.stringify(event),
+          }),
+        );
+      } catch (err) {
+        // Client event delivery is best-effort
+        this.runtime.logger.warn("[BundleDispatch] Client event delivery failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
+    // Install the pre-fetch handler for bundle HTTP endpoints.
+    // Chain with any existing pre-fetch handler.
+    const existingPreFetch = this.runtime.preFetchHandler;
+    this.runtime.preFetchHandler = async (request: Request) => {
+      const url = new URL(request.url);
+
+      // POST /bundle/disable — out-of-band privileged endpoint
+      if (url.pathname === "/bundle/disable" && request.method === "POST") {
+        if (this.runtime.validateAuth) {
+          const allowed = await this.runtime.validateAuth(request);
+          if (!allowed) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+        }
+
+        await registry.setActive(agentId, null, {
+          rationale: "out-of-band disable",
+        });
+        consecutiveFailures = 0;
+        await ctx.storage.put("activeBundleVersionId", null);
+
+        return Response.json({ status: "disabled" });
+      }
+
+      // POST /bundle/refresh — re-read the active pointer from the
+      // registry. Out-of-band escape hatch for mutations that happened
+      // outside this DO process.
+      if (url.pathname === "/bundle/refresh" && request.method === "POST") {
+        await this.runtime.bundlePointerRefresher?.();
+        const id = (await ctx.storage.get<string | null>("activeBundleVersionId")) ?? null;
+        return Response.json({ status: "refreshed", activeVersionId: id });
+      }
+
+      // Reserve /bundle/* paths — never forward to bundle
+      if (url.pathname.startsWith("/bundle/")) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      // Fall through to existing pre-fetch handler
+      if (existingPreFetch) {
+        return existingPreFetch(request);
+      }
+      return null;
+    };
   }
 }
 

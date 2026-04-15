@@ -1320,10 +1320,29 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
       case "steer":
         this.handleSteer(msg.sessionId, msg.text);
+        // Bundle dispatch: forward the raw steer message to the active
+        // bundle so it can update its in-flight stream / context. Best
+        // effort — delivery failures are swallowed by the installer.
+        if (this.bundleClientEventHandler) {
+          this.bundleClientEventHandler(msg.sessionId, msg).catch((err) => {
+            this.logger.warn("[AgentRuntime] Bundle steer forward failed", {
+              message: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }
         break;
 
       case "abort":
         this.sessionAgents.get(msg.sessionId)?.abort();
+        // Bundle dispatch: forward the abort so the bundle can cancel
+        // its in-flight work.
+        if (this.bundleClientEventHandler) {
+          this.bundleClientEventHandler(msg.sessionId, msg).catch((err) => {
+            this.logger.warn("[AgentRuntime] Bundle abort forward failed", {
+              message: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }
         break;
 
       case "switch_session": {

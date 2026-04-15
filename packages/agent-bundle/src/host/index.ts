@@ -12,8 +12,8 @@ export type {
   BundleDispatchState,
   BundleRegistry,
 } from "./bundle-config.js";
-export type { BundleAgentEvent, DispatchResult } from "./bundle-dispatcher.js";
-export { BundleDispatcher } from "./bundle-dispatcher.js";
+export type { BundleAgentEvent, BundlePayload, DispatchResult } from "./bundle-dispatcher.js";
+export { BundleDispatcher, decodeBundlePayload } from "./bundle-dispatcher.js";
 export { InMemoryBundleRegistry } from "./in-memory-registry.js";
 export type { InferRequest, InferResponse, LlmEnv } from "./llm-service.js";
 export { LlmService } from "./llm-service.js";

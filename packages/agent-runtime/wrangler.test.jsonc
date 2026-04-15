@@ -8,6 +8,10 @@
       {
         "name": "AGENT",
         "class_name": "TestAgentDO"
+      },
+      {
+        "name": "TEST_BUNDLE_AGENT",
+        "class_name": "TestBundleAgentDO"
       }
     ]
   },
@@ -15,6 +19,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["TestAgentDO"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["TestBundleAgentDO"]
     }
   ]
 }

@@ -28,7 +28,7 @@ type BundleLoaderModule =
       json?: unknown;
     };
 
-interface BundlePayload {
+export interface BundlePayload {
   mainModule: string;
   modules: Record<string, BundleLoaderModule>;
 }

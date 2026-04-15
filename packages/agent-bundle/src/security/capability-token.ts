@@ -9,7 +9,12 @@
  * only its own verify-only subkey.
  */
 
-const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+/**
+ * Default token TTL. Tokens are scoped to a single turn; a turn that
+ * takes longer than this should re-mint. 60s is a generous ceiling on
+ * realistic turn durations and keeps the replay window small.
+ */
+const DEFAULT_TTL_MS = 60 * 1000; // 60 seconds
 
 // --- Base64url helpers ---
 

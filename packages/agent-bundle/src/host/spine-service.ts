@@ -11,11 +11,7 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { VerifyOutcome } from "../security/capability-token.js";
-import {
-  deriveVerifyOnlySubkey,
-  NonceTracker,
-  verifyToken,
-} from "../security/capability-token.js";
+import { deriveVerifyOnlySubkey, verifyToken } from "../security/capability-token.js";
 
 export const SPINE_SUBKEY_LABEL = "claw/spine-v1";
 import type { SpineBudgetConfig } from "./budget-tracker.js";
@@ -102,7 +98,6 @@ export interface SpineHost {
 // --- SpineService ---
 
 export class SpineService extends WorkerEntrypoint<SpineEnv> {
-  private readonly nonceTracker = new NonceTracker();
   private readonly budget: BudgetTracker;
   private subkeyPromise: Promise<CryptoKey> | null = null;
 
@@ -131,9 +126,22 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     return this.subkeyPromise;
   }
 
+  /**
+   * Verify a capability token and return the identity fields.
+   *
+   * Replay protection is intentionally NOT enforced here: a single
+   * per-turn token carries the bundle through many SpineService RPCs,
+   * and a single-use nonce would cap a turn at exactly one spine op.
+   * The budget tracker (keyed by nonce) caps total calls per turn; the
+   * token's `exp` (default 60s) bounds the reuse window; `globalOutbound:
+   * null` on the bundle isolate prevents token exfiltration.
+   *
+   * The nonce stays in the payload for log correlation and is consumed
+   * once by `BudgetTracker` per call to increment its per-turn counter.
+   */
   private async verify(token: string): Promise<{ aid: string; sid: string; nonce: string }> {
     const subkey = await this.getSubkey();
-    const result: VerifyOutcome = await verifyToken(token, subkey, this.nonceTracker);
+    const result: VerifyOutcome = await verifyToken(token, subkey);
 
     if (!result.valid) {
       throw new SpineError(result.code as SpineErrorCode);
@@ -143,7 +151,12 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   }
 
   private getHost(agentId: string): DurableObjectStub {
-    const id = this.env.AGENT.idFromName(agentId);
+    // `agentId` is the host DO's `ctx.id.toString()` — a hex-encoded
+    // 256-bit DO id, NOT a human name. Resolve via `idFromString` so we
+    // round-trip back to the exact same DO that minted the token. Using
+    // `idFromName(agentId)` would hash the hex string as a fresh name and
+    // route to a completely different DO.
+    const id = this.env.AGENT.idFromString(agentId);
     return this.env.AGENT.get(id);
   }
 
