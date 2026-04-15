@@ -1,5 +1,5 @@
 /**
- * Credential isolation in bundle-side source (tasks 4.18, 4.32).
+ * Credential isolation in bundle-side source.
  *
  * Runs a static grep against the bundle-authoring source set that ships in
  * the sandbox container, asserting that secrets never appear in bundle
@@ -7,7 +7,7 @@
  * accidentally wiring a credential into bundle code where it would land
  * in the compiled bundle artifact.
  *
- * Lives in agent-bundle (plain vitest) rather than tavily-web-search
+ * Lives in bundle-sdk (plain vitest) rather than tavily-web-search
  * (pool-workers) so it has Node fs access.
  */
 
@@ -17,14 +17,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const Dirname = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_ROOT = resolve(Dirname, "../../../../../..");
+const WORKSPACE_ROOT = resolve(Dirname, "../../../../..");
 
 const BUNDLE_SIDE_FILES = [
-  // agent-bundle authoring surface
-  "packages/runtime/agent-bundle/src/bundle/define.ts",
-  "packages/runtime/agent-bundle/src/bundle/types.ts",
-  "packages/runtime/agent-bundle/src/bundle/runtime.ts",
-  "packages/runtime/agent-bundle/src/bundle/spine-clients.ts",
+  // bundle-sdk authoring surface
+  "packages/runtime/bundle-sdk/src/define.ts",
+  "packages/runtime/bundle-sdk/src/types.ts",
+  "packages/runtime/bundle-sdk/src/runtime.ts",
+  "packages/runtime/bundle-sdk/src/spine-clients.ts",
   // Tavily client (ships in the vendored /opt/claw-sdk/ snapshot)
   "packages/capabilities/tavily-web-search/src/client.ts",
   "packages/capabilities/tavily-web-search/src/schemas.ts",
@@ -68,7 +68,7 @@ describe("Bundle-side credential isolation", () => {
 
   it("bundle-side BundleModelConfig interface has no apiKey field", async () => {
     const types = await readFile(
-      resolve(WORKSPACE_ROOT, "packages/runtime/agent-bundle/src/bundle/types.ts"),
+      resolve(WORKSPACE_ROOT, "packages/runtime/bundle-sdk/src/types.ts"),
       "utf8",
     );
     const match = types.match(/interface BundleModelConfig[\s\S]*?\n\}/);

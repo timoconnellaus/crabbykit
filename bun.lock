@@ -648,6 +648,22 @@
         "wrangler": "^4.0.0",
       },
     },
+    "packages/runtime/bundle-sdk": {
+      "name": "@claw-for-cloudflare/bundle-sdk",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/ai": "workspace:*",
+        "@claw-for-cloudflare/bundle-token": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
     "packages/runtime/bundle-token": {
       "name": "@claw-for-cloudflare/bundle-token",
       "version": "0.0.1",
@@ -810,6 +826,8 @@
     "@claw-for-cloudflare/browserbase": ["@claw-for-cloudflare/browserbase@workspace:packages/capabilities/browserbase"],
 
     "@claw-for-cloudflare/bundle-registry": ["@claw-for-cloudflare/bundle-registry@workspace:packages/runtime/bundle-registry"],
+
+    "@claw-for-cloudflare/bundle-sdk": ["@claw-for-cloudflare/bundle-sdk@workspace:packages/runtime/bundle-sdk"],
 
     "@claw-for-cloudflare/bundle-token": ["@claw-for-cloudflare/bundle-token@workspace:packages/runtime/bundle-token"],
 

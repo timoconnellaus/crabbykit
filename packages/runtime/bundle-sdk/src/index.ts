@@ -1,10 +1,16 @@
 /**
- * Bundle authoring entry point.
+ * `@claw-for-cloudflare/bundle-sdk` — bundle authoring entry point.
  *
- * This subpath is what bundle authors import from:
- *   import { defineBundleAgent } from "@claw-for-cloudflare/agent-bundle/bundle";
+ * Bundle authors import from here:
  *
- * It does NOT export host-side symbols (LlmService, SpineService, etc.).
+ *   import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
+ *
+ * This package intentionally contains no host-side symbols (no
+ * `SpineService`, `LlmService`, `BundleDispatcher`, `mintToken`). Host
+ * plumbing lives in `@claw-for-cloudflare/bundle-host`; the shared
+ * verify-only token surface lives in `@claw-for-cloudflare/bundle-token`.
+ * The mint-side subkey and `mintToken` are unreachable from this package
+ * graph by construction.
  */
 
 export { defineBundleAgent } from "./define.js";

@@ -1,32 +1,30 @@
 {
-  "name": "@claw-for-cloudflare/agent-bundle",
+  "name": "@claw-for-cloudflare/bundle-sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./bundle": "./src/bundle/index.ts",
-    "./bundle-runtime-source": {
+    "./runtime-source": {
       "types": "./dist/bundle-runtime-source.d.ts",
       "default": "./dist/bundle-runtime-source.js"
-    },
-    "./host": "./src/host/index.ts",
-    "./security": "./src/security/index.ts"
+    }
   },
   "dependencies": {
     "@claw-for-cloudflare/agent-core": "workspace:*",
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/ai": "workspace:*",
-    "@cloudflare/worker-bundler": "^0.1.1",
+    "@claw-for-cloudflare/bundle-token": "workspace:*",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
-    "esbuild-wasm": "^0.28.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
   "scripts": {
+    "build": "bun build.ts",
+    "postinstall": "bun build.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

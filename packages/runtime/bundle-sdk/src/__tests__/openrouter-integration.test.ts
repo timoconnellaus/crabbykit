@@ -23,7 +23,7 @@ import { defineBundleAgent } from "../define.js";
 import type { BundleEnv } from "../types.js";
 
 const Dirname = dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = resolve(Dirname, "../../..");
+const PACKAGE_ROOT = resolve(Dirname, "../..");
 
 function sseChunk(payload: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`);
@@ -230,10 +230,10 @@ describe("Credential isolation in compiled bundle source", () => {
   it("the bundle-authoring source never references an OpenRouter API key string", async () => {
     // Task 4.18: "bundle source grepped for OpenRouter key returns zero matches"
     const files = [
-      "src/bundle/define.ts",
-      "src/bundle/types.ts",
-      "src/bundle/runtime.ts",
-      "src/bundle/spine-clients.ts",
+      "src/define.ts",
+      "src/types.ts",
+      "src/runtime.ts",
+      "src/spine-clients.ts",
     ];
     for (const rel of files) {
       const content = await readFile(resolve(PACKAGE_ROOT, rel), "utf8");
@@ -246,7 +246,7 @@ describe("Credential isolation in compiled bundle source", () => {
   });
 
   it("the bundle subpath's ModelConfig type has no apiKey field", async () => {
-    const types = await readFile(resolve(PACKAGE_ROOT, "src/bundle/types.ts"), "utf8");
+    const types = await readFile(resolve(PACKAGE_ROOT, "src/types.ts"), "utf8");
     const match = types.match(/interface BundleModelConfig[^}]+\}/);
     expect(match).toBeTruthy();
     const interfaceBody = match![0];
