@@ -104,7 +104,285 @@
         "wrangler": "^4.0.0",
       },
     },
-    "packages/a2a": {
+    "packages/capabilities/batch-tool": {
+      "name": "@claw-for-cloudflare/batch-tool",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/browserbase": {
+      "name": "@claw-for-cloudflare/browserbase",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/compaction-summary": {
+      "name": "@claw-for-cloudflare/compaction-summary",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/ai": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/doom-loop-detection": {
+      "name": "@claw-for-cloudflare/doom-loop-detection",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/heartbeat": {
+      "name": "@claw-for-cloudflare/heartbeat",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/prompt-scheduler": {
+      "name": "@claw-for-cloudflare/prompt-scheduler",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/r2-storage": {
+      "name": "@claw-for-cloudflare/r2-storage",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/sandbox": {
+      "name": "@claw-for-cloudflare/sandbox",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/credential-store": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/skills": {
+      "name": "@claw-for-cloudflare/skills",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/skill-registry": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/subagent": {
+      "name": "@claw-for-cloudflare/subagent",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+        "nanoid": "^5.1.5",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/subagent-explorer": {
+      "name": "@claw-for-cloudflare/subagent-explorer",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/subagent": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/task-tracker": {
+      "name": "@claw-for-cloudflare/task-tracker",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+        "nanoid": "^5.1.5",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/tavily-web-search": {
+      "name": "@claw-for-cloudflare/tavily-web-search",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/tool-output-truncation": {
+      "name": "@claw-for-cloudflare/tool-output-truncation",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/vector-memory": {
+      "name": "@claw-for-cloudflare/vector-memory",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/r2-storage": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/capabilities/vibe-coder": {
+      "name": "@claw-for-cloudflare/vibe-coder",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.0.4",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/channels/channel-telegram": {
+      "name": "@claw-for-cloudflare/channel-telegram",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/dev/vite-plugin": {
+      "name": "@claw-for-cloudflare/vite-plugin",
+      "version": "0.0.1",
+      "devDependencies": {
+        "typescript": "^5.7.0",
+        "vite": "^6.0.0",
+        "vitest": "^3.2.0",
+      },
+      "peerDependencies": {
+        "vite": ">=5.0.0",
+      },
+    },
+    "packages/federation/a2a": {
       "name": "@claw-for-cloudflare/a2a",
       "version": "0.0.1",
       "dependencies": {
@@ -121,46 +399,7 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-auth": {
-      "name": "@claw-for-cloudflare/agent-auth",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/agent-bundle": {
-      "name": "@claw-for-cloudflare/agent-bundle",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/ai": "workspace:*",
-        "@cloudflare/worker-bundler": "^0.1.1",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "esbuild-wasm": "^0.28.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/agent-core": {
-      "name": "@claw-for-cloudflare/agent-core",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/ai": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/agent-fleet": {
+    "packages/federation/agent-fleet": {
       "name": "@claw-for-cloudflare/agent-fleet",
       "version": "0.0.1",
       "dependencies": {
@@ -178,7 +417,7 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-peering": {
+    "packages/federation/agent-peering": {
       "name": "@claw-for-cloudflare/agent-peering",
       "version": "0.0.1",
       "dependencies": {
@@ -194,7 +433,17 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-registry": {
+    "packages/infra/agent-auth": {
+      "name": "@claw-for-cloudflare/agent-auth",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/agent-registry": {
       "name": "@claw-for-cloudflare/agent-registry",
       "version": "0.0.1",
       "devDependencies": {
@@ -205,7 +454,114 @@
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-runtime": {
+    "packages/infra/agent-storage": {
+      "name": "@claw-for-cloudflare/agent-storage",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/app-registry": {
+      "name": "@claw-for-cloudflare/app-registry",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.0.4",
+        "@sinclair/typebox": "^0.34.0",
+        "nanoid": "^5.1.5",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.9.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/cloudflare-sandbox": {
+      "name": "@claw-for-cloudflare/cloudflare-sandbox",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@cloudflare/containers": "^0.2.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.0.0",
+        "node-pty": "^1.1.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/container-db": {
+      "name": "@claw-for-cloudflare/container-db",
+      "version": "0.0.1",
+      "devDependencies": {
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/credential-store": {
+      "name": "@claw-for-cloudflare/credential-store",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.8.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/infra/skill-registry": {
+      "name": "@claw-for-cloudflare/skill-registry",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.8.0",
+        "@cloudflare/workers-types": "^4.0.0",
+        "@vitest/coverage-istanbul": "^3.2.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/agent-bundle": {
+      "name": "@claw-for-cloudflare/agent-bundle",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-core": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/ai": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.1.1",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "esbuild-wasm": "^0.28.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/agent-core": {
+      "name": "@claw-for-cloudflare/agent-core",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/ai": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/agent-runtime": {
       "name": "@claw-for-cloudflare/agent-runtime",
       "version": "0.0.1",
       "dependencies": {
@@ -232,16 +588,67 @@
         "react",
       ],
     },
-    "packages/agent-storage": {
-      "name": "@claw-for-cloudflare/agent-storage",
+    "packages/runtime/agent-workshop": {
+      "name": "@claw-for-cloudflare/agent-workshop",
       "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-bundle": "workspace:*",
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/agent-storage": "workspace:*",
+        "@claw-for-cloudflare/bundle-registry": "workspace:*",
+        "@cloudflare/worker-bundler": "^0.1.1",
+        "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "esbuild-wasm": "^0.28.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/ai": {
+      "name": "@claw-for-cloudflare/ai",
+      "version": "0.0.1",
+      "dependencies": {
+        "@sinclair/typebox": "^0.34.0",
+        "ajv": "^8.0.0",
+        "ajv-formats": "^3.0.0",
+        "openai": "^4.0.0",
+        "partial-json": "^0.1.7",
+      },
+      "devDependencies": {
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+      },
+    },
+    "packages/runtime/ai-proxy": {
+      "name": "@claw-for-cloudflare/ai-proxy",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+        "@claw-for-cloudflare/sandbox": "workspace:*",
+      },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.0.0",
         "typescript": "^5.7.0",
         "vitest": "^3.2.0",
       },
     },
-    "packages/agent-ui": {
+    "packages/runtime/bundle-registry": {
+      "name": "@claw-for-cloudflare/bundle-registry",
+      "version": "0.0.1",
+      "dependencies": {
+        "@claw-for-cloudflare/agent-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.8.0",
+        "@cloudflare/workers-types": "^4.20250109.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.2.0",
+        "wrangler": "^4.0.0",
+      },
+    },
+    "packages/ui/agent-ui": {
       "name": "@claw-for-cloudflare/agent-ui",
       "version": "0.0.1",
       "dependencies": {
@@ -279,413 +686,6 @@
         "@claw-for-cloudflare/agent-runtime": "workspace:*",
         "react": "^18.0.0 || ^19.0.0",
         "react-dom": "^18.0.0 || ^19.0.0",
-      },
-    },
-    "packages/agent-workshop": {
-      "name": "@claw-for-cloudflare/agent-workshop",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-bundle": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/bundle-registry": "workspace:*",
-        "@cloudflare/worker-bundler": "^0.1.1",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "esbuild-wasm": "^0.28.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/ai": {
-      "name": "@claw-for-cloudflare/ai",
-      "version": "0.0.1",
-      "dependencies": {
-        "@sinclair/typebox": "^0.34.0",
-        "ajv": "^8.0.0",
-        "ajv-formats": "^3.0.0",
-        "openai": "^4.0.0",
-        "partial-json": "^0.1.7",
-      },
-      "devDependencies": {
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/ai-proxy": {
-      "name": "@claw-for-cloudflare/ai-proxy",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/sandbox": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/app-registry": {
-      "name": "@claw-for-cloudflare/app-registry",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/sandbox": "workspace:*",
-        "@cloudflare/worker-bundler": "^0.0.4",
-        "@sinclair/typebox": "^0.34.0",
-        "nanoid": "^5.1.5",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/batch-tool": {
-      "name": "@claw-for-cloudflare/batch-tool",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/browserbase": {
-      "name": "@claw-for-cloudflare/browserbase",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/bundle-registry": {
-      "name": "@claw-for-cloudflare/bundle-registry",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.8.0",
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-        "wrangler": "^4.0.0",
-      },
-    },
-    "packages/channel-telegram": {
-      "name": "@claw-for-cloudflare/channel-telegram",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/cloudflare-sandbox": {
-      "name": "@claw-for-cloudflare/cloudflare-sandbox",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/sandbox": "workspace:*",
-        "@cloudflare/containers": "^0.2.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "node-pty": "^1.1.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/compaction-summary": {
-      "name": "@claw-for-cloudflare/compaction-summary",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/ai": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/container-db": {
-      "name": "@claw-for-cloudflare/container-db",
-      "version": "0.0.1",
-      "devDependencies": {
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/credential-store": {
-      "name": "@claw-for-cloudflare/credential-store",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.8.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/doom-loop-detection": {
-      "name": "@claw-for-cloudflare/doom-loop-detection",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/heartbeat": {
-      "name": "@claw-for-cloudflare/heartbeat",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/prompt-scheduler": {
-      "name": "@claw-for-cloudflare/prompt-scheduler",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/r2-storage": {
-      "name": "@claw-for-cloudflare/r2-storage",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/sandbox": {
-      "name": "@claw-for-cloudflare/sandbox",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/credential-store": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/skill-registry": {
-      "name": "@claw-for-cloudflare/skill-registry",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.8.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/skills": {
-      "name": "@claw-for-cloudflare/skills",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/skill-registry": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/subagent": {
-      "name": "@claw-for-cloudflare/subagent",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-        "nanoid": "^5.1.5",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/subagent-explorer": {
-      "name": "@claw-for-cloudflare/subagent-explorer",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/subagent": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/task-tracker": {
-      "name": "@claw-for-cloudflare/task-tracker",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-        "nanoid": "^5.1.5",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/tavily-web-search": {
-      "name": "@claw-for-cloudflare/tavily-web-search",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/tool-output-truncation": {
-      "name": "@claw-for-cloudflare/tool-output-truncation",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/vector-memory": {
-      "name": "@claw-for-cloudflare/vector-memory",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/r2-storage": "workspace:*",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.9.0",
-        "@cloudflare/workers-types": "^4.0.0",
-        "@vitest/coverage-istanbul": "^3.2.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/vibe-coder": {
-      "name": "@claw-for-cloudflare/vibe-coder",
-      "version": "0.0.1",
-      "dependencies": {
-        "@claw-for-cloudflare/agent-core": "workspace:*",
-        "@claw-for-cloudflare/agent-runtime": "workspace:*",
-        "@claw-for-cloudflare/agent-storage": "workspace:*",
-        "@claw-for-cloudflare/sandbox": "workspace:*",
-        "@cloudflare/worker-bundler": "^0.0.4",
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.2.0",
-      },
-    },
-    "packages/vite-plugin": {
-      "name": "@claw-for-cloudflare/vite-plugin",
-      "version": "0.0.1",
-      "devDependencies": {
-        "typescript": "^5.7.0",
-        "vite": "^6.0.0",
-        "vitest": "^3.2.0",
-      },
-      "peerDependencies": {
-        "vite": ">=5.0.0",
       },
     },
     "spike/pi-import": {
@@ -768,79 +768,79 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.4.10", "", { "os": "win32", "cpu": "x64" }, "sha512-aW/JU5GuyH4uxMrNYpoC2kjaHlyJGLgIa3XkhPEZI0uKhZhJZU8BuEyJmvgzSPQNGozBwWjC972RaNdcJ9KyJg=="],
 
-    "@claw-for-cloudflare/a2a": ["@claw-for-cloudflare/a2a@workspace:packages/a2a"],
+    "@claw-for-cloudflare/a2a": ["@claw-for-cloudflare/a2a@workspace:packages/federation/a2a"],
 
-    "@claw-for-cloudflare/agent-auth": ["@claw-for-cloudflare/agent-auth@workspace:packages/agent-auth"],
+    "@claw-for-cloudflare/agent-auth": ["@claw-for-cloudflare/agent-auth@workspace:packages/infra/agent-auth"],
 
-    "@claw-for-cloudflare/agent-bundle": ["@claw-for-cloudflare/agent-bundle@workspace:packages/agent-bundle"],
+    "@claw-for-cloudflare/agent-bundle": ["@claw-for-cloudflare/agent-bundle@workspace:packages/runtime/agent-bundle"],
 
-    "@claw-for-cloudflare/agent-core": ["@claw-for-cloudflare/agent-core@workspace:packages/agent-core"],
+    "@claw-for-cloudflare/agent-core": ["@claw-for-cloudflare/agent-core@workspace:packages/runtime/agent-core"],
 
-    "@claw-for-cloudflare/agent-fleet": ["@claw-for-cloudflare/agent-fleet@workspace:packages/agent-fleet"],
+    "@claw-for-cloudflare/agent-fleet": ["@claw-for-cloudflare/agent-fleet@workspace:packages/federation/agent-fleet"],
 
-    "@claw-for-cloudflare/agent-peering": ["@claw-for-cloudflare/agent-peering@workspace:packages/agent-peering"],
+    "@claw-for-cloudflare/agent-peering": ["@claw-for-cloudflare/agent-peering@workspace:packages/federation/agent-peering"],
 
-    "@claw-for-cloudflare/agent-registry": ["@claw-for-cloudflare/agent-registry@workspace:packages/agent-registry"],
+    "@claw-for-cloudflare/agent-registry": ["@claw-for-cloudflare/agent-registry@workspace:packages/infra/agent-registry"],
 
-    "@claw-for-cloudflare/agent-runtime": ["@claw-for-cloudflare/agent-runtime@workspace:packages/agent-runtime"],
+    "@claw-for-cloudflare/agent-runtime": ["@claw-for-cloudflare/agent-runtime@workspace:packages/runtime/agent-runtime"],
 
-    "@claw-for-cloudflare/agent-storage": ["@claw-for-cloudflare/agent-storage@workspace:packages/agent-storage"],
+    "@claw-for-cloudflare/agent-storage": ["@claw-for-cloudflare/agent-storage@workspace:packages/infra/agent-storage"],
 
-    "@claw-for-cloudflare/agent-ui": ["@claw-for-cloudflare/agent-ui@workspace:packages/agent-ui"],
+    "@claw-for-cloudflare/agent-ui": ["@claw-for-cloudflare/agent-ui@workspace:packages/ui/agent-ui"],
 
-    "@claw-for-cloudflare/agent-workshop": ["@claw-for-cloudflare/agent-workshop@workspace:packages/agent-workshop"],
+    "@claw-for-cloudflare/agent-workshop": ["@claw-for-cloudflare/agent-workshop@workspace:packages/runtime/agent-workshop"],
 
-    "@claw-for-cloudflare/ai": ["@claw-for-cloudflare/ai@workspace:packages/ai"],
+    "@claw-for-cloudflare/ai": ["@claw-for-cloudflare/ai@workspace:packages/runtime/ai"],
 
-    "@claw-for-cloudflare/ai-proxy": ["@claw-for-cloudflare/ai-proxy@workspace:packages/ai-proxy"],
+    "@claw-for-cloudflare/ai-proxy": ["@claw-for-cloudflare/ai-proxy@workspace:packages/runtime/ai-proxy"],
 
-    "@claw-for-cloudflare/app-registry": ["@claw-for-cloudflare/app-registry@workspace:packages/app-registry"],
+    "@claw-for-cloudflare/app-registry": ["@claw-for-cloudflare/app-registry@workspace:packages/infra/app-registry"],
 
-    "@claw-for-cloudflare/batch-tool": ["@claw-for-cloudflare/batch-tool@workspace:packages/batch-tool"],
+    "@claw-for-cloudflare/batch-tool": ["@claw-for-cloudflare/batch-tool@workspace:packages/capabilities/batch-tool"],
 
-    "@claw-for-cloudflare/browserbase": ["@claw-for-cloudflare/browserbase@workspace:packages/browserbase"],
+    "@claw-for-cloudflare/browserbase": ["@claw-for-cloudflare/browserbase@workspace:packages/capabilities/browserbase"],
 
-    "@claw-for-cloudflare/bundle-registry": ["@claw-for-cloudflare/bundle-registry@workspace:packages/bundle-registry"],
+    "@claw-for-cloudflare/bundle-registry": ["@claw-for-cloudflare/bundle-registry@workspace:packages/runtime/bundle-registry"],
 
-    "@claw-for-cloudflare/channel-telegram": ["@claw-for-cloudflare/channel-telegram@workspace:packages/channel-telegram"],
+    "@claw-for-cloudflare/channel-telegram": ["@claw-for-cloudflare/channel-telegram@workspace:packages/channels/channel-telegram"],
 
-    "@claw-for-cloudflare/cloudflare-sandbox": ["@claw-for-cloudflare/cloudflare-sandbox@workspace:packages/cloudflare-sandbox"],
+    "@claw-for-cloudflare/cloudflare-sandbox": ["@claw-for-cloudflare/cloudflare-sandbox@workspace:packages/infra/cloudflare-sandbox"],
 
-    "@claw-for-cloudflare/compaction-summary": ["@claw-for-cloudflare/compaction-summary@workspace:packages/compaction-summary"],
+    "@claw-for-cloudflare/compaction-summary": ["@claw-for-cloudflare/compaction-summary@workspace:packages/capabilities/compaction-summary"],
 
-    "@claw-for-cloudflare/container-db": ["@claw-for-cloudflare/container-db@workspace:packages/container-db"],
+    "@claw-for-cloudflare/container-db": ["@claw-for-cloudflare/container-db@workspace:packages/infra/container-db"],
 
-    "@claw-for-cloudflare/credential-store": ["@claw-for-cloudflare/credential-store@workspace:packages/credential-store"],
+    "@claw-for-cloudflare/credential-store": ["@claw-for-cloudflare/credential-store@workspace:packages/infra/credential-store"],
 
-    "@claw-for-cloudflare/doom-loop-detection": ["@claw-for-cloudflare/doom-loop-detection@workspace:packages/doom-loop-detection"],
+    "@claw-for-cloudflare/doom-loop-detection": ["@claw-for-cloudflare/doom-loop-detection@workspace:packages/capabilities/doom-loop-detection"],
 
-    "@claw-for-cloudflare/heartbeat": ["@claw-for-cloudflare/heartbeat@workspace:packages/heartbeat"],
+    "@claw-for-cloudflare/heartbeat": ["@claw-for-cloudflare/heartbeat@workspace:packages/capabilities/heartbeat"],
 
-    "@claw-for-cloudflare/prompt-scheduler": ["@claw-for-cloudflare/prompt-scheduler@workspace:packages/prompt-scheduler"],
+    "@claw-for-cloudflare/prompt-scheduler": ["@claw-for-cloudflare/prompt-scheduler@workspace:packages/capabilities/prompt-scheduler"],
 
-    "@claw-for-cloudflare/r2-storage": ["@claw-for-cloudflare/r2-storage@workspace:packages/r2-storage"],
+    "@claw-for-cloudflare/r2-storage": ["@claw-for-cloudflare/r2-storage@workspace:packages/capabilities/r2-storage"],
 
-    "@claw-for-cloudflare/sandbox": ["@claw-for-cloudflare/sandbox@workspace:packages/sandbox"],
+    "@claw-for-cloudflare/sandbox": ["@claw-for-cloudflare/sandbox@workspace:packages/capabilities/sandbox"],
 
-    "@claw-for-cloudflare/skill-registry": ["@claw-for-cloudflare/skill-registry@workspace:packages/skill-registry"],
+    "@claw-for-cloudflare/skill-registry": ["@claw-for-cloudflare/skill-registry@workspace:packages/infra/skill-registry"],
 
-    "@claw-for-cloudflare/skills": ["@claw-for-cloudflare/skills@workspace:packages/skills"],
+    "@claw-for-cloudflare/skills": ["@claw-for-cloudflare/skills@workspace:packages/capabilities/skills"],
 
-    "@claw-for-cloudflare/subagent": ["@claw-for-cloudflare/subagent@workspace:packages/subagent"],
+    "@claw-for-cloudflare/subagent": ["@claw-for-cloudflare/subagent@workspace:packages/capabilities/subagent"],
 
-    "@claw-for-cloudflare/subagent-explorer": ["@claw-for-cloudflare/subagent-explorer@workspace:packages/subagent-explorer"],
+    "@claw-for-cloudflare/subagent-explorer": ["@claw-for-cloudflare/subagent-explorer@workspace:packages/capabilities/subagent-explorer"],
 
-    "@claw-for-cloudflare/task-tracker": ["@claw-for-cloudflare/task-tracker@workspace:packages/task-tracker"],
+    "@claw-for-cloudflare/task-tracker": ["@claw-for-cloudflare/task-tracker@workspace:packages/capabilities/task-tracker"],
 
-    "@claw-for-cloudflare/tavily-web-search": ["@claw-for-cloudflare/tavily-web-search@workspace:packages/tavily-web-search"],
+    "@claw-for-cloudflare/tavily-web-search": ["@claw-for-cloudflare/tavily-web-search@workspace:packages/capabilities/tavily-web-search"],
 
-    "@claw-for-cloudflare/tool-output-truncation": ["@claw-for-cloudflare/tool-output-truncation@workspace:packages/tool-output-truncation"],
+    "@claw-for-cloudflare/tool-output-truncation": ["@claw-for-cloudflare/tool-output-truncation@workspace:packages/capabilities/tool-output-truncation"],
 
-    "@claw-for-cloudflare/vector-memory": ["@claw-for-cloudflare/vector-memory@workspace:packages/vector-memory"],
+    "@claw-for-cloudflare/vector-memory": ["@claw-for-cloudflare/vector-memory@workspace:packages/capabilities/vector-memory"],
 
-    "@claw-for-cloudflare/vibe-coder": ["@claw-for-cloudflare/vibe-coder@workspace:packages/vibe-coder"],
+    "@claw-for-cloudflare/vibe-coder": ["@claw-for-cloudflare/vibe-coder@workspace:packages/capabilities/vibe-coder"],
 
-    "@claw-for-cloudflare/vite-plugin": ["@claw-for-cloudflare/vite-plugin@workspace:packages/vite-plugin"],
+    "@claw-for-cloudflare/vite-plugin": ["@claw-for-cloudflare/vite-plugin@workspace:packages/dev/vite-plugin"],
 
     "@cloudflare/containers": ["@cloudflare/containers@0.2.2", "", {}, "sha512-cfTSd7M96Z9NeCiaN4i3FuMb+i2Nzi0HbMuxvMAnUmkXwtWIZCQ3XLqUWQkdCKWNJZ/3BLMInC6ntFvpbTWIpA=="],
 
