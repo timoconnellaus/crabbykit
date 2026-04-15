@@ -53,10 +53,10 @@ describe("agentWorkshop — file tools", () => {
     expect(mock.store.has("ns/workshop/bundles/my-brain/_claw/bundle-runtime.js")).toBe(false);
     // Starter imports the virtual runtime via the natural package
     // path. `workshop_build` injects the runtime bytes at the
-    // `@claw-for-cloudflare/agent-bundle/bundle` virtual file key so
+    // `@claw-for-cloudflare/bundle-sdk` virtual file key so
     // worker-bundler's bare-specifier resolution hits it directly.
     const starter = mock.store.get("ns/workshop/bundles/my-brain/src/index.ts")!;
-    expect(starter).toContain('from "@claw-for-cloudflare/agent-bundle/bundle"');
+    expect(starter).toContain('from "@claw-for-cloudflare/bundle-sdk"');
     expect(starter).toContain("defineBundleAgent");
   });
 
@@ -199,22 +199,19 @@ describe("agentWorkshop — build / test", () => {
     // workshop seeds: two relative-path locations for authors using
     // `./_claw/` or `../_claw/` imports, plus a full virtual
     // node_modules package for the natural
-    // `@claw-for-cloudflare/agent-bundle/bundle` import that
-    // worker-bundler's resolvePackage can discover via package.json +
-    // exports map.
+    // `@claw-for-cloudflare/bundle-sdk` import that worker-bundler's
+    // resolvePackage can discover via package.json + exports map.
     expect(createWorker).toHaveBeenCalledTimes(1);
     const call = createWorker.mock.calls[0][0];
     expect(call.files["_claw/bundle-runtime.js"]).toBe(FAKE_RUNTIME);
     expect(call.files["src/_claw/bundle-runtime.js"]).toBe(FAKE_RUNTIME);
-    expect(call.files["node_modules/@claw-for-cloudflare/agent-bundle/bundle.js"]).toBe(
-      FAKE_RUNTIME,
-    );
+    expect(call.files["node_modules/@claw-for-cloudflare/bundle-sdk/bundle.js"]).toBe(FAKE_RUNTIME);
     const pkgJson = JSON.parse(
-      call.files["node_modules/@claw-for-cloudflare/agent-bundle/package.json"] as string,
+      call.files["node_modules/@claw-for-cloudflare/bundle-sdk/package.json"] as string,
     );
-    expect(pkgJson.name).toBe("@claw-for-cloudflare/agent-bundle");
-    expect(pkgJson.exports?.["./bundle"]).toBe("./bundle.js");
-    expect(call.files["src/index.ts"]).toContain('from "@claw-for-cloudflare/agent-bundle/bundle"');
+    expect(pkgJson.name).toBe("@claw-for-cloudflare/bundle-sdk");
+    expect(pkgJson.exports?.["."]).toBe("./bundle.js");
+    expect(call.files["src/index.ts"]).toContain('from "@claw-for-cloudflare/bundle-sdk"');
   });
 
   it("workshop_build surfaces bundler errors", async () => {

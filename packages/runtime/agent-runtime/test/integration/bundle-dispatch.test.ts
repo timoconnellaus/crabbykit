@@ -17,7 +17,7 @@
  * call — otherwise the runtime's registry lookup misses the pointer.
  */
 
-import { InMemoryBundleRegistry } from "@claw-for-cloudflare/agent-bundle/host";
+import { InMemoryBundleRegistry } from "@claw-for-cloudflare/bundle-host";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeFakeWorkerLoader } from "../../src/test-helpers/fake-worker-loader.js";
 import {
@@ -457,10 +457,7 @@ describe("bundle dispatch: v1 envelope decoding", () => {
     registry.seed("v-envelope", encodeBundleEnvelope(REFERENCE_BUNDLE_SOURCE));
     setTestBundleRegistry(registry);
     setTestBundleLoader(makeFakeWorkerLoader());
-    setMockResponses([
-      { text: STATIC_MARKER },
-      { text: STATIC_MARKER },
-    ]);
+    setMockResponses([{ text: STATIC_MARKER }, { text: STATIC_MARKER }]);
   });
 
   it("dispatches an envelope-wrapped bundle without choking on JSON", async () => {

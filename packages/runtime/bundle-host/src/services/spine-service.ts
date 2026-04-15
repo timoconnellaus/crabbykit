@@ -9,10 +9,10 @@
  * Per-turn RPC budget enforcement prevents denial-of-service from a bundle.
  */
 
+import { WorkerEntrypoint } from "cloudflare:workers";
 import type { SpineHost } from "@claw-for-cloudflare/agent-runtime";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
-import { WorkerEntrypoint } from "cloudflare:workers";
 import type { SpineBudgetConfig } from "../budget-tracker.js";
 import { BudgetTracker } from "../budget-tracker.js";
 

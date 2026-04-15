@@ -19,8 +19,12 @@
  */
 
 import { env as testEnv } from "cloudflare:test";
-import { InMemoryBundleRegistry, SpineService } from "@claw-for-cloudflare/agent-bundle/host";
-import { deriveSubkey, mintToken } from "@claw-for-cloudflare/agent-bundle/security";
+import {
+  deriveMintSubkey,
+  InMemoryBundleRegistry,
+  mintToken,
+  SpineService,
+} from "@claw-for-cloudflare/bundle-host";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeFakeWorkerLoader } from "../../src/test-helpers/fake-worker-loader.js";
 import {
@@ -138,7 +142,7 @@ describe("bundle spine bridge: token verification", () => {
   it("bad (tampered) token is rejected with ERR_BAD_TOKEN", async () => {
     // Mint a valid token under the spine subkey, then flip a character
     // in the signature to invalidate the HMAC.
-    const subkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
     const validToken = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
     const [payloadB64, sigB64] = validToken.split(".");
     // Flip a character in the signature. Base64url alphabet: A-Za-z0-9_-
@@ -154,7 +158,7 @@ describe("bundle spine bridge: token verification", () => {
   });
 
   it("expired token is rejected with ERR_TOKEN_EXPIRED", async () => {
-    const subkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
     const expired = await mintToken({ agentId, sessionId: "fake-session", ttlMs: -1 }, subkey);
 
     await expect(
@@ -171,7 +175,7 @@ describe("bundle spine bridge: token verification", () => {
     // per-turn budget. A bundle MUST be able to make many spine calls
     // with the same token. Replay protection still exists via token
     // `exp` (default 60s) and `globalOutbound: null` on the isolate.
-    const subkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
     const token = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
 
     // Three successive calls with the same token succeed.
@@ -186,7 +190,7 @@ describe("bundle spine bridge: token verification", () => {
   it("budget cap fires on the 101st SQL op within the same turn (same token)", async () => {
     // With nonce reusable, the per-turn budget (100 SQL ops by default)
     // is the real spam brake. Hit it.
-    const subkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
     const token = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
 
     for (let i = 0; i < 100; i++) {
@@ -207,11 +211,8 @@ describe("bundle spine bridge: token verification", () => {
   it("expired token is rejected even with replay protection removed", async () => {
     // exp is enforced independently of nonce tracking. Re-assert here
     // to lock in the invariant after the replay-check removal.
-    const subkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const expired = await mintToken(
-      { agentId, sessionId: "fake-session", ttlMs: -1 },
-      subkey,
-    );
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const expired = await mintToken({ agentId, sessionId: "fake-session", ttlMs: -1 }, subkey);
 
     await expect(
       spine.appendEntry(expired, {
@@ -222,7 +223,7 @@ describe("bundle spine bridge: token verification", () => {
   });
 
   it("token signed with the wrong master key is rejected", async () => {
-    const wrongSubkey = await deriveSubkey("different-master-key", "claw/spine-v1");
+    const wrongSubkey = await deriveMintSubkey("different-master-key", "claw/spine-v1");
     const foreign = await mintToken({ agentId, sessionId: "fake-session" }, wrongSubkey);
 
     await expect(
@@ -236,7 +237,7 @@ describe("bundle spine bridge: token verification", () => {
   it("token signed with the llm subkey label is rejected by the spine subkey", async () => {
     // Domain separation: tokens minted under "claw/llm-v1" must NOT
     // verify under "claw/spine-v1", even though the master key is the same.
-    const llmSubkey = await deriveSubkey(TEST_BUNDLE_AUTH_KEY, "claw/llm-v1");
+    const llmSubkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/llm-v1");
     const llmToken = await mintToken({ agentId, sessionId: "fake-session" }, llmSubkey);
 
     await expect(

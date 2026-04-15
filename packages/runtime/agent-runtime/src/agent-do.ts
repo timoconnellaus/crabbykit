@@ -724,4 +724,3 @@ export type { CompactionConfig } from "./agent-runtime.js";
 // so a structural `const _check: SpineHost = new AgentDO(...)` would
 // not compile. The drift check lives in `bundle-host`'s integration
 // tests, which exercise every route end-to-end.
-

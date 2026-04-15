@@ -7,7 +7,6 @@
   },
   "dependencies": {
     "@claw-for-cloudflare/agent-auth": "workspace:*",
-    "@claw-for-cloudflare/agent-bundle": "workspace:*",
     "@claw-for-cloudflare/agent-fleet": "workspace:*",
     "@claw-for-cloudflare/agent-peering": "workspace:*",
     "@claw-for-cloudflare/agent-registry": "workspace:*",
@@ -19,6 +18,7 @@
     "@claw-for-cloudflare/app-registry": "workspace:*",
     "@claw-for-cloudflare/batch-tool": "workspace:*",
     "@claw-for-cloudflare/browserbase": "workspace:*",
+    "@claw-for-cloudflare/bundle-host": "workspace:*",
     "@claw-for-cloudflare/bundle-registry": "workspace:*",
     "@claw-for-cloudflare/channel-telegram": "workspace:*",
     "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",

@@ -12,33 +12,33 @@
  * `@cloudflare/worker-bundler#createWorker` — there is no container,
  * no shell, no elevation gate. Source files live in R2 under
  * `{namespace}/workshop/bundles/{name}/...` via the shared
- * `AgentStorage` handle. The compiled agent-bundle runtime is injected
+ * `AgentStorage` handle. The compiled bundle-sdk runtime is injected
  * as a virtual file at build time from `BUNDLE_RUNTIME_SOURCE`, so
  * every build picks up the current SDK runtime automatically without
  * rewriting files in R2.
  *
  * The low-level build pipeline (`loadBundleFiles`, `buildBundle`,
- * `encodeEnvelope`) lives in `@claw-for-cloudflare/agent-bundle/host`
- * so the bundle dispatcher can reuse it for auto-rebuild on runtime
- * drift — see `bundle-dispatcher.ts` in that package.
+ * `encodeEnvelope`) lives in `@claw-for-cloudflare/bundle-host` so
+ * the bundle dispatcher can reuse it for auto-rebuild on runtime
+ * drift — see `dispatcher.ts` in that package.
  */
 
-import {
-  BUNDLE_RUNTIME_HASH,
-  BUNDLE_RUNTIME_SOURCE,
-} from "@claw-for-cloudflare/agent-bundle/bundle-runtime-source";
-import type { BuildBundleResult, BundleSourceBucket } from "@claw-for-cloudflare/agent-bundle/host";
+import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
+import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { BuildBundleResult, BundleSourceBucket } from "@claw-for-cloudflare/bundle-host";
 import {
   buildBundle as buildBundleCore,
   bundleFileR2Key,
   bundlePrefix as bundlePrefixFor,
   encodeEnvelope,
-} from "@claw-for-cloudflare/agent-bundle/host";
-import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+} from "@claw-for-cloudflare/bundle-host";
 import type { BundleRegistryWriter, CreateVersionOpts } from "@claw-for-cloudflare/bundle-registry";
 import { MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
+import {
+  BUNDLE_RUNTIME_HASH,
+  BUNDLE_RUNTIME_SOURCE,
+} from "@claw-for-cloudflare/bundle-sdk/runtime-source";
 
 const DEFAULT_DEPLOY_RATE_LIMIT = 5;
 const MAX_PATH_BYTES = 512;
@@ -157,7 +157,7 @@ export interface WorkshopInternals {
  *
  * The second `internals` argument is test-only. Production consumers pass
  * only `options` — the defaults pull `BUNDLE_RUNTIME_SOURCE` from the
- * agent-bundle package and `createWorker` from `@cloudflare/worker-bundler`.
+ * bundle-sdk package and `createWorker` from `@cloudflare/worker-bundler`.
  */
 export function agentWorkshop(
   options: AgentWorkshopOptions,
@@ -211,7 +211,7 @@ export function agentWorkshop(
   }
 
   /**
-   * Build a bundle end-to-end via the shared core helper in agent-bundle.
+   * Build a bundle end-to-end via the shared core helper in bundle-host.
    * Injects the current `BUNDLE_RUNTIME_SOURCE` (or a test override) from R2
    * source files and calls `createWorker`. The same core path is used by
    * the bundle dispatcher's auto-rebuild — keeping the logic here aligned
@@ -230,7 +230,7 @@ export function agentWorkshop(
 
   function starterIndex(name: string): string {
     return [
-      'import { defineBundleAgent } from "@claw-for-cloudflare/agent-bundle/bundle";',
+      'import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";',
       "",
       "export default defineBundleAgent({",
       '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
@@ -249,7 +249,7 @@ export function agentWorkshop(
       {
         name,
         type: "module",
-        // No dependencies by default — the agent-bundle runtime is
+        // No dependencies by default — the bundle-sdk runtime is
         // injected at build time from the host worker, not resolved
         // from npm. Add real npm deps here if the bundle needs them.
         dependencies: {},
@@ -644,7 +644,7 @@ export function agentWorkshop(
           "5. `workshop_deploy` — deploy as your active brain (self-editing by default)",
           "6. `workshop_disable` — revert to static brain if needed",
           "",
-          "The `@claw-for-cloudflare/agent-bundle` runtime is injected at build time — import it from `@claw-for-cloudflare/agent-bundle/bundle` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
+          "The `@claw-for-cloudflare/bundle-sdk` runtime is injected at build time — import it from `@claw-for-cloudflare/bundle-sdk` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
           "",
           "Self-editing is safe: the static brain is always available as a fallback.",
         ].join("\n"),

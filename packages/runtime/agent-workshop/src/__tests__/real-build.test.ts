@@ -4,10 +4,10 @@
  * Existing workshop tests use a `fakeCreateWorker` (workshop.test.ts:13)
  * that skips the actual bundler entirely. That's fine for wiring tests
  * but useless for catching the real failure mode: the bundler failing
- * to inline `@claw-for-cloudflare/agent-bundle/bundle` imports, leaving
- * them as unresolved externals that blow up at load time with:
+ * to inline `@claw-for-cloudflare/bundle-sdk` imports, leaving them as
+ * unresolved externals that blow up at load time with:
  *
- *     Uncaught Error: No such module "@claw-for-cloudflare/agent-bundle/bundle".
+ *     Uncaught Error: No such module "@claw-for-cloudflare/bundle-sdk".
  *       imported from "bundle.js"
  *
  * These tests drive `@cloudflare/worker-bundler#createWorker` end-to-end
@@ -28,14 +28,14 @@
  *   (a) The scaffolded starter (`./_claw/bundle-runtime.js` relative
  *       import) — this is what `workshop_init` writes.
  *   (b) The "natural" package import
- *       (`@claw-for-cloudflare/agent-bundle/bundle`) — this is what a
- *       user reaches for if they know the package name and don't read
- *       the scaffolded starter.
+ *       (`@claw-for-cloudflare/bundle-sdk`) — this is what a user
+ *       reaches for if they know the package name and don't read the
+ *       scaffolded starter.
  */
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { BUNDLE_RUNTIME_SOURCE } from "@claw-for-cloudflare/agent-bundle/bundle-runtime-source";
+import { BUNDLE_RUNTIME_SOURCE } from "@claw-for-cloudflare/bundle-sdk/runtime-source";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -44,17 +44,14 @@ import { describe, expect, it } from "vitest";
  * injection shape without updating production correctly — a test that
  * imports the constants would move in lock-step and miss the drift.
  */
-const RELATIVE_RUNTIME_PATHS = [
-  "_claw/bundle-runtime.js",
-  "src/_claw/bundle-runtime.js",
-] as const;
-const VIRTUAL_PACKAGE_JSON_PATH = "node_modules/@claw-for-cloudflare/agent-bundle/package.json";
-const VIRTUAL_PACKAGE_BUNDLE_PATH = "node_modules/@claw-for-cloudflare/agent-bundle/bundle.js";
+const RELATIVE_RUNTIME_PATHS = ["_claw/bundle-runtime.js", "src/_claw/bundle-runtime.js"] as const;
+const VIRTUAL_PACKAGE_JSON_PATH = "node_modules/@claw-for-cloudflare/bundle-sdk/package.json";
+const VIRTUAL_PACKAGE_BUNDLE_PATH = "node_modules/@claw-for-cloudflare/bundle-sdk/bundle.js";
 const VIRTUAL_PACKAGE_JSON = JSON.stringify({
-  name: "@claw-for-cloudflare/agent-bundle",
+  name: "@claw-for-cloudflare/bundle-sdk",
   version: "0.0.0-virtual",
   type: "module",
-  exports: { "./bundle": "./bundle.js" },
+  exports: { ".": "./bundle.js" },
 });
 
 /** Inject the runtime bytes at every path workshop would inject them. */
@@ -217,27 +214,24 @@ describe("real build: scaffolded starter (relative runtime import)", () => {
 
     const combined = concatModules(result.modules);
     const stray = findDisallowedExternals(combined);
-    expect(
-      stray,
-      `correct relative path still leaked externals: ${stray.join(", ")}`,
-    ).toEqual([]);
+    expect(stray, `correct relative path still leaked externals: ${stray.join(", ")}`).toEqual([]);
   });
 });
 
 describe("real build: natural package import path", () => {
-  it("user-written `@claw-for-cloudflare/agent-bundle/bundle` must not leak as an external", () => {
+  it("user-written `@claw-for-cloudflare/bundle-sdk` must not leak as an external", () => {
     // Regression test for "No such module" at runtime. A user who
     // imports from the natural package path (instead of the scaffolded
     // relative `./_claw/bundle-runtime.js`) must either get a build
     // error — or, preferably, the bundler/workshop should alias the
     // package path to the injected runtime so the build succeeds and
     // runs. What MUST NOT happen is a successful build that leaves
-    // `@claw-for-cloudflare/agent-bundle/bundle` as an unresolved import
+    // `@claw-for-cloudflare/bundle-sdk` as an unresolved import
     // for workerd to trip over.
     const files: Record<string, string> = {
       "package.json": PACKAGE_JSON,
       "src/index.ts": [
-        'import { defineBundleAgent } from "@claw-for-cloudflare/agent-bundle/bundle";',
+        'import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";',
         "",
         "export default defineBundleAgent({",
         '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
@@ -253,7 +247,7 @@ describe("real build: natural package import path", () => {
       // Acceptable: loud failure at build time is better than a silent
       // unresolved extern. Document the error shape so a future fix
       // that switches to "build succeeds" can flip this branch.
-      expect(result.error).toMatch(/agent-bundle|bundle-runtime|module|resolve|not found/i);
+      expect(result.error).toMatch(/bundle-sdk|bundle-runtime|module|resolve|not found/i);
       return;
     }
 
@@ -261,7 +255,7 @@ describe("real build: natural package import path", () => {
     const stray = findUnresolvedClawImports(combined);
     expect(
       stray,
-      `natural import path leaked an unresolved external at runtime: ${stray.join(", ")}. A user who writes \`import from "@claw-for-cloudflare/agent-bundle/bundle"\` gets a successful build but a broken deploy.`,
+      `natural import path leaked an unresolved external at runtime: ${stray.join(", ")}. A user who writes \`import from "@claw-for-cloudflare/bundle-sdk"\` gets a successful build but a broken deploy.`,
     ).toEqual([]);
   });
 });

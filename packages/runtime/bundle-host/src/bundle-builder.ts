@@ -117,7 +117,7 @@ export interface LoadBundleFilesOptions {
   name: string;
   /**
    * Runtime source override. Defaults to the current `BUNDLE_RUNTIME_SOURCE`
-   * exported by the agent-bundle build. Tests inject a different string to
+   * exported by the bundle-sdk build. Tests inject a different string to
    * verify the auto-rebuild-on-drift behavior.
    */
   runtimeSource?: string;
@@ -144,9 +144,9 @@ export function bundleFileR2Key(namespace: string, name: string, relPath: string
 
 /**
  * List all R2 objects under the bundle prefix, fetch their contents, and
- * merge the compiled agent-bundle runtime as virtual files at every path
+ * merge the compiled bundle-sdk runtime as virtual files at every path
  * listed in `RELATIVE_RUNTIME_PATHS`, plus the synthetic
- * `node_modules/@claw-for-cloudflare/agent-bundle` package. The result is
+ * `node_modules/@claw-for-cloudflare/bundle-sdk` package. The result is
  * ready to be passed to `createWorker`.
  *
  * The runtime is injected on EVERY call — never persisted to R2 — so

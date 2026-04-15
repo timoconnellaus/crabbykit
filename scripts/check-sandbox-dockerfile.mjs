@@ -28,8 +28,8 @@ const repoRoot = resolve(scriptDir, "..");
 const dockerfilePath = join(repoRoot, "packages/infra/cloudflare-sandbox/container/Dockerfile");
 
 const REQUIRED_COPY_SOURCES = [
-  "packages/runtime/agent-bundle/src/bundle",
-  "packages/runtime/agent-bundle/package.vendored.json",
+  "packages/runtime/bundle-sdk/src",
+  "packages/runtime/bundle-sdk/package.vendored.json",
   "packages/capabilities/tavily-web-search/src/client.ts",
   "packages/capabilities/tavily-web-search/src/schemas.ts",
   "packages/capabilities/tavily-web-search/package.vendored.json",
@@ -88,7 +88,7 @@ async function main() {
   // manifest that the container image build generates. Failing here
   // doesn't block the image build, but it catches orphaned references.
   const hashedFiles = [
-    "packages/runtime/agent-bundle/package.vendored.json",
+    "packages/runtime/bundle-sdk/package.vendored.json",
     "packages/capabilities/tavily-web-search/src/client.ts",
     "packages/capabilities/tavily-web-search/src/schemas.ts",
     "packages/capabilities/tavily-web-search/package.vendored.json",

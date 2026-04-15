@@ -120,7 +120,10 @@ describe("OpenRouter bundle — streaming inference path", () => {
     // LlmService must receive the LLM-bound token, not the spine token —
     // they're signed with different HKDF subkeys.
     expect(llm.inferStream).toHaveBeenCalledOnce();
-    const [forwardedToken, request] = llm.inferStream.mock.calls[0] as [string, Record<string, unknown>];
+    const [forwardedToken, request] = llm.inferStream.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(forwardedToken).toBe("tok-llm");
     expect(request).toMatchObject({
       provider: "openrouter",
@@ -139,12 +142,10 @@ describe("OpenRouter bundle — streaming inference path", () => {
 
     // Streaming lifecycle should have been broadcast via spine.broadcast
     // with the spine token. Inspect the event types emitted.
-    const broadcastEvents = spine.broadcast.mock.calls.map(
-      ([token, payload]) => {
-        expect(token).toBe("tok-spine");
-        return (payload as { event: { type: string } }).event.type;
-      },
-    );
+    const broadcastEvents = spine.broadcast.mock.calls.map(([token, payload]) => {
+      expect(token).toBe("tok-spine");
+      return (payload as { event: { type: string } }).event.type;
+    });
     expect(broadcastEvents[0]).toBe("message_start");
     expect(broadcastEvents.filter((t) => t === "message_update").length).toBeGreaterThanOrEqual(3);
     expect(broadcastEvents).toContain("message_end");
@@ -197,7 +198,8 @@ describe("OpenRouter bundle — streaming inference path", () => {
     }
 
     const errorBroadcasts = spine.broadcast.mock.calls.filter(([, payload]) => {
-      const ev = (payload as { event: { type: string; message?: { errorMessage?: string } } }).event;
+      const ev = (payload as { event: { type: string; message?: { errorMessage?: string } } })
+        .event;
       return ev.type === "message_end" && ev.message?.errorMessage === "ERR_UPSTREAM_AUTH";
     });
     expect(errorBroadcasts.length).toBeGreaterThanOrEqual(1);
@@ -229,12 +231,7 @@ describe("OpenRouter bundle — streaming inference path", () => {
 describe("Credential isolation in compiled bundle source", () => {
   it("the bundle-authoring source never references an OpenRouter API key string", async () => {
     // Task 4.18: "bundle source grepped for OpenRouter key returns zero matches"
-    const files = [
-      "src/define.ts",
-      "src/types.ts",
-      "src/runtime.ts",
-      "src/spine-clients.ts",
-    ];
+    const files = ["src/define.ts", "src/types.ts", "src/runtime.ts", "src/spine-clients.ts"];
     for (const rel of files) {
       const content = await readFile(resolve(PACKAGE_ROOT, rel), "utf8");
       // A real OpenRouter key would start with `sk-or-`

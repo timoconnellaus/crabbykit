@@ -111,9 +111,7 @@ export class SessionStore {
   }
 
   get(sessionId: string): Session | null {
-    const row = this.sql
-      .exec("SELECT * FROM sessions WHERE id = ?", sessionId)
-      .toArray()[0];
+    const row = this.sql.exec("SELECT * FROM sessions WHERE id = ?", sessionId).toArray()[0];
     if (!row) return null;
     return this.rowToSession(row);
   }

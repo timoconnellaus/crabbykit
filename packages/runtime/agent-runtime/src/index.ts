@@ -50,6 +50,14 @@ export type {
 } from "./agent-runtime.js";
 // Platform-agnostic runtime
 export { AgentRuntime } from "./agent-runtime.js";
+// Bundle brain override config types (shared with bundle-host)
+export type {
+  BundleAutoRebuildConfig,
+  BundleSourceBucket,
+  BundleVersionInfo,
+  BundleVersionMetadata,
+  CreateBundleVersionOpts,
+} from "./bundle-config.js";
 export type {
   BeforeToolExecutionEvent,
   BeforeToolExecutionResult,
@@ -109,16 +117,6 @@ export {
 } from "./config/index.js";
 // Costs
 export type { CostEvent } from "./costs/index.js";
-// Bundle brain override config types (shared with bundle-host)
-export type {
-  BundleAutoRebuildConfig,
-  BundleSourceBucket,
-  BundleVersionInfo,
-  BundleVersionMetadata,
-  CreateBundleVersionOpts,
-} from "./bundle-config.js";
-// SpineHost — host DO contract consumed by bundle-host's SpineService
-export type { SpineHost } from "./spine-host.js";
 // defineAgent factory
 export {
   type AgentDefinition,
@@ -188,6 +186,8 @@ export type {
   SessionEntry,
   SessionEntryType,
 } from "./session/types.js";
+// SpineHost — host DO contract consumed by bundle-host's SpineService
+export type { SpineHost } from "./spine-host.js";
 export type { ToolExecuteReturn } from "./tools/define-tool.js";
 // Tool system
 export {

@@ -5,9 +5,9 @@
  * via service binding. Token verification ensures identity. Cost emission via spine.
  */
 
+import { WorkerEntrypoint } from "cloudflare:workers";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
-import { WorkerEntrypoint } from "cloudflare:workers";
 
 // --- Types ---
 

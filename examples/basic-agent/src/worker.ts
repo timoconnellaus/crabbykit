@@ -1,4 +1,3 @@
-import { LlmService, SpineService } from "@claw-for-cloudflare/agent-bundle/host";
 import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
 import { agentPeering } from "@claw-for-cloudflare/agent-peering";
 import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
@@ -11,6 +10,7 @@ import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
 import { appRegistry } from "@claw-for-cloudflare/app-registry";
 import { batchTool } from "@claw-for-cloudflare/batch-tool";
 import { browserbase } from "@claw-for-cloudflare/browserbase";
+import { LlmService, SpineService } from "@claw-for-cloudflare/bundle-host";
 import { D1BundleRegistry } from "@claw-for-cloudflare/bundle-registry";
 import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
 import {

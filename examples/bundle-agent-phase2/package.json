@@ -8,8 +8,9 @@
     "spike": "bun run build:bundle && wrangler dev"
   },
   "dependencies": {
-    "@claw-for-cloudflare/agent-bundle": "workspace:*",
-    "@claw-for-cloudflare/agent-runtime": "workspace:*"
+    "@claw-for-cloudflare/agent-runtime": "workspace:*",
+    "@claw-for-cloudflare/bundle-host": "workspace:*",
+    "@claw-for-cloudflare/bundle-sdk": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",

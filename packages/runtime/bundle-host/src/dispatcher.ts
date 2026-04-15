@@ -7,8 +7,8 @@
  * load failure or when no bundle is active.
  */
 
-import { deriveMintSubkey, mintToken } from "./security/mint.js";
 import type { BundleConfig, BundleDispatchState, BundleRegistry } from "./bundle-config.js";
+import { deriveMintSubkey, mintToken } from "./security/mint.js";
 
 const DEFAULT_MAX_LOAD_FAILURES = 3;
 const SPINE_SUBKEY_LABEL = "claw/spine-v1";
