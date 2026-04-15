@@ -13,7 +13,9 @@ runtime/                 The engine and bundle system plumbing
   agent-runtime          Core: AgentDO, sessions, capabilities, transport, scheduling, MCP client, cost tracking
   agent-core / ai        Forks of pi-agent-core / pi-ai (LLM loop, model providers)
   ai-proxy               AiService + aiProxy for host-side LLM inference proxying
-  agent-bundle           Bundle authoring API + SpineService + LlmService + token utils
+  bundle-token           Verify-only capability token primitives shared by host + sdk
+  bundle-sdk             Bundle authoring API (`defineBundleAgent`, prompt/context types, runtime-source subpath)
+  bundle-host            Host-side dispatcher, SpineService, LlmService, bundle-builder, mint-side token helpers
   bundle-registry        D1/KV bundle version store (content-addressed, atomic setActive)
   agent-workshop         Agent-facing bundle tools (workshop_init/build/test/deploy/disable/rollback/versions)
 
@@ -125,9 +127,11 @@ Subclassing `AgentDO` directly: override methods are **public** (not protected) 
 
 When omitted, agent is purely static. When present, each turn dispatches into a registry-backed bundle loaded via Worker Loader. Bundle calls back to DO via `SpineService` for state; `LlmService` proxies inference. Static brain is always the fallback.
 
+**Three-package split:** `@claw-for-cloudflare/bundle-sdk` holds the authoring API (`defineBundleAgent`, bundle context types, prompt builders, the runtime-source subpath that the host injects into compiled bundles). `@claw-for-cloudflare/bundle-host` holds the host-side dispatcher, `SpineService`, `LlmService`, `InMemoryBundleRegistry`, the `bundle-builder` auto-rebuild path, and the mint-side token helpers (`mintToken`, `deriveMintSubkey`). `@claw-for-cloudflare/bundle-token` is a tiny verify-only shared package (`verifyToken`, `NonceTracker`, `deriveVerifyOnlySubkey`) imported by both halves. The SDK has zero path to the mint primitives by construction — a `vitest` assertion in `bundle-sdk/src/__tests__/mint-unreachable.test.ts` documents the invariant.
+
 **Security:** per-turn HMAC tokens with HKDF-derived per-service subkeys. Identity derived from verified token payload — bundles cannot forge. `globalOutbound: null` on the loader isolate blocks direct outbound. Provider credentials live in host-side `LlmService`/capability services, never bundle env.
 
-**Capability service pattern (for capabilities holding secrets):** four subpaths — `index` (legacy static), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy), `schemas` (shared tool schemas). Tavily is the pilot.
+**Capability service pattern (for capabilities holding secrets):** four subpaths — `index` (legacy static), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy — imports types from `@claw-for-cloudflare/bundle-sdk`), `schemas` (shared tool schemas). Tavily is the pilot.
 
 **Bundle pointer cache is single-writer.** Hot-path cache at `ctx.storage.activeBundleVersionId` avoids per-turn D1 read. Written ONLY inside `define-agent.ts`'s `_initBundleDispatch` closure (its `bundlePointerRefresher` plus inline writes on `/bundle/disable` and auto-revert). Any in-process code that mutates `bundle-registry.setActive(...)` for an agent on the same DO MUST follow with `await ctx.notifyBundlePointerChanged()` — workshop tools are the canonical example. Skipping it = deployed bundle silently never runs.
 
