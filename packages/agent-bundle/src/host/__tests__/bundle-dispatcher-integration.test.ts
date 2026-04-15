@@ -359,15 +359,20 @@ describe("defineBundleAgent reference check", () => {
     const smokeBody = (await smoke.json()) as Record<string, unknown>;
     expect(smokeBody.status).toBe("ok");
 
+    // With the streaming runtime, /turn requires __LLM_TOKEN + a SPINE
+    // binding. Without SPINE the bundle cannot reach host state and
+    // returns 500 — that's the intended failure mode, not agent events
+    // in the HTTP body. The live-streaming contract is exercised by
+    // openrouter-integration.test.ts with a full spine mock.
     const turn = await bundle.fetch(
       new Request("https://bundle/turn", {
         method: "POST",
-        body: JSON.stringify({ prompt: "hi" }),
+        body: JSON.stringify({ prompt: "hi", agentId: "a", sessionId: "s" }),
       }),
-      { __SPINE_TOKEN: "tok" } as BundleEnv,
+      { __SPINE_TOKEN: "tok", __LLM_TOKEN: "tok" } as BundleEnv,
     );
-    expect(turn.status).toBe(200);
-    const text = await turn.text();
-    expect(text).toContain("agent_event");
+    expect(turn.status).toBe(500);
+    const errorBody = (await turn.json()) as { error: string };
+    expect(errorBody.error).toContain("SPINE");
   });
 });

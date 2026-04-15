@@ -470,7 +470,7 @@ export function defineAgent<TEnv = Record<string, unknown>>(
           const res = await worker.getEntrypoint().fetch(
             new Request("https://bundle/turn", {
               method: "POST",
-              body: JSON.stringify({ prompt: _text }),
+              body: JSON.stringify({ prompt: _text, agentId, sessionId }),
             }),
           );
 
@@ -478,50 +478,12 @@ export function defineAgent<TEnv = Record<string, unknown>>(
             throw new Error(`Bundle turn returned ${res.status}`);
           }
 
-          // Consume NDJSON event stream and forward events
-          const text = await res.text();
-          const lines = text.trim().split("\n").filter(Boolean);
-
-          for (const line of lines) {
-            try {
-              const event = JSON.parse(line) as {
-                type: string;
-                event?: string;
-                data?: Record<string, unknown>;
-              };
-
-              // Forward agent events to the session's transport.
-              // The bundle streams NDJSON events; we persist and broadcast
-              // the ones we understand. Full event mapping will be refined
-              // when the bundle runtime integration is complete.
-              if (event.type === "agent_event" && event.event === "text" && event.data) {
-                const content = event.data.text as string;
-                this.runtime.sessionStore.appendEntry(sessionId, {
-                  type: "message",
-                  data: {
-                    role: "assistant",
-                    content,
-                    timestamp: Date.now(),
-                    metadata: { bundleVersionId: versionId },
-                  },
-                });
-                // Broadcast as a raw message — the client understands this shape
-                this.runtime.transport.broadcastToSession(sessionId, {
-                  type: "agent_event",
-                  sessionId,
-                  event: { type: "message_end", message: { role: "assistant", content } },
-                } as unknown as import("./transport/types.js").ServerMessage);
-              } else if (event.type === "agent_event" && event.event === "agent_end") {
-                this.runtime.transport.broadcastToSession(sessionId, {
-                  type: "agent_event",
-                  sessionId,
-                  event: { type: "agent_end", messages: [] },
-                } as unknown as import("./transport/types.js").ServerMessage);
-              }
-            } catch {
-              // Skip malformed lines
-            }
-          }
+          // Drain the body so the bundle's ReadableStream work()
+          // promise resolves and finally{} broadcasts agent_end before
+          // we return. Bundle broadcasts streaming events live via
+          // SpineService → transport.broadcastToSession; the HTTP body
+          // itself is just a short ack.
+          await res.text();
 
           consecutiveFailures = 0;
           return true;

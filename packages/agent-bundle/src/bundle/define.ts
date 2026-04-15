@@ -6,7 +6,7 @@
  * DO invokes via Worker Loader.
  */
 
-import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
+import { buildBundleContext, runBundleTurn } from "./runtime.js";
 import type {
   BundleAgentSetup,
   BundleEnv,
@@ -41,7 +41,7 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
 
       switch (path) {
         case "/turn":
-          return handleTurn(request, env, setup, resolveModel);
+          return handleTurn(request, env, setup);
 
         case "/client-event":
           return handleClientEvent(request, env);
@@ -71,91 +71,54 @@ async function handleTurn<TEnv extends BundleEnv>(
   request: Request,
   env: TEnv,
   setup: BundleAgentSetup<TEnv>,
-  resolveModel: () => BundleModelConfig,
 ): Promise<Response> {
   // __SPINE_TOKEN authenticates the bundle's identity to SpineService
   // (session store, KV, transport). __LLM_TOKEN is a separate capability
   // token signed with the LLM HKDF subkey and is the ONLY token
   // LlmService will accept. Passing the spine token to LlmService fails
-  // with ERR_BAD_TOKEN because the two services derive their verify keys
-  // from different HKDF labels.
-  const spineToken = env.__SPINE_TOKEN;
-  if (!spineToken) {
+  // with ERR_BAD_TOKEN because the two services derive their verify
+  // keys from different HKDF labels.
+  if (!env.__SPINE_TOKEN) {
     return Response.json({ error: "Missing __SPINE_TOKEN" }, { status: 401 });
   }
+  if (!env.__LLM_TOKEN) {
+    return Response.json({ error: "Missing __LLM_TOKEN" }, { status: 401 });
+  }
 
-  let body: { prompt: string };
+  let body: { prompt: string; agentId: string; sessionId: string };
   try {
-    body = (await request.json()) as { prompt: string };
+    body = (await request.json()) as { prompt: string; agentId: string; sessionId: string };
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
-
-  const model = resolveModel();
-
-  // Compose the bundle author's `prompt` (string or PromptOptions) into a
-  // single system message using the shared builder. Without this the
-  // bundle's personality — e.g. "talk like a pirate" — never reaches the
-  // LLM and the model defaults to its own voice.
-  const systemPrompt =
-    typeof setup.prompt === "string" ? setup.prompt : buildDefaultSystemPrompt(setup.prompt);
-  const messages: Array<{ role: string; content: string }> = [];
-  if (systemPrompt) {
-    messages.push({ role: "system", content: systemPrompt });
+  if (!body.prompt || !body.agentId || !body.sessionId) {
+    return Response.json(
+      { error: "Request body must include prompt, agentId, sessionId" },
+      { status: 400 },
+    );
   }
-  messages.push({ role: "user", content: body.prompt });
 
-  // Attempt LLM inference via LlmService if available in env.
-  // The bundle model config has no apiKey — credentials are on the host side.
-  const llmService = (env as Record<string, unknown>).LLM as
-    | { infer(token: string, request: unknown): Promise<{ content: unknown }> }
+  // The SPINE binding is the WorkerEntrypoint RPC surface that proxies
+  // session store, transport, KV, scheduler, and cost operations back
+  // to the host DO. Without it the bundle cannot stream events or
+  // persist entries.
+  const spine = (env as Record<string, unknown>).SPINE as
+    | {
+        [method: string]: (...args: unknown[]) => Promise<unknown>;
+      }
     | undefined;
-
-  let responseText: string;
-
-  if (llmService && typeof llmService.infer === "function") {
-    const llmToken = env.__LLM_TOKEN;
-    if (!llmToken) {
-      return Response.json(
-        {
-          error:
-            "Missing __LLM_TOKEN — host dispatcher did not mint an LLM-bound capability token",
-        },
-        { status: 401 },
-      );
-    }
-    try {
-      const result = await llmService.infer(llmToken, {
-        provider: model.provider,
-        modelId: model.modelId,
-        messages,
-      });
-      responseText =
-        typeof result.content === "string" ? result.content : JSON.stringify(result.content);
-    } catch (err) {
-      // LlmService call failed — return error as text
-      responseText = `[Bundle brain error] LlmService.infer failed: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  } else {
-    // No LLM service available — return placeholder
-    responseText = `[Bundle brain] Model: ${model.provider}/${model.modelId}. Prompt: ${body.prompt}. No LLM_SERVICE binding available — wire env.LLM in bundleEnv to enable inference.`;
+  if (!spine) {
+    return Response.json(
+      {
+        error:
+          "Missing env.SPINE service binding — bundle cannot reach host state or stream events",
+      },
+      { status: 500 },
+    );
   }
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const event = {
-        type: "agent_event",
-        event: "text",
-        data: { text: responseText },
-      };
-      controller.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`));
-
-      const endEvent = { type: "agent_event", event: "agent_end", data: {} };
-      controller.enqueue(new TextEncoder().encode(`${JSON.stringify(endEvent)}\n`));
-      controller.close();
-    },
-  });
-
+  const context = buildBundleContext(env, spine, body.agentId, body.sessionId);
+  const stream = runBundleTurn(setup, env, body.prompt, context);
   return new Response(stream, {
     headers: { "content-type": "application/x-ndjson" },
   });

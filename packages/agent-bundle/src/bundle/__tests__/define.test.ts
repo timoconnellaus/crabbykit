@@ -91,31 +91,45 @@ describe("defineBundleAgent", () => {
       expect(res.status).toBe(401);
     });
 
-    it("returns a stream of agent events", async () => {
+    it("rejects without LLM token", async () => {
       const bundle = defineBundleAgent(minimalSetup);
 
       const res = await bundle.fetch(
         new Request("https://bundle/turn", {
           method: "POST",
-          body: JSON.stringify({ prompt: "hello" }),
+          body: JSON.stringify({
+            prompt: "hello",
+            agentId: "agent-1",
+            sessionId: "session-1",
+          }),
         }),
         { __SPINE_TOKEN: "test-token" } as BundleEnv,
       );
 
-      expect(res.status).toBe(200);
-      expect(res.headers.get("content-type")).toBe("application/x-ndjson");
+      expect(res.status).toBe(401);
+    });
 
-      const text = await res.text();
-      const lines = text.trim().split("\n");
-      expect(lines.length).toBe(2); // text event + agent_end
+    it("rejects without SPINE binding", async () => {
+      const bundle = defineBundleAgent(minimalSetup);
 
-      const textEvent = JSON.parse(lines[0]);
-      expect(textEvent.type).toBe("agent_event");
-      expect(textEvent.event).toBe("text");
+      const res = await bundle.fetch(
+        new Request("https://bundle/turn", {
+          method: "POST",
+          body: JSON.stringify({
+            prompt: "hello",
+            agentId: "agent-1",
+            sessionId: "session-1",
+          }),
+        }),
+        {
+          __SPINE_TOKEN: "test-token",
+          __LLM_TOKEN: "llm-token",
+        } as BundleEnv,
+      );
 
-      const endEvent = JSON.parse(lines[1]);
-      expect(endEvent.type).toBe("agent_event");
-      expect(endEvent.event).toBe("agent_end");
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toContain("SPINE");
     });
   });
 
