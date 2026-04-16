@@ -331,36 +331,35 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- Error sanitization ---
 
   /**
-   * Sanitize errors before returning to the bundle.
-   * Only whitelisted error codes and generic messages cross the RPC boundary.
+   * Sanitize errors before returning to the bundle. Only whitelisted
+   * error codes cross the RPC boundary; everything else collapses to
+   * `ERR_INTERNAL` with no stack / DO state leaking out.
    *
-   * Budget enforcement errors are thrown by the DO-side `BudgetTracker`
-   * and arrive here as generic `Error` instances (structured clone across
-   * the RPC boundary strips the class identity). We detect them by the
-   * `code` property or the `name` property that survives serialization.
+   * Cloudflare's native DO RPC does NOT round-trip `Error.code` or the
+   * subclass `name` — on the receiving side the error is a generic
+   * `Error` whose `message` is the original `"${name}: ${message}"`
+   * concatenation. The only field we can rely on is `message`. Budget
+   * errors embed their code as a message-prefix sentinel
+   * (`ERR_BUDGET_EXCEEDED:`) so detection survives the boundary.
    */
   private sanitize(err: unknown): SpineError {
     if (err instanceof SpineError) {
       return err;
     }
 
-    // Detect BudgetExceededError from the DO — its `code` property
-    // (`ERR_BUDGET_EXCEEDED`) and/or its `name` (`BudgetExceededError`)
-    // survive structured-clone serialization across the RPC boundary.
-    if (err instanceof Error) {
-      const errWithCode = err as Error & { code?: string };
+    if (err !== null && typeof err === "object") {
+      const shape = err as { code?: unknown; name?: unknown; message?: unknown };
+      const msgStr = typeof shape.message === "string" ? shape.message : "";
       if (
-        errWithCode.code === "ERR_BUDGET_EXCEEDED" ||
-        errWithCode.name === "BudgetExceededError"
+        shape.code === "ERR_BUDGET_EXCEEDED" ||
+        shape.name === "BudgetExceededError" ||
+        msgStr.includes("ERR_BUDGET_EXCEEDED:")
       ) {
-        return new SpineError("ERR_BUDGET_EXCEEDED", err.message);
+        return new SpineError("ERR_BUDGET_EXCEEDED", msgStr || "Budget exceeded");
       }
     }
 
-    // Log the real error internally
     console.error("[SpineService] Internal error:", err);
-
-    // Return a sanitized error — no sessionId, no DO state, no stack trace
     return new SpineError("ERR_INTERNAL", "An internal error occurred");
   }
 }

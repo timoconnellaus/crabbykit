@@ -20,11 +20,22 @@ export const DEFAULT_BUDGET: SpineBudgetConfig = {
 
 export type BudgetCategory = "sql" | "kv" | "broadcast" | "alarm";
 
+/**
+ * Error code embedded directly in the message so it survives Cloudflare's
+ * native DO RPC error serialization. Workers concatenates the original
+ * `name: message` into a new generic `Error` on the receiving side and
+ * drops own properties — only `message` is reliably preserved. Embedding
+ * the code in the message lets `SpineService.sanitize` detect budget
+ * errors without relying on `code` or `name` round-tripping.
+ */
+export const BUDGET_EXCEEDED_MESSAGE_PREFIX = "ERR_BUDGET_EXCEEDED:";
+
 export class BudgetExceededError extends Error {
-  readonly code = "ERR_BUDGET_EXCEEDED";
+  readonly code: "ERR_BUDGET_EXCEEDED";
   constructor(category: BudgetCategory, limit: number) {
-    super(`${category} budget exceeded (limit: ${limit})`);
+    super(`${BUDGET_EXCEEDED_MESSAGE_PREFIX} ${category} budget exceeded (limit: ${limit})`);
     this.name = "BudgetExceededError";
+    this.code = "ERR_BUDGET_EXCEEDED";
   }
 }
 
