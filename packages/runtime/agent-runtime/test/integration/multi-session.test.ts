@@ -14,13 +14,7 @@ import {
   clearMockResponses,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import {
-  findMessages,
-  getEntries,
-  getStub,
-  prompt as httpPrompt,
-  openSocket,
-} from "../helpers/ws-client.js";
+import { getEntries, getStub, prompt as httpPrompt, openSocket } from "../helpers/ws-client.js";
 
 // --- Tests ---
 

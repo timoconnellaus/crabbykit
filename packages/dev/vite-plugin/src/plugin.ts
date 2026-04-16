@@ -1,4 +1,4 @@
-import type { HtmlTagDescriptor, Plugin } from "vite";
+import type { Plugin } from "vite";
 import { CONSOLE_CAPTURE_SCRIPT } from "./console-script";
 
 export interface ClawPluginOptions {

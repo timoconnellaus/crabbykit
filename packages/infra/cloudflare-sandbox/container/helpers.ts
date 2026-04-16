@@ -20,9 +20,9 @@ function isUnderWorkspace(targetPath: string): boolean {
   const resolved = path.resolve(targetPath);
   try {
     const real = fs.realpathSync(resolved);
-    return real === workspacePath || real.startsWith(workspacePath + "/");
+    return real === workspacePath || real.startsWith(`${workspacePath}/`);
   } catch {
-    return resolved === workspacePath || resolved.startsWith(workspacePath + "/");
+    return resolved === workspacePath || resolved.startsWith(`${workspacePath}/`);
   }
 }
 

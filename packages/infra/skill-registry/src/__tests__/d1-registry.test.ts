@@ -75,7 +75,7 @@ describe("upsert", () => {
 
   it("updates an existing skill preserving created_at", async () => {
     await registry.upsert(sampleSkill());
-    const first = await registry.get("code-review");
+    const _first = await registry.get("code-review");
 
     await registry.upsert(sampleSkill({ version: "1.1.0", skillMd: "# Updated\n" }));
     const second = await registry.get("code-review");
@@ -303,7 +303,7 @@ describe("seeding", () => {
     await first.list(); // triggers ensureTable + seed
 
     const afterFirst = await first.get("code-review");
-    const firstUpdatedAt = afterFirst!.updatedAt;
+    const _firstUpdatedAt = afterFirst!.updatedAt;
 
     // Wait a tick so timestamps would differ if re-written
     await new Promise((r) => setTimeout(r, 10));

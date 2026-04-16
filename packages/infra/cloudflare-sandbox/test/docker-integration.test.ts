@@ -1165,7 +1165,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       await new Promise((r) => setTimeout(r, 2000));
 
       const health2 = (await fetchJson("/health")) as Record<string, unknown>;
-      const prefixes = health2.cleanupPrefixes as string[] | undefined;
+      const _prefixes = health2.cleanupPrefixes as string[] | undefined;
       // nm-guard cleanup prefix reporting is best-effort — may or may not be present
       // depending on timing. Just verify health endpoint works.
       expect(health2.ready).toBe(true);

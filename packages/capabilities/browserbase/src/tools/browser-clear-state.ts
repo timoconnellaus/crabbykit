@@ -1,4 +1,4 @@
-import type { AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@claw-for-cloudflare/agent-runtime";
 import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
 import type { SessionManager } from "../session-manager.js";
 

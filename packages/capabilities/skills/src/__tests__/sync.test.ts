@@ -1,14 +1,8 @@
 import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  getInstalledSkill,
-  getSkillConflicts,
-  listInstalledSkills,
-  putInstalledSkill,
-} from "../storage.js";
+import { getInstalledSkill, getSkillConflicts, putInstalledSkill } from "../storage.js";
 import { syncSkills } from "../sync.js";
-import type { InstalledSkill } from "../types.js";
 
 function createMockRegistry(records: SkillRecord[]): SkillRegistry {
   const map = new Map(records.map((r) => [r.id, r]));
@@ -37,7 +31,7 @@ function createMockBucket(): R2Bucket {
       return { text: async () => val } as R2ObjectBody;
     },
     delete: async (key: string | string[]) => {
-      if (Array.isArray(key)) key.forEach((k) => store.delete(k));
+      if (Array.isArray(key)) for (const k of key) store.delete(k);
       else store.delete(key);
     },
     head: async () => null,

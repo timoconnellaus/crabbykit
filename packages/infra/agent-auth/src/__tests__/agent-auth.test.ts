@@ -172,7 +172,7 @@ describe("verifyToken", () => {
     const [payloadB64] = token.split(":");
     // Flip a character in the signature
     const sig = token.split(":")[1];
-    const flipped = sig[0] === "a" ? "b" + sig.slice(1) : "a" + sig.slice(1);
+    const flipped = sig[0] === "a" ? `b${sig.slice(1)}` : `a${sig.slice(1)}`;
     const payload = await verifyToken(`${payloadB64}:${flipped}`, "agent-b", SECRET);
     expect(payload).toBeNull();
   });

@@ -158,7 +158,15 @@ describe("bucket edge table", () => {
   });
 
   it("allows dev → any bucket", () => {
-    for (const target of ["runtime", "infra", "capabilities", "channels", "federation", "ui", "dev"] as Bucket[]) {
+    for (const target of [
+      "runtime",
+      "infra",
+      "capabilities",
+      "channels",
+      "federation",
+      "ui",
+      "dev",
+    ] as Bucket[]) {
       expect(isEdgeAllowed("dev", target)).toBe(true);
     }
   });

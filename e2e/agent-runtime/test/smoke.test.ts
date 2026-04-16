@@ -16,7 +16,6 @@ async function prompt(stub: DurableObjectStub, text: string, sessionId?: string)
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  // biome-ignore lint/suspicious/noExplicitAny: Test helper
   return res.json() as Promise<{ sessionId: string; entries: any[] }>;
 }
 
@@ -37,16 +36,14 @@ async function executeTool(
   return res.json() as Promise<Record<string, unknown>>;
 }
 
-async function getSessions(stub: DurableObjectStub) {
+async function _getSessions(stub: DurableObjectStub) {
   const res = await stub.fetch("http://fake/sessions");
-  // biome-ignore lint/suspicious/noExplicitAny: Test helper
   return res.json() as Promise<{ sessions: any[] }>;
 }
 
-async function getEntries(stub: DurableObjectStub, sessionId?: string) {
+async function _getEntries(stub: DurableObjectStub, sessionId?: string) {
   const url = sessionId ? `http://fake/entries?sessionId=${sessionId}` : "http://fake/entries";
   const res = await stub.fetch(url);
-  // biome-ignore lint/suspicious/noExplicitAny: Test helper
   return res.json() as Promise<{ entries: any[] }>;
 }
 

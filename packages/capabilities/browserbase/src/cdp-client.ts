@@ -149,7 +149,7 @@ export class CDPClient {
       if (this.sessionId) {
         msg.sessionId = this.sessionId;
       }
-      this.ws!.send(JSON.stringify(msg));
+      this.ws?.send(JSON.stringify(msg));
     });
   }
 
@@ -185,7 +185,7 @@ export class CDPClient {
         },
       });
 
-      this.ws!.send(JSON.stringify({ id, method, params }));
+      this.ws?.send(JSON.stringify({ id, method, params }));
     });
   }
 

@@ -1,5 +1,5 @@
 import type { SqlResult, SqlStore } from "@claw-for-cloudflare/agent-runtime";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TaskStore } from "../server/task-store.js";
 import type { Artifact, PushNotificationConfig, TaskStatus } from "../types.js";
 

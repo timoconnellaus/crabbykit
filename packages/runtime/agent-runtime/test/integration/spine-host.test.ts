@@ -16,8 +16,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { SpineCaller } from "../../src/spine-host.js";
 import type { AgentDO } from "../../src/agent-do.js";
+import type { SpineCaller } from "../../src/spine-host.js";
 import { clearMockResponses, setMockResponses } from "../../src/test-helpers/test-agent-do.js";
 import { connectAndGetSession, getEntries, getStub, openSocket } from "../helpers/ws-client.js";
 

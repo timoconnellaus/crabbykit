@@ -41,7 +41,7 @@ function createMockCtx(): DurableObjectState {
 }
 
 /** Collect messages from a client WebSocket. */
-function collectMessages(ws: WebSocket): ServerMessage[] {
+function _collectMessages(ws: WebSocket): ServerMessage[] {
   const messages: ServerMessage[] = [];
   ws.addEventListener("message", (e) => {
     messages.push(JSON.parse(e.data as string));
@@ -96,7 +96,7 @@ describe("CfWebSocketTransport", () => {
       const handler = vi.fn();
       transport.onMessage(handler);
 
-      const resp = transport.handleUpgrade(new Request("http://fake/ws"));
+      const _resp = transport.handleUpgrade(new Request("http://fake/ws"));
       const serverWs = (ctx.acceptWebSocket as ReturnType<typeof vi.fn>).mock.calls[0][0];
 
       transport.handleMessage(serverWs, '{"type":"prompt"}');

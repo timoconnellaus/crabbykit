@@ -175,8 +175,8 @@ export function vectorMemory(options: VectorMemoryOptions): Capability {
 
   function emitIndexingCost(
     _ctx: CapabilityHookContext,
-    path: string,
-    chunksEmbedded: number,
+    _path: string,
+    _chunksEmbedded: number,
   ): void {
     // Cost emission from hooks doesn't have access to AgentContext.emitCost.
     // Indexing costs are tracked at the embedding level (Workers AI billing).

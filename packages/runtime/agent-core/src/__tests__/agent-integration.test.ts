@@ -9,7 +9,6 @@
 import {
   type AssistantMessage,
   type AssistantMessageEvent,
-  type AssistantMessageEventStream,
   createAssistantMessageEventStream,
   type Model,
   type ToolCall,
@@ -80,7 +79,7 @@ function makeToolCallMsg(
  */
 function createRealisticStreamFn(...responses: AssistantMessage[]): StreamFn {
   let callIndex = 0;
-  return ((model: unknown, context: unknown, options: unknown) => {
+  return ((_model: unknown, _context: unknown, _options: unknown) => {
     const msg = responses[Math.min(callIndex++, responses.length - 1)];
     const stream = createAssistantMessageEventStream();
 
@@ -506,7 +505,7 @@ describe("Agent full loop integration", () => {
         content: [{ type: "text", text: "Follow-up answer." }],
       });
 
-      const followUpCallCount = 0;
+      const _followUpCallCount = 0;
       const followUpMsg: AgentMessage = {
         role: "user",
         content: [{ type: "text", text: "One more thing" }],
@@ -580,7 +579,7 @@ describe("Agent full loop integration", () => {
       const agent = new Agent({
         initialState: { model: TEST_MODEL, tools: [myTool] },
         streamFn: createRealisticStreamFn(toolCallResponse, finalResponse),
-        afterToolCall: async (ctx) => ({
+        afterToolCall: async (_ctx) => ({
           content: [{ type: "text", text: "modified" }],
           details: { raw: false },
         }),
@@ -611,7 +610,7 @@ describe("Agent full loop integration", () => {
       const agent = new Agent({
         initialState: { model: TEST_MODEL, tools: [failingTool] },
         streamFn: createRealisticStreamFn(toolCallResponse, finalResponse),
-        afterToolCall: async (ctx) => ({
+        afterToolCall: async (_ctx) => ({
           content: [{ type: "text", text: "recovered" }],
           isError: false,
         }),
@@ -744,7 +743,7 @@ describe("Agent full loop integration", () => {
         errorMessage: "Invalid API key",
       });
 
-      const streamFn = ((model: unknown, context: unknown, options: unknown) => {
+      const streamFn = ((_model: unknown, _context: unknown, _options: unknown) => {
         const stream = createAssistantMessageEventStream();
         queueMicrotask(() => {
           stream.push({ type: "start", partial: errorResponse });
@@ -797,7 +796,7 @@ describe("Agent full loop integration", () => {
       const slowResponse = makeAssistantMsg({
         content: [{ type: "text", text: "slow" }],
       });
-      const streamFn = ((model: unknown, context: unknown, options: unknown) => {
+      const streamFn = ((_model: unknown, _context: unknown, _options: unknown) => {
         const stream = createAssistantMessageEventStream();
         // Delay the response
         setTimeout(() => {
@@ -829,7 +828,7 @@ describe("Agent full loop integration", () => {
         stopReason: "aborted",
       });
 
-      const streamFn = ((model: unknown, context: unknown, options: any) => {
+      const streamFn = ((_model: unknown, _context: unknown, options: any) => {
         const stream = createAssistantMessageEventStream();
         queueMicrotask(() => {
           stream.push({ type: "start", partial: response });
@@ -1126,7 +1125,7 @@ describe("Agent full loop integration", () => {
       });
 
       let callCount = 0;
-      const streamFn = ((model: unknown, context: unknown, options: unknown) => {
+      const streamFn = ((_model: unknown, _context: unknown, _options: unknown) => {
         callCount++;
         const msg = callCount === 1 ? errorResponse : successResponse;
         const stream = createAssistantMessageEventStream();

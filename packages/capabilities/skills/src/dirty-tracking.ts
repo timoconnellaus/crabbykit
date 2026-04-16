@@ -42,7 +42,7 @@ const MUTATION_TOOLS = new Set(["file_write", "file_edit", "file_delete"]);
 export function createAfterToolExecutionHook(
   agentStorage: SkillsOptions["storage"],
   declarations: SkillDeclaration[],
-  getCache: () => Map<string, InstalledSkill> | null,
+  _getCache: () => Map<string, InstalledSkill> | null,
   setCache: (cache: Map<string, InstalledSkill>) => void,
 ): (event: ToolExecutionEvent, ctx: HookContext) => Promise<void> {
   const declarationIds = new Set(declarations.map((d) => d.id));
@@ -78,7 +78,7 @@ async function handleWrite(
   skillId: string,
   bucket: R2Bucket,
   namespace: string,
-  declarationIds: Set<string>,
+  _declarationIds: Set<string>,
 ): Promise<void> {
   const content = await readSkillFromR2(bucket, namespace, skillId);
   if (!content) return;

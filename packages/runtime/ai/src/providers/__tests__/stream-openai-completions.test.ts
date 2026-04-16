@@ -1,18 +1,12 @@
 import type { ChatCompletionChunk } from "openai/resources/chat/completions.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  AssistantMessageEvent,
-  Context,
-  Model,
-  OpenAICompletionsCompat,
-} from "../../types.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AssistantMessageEvent, Context, Model } from "../../types.js";
 
 // Mock the OpenAI module before importing the function under test
 const mockCreate = vi.fn();
 vi.mock("openai", () => ({
   default: class MockOpenAI {
     chat = { completions: { create: mockCreate } };
-    constructor() {}
   },
 }));
 
@@ -585,7 +579,8 @@ describe("streamOpenAICompletions", () => {
       const controller = new AbortController();
       controller.abort();
 
-      async function* abortedStream() {
+      async function* abortedStream(): AsyncGenerator<never> {
+        yield* []; // satisfy useYield lint
         throw new Error("Request was aborted");
       }
       mockCreate.mockResolvedValue(abortedStream());

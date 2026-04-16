@@ -101,7 +101,7 @@ export async function indexDocument(
  */
 export async function removeDocument(
   path: string,
-  prefix: string,
+  _prefix: string,
   vectorizeIndex: VectorizeIndex,
   storage: CapabilityStorage,
 ): Promise<number> {

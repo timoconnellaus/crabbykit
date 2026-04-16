@@ -17,9 +17,7 @@ describe("explorer mode factory", () => {
     const mode = explorer();
     const override = mode.systemPromptOverride;
     const out =
-      typeof override === "function"
-        ? override("Parent prompt here", {} as any)
-        : (override ?? "");
+      typeof override === "function" ? override("Parent prompt here", {} as any) : (override ?? "");
 
     expect(out).toContain("READ-ONLY");
     expect(out).toContain("Parent prompt here");

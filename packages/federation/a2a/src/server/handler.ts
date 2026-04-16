@@ -70,18 +70,18 @@ export class A2AHandler {
     if (validationError) return validationError;
 
     const taskId = nanoid();
-    const contextId = params!.message.contextId ?? taskId;
+    const contextId = params?.message.contextId ?? taskId;
 
     // If the message references an existing task, validate it
-    if (params!.message.taskId) {
-      const existingTask = this.taskStore.get(params!.message.taskId);
+    if (params?.message.taskId) {
+      const existingTask = this.taskStore.get(params?.message.taskId);
       if (!existingTask) {
-        return taskNotFoundError(request.id, params!.message.taskId);
+        return taskNotFoundError(request.id, params?.message.taskId);
       }
       if (isTerminalState(existingTask.status.state)) {
         return unsupportedOperationError(
           request.id,
-          `Task ${params!.message.taskId} is in terminal state: ${existingTask.status.state}`,
+          `Task ${params?.message.taskId} is in terminal state: ${existingTask.status.state}`,
         );
       }
     }
@@ -94,12 +94,12 @@ export class A2AHandler {
       id: taskId,
       contextId,
       sessionId,
-      metadata: params!.message.metadata,
+      metadata: params?.message.metadata,
     });
 
     // Store push notification config if provided
-    if (params!.configuration?.pushNotificationConfig) {
-      this.taskStore.setPushConfig(taskId, params!.configuration.pushNotificationConfig);
+    if (params?.configuration?.pushNotificationConfig) {
+      this.taskStore.setPushConfig(taskId, params?.configuration.pushNotificationConfig);
     }
 
     const eventBus = new A2AEventBus();
@@ -130,18 +130,18 @@ export class A2AHandler {
     if (validationError) return validationError;
 
     const taskId = nanoid();
-    const contextId = params!.message.contextId ?? taskId;
+    const contextId = params?.message.contextId ?? taskId;
     const sessionId = this.taskStore.getSessionIdForContext(contextId) ?? contextId;
 
     this.taskStore.create({
       id: taskId,
       contextId,
       sessionId,
-      metadata: params!.message.metadata,
+      metadata: params?.message.metadata,
     });
 
-    if (params!.configuration?.pushNotificationConfig) {
-      this.taskStore.setPushConfig(taskId, params!.configuration.pushNotificationConfig);
+    if (params?.configuration?.pushNotificationConfig) {
+      this.taskStore.setPushConfig(taskId, params?.configuration.pushNotificationConfig);
     }
 
     const eventBus = new A2AEventBus();

@@ -388,7 +388,7 @@ export class TaskStore {
 
   private assertValidTransition(from: TaskStatus, to: TaskStatus): void {
     const allowed = VALID_TRANSITIONS.get(from);
-    if (!allowed || !allowed.has(to)) {
+    if (!allowed?.has(to)) {
       throw new InvalidTransitionError(from, to);
     }
   }

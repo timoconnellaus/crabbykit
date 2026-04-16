@@ -433,18 +433,18 @@ describe("A2A Integration", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: "Please call the target agent" }),
       });
-      const result = (await res.json()) as R;
+      const _result = (await res.json()) as R;
       expect(res.status).toBe(200);
 
       // Check that the caller's session contains the tool result from the target
       const entriesRes = await callerStub.fetch("http://fake/entries");
       const entries = (await entriesRes.json()) as { entries: R[] };
-      const toolResults = entries.entries.filter(
+      const _toolResults = entries.entries.filter(
         (e: R) => e.type === "tool_result" || (e.type === "custom" && e.customType === "tool_end"),
       );
 
       // The call_agent tool should have executed and returned a result
-      const messageTexts = entries.entries
+      const _messageTexts = entries.entries
         .filter((e: R) => e.type === "message")
         .map((e: R) => e.data?.content)
         .filter(Boolean);

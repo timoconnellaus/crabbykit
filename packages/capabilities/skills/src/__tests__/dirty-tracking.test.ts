@@ -24,7 +24,7 @@ function createMockBucket(): R2Bucket & { _store: Map<string, string> } {
       return { text: async () => val } as R2ObjectBody;
     },
     delete: async (key: string | string[]) => {
-      if (Array.isArray(key)) key.forEach((k) => store.delete(k));
+      if (Array.isArray(key)) for (const k of key) store.delete(k);
       else store.delete(key);
     },
     head: async () => null,

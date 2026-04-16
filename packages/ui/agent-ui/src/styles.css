@@ -222,7 +222,7 @@
    so messages pin to the bottom when they don't fill the viewport. */
 [data-agent-ui="message-list-viewport"] > div {
   min-height: 100%;
-  display: flex !important;
+  display: flex;
   flex-direction: column;
   justify-content: flex-end;
 }

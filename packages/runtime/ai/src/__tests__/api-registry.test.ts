@@ -33,10 +33,10 @@ function mockStreamFn(): StreamFunction<Api> {
 
 // The register-builtins module auto-registers "openai-completions" on import
 // via the index barrel. Save and restore registry state around tests.
-let savedProviders: ReturnType<typeof getApiProviders>;
+let _savedProviders: ReturnType<typeof getApiProviders>;
 
 beforeEach(() => {
-  savedProviders = getApiProviders();
+  _savedProviders = getApiProviders();
   clearApiProviders();
 });
 

@@ -20,13 +20,11 @@ import {
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
 import {
-  connectAndGetSession,
   getEntries,
   getSchedules,
   getStub,
   prompt,
   simulateHibernation,
-  triggerAlarm,
 } from "../helpers/ws-client.js";
 
 describe("Compaction state after hibernation", () => {
@@ -173,7 +171,7 @@ describe("Schedule state after hibernation", () => {
   });
 
   it("capability-declared schedule records survive hibernation", async () => {
-    let callbackInvoked = false;
+    let _callbackInvoked = false;
     const scheduleCapability: Capability = {
       id: "test-schedule-cap",
       name: "Test Schedule",
@@ -185,7 +183,7 @@ describe("Schedule state after hibernation", () => {
           cron: "*/5 * * * *",
           enabled: true,
           callback: async () => {
-            callbackInvoked = true;
+            _callbackInvoked = true;
           },
         } satisfies CallbackScheduleConfig,
       ],
@@ -218,7 +216,7 @@ describe("Schedule state after hibernation", () => {
   });
 
   it("schedule callbacks are re-registered on first post-wake interaction", async () => {
-    let callbackCount = 0;
+    let _callbackCount = 0;
     const scheduleCapability: Capability = {
       id: "test-schedule-reregister",
       name: "Test Schedule Reregister",
@@ -230,7 +228,7 @@ describe("Schedule state after hibernation", () => {
           cron: "*/1 * * * *",
           enabled: true,
           callback: async () => {
-            callbackCount++;
+            _callbackCount++;
           },
         } satisfies CallbackScheduleConfig,
       ],

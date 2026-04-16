@@ -1,5 +1,4 @@
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
-import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyWebSearch } from "../capability.js";
 
@@ -40,7 +39,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
-    notifyBundlePointerChanged: async () => {},
+      notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
 
@@ -123,7 +122,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
-    notifyBundlePointerChanged: async () => {},
+      notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
     const searchTool = tools[0];
@@ -161,7 +160,7 @@ describe("tavilyWebSearch", () => {
       storage: createNoopStorage(),
       schedules: {} as any,
       rateLimit: { consume: async () => ({ allowed: true }) },
-    notifyBundlePointerChanged: async () => {},
+      notifyBundlePointerChanged: async () => {},
     };
     const tools = cap.tools!(context);
     await tools[0].execute({ query: "test" }, { toolCallId: "test" });

@@ -9,7 +9,7 @@ import {
 } from "@claw-for-cloudflare/agent-runtime";
 import { Type } from "@sinclair/typebox";
 import { createAfterToolExecutionHook } from "./dirty-tracking.js";
-import { deleteSkillFromR2, readSkillFromR2, skillIdFromR2Path, writeSkillToR2 } from "./r2.js";
+import { deleteSkillFromR2, readSkillFromR2, writeSkillToR2 } from "./r2.js";
 import {
   deleteInstalledSkill,
   getInstalledSkill,
@@ -211,7 +211,7 @@ export function skills(options: SkillsOptions): Capability {
               `[SKILL UPDATE] The skill "${skillId}" has a new version (${conflict.upstreamVersion}) available.`,
               "Your current version has been customized. Please merge the changes:",
               "",
-              'Load your current version with: skill_load({ name: "' + skillId + '" })',
+              `Load your current version with: skill_load({ name: "${skillId}" })`,
               "",
               "NEW VERSION (upstream):",
               "```",
@@ -268,7 +268,7 @@ export function skills(options: SkillsOptions): Capability {
       },
     },
 
-    httpHandlers: (context) => [
+    httpHandlers: (_context) => [
       {
         method: "GET" as const,
         path: "/skills/registry",

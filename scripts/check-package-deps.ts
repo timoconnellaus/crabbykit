@@ -49,14 +49,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 const packagesRoot = join(repoRoot, "packages");
 
-type Bucket =
-  | "runtime"
-  | "infra"
-  | "capabilities"
-  | "channels"
-  | "federation"
-  | "ui"
-  | "dev";
+type Bucket = "runtime" | "infra" | "capabilities" | "channels" | "federation" | "ui" | "dev";
 
 const BUCKETS = new Set<Bucket>([
   "runtime",
@@ -89,9 +82,7 @@ const ALLOWED: Record<Bucket, Set<Bucket>> = {
 // Per-bucket target allow-lists that further restrict allowed imports.
 // Currently only `ui/` uses this: agent-ui may import from
 // `@claw-for-cloudflare/agent-runtime` (and nothing else from runtime).
-const UI_ALLOWED_RUNTIME_PACKAGES = new Set<string>([
-  "@claw-for-cloudflare/agent-runtime",
-]);
+const UI_ALLOWED_RUNTIME_PACKAGES = new Set<string>(["@claw-for-cloudflare/agent-runtime"]);
 
 // Explicit exception list for value-level cross-bucket imports that
 // break the bucket rules but are deliberately tolerated because the
@@ -145,7 +136,7 @@ function* walkTsFiles(dir: string): Generator<string> {
   }
   for (const entry of entries) {
     const full = join(dir, entry);
-    let st;
+    let st: ReturnType<typeof statSync> | undefined;
     try {
       st = statSync(full);
     } catch {

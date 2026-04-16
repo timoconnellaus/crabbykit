@@ -147,8 +147,8 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     }
 
     // Cold path: query registry
-    const activeId = await this.registry!.getActiveForAgent(this.agentId);
-    this.state.activeVersionId = activeId;
+    const activeId = await this.registry?.getActiveForAgent(this.agentId);
+    this.state.activeVersionId = activeId ?? null;
 
     // Cache for next turn
     if (ctxStorage) {
@@ -180,8 +180,8 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
 
       // 2. Load bundle via Worker Loader
       const bundleEnv = this.config.bundleEnv(this.env);
-      const worker = this.loader!.get(versionId, async () => {
-        const bytes = await this.registry!.getBytes(versionId);
+      const worker = this.loader?.get(versionId, async () => {
+        const bytes = await this.registry?.getBytes(versionId);
         if (!bytes) {
           throw new Error(`Bundle bytes not found for version ${versionId}`);
         }
@@ -199,7 +199,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
       });
 
       // 3. Dispatch the turn
-      const res = await worker.getEntrypoint().fetch(
+      const res = await worker!.getEntrypoint().fetch(
         new Request("https://bundle/turn", {
           method: "POST",
           body: JSON.stringify({ prompt }),
@@ -249,8 +249,8 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
       const token = await mintToken({ agentId: this.agentId, sessionId }, this.spineSubkey!);
 
       const bundleEnv = this.config.bundleEnv(this.env);
-      const worker = this.loader!.get(versionId, async () => {
-        const bytes = await this.registry!.getBytes(versionId);
+      const worker = this.loader?.get(versionId, async () => {
+        const bytes = await this.registry?.getBytes(versionId);
         if (!bytes) throw new Error("Bundle bytes not found");
         const source = new TextDecoder().decode(bytes);
         return {
@@ -263,7 +263,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
         };
       });
 
-      await worker.getEntrypoint().fetch(
+      await worker!.getEntrypoint().fetch(
         new Request("https://bundle/client-event", {
           method: "POST",
           body: JSON.stringify(event),
@@ -286,7 +286,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
   ): Promise<void> {
     await this.ensureInitialized();
 
-    await this.registry!.setActive(this.agentId, null, { rationale, sessionId });
+    await this.registry?.setActive(this.agentId, null, { rationale, sessionId });
     this.state.activeVersionId = null;
     this.state.consecutiveFailures = 0;
 
@@ -301,8 +301,8 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
   async refreshPointer(ctxStorage?: DurableObjectStorage): Promise<void> {
     await this.ensureInitialized();
 
-    const activeId = await this.registry!.getActiveForAgent(this.agentId);
-    this.state.activeVersionId = activeId;
+    const activeId = await this.registry?.getActiveForAgent(this.agentId);
+    this.state.activeVersionId = activeId ?? null;
 
     if (ctxStorage) {
       await ctxStorage.put("activeBundleVersionId", activeId);
@@ -322,7 +322,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     console.warn("[BundleDispatcher] Auto-reverting to static brain after consecutive failures");
 
     try {
-      await this.registry!.setActive(this.agentId, null, {
+      await this.registry?.setActive(this.agentId, null, {
         rationale: "auto-revert: poison bundle",
       });
     } catch (err) {

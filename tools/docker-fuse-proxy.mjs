@@ -47,7 +47,7 @@ try {
 let connId = 0;
 
 const server = net.createServer((clientConn) => {
-  const id = ++connId;
+  const _id = ++connId;
   const dockerConn = net.createConnection(REAL_DOCKER_SOCK);
   let buffering = true;
   let requestBuffer = Buffer.alloc(0);
@@ -113,7 +113,7 @@ const server = net.createServer((clientConn) => {
       );
 
       console.log(`[fuse-proxy] Injected SYS_ADMIN + /dev/fuse → ${config.Image || "unknown"}`);
-      dockerConn.write(newHeaders + "\r\n\r\n");
+      dockerConn.write(`${newHeaders}\r\n\r\n`);
       dockerConn.write(newBody);
     } catch (err) {
       console.error(`[fuse-proxy] Failed to patch: ${err.message}`);
@@ -126,11 +126,11 @@ const server = net.createServer((clientConn) => {
 
   dockerConn.on("data", (chunk) => clientConn.write(chunk));
   dockerConn.on("end", () => clientConn.end());
-  dockerConn.on("error", (err) => {
+  dockerConn.on("error", (_err) => {
     clientConn.destroy();
   });
   clientConn.on("end", () => dockerConn.end());
-  clientConn.on("error", (err) => {
+  clientConn.on("error", (_err) => {
     dockerConn.destroy();
   });
 });

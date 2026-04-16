@@ -3506,11 +3506,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     );
   }
 
-  spineScheduleUpdate(
-    caller: SpineCaller,
-    scheduleId: string,
-    patch: unknown,
-  ): Promise<void> {
+  spineScheduleUpdate(caller: SpineCaller, scheduleId: string, patch: unknown): Promise<void> {
     return this.withSpineBudget(caller, "alarm", () => {
       this.scheduleStore.update(scheduleId, patch as Parameters<ScheduleStore["update"]>[1]);
     });

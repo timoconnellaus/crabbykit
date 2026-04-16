@@ -529,7 +529,7 @@ describe("AgentDO Edge Cases", () => {
       const syncS2 = await clientB.waitForMessage(
         (m) => m.type === "session_sync" && (m as any).sessionId !== sessionS1,
       );
-      const sessionS2 = (syncS2 as any).sessionId;
+      const _sessionS2 = (syncS2 as any).sessionId;
 
       // Clear clientB messages for clean tracking
       clientB.messages.length = 0;

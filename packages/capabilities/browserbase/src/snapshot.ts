@@ -121,7 +121,7 @@ export function formatAXTree(
 
     const isInteractive = INTERACTIVE_ROLES.has(roleLower);
     const isContent = CONTENT_ROLES.has(roleLower);
-    const isStructural = STRUCTURAL_ROLES.has(roleLower);
+    const _isStructural = STRUCTURAL_ROLES.has(roleLower);
 
     // In interactive mode, skip non-interactive nodes (but recurse into children)
     if (options.interactive && !isInteractive) {

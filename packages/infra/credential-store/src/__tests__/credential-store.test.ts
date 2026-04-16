@@ -94,7 +94,7 @@ describe("crypto", () => {
       const key = generateKey();
       const { ciphertext, iv } = await encrypt(key, "secret");
       // Flip a character in the ciphertext
-      const corrupted = ciphertext.slice(0, -2) + "AA";
+      const corrupted = `${ciphertext.slice(0, -2)}AA`;
       await expect(decrypt(key, corrupted, iv)).rejects.toThrow();
     });
   });

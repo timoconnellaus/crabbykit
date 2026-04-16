@@ -172,7 +172,7 @@ describe("appRegistry capability", () => {
     const options = createTestOptions();
     // Pre-populate an app
     const store = new AppStore(options.sql);
-    const app = store.create("Delete Me", "delete-me");
+    const _app = store.create("Delete Me", "delete-me");
 
     const cap = appRegistry(options);
     const broadcastToAll = vi.fn();

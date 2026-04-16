@@ -8,7 +8,7 @@ afterEach(() => {
 
 // Helper to query by data-agent-ui attribute
 const q = (attr: string) => document.querySelector(`[data-agent-ui="${attr}"]`);
-const qAll = (attr: string) => document.querySelectorAll(`[data-agent-ui="${attr}"]`);
+const _qAll = (attr: string) => document.querySelectorAll(`[data-agent-ui="${attr}"]`);
 
 // ---------------------------------------------------------------------------
 // extractResultText (exported pure function)

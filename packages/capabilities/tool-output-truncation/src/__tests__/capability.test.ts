@@ -53,7 +53,7 @@ describe("truncateText", () => {
   });
 
   it("preserves first and last portions", () => {
-    const text = "AAAA" + "B".repeat(1000) + "CCCC";
+    const text = `AAAA${"B".repeat(1000)}CCCC`;
     const result = truncateText(text, 10);
     expect(result.startsWith("A")).toBe(true);
     expect(result.endsWith("C")).toBe(true);

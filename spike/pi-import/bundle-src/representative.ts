@@ -7,7 +7,7 @@
 
 // Core imports
 import { Agent } from "@claw-for-cloudflare/agent-core";
-import { type AgentConfig, defineTool } from "@claw-for-cloudflare/agent-runtime";
+import { defineTool } from "@claw-for-cloudflare/agent-runtime";
 import { getModel } from "@claw-for-cloudflare/ai";
 
 // Capability imports — representative of what a bundle would inline
@@ -44,7 +44,7 @@ function checkImports(): CheckResult {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(_request: Request): Promise<Response> {
     try {
       const result = checkImports();
       return Response.json({

@@ -132,7 +132,7 @@ async function cmdSessions() {
     const marker = s.id === sessionId ? ` ${c.green}← active${c.reset}` : "";
     const date = s.createdAt ? new Date(s.createdAt).toLocaleString() : "";
     console.log(
-      `  ${c.cyan}${s.id}${c.reset}  ${s.name || c.dim + "(unnamed)" + c.reset}  ${c.gray}${date}${c.reset}${marker}`,
+      `  ${c.cyan}${s.id}${c.reset}  ${s.name || `${c.dim}(unnamed)${c.reset}`}  ${c.gray}${date}${c.reset}${marker}`,
     );
   }
 }
@@ -295,9 +295,9 @@ async function cmdTool(name: string, argsStr?: string) {
 
   const resultColor = data.isError ? c.red : c.green;
   console.log(`${resultColor}${c.bold}[${data.toolName}]${c.reset}`);
-  console.log(extractText(data.result!.content));
-  if (data.result!.details) {
-    console.log(`${c.dim}Details: ${JSON.stringify(data.result!.details, null, 2)}${c.reset}`);
+  console.log(extractText(data.result?.content));
+  if (data.result?.details) {
+    console.log(`${c.dim}Details: ${JSON.stringify(data.result?.details, null, 2)}${c.reset}`);
   }
 }
 
@@ -334,9 +334,9 @@ ${c.bold}Commands:${c.reset}
 }
 
 function cmdStatus() {
-  console.log(`  Agent:   ${agentId ? c.cyan + agentId + c.reset : c.dim + "(none)" + c.reset}`);
+  console.log(`  Agent:   ${agentId ? c.cyan + agentId + c.reset : `${c.dim}(none)${c.reset}`}`);
   console.log(
-    `  Session: ${sessionId ? c.cyan + sessionId + c.reset : c.dim + "(none)" + c.reset}`,
+    `  Session: ${sessionId ? c.cyan + sessionId + c.reset : `${c.dim}(none)${c.reset}`}`,
   );
   console.log(`  Server:  ${c.gray}${baseUrl}${c.reset}`);
 }
@@ -418,6 +418,7 @@ async function handleLine(line: string) {
       case "quit":
       case "q":
         process.exit(0);
+        break;
       default:
         error(`Unknown command: ${cmd}. Type 'help' for available commands.`);
     }

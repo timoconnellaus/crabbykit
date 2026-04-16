@@ -41,7 +41,7 @@ describe("summarizeToolInput", () => {
   it("truncates long strings at 60 chars", () => {
     const long = "a".repeat(80);
     const result = summarizeToolInput(long);
-    expect(result).toBe("a".repeat(57) + "...");
+    expect(result).toBe(`${"a".repeat(57)}...`);
     expect(result.length).toBe(60);
   });
 
@@ -70,7 +70,7 @@ describe("summarizeToolInput", () => {
   it("truncates long agent messages at 50 chars", () => {
     const msg = "x".repeat(60);
     const result = summarizeToolInput({ agentId: "a", agentName: "B", message: msg });
-    expect(result).toBe("B \u00b7 " + "x".repeat(47) + "...");
+    expect(result).toBe(`B \u00b7 ${"x".repeat(47)}...`);
   });
 
   // start_process pattern
@@ -81,7 +81,7 @@ describe("summarizeToolInput", () => {
   it("truncates long commands at 50 chars", () => {
     const cmd = "c".repeat(60);
     const result = summarizeToolInput({ name: "build", command: cmd });
-    expect(result).toBe("build \u00b7 " + "c".repeat(47) + "...");
+    expect(result).toBe(`build \u00b7 ${"c".repeat(47)}...`);
   });
 
   // namespace pattern
@@ -98,7 +98,7 @@ describe("summarizeToolInput", () => {
   it("truncates long values at 40 chars", () => {
     const val = "v".repeat(50);
     const result = summarizeToolInput({ namespace: "ns", value: val });
-    expect(result).toBe("ns \u00b7 " + "v".repeat(37) + "...");
+    expect(result).toBe(`ns \u00b7 ${"v".repeat(37)}...`);
   });
 
   it("shows namespace alone when no value", () => {
@@ -112,7 +112,7 @@ describe("summarizeToolInput", () => {
 
   it("truncates long first-string value at 60 chars", () => {
     const long = "z".repeat(80);
-    expect(summarizeToolInput({ key: long })).toBe("z".repeat(57) + "...");
+    expect(summarizeToolInput({ key: long })).toBe(`${"z".repeat(57)}...`);
   });
 
   it("returns empty string for object with no string values", () => {
@@ -315,7 +315,7 @@ describe("summarizeResult", () => {
     it("truncates long result field", () => {
       const long = "r".repeat(50);
       const r = summarizeResult("run_code", { result: long }, false);
-      expect(r!.text).toBe("\u2192 " + "r".repeat(37) + "...");
+      expect(r!.text).toBe(`\u2192 ${"r".repeat(37)}...`);
     });
 
     it("parses JSON string input", () => {
@@ -335,7 +335,7 @@ describe("summarizeResult", () => {
     it("truncates long string output", () => {
       const long = "x".repeat(60);
       const r = summarizeResult("run_code", long, false);
-      expect(r!.text).toBe("\u2192 " + "x".repeat(40) + "...");
+      expect(r!.text).toBe(`\u2192 ${"x".repeat(40)}...`);
     });
   });
 

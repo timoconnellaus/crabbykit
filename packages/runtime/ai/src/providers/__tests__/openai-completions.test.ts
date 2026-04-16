@@ -1,4 +1,3 @@
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { describe, expect, it } from "vitest";
 import type {
   AssistantMessage,

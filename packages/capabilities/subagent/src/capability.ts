@@ -42,7 +42,7 @@ export function subagentCapability(options: SubagentCapabilityOptions): Capabili
   };
 
   /** Track parent-child session relationships for authority inheritance. */
-  const parentSessionMap = new Map<string, string>();
+  const _parentSessionMap = new Map<string, string>();
 
   return {
     id: "subagent",

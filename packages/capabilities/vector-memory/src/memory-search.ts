@@ -4,7 +4,7 @@ import { EMBEDDING_COST_PER_TOKEN, estimateTokenCount } from "./embeddings.js";
 import { formatResults, keywordSearch, vectorSearch } from "./searcher.js";
 
 const CAPABILITY_ID = "vector-memory";
-const DEFAULT_MAX_RESULTS = 5;
+const _DEFAULT_MAX_RESULTS = 5;
 
 export function createMemorySearchTool(
   getBucket: () => R2Bucket,

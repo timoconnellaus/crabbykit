@@ -227,6 +227,7 @@ function A2ANote({ text, ...props }: { text: string } & ComponentPropsWithoutRef
     status === "complete" ? "Task complete" : status === "failed" ? "Task failed" : "Task update";
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: interactive div styled as collapsible panel
     <div
       data-agent-ui="a2a-note"
       data-status={status}
@@ -303,15 +304,6 @@ export function Message({ message, toolResultMap, liveThinking, ...props }: Mess
         data-streaming={isStreaming || undefined}
         {...props}
       >
-        {liveThinking != null ? (
-          <ReasoningBlock text={liveThinking} />
-        ) : thinkingText ? (
-          <details data-agent-ui="thinking-fold">
-            <summary>Reasoning</summary>
-            <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
-          </details>
-        ) : null}
-
         {contentParts.map((part, i) => {
           if (part.kind === "text") {
             return (
@@ -346,6 +338,15 @@ export function Message({ message, toolResultMap, liveThinking, ...props }: Mess
           }
           return null;
         })}
+
+        {liveThinking != null ? (
+          <ReasoningBlock text={liveThinking} />
+        ) : thinkingText ? (
+          <details data-agent-ui="thinking-fold">
+            <summary>Reasoning</summary>
+            <div data-agent-ui="thinking-fold-content">{thinkingText}</div>
+          </details>
+        ) : null}
 
         {timestamp != null && (
           <div data-agent-ui="message-timestamp">{formatRelativeTime(timestamp)}</div>

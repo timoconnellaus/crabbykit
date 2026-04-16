@@ -147,7 +147,7 @@ describe("Telegram channel e2e", () => {
     token: "fake-token-support",
     webhookSecret: "secret-support",
   };
-  const secondaryAccount: TelegramAccount = {
+  const _secondaryAccount: TelegramAccount = {
     id: "ops",
     token: "fake-token-ops",
     webhookSecret: "secret-ops",

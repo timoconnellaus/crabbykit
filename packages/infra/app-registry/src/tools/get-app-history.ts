@@ -38,7 +38,7 @@ export function createGetAppHistoryTool(
         content: [
           {
             type: "text" as const,
-            text: `${app.name} (${app.slug}) — ${versions.length} versions:\n\n` + lines.join("\n"),
+            text: `${app.name} (${app.slug}) — ${versions.length} versions:\n\n${lines.join("\n")}`,
           },
         ],
         details: { app, versions },

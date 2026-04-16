@@ -35,7 +35,6 @@ import {
   setScheduleNextFire,
   simulateHibernation,
   triggerAlarm,
-  waitIdle,
 } from "../helpers/ws-client.js";
 
 const PAST = new Date(Date.now() - 60_000).toISOString();

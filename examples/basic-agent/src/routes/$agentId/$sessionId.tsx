@@ -191,7 +191,7 @@ function SessionLayoutInner(props: SessionLayoutInnerProps) {
   // Reset task state when session changes (e.g. /clear creates a new session)
   useEffect(() => {
     taskState.reset();
-  }, [currentSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [taskState.reset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL when server assigns/changes session
   useEffect(() => {

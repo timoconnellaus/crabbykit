@@ -5,16 +5,7 @@ import {
   setCompactionOverride,
   setMockResponses,
 } from "../../src/test-helpers/test-agent-do.js";
-import {
-  abort,
-  getEntries,
-  getSteerHistory,
-  getStub,
-  openSocket,
-  prompt,
-  registerMockMcp,
-  steer,
-} from "../helpers/ws-client.js";
+import { getEntries, getStub, openSocket, prompt, registerMockMcp } from "../helpers/ws-client.js";
 
 describe("AgentDO Integration", () => {
   beforeEach(() => {

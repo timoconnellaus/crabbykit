@@ -35,7 +35,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
 
       const client = await openSocket(stub);
       const sync = await client.waitForMessage((m) => m.type === "session_sync");
-      const sessionId = (sync as any).sessionId;
+      const _sessionId = (sync as any).sessionId;
 
       // Send 31 messages rapidly (new_session is a cheap non-prompt message)
       // Using new_session to avoid prompt-related side effects
@@ -66,7 +66,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
 
       // Now send a real message — it should succeed (pings didn't count)
       setMockResponses([{ text: "Still alive" }]);
-      const sessionId = ((await client.waitForMessage((m) => m.type === "session_sync")) as any)
+      const _sessionId = ((await client.waitForMessage((m) => m.type === "session_sync")) as any)
         .sessionId;
       // We already have session_sync from connect, use the sessionId from it
       const sync = client.messages.find((m) => m.type === "session_sync") as any;
@@ -165,7 +165,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
 
       const client = await openSocket(stub);
       const sync = await client.waitForMessage((m) => m.type === "session_sync");
-      const sessionId = (sync as any).sessionId;
+      const _sessionId = (sync as any).sessionId;
 
       // Use up rate limit with new_session messages
       for (let i = 0; i < 30; i++) {
@@ -302,7 +302,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
       const newSync = await client.waitForMessage(
         (m) => m.type === "session_sync" && (m as any).sessionId !== sessionId,
       );
-      const secondSessionId = (newSync as any).sessionId;
+      const _secondSessionId = (newSync as any).sessionId;
 
       client.send({ type: "delete_session", sessionId });
 
@@ -589,7 +589,7 @@ describe("AgentDO Edge Cases — Part 2", () => {
 
     it("multiple hooks — one failing, one succeeding — surviving hook still runs", async () => {
       const stub = getStub("edge2-error-6");
-      const survivingHookCalled = false;
+      const _survivingHookCalled = false;
 
       const failingCapability: Capability = {
         id: "failing-hook",

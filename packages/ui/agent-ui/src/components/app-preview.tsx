@@ -123,9 +123,9 @@ export function AppPreview({
           {filteredLogs.length === 0 ? (
             <div data-agent-ui="app-preview-console-empty">No logs</div>
           ) : (
-            filteredLogs.map((entry, i) => (
+            filteredLogs.map((entry) => (
               <div
-                key={`${entry.ts}-${i}`}
+                key={`${entry.ts}-${entry.level}-${entry.text.slice(0, 20)}`}
                 data-agent-ui="app-preview-console-entry"
                 data-level={entry.level}
               >

@@ -113,7 +113,7 @@ export const CommandPicker = forwardRef<HTMLDivElement, CommandPickerProps>(func
           break;
       }
     },
-    [visible, matches, selectedIndex, onPick, onDismiss],
+    [visible, matches, selectedIndex, onPick, onDismiss, onAutocomplete],
   );
 
   // Attach keyboard listener to document so it captures events from the textarea
