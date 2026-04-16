@@ -333,10 +333,28 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   /**
    * Sanitize errors before returning to the bundle.
    * Only whitelisted error codes and generic messages cross the RPC boundary.
+   *
+   * Budget enforcement errors are thrown by the DO-side `BudgetTracker`
+   * and arrive here as generic `Error` instances (structured clone across
+   * the RPC boundary strips the class identity). We detect them by the
+   * `code` property or the `name` property that survives serialization.
    */
   private sanitize(err: unknown): SpineError {
     if (err instanceof SpineError) {
       return err;
+    }
+
+    // Detect BudgetExceededError from the DO — its `code` property
+    // (`ERR_BUDGET_EXCEEDED`) and/or its `name` (`BudgetExceededError`)
+    // survive structured-clone serialization across the RPC boundary.
+    if (err instanceof Error) {
+      const errWithCode = err as Error & { code?: string };
+      if (
+        errWithCode.code === "ERR_BUDGET_EXCEEDED" ||
+        errWithCode.name === "BudgetExceededError"
+      ) {
+        return new SpineError("ERR_BUDGET_EXCEEDED", err.message);
+      }
     }
 
     // Log the real error internally

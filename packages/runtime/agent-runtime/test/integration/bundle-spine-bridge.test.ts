@@ -1,19 +1,20 @@
 /**
  * SpineService bridge integration tests.
  *
- * Exercises the full bundle → SpineService → agent DO spine method
+ * Exercises the full bundle -> SpineService -> agent DO spine method
  * pipeline with real token minting and verification:
  *   1. `AgentDO.initBundleDispatch` mints a capability token per turn and
  *      injects it into the bundle env as `__SPINE_TOKEN`.
  *   2. The bundle (running in the fake loader) calls `env.SPINE.appendEntry(
  *      token, entry)` on a real `SpineService` instance via service binding.
  *   3. `SpineService` derives its HKDF verify-only subkey from the master
- *      `AGENT_AUTH_KEY`, verifies the token, checks the per-turn budget,
- *      and dispatches to the agent DO via a direct DO method-call RPC
- *      (`host.spineAppendEntry(sessionId, entry)`) on a typed
- *      `DurableObjectStub<SpineHost>`.
+ *      `AGENT_AUTH_KEY`, verifies the token, constructs a `SpineCaller`
+ *      from the verified payload, and dispatches to the agent DO via a
+ *      direct DO method-call RPC (`host.spineAppendEntry(caller, entry)`)
+ *      on a typed `DurableObjectStub<SpineHost>`.
  *   4. `AgentDO.spineAppendEntry` forwards to `AgentRuntime.spineAppendEntry`,
- *      which persists the entry via `sessionStore.appendEntry`.
+ *      which checks the per-turn budget then persists the entry via
+ *      `sessionStore.appendEntry`.
  *
  * Covers the token verification error codes (`ERR_BAD_TOKEN`,
  * `ERR_TOKEN_EXPIRED`, `ERR_TOKEN_REPLAY`) and the budget enforcement
@@ -29,6 +30,7 @@ import {
   SpineService,
 } from "@claw-for-cloudflare/bundle-host";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { SpineCaller } from "../../src/spine-host.js";
 import { makeFakeWorkerLoader } from "../../src/test-helpers/fake-worker-loader.js";
 import {
   clearMockResponses,
@@ -61,6 +63,16 @@ function makeRealSpineService(): SpineService {
     AGENT_AUTH_KEY: TEST_BUNDLE_AUTH_KEY,
   };
   return new SpineService(makeSpineCtx(), spineEnv);
+}
+
+/** Build a synthetic SpineCaller for direct DO calls in tests. */
+function makeCaller(overrides: Partial<SpineCaller> = {}): SpineCaller {
+  return {
+    aid: "test-agent",
+    sid: "test-session",
+    nonce: crypto.randomUUID(),
+    ...overrides,
+  };
 }
 
 describe("bundle spine bridge: appendEntry", () => {
@@ -152,8 +164,9 @@ describe("bundle spine bridge: token verification", () => {
    * tokens tied to the session it was called for.
    */
   async function createRealSession(): Promise<string> {
+    const caller = makeCaller({ sid: "" });
     // biome-ignore lint/suspicious/noExplicitAny: direct DO stub method call
-    const session = (await (stub as any).spineCreateSession({
+    const session = (await (stub as any).spineCreateSession(caller, {
       name: "bundle-spine-bridge-test",
     })) as { id: string };
     return session.id;
@@ -216,7 +229,8 @@ describe("bundle spine bridge: token verification", () => {
 
   it("budget cap fires on the 101st SQL op within the same turn (same token)", async () => {
     // With nonce reusable, the per-turn budget (100 SQL ops by default)
-    // is the real spam brake. Hit it.
+    // is the real spam brake. Hit it. Budget enforcement now lives in
+    // the DO's AgentRuntime, not in the SpineService instance.
     const sessionId = await createRealSession();
     const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
     const token = await mintToken({ agentId, sessionId }, subkey);
@@ -274,5 +288,68 @@ describe("bundle spine bridge: token verification", () => {
         data: { role: "assistant", content: "wrong-service", timestamp: Date.now() },
       }),
     ).rejects.toMatchObject({ code: "ERR_BAD_TOKEN" });
+  });
+});
+
+describe("bundle spine bridge: instance-recycle budget enforcement", () => {
+  /**
+   * Load-bearing test: proves that per-turn budget enforcement survives
+   * SpineService instance recycling because the tracker now lives in the
+   * DO, not in the SpineService.
+   *
+   * Under the OLD architecture (BudgetTracker on SpineService), each
+   * instance had its own tracker — constructing a fresh instance resets
+   * the counters, so two instances serving 50 calls each could pass a
+   * cap of 100 (each sees <= 50 calls). Under the NEW architecture
+   * (BudgetTracker on AgentRuntime in the DO), state accumulates
+   * correctly across any number of SpineService instances.
+   */
+  it("budget persists across SpineService instance recycles", async () => {
+    resetTestBundleHolders();
+    clearMockResponses();
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-spine", SPINE_BRIDGE_BUNDLE_SOURCE);
+    setTestBundleRegistry(registry);
+    setTestBundleLoader(makeFakeWorkerLoader());
+
+    const { stub, agentId } = getBundleStubAndId("spine-recycle");
+
+    // Create a real session so appendEntry doesn't throw "not found"
+    const caller = makeCaller({ sid: "" });
+    // biome-ignore lint/suspicious/noExplicitAny: direct DO stub method call
+    const session = (await (stub as any).spineCreateSession(caller, {
+      name: "recycle-test",
+    })) as { id: string };
+    const sessionId = session.id;
+
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
+    const token = await mintToken({ agentId, sessionId }, subkey);
+
+    // First SpineService instance — issue 50 calls
+    const service1 = makeRealSpineService();
+    for (let i = 0; i < 50; i++) {
+      await service1.appendEntry(token, {
+        type: "message",
+        data: { role: "assistant", content: `s1-${i}`, timestamp: Date.now() },
+      });
+    }
+
+    // Simulate instance recycle — fresh SpineService, same env and DO
+    const service2 = makeRealSpineService();
+    for (let i = 0; i < 50; i++) {
+      await service2.appendEntry(token, {
+        type: "message",
+        data: { role: "assistant", content: `s2-${i}`, timestamp: Date.now() },
+      });
+    }
+
+    // 101st call in total should fail — budget state lives in the DO,
+    // not in the SpineService instance
+    await expect(
+      service2.appendEntry(token, {
+        type: "message",
+        data: { role: "assistant", content: "should-fail", timestamp: Date.now() },
+      }),
+    ).rejects.toMatchObject({ code: "ERR_BUDGET_EXCEEDED" });
   });
 });
