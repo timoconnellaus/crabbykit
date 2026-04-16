@@ -139,6 +139,7 @@ describe("D1BundleRegistry batch atomicity", () => {
     await registry.setActive("agent-1", "ver-abc", {
       sessionId: "s1",
       rationale: "initial",
+      skipCatalogCheck: true,
     });
 
     // 1 batch for ensureTable (schema) + 1 batch for setActive = 2 batches
@@ -175,9 +176,9 @@ describe("D1BundleRegistry batch atomicity", () => {
     fake = makeFakeD1({ failBatchOnCall: 2 });
     registry = new D1BundleRegistry(fake.db, makeFakeKv());
 
-    await expect(registry.setActive("agent-1", "ver-abc")).rejects.toThrow(
-      "D1_BATCH_PARTIAL_FAILURE",
-    );
+    await expect(
+      registry.setActive("agent-1", "ver-abc", { skipCatalogCheck: true }),
+    ).rejects.toThrow("D1_BATCH_PARTIAL_FAILURE");
 
     // batchCalls only records successful batches — the schema batch
     // succeeded but the setActive batch threw, so only one recorded.

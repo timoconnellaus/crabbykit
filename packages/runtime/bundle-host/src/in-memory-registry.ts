@@ -3,7 +3,9 @@
  * Not for production use — state is lost on restart.
  */
 
-import type { BundleRegistry } from "./bundle-config.js";
+import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+import { validateCatalogAgainstKnownIds } from "@claw-for-cloudflare/bundle-registry";
+import type { BundleRegistry, SetActiveOptions } from "./bundle-config.js";
 
 interface VersionEntry {
   versionId: string;
@@ -72,8 +74,29 @@ export class InMemoryBundleRegistry implements BundleRegistry {
   async setActive(
     agentId: string,
     versionId: string | null,
-    opts?: { rationale?: string; sessionId?: string },
+    options?: SetActiveOptions,
   ): Promise<void> {
+    if (versionId !== null && options?.skipCatalogCheck !== true) {
+      if (options?.knownCapabilityIds === undefined) {
+        throw new TypeError(
+          "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
+        );
+      }
+      const version = this.versions.get(versionId);
+      const required = (version?.metadata as { requiredCapabilities?: Array<{ id: string }> })
+        ?.requiredCapabilities;
+      const result = validateCatalogAgainstKnownIds(
+        required,
+        new Set(options.knownCapabilityIds),
+      );
+      if (!result.valid) {
+        throw new CapabilityMismatchError({
+          missingIds: result.missingIds,
+          versionId,
+        });
+      }
+    }
+
     const existing = this.pointers.get(agentId);
     this.pointers.set(agentId, {
       activeVersionId: versionId,
@@ -83,8 +106,8 @@ export class InMemoryBundleRegistry implements BundleRegistry {
     this.deployments.push({
       agentId,
       versionId,
-      rationale: opts?.rationale,
-      sessionId: opts?.sessionId,
+      rationale: options?.rationale,
+      sessionId: options?.sessionId,
       deployedAt: Date.now(),
     });
   }

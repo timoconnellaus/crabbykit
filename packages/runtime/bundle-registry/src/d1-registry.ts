@@ -6,6 +6,7 @@
  * KV readback verification on deploy.
  */
 
+import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
 import { computeVersionId } from "./hash.js";
 import { verifyKvReadback } from "./readback.js";
 import type {
@@ -15,7 +16,7 @@ import type {
   BundleRegistry,
   BundleVersion,
   CreateVersionOpts,
-  SetActiveOpts,
+  SetActiveOptions,
 } from "./types.js";
 import {
   MAX_BUNDLE_SIZE_BYTES,
@@ -24,6 +25,7 @@ import {
   METADATA_KEYS,
   METADATA_STRING_MAX,
 } from "./types.js";
+import { validateCatalogAgainstKnownIds } from "./validate.js";
 
 export class D1BundleRegistry implements BundleRegistry {
   private readonly db: D1Database;
@@ -89,8 +91,34 @@ export class D1BundleRegistry implements BundleRegistry {
     return row?.active_version_id ?? null;
   }
 
-  async setActive(agentId: string, versionId: string | null, opts?: SetActiveOpts): Promise<void> {
+  async setActive(
+    agentId: string,
+    versionId: string | null,
+    options?: SetActiveOptions,
+  ): Promise<void> {
     await this.ensureTable();
+
+    // Catalog validation runs BEFORE the D1 batch so a mismatch cannot
+    // leave the registry in a partially-flipped state.
+    if (versionId !== null && options?.skipCatalogCheck !== true) {
+      if (options?.knownCapabilityIds === undefined) {
+        throw new TypeError(
+          "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
+        );
+      }
+      const version = await this.getVersion(versionId);
+      const result = validateCatalogAgainstKnownIds(
+        version?.metadata?.requiredCapabilities,
+        new Set(options.knownCapabilityIds),
+      );
+      if (!result.valid) {
+        throw new CapabilityMismatchError({
+          missingIds: result.missingIds,
+          versionId,
+        });
+      }
+    }
+
     const now = Date.now();
 
     await this.db.batch([
@@ -109,7 +137,7 @@ export class D1BundleRegistry implements BundleRegistry {
           `INSERT INTO bundle_deployments (agent_id, version_id, deployed_at, deployed_by_session_id, rationale)
 					VALUES (?, ?, ?, ?, ?)`,
         )
-        .bind(agentId, versionId, now, opts?.sessionId ?? null, opts?.rationale ?? null),
+        .bind(agentId, versionId, now, options?.sessionId ?? null, options?.rationale ?? null),
     ]);
   }
 
@@ -326,6 +354,21 @@ function sanitizeMetadata(raw: BundleMetadata): BundleMetadata {
           .slice(0, METADATA_CAPABILITY_IDS_MAX)
           .filter((v): v is string => typeof v === "string")
           .map((v) => v.slice(0, METADATA_STRING_MAX));
+      }
+    } else if (key === "requiredCapabilities") {
+      if (Array.isArray(value)) {
+        const sanitized: Array<{ id: string }> = [];
+        for (const entry of value.slice(0, METADATA_CAPABILITY_IDS_MAX)) {
+          if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+            const id = (entry as { id?: unknown }).id;
+            if (typeof id === "string" && id.length > 0) {
+              sanitized.push({ id: id.slice(0, METADATA_STRING_MAX) });
+            }
+          }
+        }
+        if (sanitized.length > 0) {
+          result.requiredCapabilities = sanitized;
+        }
       }
     } else if (key === "buildTimestamp") {
       if (typeof value === "number") {

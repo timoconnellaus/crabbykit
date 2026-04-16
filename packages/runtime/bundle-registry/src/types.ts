@@ -2,9 +2,9 @@
  * BundleRegistry types — shared between D1 and in-memory implementations.
  */
 
-import type { BundleRegistry } from "@claw-for-cloudflare/agent-runtime";
+import type { BundleRegistry, SetActiveOptions } from "@claw-for-cloudflare/agent-runtime";
 
-export type { BundleRegistry };
+export type { BundleRegistry, SetActiveOptions };
 
 /**
  * Extended registry interface for code paths that must persist bytes
@@ -52,6 +52,14 @@ export interface BundleMetadata {
    * envelope can be produced with the current runtime injected.
    */
   sourceName?: string;
+  /**
+   * Host-side capabilities this bundle declared via `defineBundleAgent`'s
+   * `requiredCapabilities` field. Read by `BundleRegistry.setActive` and
+   * the dispatch-time guard to validate that the host's registered
+   * capability set satisfies the bundle's declaration. Absent on legacy
+   * bundles — treated as "no requirements" (always passes).
+   */
+  requiredCapabilities?: Array<{ id: string }>;
 }
 
 export interface AgentBundle {
@@ -95,11 +103,6 @@ export interface BundleRegistryWriter extends BundleRegistry {
   createVersion(opts: CreateVersionOpts): Promise<BundleVersion>;
 }
 
-export interface SetActiveOpts {
-  rationale?: string;
-  sessionId?: string;
-}
-
 /** Maximum bundle size per KV value (Cloudflare KV limit). */
 export const MAX_BUNDLE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MiB
 
@@ -118,6 +121,7 @@ export const METADATA_KEYS = new Set([
   "buildTimestamp",
   "runtimeHash",
   "sourceName",
+  "requiredCapabilities",
 ]);
 
 /** Max length for string metadata fields. */

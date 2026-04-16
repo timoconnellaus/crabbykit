@@ -270,6 +270,18 @@ export interface AgentContext {
    * within the DO that owns the agent.
    */
   notifyBundlePointerChanged: () => Promise<void>;
+  /**
+   * Snapshot of the host's registered capability ids, used by bundle
+   * catalog validation. Workshop tools (`workshop_deploy`, `workshop_build`)
+   * pass this to `BundleRegistry.setActive` as `knownCapabilityIds` so
+   * mismatched promotions fail at the source. Deduplicated, in
+   * registration order.
+   *
+   * The production runtime always populates this. Kept optional for
+   * compatibility with hand-built `AgentContext` mocks in capability
+   * unit tests — callers should fall back to `[]` when absent.
+   */
+  getBundleHostCapabilityIds?: () => string[];
 }
 
 /**
@@ -1730,6 +1742,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
+      getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
     };
   }
 
@@ -1760,6 +1773,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
+          getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
         };
         resolved = resolveCapabilities(
           capabilities,
@@ -1951,6 +1965,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
+          getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2107,6 +2122,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
+      getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
@@ -2278,6 +2294,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
+      getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
     };
 
     const resolved = resolveCapabilities(
@@ -2360,6 +2377,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
+          getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2618,6 +2636,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
+          getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
         };
         // biome-ignore lint/style/noNonNullAssertion: `hooks` filter guaranteed cap.afterTurn is defined
         await cap.afterTurn!(capContext, sessionId, finalText);
@@ -2774,6 +2793,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           schedules: this.buildScheduleManager(),
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
+          getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2888,6 +2908,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       schedules: this.buildScheduleManager(),
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
+      getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
     };
 
     const resolved = resolveCapabilities(
@@ -3660,6 +3681,16 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     return async () => {
       await this.bundlePointerRefresher?.();
     };
+  }
+
+  /**
+   * Build the `getBundleHostCapabilityIds` function exposed on every
+   * `AgentContext`. Returns the runtime's current capability id set each
+   * call so consumers get live state even if the runtime is reconfigured
+   * mid-turn (an edge case but the closure is cheap).
+   */
+  private buildBundleHostCapabilityIdsGetter(): () => string[] {
+    return () => this.getBundleHostCapabilityIds();
   }
 
   broadcastCustomToAll(name: string, data: Record<string, unknown>): void {

@@ -57,7 +57,9 @@ export type {
   BundleVersionInfo,
   BundleVersionMetadata,
   CreateBundleVersionOpts,
+  SetActiveOptions,
 } from "./bundle-config.js";
+export { CapabilityMismatchError } from "./bundle-config.js";
 export type {
   BeforeToolExecutionEvent,
   BeforeToolExecutionResult,

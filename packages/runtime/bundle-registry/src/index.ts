@@ -1,3 +1,4 @@
+export { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
 export { D1BundleRegistry } from "./d1-registry.js";
 export { computeVersionId } from "./hash.js";
 
@@ -9,7 +10,7 @@ export type {
   BundleRegistryWriter,
   BundleVersion,
   CreateVersionOpts,
-  SetActiveOpts,
+  SetActiveOptions,
 } from "./types.js";
 
 export {
@@ -20,3 +21,5 @@ export {
   METADATA_STRING_MAX,
   READBACK_DELAYS,
 } from "./types.js";
+export type { CapabilityRequirementLike, CatalogValidationResult } from "./validate.js";
+export { validateCatalogAgainstKnownIds } from "./validate.js";

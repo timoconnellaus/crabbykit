@@ -286,7 +286,14 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
   ): Promise<void> {
     await this.ensureInitialized();
 
-    await this.registry?.setActive(this.agentId, null, { rationale, sessionId });
+    // Clearing always skips catalog validation — there is nothing to
+    // validate. Passing `skipCatalogCheck: true` makes the clearing
+    // intent self-documenting.
+    await this.registry?.setActive(this.agentId, null, {
+      rationale,
+      sessionId,
+      skipCatalogCheck: true,
+    });
     this.state.activeVersionId = null;
     this.state.consecutiveFailures = 0;
 
@@ -322,8 +329,10 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     console.warn("[BundleDispatcher] Auto-reverting to static brain after consecutive failures");
 
     try {
+      // Auto-revert clears the pointer — never mint-side catalog-validate.
       await this.registry?.setActive(this.agentId, null, {
         rationale: "auto-revert: poison bundle",
+        skipCatalogCheck: true,
       });
     } catch (err) {
       console.error("[BundleDispatcher] Failed to clear registry pointer:", err);

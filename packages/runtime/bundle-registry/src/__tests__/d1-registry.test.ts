@@ -131,6 +131,7 @@ describe("D1BundleRegistry.setActive", () => {
     await registry.setActive("agent-1", v.versionId, {
       sessionId: "s1",
       rationale: "initial deploy",
+      skipCatalogCheck: true,
     });
 
     expect(await registry.getActiveForAgent("agent-1")).toBe(v.versionId);
@@ -147,8 +148,8 @@ describe("D1BundleRegistry.setActive", () => {
     const v1 = await registry.createVersion({ bytes: bytesFrom("v1") });
     const v2 = await registry.createVersion({ bytes: bytesFrom("v2") });
 
-    await registry.setActive("agent-1", v1.versionId);
-    await registry.setActive("agent-1", v2.versionId);
+    await registry.setActive("agent-1", v1.versionId, { skipCatalogCheck: true });
+    await registry.setActive("agent-1", v2.versionId, { skipCatalogCheck: true });
 
     const agentBundle = await registry.getAgentBundle("agent-1");
     expect(agentBundle?.activeVersionId).toBe(v2.versionId);
@@ -158,7 +159,7 @@ describe("D1BundleRegistry.setActive", () => {
   it("null versionId reverts to static brain", async () => {
     const registry = makeRegistry();
     const v = await registry.createVersion({ bytes: bytesFrom("v") });
-    await registry.setActive("agent-1", v.versionId);
+    await registry.setActive("agent-1", v.versionId, { skipCatalogCheck: true });
     await registry.setActive("agent-1", null, { rationale: "disable" });
 
     expect(await registry.getActiveForAgent("agent-1")).toBeNull();
@@ -175,8 +176,8 @@ describe("D1BundleRegistry.rollback", () => {
     const v1 = await registry.createVersion({ bytes: bytesFrom("v1") });
     const v2 = await registry.createVersion({ bytes: bytesFrom("v2") });
 
-    await registry.setActive("agent-1", v1.versionId);
-    await registry.setActive("agent-1", v2.versionId);
+    await registry.setActive("agent-1", v1.versionId, { skipCatalogCheck: true });
+    await registry.setActive("agent-1", v2.versionId, { skipCatalogCheck: true });
     await registry.rollback("agent-1", { rationale: "bad turn" });
 
     const bundle = await registry.getAgentBundle("agent-1");
@@ -188,8 +189,8 @@ describe("D1BundleRegistry.rollback", () => {
     const registry = makeRegistry();
     const v1 = await registry.createVersion({ bytes: bytesFrom("v1") });
     const v2 = await registry.createVersion({ bytes: bytesFrom("v2") });
-    await registry.setActive("agent-1", v1.versionId);
-    await registry.setActive("agent-1", v2.versionId);
+    await registry.setActive("agent-1", v1.versionId, { skipCatalogCheck: true });
+    await registry.setActive("agent-1", v2.versionId, { skipCatalogCheck: true });
     await registry.rollback("agent-1", { rationale: "rollback-x" });
 
     const deployments = await registry.listDeployments("agent-1");
@@ -200,7 +201,7 @@ describe("D1BundleRegistry.rollback", () => {
   it("throws when no previous version exists", async () => {
     const registry = makeRegistry();
     const v1 = await registry.createVersion({ bytes: bytesFrom("v1") });
-    await registry.setActive("agent-1", v1.versionId);
+    await registry.setActive("agent-1", v1.versionId, { skipCatalogCheck: true });
     // Single deploy — no previous to roll back to
     await expect(registry.rollback("agent-1")).rejects.toThrow(
       /No previous version to roll back to/,
@@ -213,8 +214,8 @@ describe("D1BundleRegistry.listDeployments", () => {
     const registry = makeRegistry();
     const v1 = await registry.createVersion({ bytes: bytesFrom("v1") });
     const v2 = await registry.createVersion({ bytes: bytesFrom("v2") });
-    await registry.setActive("agent-1", v1.versionId);
-    await registry.setActive("agent-1", v2.versionId);
+    await registry.setActive("agent-1", v1.versionId, { skipCatalogCheck: true });
+    await registry.setActive("agent-1", v2.versionId, { skipCatalogCheck: true });
 
     const deployments = await registry.listDeployments("agent-1");
     expect(deployments).toHaveLength(2);
@@ -226,7 +227,7 @@ describe("D1BundleRegistry.listDeployments", () => {
   it("caps limit at 100", async () => {
     const registry = makeRegistry();
     const v = await registry.createVersion({ bytes: bytesFrom("v") });
-    await registry.setActive("agent-cap", v.versionId);
+    await registry.setActive("agent-cap", v.versionId, { skipCatalogCheck: true });
     const out = await registry.listDeployments("agent-cap", 500);
     // Capped query — just verifies it doesn't throw; only 1 deployment exists
     expect(out).toHaveLength(1);
@@ -242,14 +243,14 @@ describe("two sequential deploys", () => {
       bytes: bytesFrom("bundle-v1"),
       metadata: { name: "demo", version: "1.0.0" },
     });
-    await registry.setActive("agent-1", v1.versionId, { rationale: "v1" });
+    await registry.setActive("agent-1", v1.versionId, { rationale: "v1", skipCatalogCheck: true });
 
     // Deploy #2
     const v2 = await registry.createVersion({
       bytes: bytesFrom("bundle-v2"),
       metadata: { name: "demo", version: "2.0.0" },
     });
-    await registry.setActive("agent-1", v2.versionId, { rationale: "v2" });
+    await registry.setActive("agent-1", v2.versionId, { rationale: "v2", skipCatalogCheck: true });
 
     // Both versions are in D1
     expect(await registry.getVersion(v1.versionId)).not.toBeNull();
@@ -291,8 +292,8 @@ describe("two sequential deploys", () => {
     });
     expect(second.versionId).toBe(first.versionId);
 
-    await registry.setActive("agent-dup", first.versionId);
-    await registry.setActive("agent-dup", second.versionId);
+    await registry.setActive("agent-dup", first.versionId, { skipCatalogCheck: true });
+    await registry.setActive("agent-dup", second.versionId, { skipCatalogCheck: true });
 
     // Two deployment log entries; active pointer still the same hash
     const deployments = await registry.listDeployments("agent-dup");

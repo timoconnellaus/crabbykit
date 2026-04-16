@@ -224,6 +224,7 @@ export class TestBundleAgentDO extends AgentDO {
       notifyBundlePointerChanged: async () => {
         await this.runtime.bundlePointerRefresher?.();
       },
+      getBundleHostCapabilityIds: () => this.getBundleHostCapabilityIds(),
     };
 
     const resolved = resolveCapabilities(this.getCapabilities(), context, (capId) =>

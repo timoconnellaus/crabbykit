@@ -18,7 +18,9 @@ export type {
   BundleVersionInfo,
   BundleVersionMetadata,
   CreateBundleVersionOpts,
+  SetActiveOptions,
 } from "@claw-for-cloudflare/agent-runtime";
+export { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
 
 /**
  * State tracked per bundle-enabled agent for dispatch. Kept host-local

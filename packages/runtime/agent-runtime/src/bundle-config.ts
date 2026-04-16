@@ -11,9 +11,10 @@
  */
 
 /**
- * Metadata fields the auto-rebuild path reads off a bundle version. A subset
- * of `BundleMetadata` from `@claw-for-cloudflare/bundle-registry`, redeclared
- * here to keep this package dependency-free.
+ * Metadata fields the auto-rebuild and catalog-validation paths read off
+ * a bundle version. A subset of `BundleMetadata` from
+ * `@claw-for-cloudflare/bundle-sdk` / `@claw-for-cloudflare/bundle-registry`,
+ * redeclared here to keep this package dependency-free.
  */
 export interface BundleVersionMetadata {
   /** SHA-256 hex of the runtime source injected when the bundle was built. */
@@ -22,6 +23,15 @@ export interface BundleVersionMetadata {
   sourceName?: string;
   /** Millisecond timestamp of the last build. */
   buildTimestamp?: number;
+  /**
+   * Host-side capabilities this bundle declared via
+   * `defineBundleAgent({ requiredCapabilities: [...] })`. Read by
+   * `BundleRegistry.setActive` and the dispatch-time guard to validate
+   * that the host's registered capability set satisfies the bundle's
+   * declaration. Absent on legacy bundles authored before the catalog
+   * field landed — treated as "no requirements" (always passes).
+   */
+  requiredCapabilities?: Array<{ id: string }>;
 }
 
 /** Shape returned from `BundleRegistry.getVersion` used by drift detection. */
@@ -41,6 +51,74 @@ export interface CreateBundleVersionOpts {
 }
 
 /**
+ * Options accepted by `BundleRegistry.setActive`. Authoritative type for
+ * both `D1BundleRegistry` (in `@claw-for-cloudflare/bundle-registry`) and
+ * `InMemoryBundleRegistry` (in `@claw-for-cloudflare/bundle-host`).
+ *
+ * When `versionId !== null` AND `skipCatalogCheck !== true`, the registry
+ * validates the bundle's `requiredCapabilities` declaration against
+ * `knownCapabilityIds` before flipping the pointer. A mismatch throws
+ * `CapabilityMismatchError`; the pointer is not flipped. Missing
+ * `knownCapabilityIds` with validation enabled throws `TypeError` to
+ * force the caller to make the decision explicit.
+ *
+ * When `versionId === null` OR `skipCatalogCheck === true`, validation
+ * is skipped. Clearing the pointer always skips validation because
+ * there is nothing to validate.
+ */
+export interface SetActiveOptions {
+  /** Human-readable rationale recorded in the deployment log. */
+  rationale?: string;
+  /** Session id that initiated the promotion (for attribution). */
+  sessionId?: string;
+  /**
+   * Pre-computed set of host-known capability ids. Required when
+   * `skipCatalogCheck` is not `true` and `versionId` is non-null;
+   * missing it is a programmer error and throws `TypeError`.
+   */
+  knownCapabilityIds?: string[];
+  /**
+   * Skip catalog validation. Supported use cases:
+   *
+   * - Cross-deployment promotions where the source host's capability
+   *   set is not authoritative (workshop deploying to a different
+   *   target worker).
+   * - Clearing the pointer (`versionId: null`) — always skips
+   *   internally; passing this flag is documentation.
+   * - Internal auto-revert and catalog-mismatch-disable paths, where
+   *   the dispatcher has already decided to disable and the registry
+   *   should not re-validate.
+   */
+  skipCatalogCheck?: boolean;
+}
+
+/**
+ * Thrown by `BundleRegistry.setActive` (and by `BundleDispatcher`'s
+ * dispatch-time guard) when a bundle's declared `requiredCapabilities`
+ * include ids that are not registered on the host.
+ *
+ * The `code` field survives structured-clone boundaries even when class
+ * identity is lost across RPC frames, so cross-isolate consumers should
+ * discriminate on `code === "ERR_CAPABILITY_MISMATCH"` rather than
+ * `error instanceof CapabilityMismatchError`.
+ */
+export class CapabilityMismatchError extends Error {
+  readonly code = "ERR_CAPABILITY_MISMATCH" as const;
+  readonly missingIds: string[];
+  readonly versionId: string;
+
+  constructor(args: { missingIds: string[]; versionId: string; message?: string }) {
+    const msg =
+      args.message ??
+      `bundle version '${args.versionId}' requires capabilities not registered on this host: ${args.missingIds.join(", ")}`;
+    super(msg);
+    this.name = "CapabilityMismatchError";
+    this.missingIds = args.missingIds;
+    this.versionId = args.versionId;
+  }
+}
+
+/**
  * Registry interface for bundle version management. Consumers provide a
  * registry implementation (e.g., D1BundleRegistry, InMemoryBundleRegistry).
  *
@@ -51,16 +129,25 @@ export interface CreateBundleVersionOpts {
  */
 export interface BundleRegistry {
   getActiveForAgent(agentId: string): Promise<string | null>;
+  /**
+   * Flip the active bundle pointer for an agent. Validates the bundle's
+   * declared `requiredCapabilities` against `options.knownCapabilityIds`
+   * by default; pass `skipCatalogCheck: true` to bypass. Throws
+   * `CapabilityMismatchError` on catalog mismatch (pointer unchanged)
+   * and `TypeError` when `versionId` is non-null, `skipCatalogCheck` is
+   * not `true`, and `knownCapabilityIds` is missing.
+   */
   setActive(
     agentId: string,
     versionId: string | null,
-    opts?: { rationale?: string; sessionId?: string },
+    options?: SetActiveOptions,
   ): Promise<void>;
   getBytes(versionId: string): Promise<ArrayBuffer | null>;
   /**
    * Read the metadata row for a specific bundle version. Required for
    * auto-rebuild to compare the stored `runtimeHash` against the current
-   * loaded runtime. Optional — absence disables drift detection.
+   * loaded runtime, and for catalog validation to read the declared
+   * `requiredCapabilities`. Optional — absence disables both.
    */
   getVersion?(versionId: string): Promise<BundleVersionInfo | null>;
   /**

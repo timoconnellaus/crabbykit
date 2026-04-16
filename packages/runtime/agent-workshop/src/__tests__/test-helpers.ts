@@ -4,7 +4,7 @@ import type {
   BundleRegistryWriter,
   BundleVersion,
   CreateVersionOpts,
-  SetActiveOpts,
+  SetActiveOptions,
 } from "@claw-for-cloudflare/bundle-registry";
 
 /** In-memory R2 bucket backing the workshop test suite. */
@@ -66,7 +66,7 @@ export function createMockRegistry() {
   const setActiveCalls: Array<{
     agentId: string;
     versionId: string | null;
-    opts?: SetActiveOpts;
+    opts?: SetActiveOptions;
   }> = [];
 
   const registry: BundleRegistryWriter = {
@@ -120,6 +120,10 @@ export interface MockContextOptions {
   agentId?: string;
   sessionId?: string;
   notifyBundlePointerChanged?: () => Promise<void>;
+  /** Host capability ids returned from `context.getBundleHostCapabilityIds`.
+   *  Workshop passes this to `setActive` as `knownCapabilityIds` so tests
+   *  can drive catalog validation end to end. Defaults to `[]`. */
+  hostCapabilityIds?: string[];
 }
 
 export function createMockContext(
@@ -144,6 +148,7 @@ export function createMockContext(
     schedules: {} as unknown as import("@claw-for-cloudflare/agent-runtime").ScheduleManager,
     rateLimit: {} as unknown as import("@claw-for-cloudflare/agent-runtime").RateLimiter,
     notifyBundlePointerChanged: options.notifyBundlePointerChanged,
+    getBundleHostCapabilityIds: () => options.hostCapabilityIds ?? [],
     broadcastCalls,
   } as unknown as AgentContext & {
     broadcastCalls: Array<{ event: string; data: unknown }>;

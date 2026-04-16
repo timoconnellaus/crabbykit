@@ -601,6 +601,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           }
           await registry.setActive(agentId, newVersion.versionId, {
             rationale: "auto-rebuild: runtime hash drift",
+            knownCapabilityIds: this.getBundleHostCapabilityIds(),
           });
           await this.runtime.bundlePointerRefresher?.();
           this.runtime.logger.info("[BundleDispatch] auto-rebuild completed", {
@@ -728,6 +729,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           try {
             await registry.setActive(agentId, null, {
               rationale: "auto-revert: poison bundle",
+              skipCatalogCheck: true,
             });
           } catch (revertErr) {
             this.runtime.logger.error("[BundleDispatch] Failed to auto-revert", {
@@ -808,6 +810,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
         await registry.setActive(agentId, null, {
           rationale: "out-of-band disable",
+          skipCatalogCheck: true,
         });
         consecutiveFailures = 0;
         await ctx.storage.put("activeBundleVersionId", null);

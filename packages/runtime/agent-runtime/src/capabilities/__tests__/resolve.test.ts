@@ -39,6 +39,7 @@ const ctx: AgentContext = {
   schedules: mockSchedules,
   rateLimit: mockRateLimit,
   notifyBundlePointerChanged: async () => {},
+  getBundleHostCapabilityIds: () => [],
 };
 
 function makeTool(name: string): AgentTool {

@@ -126,7 +126,7 @@ describe("bundle dispatch: turn dispatch", () => {
 
   it("dispatches the turn into the bundle when a version is active", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-active");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     const sid = await runTurn(stub, "hello");
 
@@ -146,7 +146,7 @@ describe("bundle dispatch: turn dispatch", () => {
 
   it("mints a fresh capability token per turn", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-fresh-token");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     await runTurn(stub, "first");
     await runTurn(stub, "second");
@@ -161,7 +161,7 @@ describe("bundle dispatch: turn dispatch", () => {
 
   it("mints separate spine and llm tokens with different subkeys", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-token-subkeys");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await runTurn(stub, "hi");
 
     expect(envCaptures[0]).toHaveProperty("__SPINE_TOKEN");
@@ -172,14 +172,14 @@ describe("bundle dispatch: turn dispatch", () => {
 
   it("invokes loader.get() with the active versionId", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-versionid");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await runTurn(stub, "x");
     expect(getVersionIdCalls).toContain("v-ref");
   });
 
   it("forwards the projected bundleEnv plus injected tokens", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-env-projection");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await runTurn(stub, "hi");
 
     expect(envCaptures.length).toBeGreaterThanOrEqual(1);
@@ -193,7 +193,7 @@ describe("bundle dispatch: turn dispatch", () => {
     setMockResponses([{ text: STATIC_MARKER }]);
 
     const { stub, agentId } = getBundleStubAndId("dispatch-no-static");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     const sid = await runTurn(stub, "hi");
 
     const assistants = assistantEntries(await getEntries(stub, sid));
@@ -226,7 +226,7 @@ describe("bundle dispatch: auto-revert", () => {
     ]);
 
     const { stub, agentId } = getBundleStubAndId("auto-revert-3");
-    await registry.setActive(agentId, "v-poison");
+    await registry.setActive(agentId, "v-poison", { skipCatalogCheck: true });
 
     for (let i = 0; i < 3; i++) {
       await runTurn(stub, `turn-${i}`);
@@ -249,7 +249,7 @@ describe("bundle dispatch: auto-revert", () => {
 
     registry.seed("v-ref", REFERENCE_BUNDLE_SOURCE);
     const { stub, agentId } = getBundleStubAndId("auto-revert-reset");
-    await registry.setActive(agentId, "v-poison");
+    await registry.setActive(agentId, "v-poison", { skipCatalogCheck: true });
 
     // Two failures.
     await runTurn(stub, "fail-1");
@@ -259,14 +259,14 @@ describe("bundle dispatch: auto-revert", () => {
     expect(await registry.getActiveForAgent(agentId)).toBe("v-poison");
 
     // Swap to a working bundle and refresh the cached pointer.
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await postBundleRefresh(stub);
 
     // Successful bundle turn resets consecutiveFailures to 0.
     await runTurn(stub, "success");
 
     // Swap back to poison; drive 2 failures. Counter is 2 (post-reset), no revert.
-    await registry.setActive(agentId, "v-poison");
+    await registry.setActive(agentId, "v-poison", { skipCatalogCheck: true });
     await postBundleRefresh(stub);
     await runTurn(stub, "fail-3");
     await runTurn(stub, "fail-4");
@@ -291,7 +291,7 @@ describe("bundle dispatch: POST /bundle/disable", () => {
     setMockResponses([{ text: "static-after-disable" }]);
 
     const { stub, agentId } = getBundleStubAndId("disable-authz");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     const res = await postBundleDisable(stub, { authorized: true });
     expect(res.status).toBe(200);
@@ -308,7 +308,7 @@ describe("bundle dispatch: POST /bundle/disable", () => {
 
   it("unauthorized POST returns 401 and leaves the pointer intact", async () => {
     const { stub, agentId } = getBundleStubAndId("disable-unauthz");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     const res = await postBundleDisable(stub, { authorized: false });
     expect(res.status).toBe(401);
@@ -336,14 +336,14 @@ describe("bundle dispatch: POST /bundle/refresh", () => {
     setMockResponses([{ text: STATIC_MARKER }, { text: STATIC_MARKER }, { text: STATIC_MARKER }]);
 
     const { stub, agentId } = getBundleStubAndId("refresh-oob");
-    await registry.setActive(agentId, "v1");
+    await registry.setActive(agentId, "v1", { skipCatalogCheck: true });
 
     // Prime cache by running one turn.
     await runTurn(stub, "prime");
     expect(await getCachedBundlePointer(stub)).toBe("v1");
 
     // Out-of-band pointer mutation (bypasses notifyBundlePointerChanged).
-    await registry.setActive(agentId, "v2");
+    await registry.setActive(agentId, "v2", { skipCatalogCheck: true });
 
     // Cache is stale — still points at v1.
     expect(await getCachedBundlePointer(stub)).toBe("v1");
@@ -377,7 +377,7 @@ describe("bundle dispatch: client event routing", () => {
 
   it("steer message over WebSocket forwards to the bundle's /client-event", async () => {
     const { stub, agentId } = getBundleStubAndId("client-event-steer");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     const socket = await openBundleSocket(stub);
     socket.send({
@@ -407,7 +407,7 @@ describe("bundle dispatch: client event routing", () => {
 
   it("abort message over WebSocket forwards to the bundle's /client-event", async () => {
     const { stub, agentId } = getBundleStubAndId("client-event-abort");
-    await registry.setActive(agentId, "v-ref");
+    await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
 
     const socket = await openBundleSocket(stub);
     socket.send({ type: "abort", sessionId: socket.sessionId });
@@ -462,7 +462,7 @@ describe("bundle dispatch: v1 envelope decoding", () => {
 
   it("dispatches an envelope-wrapped bundle without choking on JSON", async () => {
     const { stub, agentId } = getBundleStubAndId("envelope-dispatch");
-    await registry.setActive(agentId, "v-envelope");
+    await registry.setActive(agentId, "v-envelope", { skipCatalogCheck: true });
 
     const sid = await runTurn(stub, "hi");
 

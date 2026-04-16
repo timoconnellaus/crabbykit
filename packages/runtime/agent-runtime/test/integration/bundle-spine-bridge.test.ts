@@ -94,7 +94,7 @@ describe("bundle spine bridge: appendEntry", () => {
 
   it("bundle's env.SPINE.appendEntry persists via the DO /spine route", async () => {
     const { stub, agentId } = getBundleStubAndId("spine-append");
-    await registry.setActive(agentId, "v-spine");
+    await registry.setActive(agentId, "v-spine", { skipCatalogCheck: true });
 
     const sid = await runTurn(stub, JSON.stringify({ action: "appendEntry" }));
 
@@ -120,7 +120,7 @@ describe("bundle spine bridge: appendEntry", () => {
 
   it("bundle's env.SPINE.emitCost persists a cost entry", async () => {
     const { stub, agentId } = getBundleStubAndId("spine-emit-cost");
-    await registry.setActive(agentId, "v-spine");
+    await registry.setActive(agentId, "v-spine", { skipCatalogCheck: true });
 
     const sid = await runTurn(stub, JSON.stringify({ action: "emitCost" }));
 

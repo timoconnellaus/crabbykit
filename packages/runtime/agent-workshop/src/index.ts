@@ -424,9 +424,18 @@ export function agentWorkshop(
         defineTool({
           name: "workshop_build",
           description:
-            "Compile a bundle workspace in-process via @cloudflare/worker-bundler. No container required.",
+            "Compile a bundle workspace in-process via @cloudflare/worker-bundler. No container required. When `requiredCapabilities` is provided, the tool also emits an advisory warning for any declared id not registered on the workshop's host (advisory only — the workshop may be building for a different target deployment).",
           parameters: Type.Object({
             name: Type.String({ description: "Bundle workspace name" }),
+            requiredCapabilities: Type.Optional(
+              Type.Array(
+                Type.Object({ id: Type.String() }),
+                {
+                  description:
+                    "Optional: declared host-capability requirements. Used to surface advisory warnings for ids missing from the workshop host's capability set.",
+                },
+              ),
+            ),
           }),
           execute: async (args) => {
             const nameErr = validateBundleName(args.name);
@@ -435,7 +444,24 @@ export function agentWorkshop(
               const built = await buildBundle(args.name);
               const moduleCount = Object.keys(built.modules).length;
               await auditLog(context, "workshop_build", args, "success");
-              return `Build successful.\n  main module: ${built.mainModule}\n  modules: ${moduleCount}\n  source files: ${built.userFileCount}`;
+              const lines = [
+                `Build successful.`,
+                `  main module: ${built.mainModule}`,
+                `  modules: ${moduleCount}`,
+                `  source files: ${built.userFileCount}`,
+              ];
+              if (args.requiredCapabilities && args.requiredCapabilities.length > 0) {
+                const hostIds = new Set(context.getBundleHostCapabilityIds?.() ?? []);
+                const missing = args.requiredCapabilities
+                  .map((r) => r.id)
+                  .filter((id) => !hostIds.has(id));
+                if (missing.length > 0) {
+                  lines.push(
+                    `  Advisory: declared capabilities not in workshop host: ${missing.join(", ")} (advisory — target deployment may differ)`,
+                  );
+                }
+              }
+              return lines.join("\n");
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               await auditLog(context, "workshop_build", args, "error", "BUILD_FAILED");
@@ -478,12 +504,31 @@ export function agentWorkshop(
         defineTool({
           name: "workshop_deploy",
           description:
-            "Deploy a built bundle as the active brain for this agent (or a target agent)",
+            "Deploy a built bundle as the active brain for this agent (or a target agent). Declares the bundle's host-capability requirements for catalog validation; pass `skipCatalogCheck: true` for cross-deployment promotions where the local host's capability set is not authoritative (the target deployment's dispatch-time guard will validate instead).",
           parameters: Type.Object({
             name: Type.String({ description: "Bundle workspace name" }),
             rationale: Type.Optional(Type.String({ description: "Why this deployment" })),
             targetAgentId: Type.Optional(
               Type.String({ description: "Target agent ID (default: self)" }),
+            ),
+            requiredCapabilities: Type.Optional(
+              Type.Array(
+                Type.Object({
+                  id: Type.String({
+                    description: "Host capability id, kebab-case, must match a registered Capability.id",
+                  }),
+                }),
+                {
+                  description:
+                    "Host-side capabilities this bundle requires. Should match the bundle's `defineBundleAgent({ requiredCapabilities })` declaration. Persisted into bundle version metadata and validated at setActive + dispatch time.",
+                },
+              ),
+            ),
+            skipCatalogCheck: Type.Optional(
+              Type.Boolean({
+                description:
+                  "Skip catalog validation on promotion. Use only for cross-deployment promotions where the workshop host's capability set is not authoritative. The target deployment's dispatch-time guard still validates on first dispatch.",
+              }),
             ),
           }),
           execute: async (args) => {
@@ -513,6 +558,16 @@ export function agentWorkshop(
               return `Error: Bundle exceeds ${MAX_BUNDLE_SIZE_BYTES} byte limit (${envelope.byteLength} bytes)`;
             }
 
+            // Advisory warning: compare declared requirements against the
+            // workshop's own host capability set. Does NOT block deploy —
+            // the workshop may be building for a different target.
+            const hostIdsList = context.getBundleHostCapabilityIds?.() ?? [];
+            const hostIds = new Set(hostIdsList);
+            const advisoryMissing: string[] = [];
+            for (const req of args.requiredCapabilities ?? []) {
+              if (!hostIds.has(req.id)) advisoryMissing.push(req.id);
+            }
+
             let version: Awaited<ReturnType<typeof options.registry.createVersion>>;
             try {
               const opts: CreateVersionOpts = {
@@ -522,6 +577,9 @@ export function agentWorkshop(
                   sourceName: args.name,
                   runtimeHash: getRuntimeHash(),
                   buildTimestamp: Date.now(),
+                  ...(args.requiredCapabilities && args.requiredCapabilities.length > 0
+                    ? { requiredCapabilities: args.requiredCapabilities }
+                    : {}),
                 },
               };
               version = await options.registry.createVersion(opts);
@@ -531,13 +589,23 @@ export function agentWorkshop(
             }
 
             try {
-              await options.registry.setActive(agentId, version.versionId, {
-                rationale: args.rationale ?? "workshop_deploy",
-                sessionId: context.sessionId,
-              });
+              if (args.skipCatalogCheck) {
+                await options.registry.setActive(agentId, version.versionId, {
+                  rationale: args.rationale ?? "workshop_deploy",
+                  sessionId: context.sessionId,
+                  skipCatalogCheck: true,
+                });
+              } else {
+                await options.registry.setActive(agentId, version.versionId, {
+                  rationale: args.rationale ?? "workshop_deploy",
+                  sessionId: context.sessionId,
+                  knownCapabilityIds: hostIdsList,
+                });
+              }
             } catch (err) {
               await auditLog(context, "workshop_deploy", args, "error", "SET_ACTIVE_FAILED");
-              return `Deploy failed at setActive: ${err instanceof Error ? err.message : String(err)}`;
+              const msg = err instanceof Error ? err.message : String(err);
+              return `Deploy failed at setActive: ${msg}`;
             }
 
             // Notify the DO's hot cache so the next turn picks up the new
@@ -552,14 +620,26 @@ export function agentWorkshop(
               { ...args, versionId: version.versionId },
               "success",
             );
-            return [
+            const lines = [
               "Bundle deployed successfully.",
               `  Version: ${version.versionId.slice(0, 12)}...`,
               `  Size: ${envelope.byteLength} bytes`,
               `  Main module: ${built.mainModule}`,
               `  Target: ${agentId === context.agentId ? "self" : agentId}`,
               `  Rationale: ${args.rationale ?? "(none)"}`,
-            ].join("\n");
+            ];
+            if (advisoryMissing.length > 0) {
+              if (args.skipCatalogCheck) {
+                lines.push(
+                  `  Warning: skipCatalogCheck=true but target deployment may lack: ${advisoryMissing.join(", ")}. First dispatch will disable via guard if the target host does not bind these.`,
+                );
+              } else {
+                lines.push(
+                  `  Warning: declared capabilities not present in workshop host (advisory): ${advisoryMissing.join(", ")}. If the target deployment differs, validation may still succeed there.`,
+                );
+              }
+            }
+            return lines.join("\n");
           },
         }),
 
@@ -577,6 +657,7 @@ export function agentWorkshop(
             await options.registry.setActive(agentId, null, {
               rationale: args.rationale ?? "workshop_disable",
               sessionId: context.sessionId,
+              skipCatalogCheck: true,
             });
             if (agentId === context.agentId) {
               await context.notifyBundlePointerChanged?.();
