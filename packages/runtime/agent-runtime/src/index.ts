@@ -187,7 +187,7 @@ export type {
   SessionEntryType,
 } from "./session/types.js";
 // SpineHost — host DO contract consumed by bundle-host's SpineService
-export type { SpineHost } from "./spine-host.js";
+export type { SpineCaller, SpineHost } from "./spine-host.js";
 export type { ToolExecuteReturn } from "./tools/define-tool.js";
 // Tool system
 export {

@@ -56,6 +56,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const scheduler = createCfScheduler(ctx.storage);
     this.cfTransport = new CfWebSocketTransport(ctx);
     const runtimeContext = createCfRuntimeContext(ctx);
+    // Pull optional spine budget config from the DO env if present. The
+    // budget tracker itself lives on AgentRuntime — see
+    // openspec/changes/move-spine-budget-into-do/. The binding is a plain
+    // object on TEnv (not a wrangler binding), so a narrow cast is safe.
+    const envWithBudget = env as TEnv & { SPINE_BUDGET?: AgentRuntimeOptions["spineBudget"] };
+    const mergedOptions: AgentRuntimeOptions = {
+      ...options,
+      spineBudget: options.spineBudget ?? envWithBudget.SPINE_BUDGET,
+    };
     this.runtime = createDelegatingRuntime<TEnv>(this, {
       sqlStore,
       kvStore,
@@ -63,7 +72,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       transport: this.cfTransport,
       runtimeContext,
       env,
-      options,
+      options: mergedOptions,
     });
   }
 

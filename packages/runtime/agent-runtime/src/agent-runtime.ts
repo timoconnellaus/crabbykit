@@ -11,6 +11,13 @@ import {
 } from "@claw-for-cloudflare/a2a";
 import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
 import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
+// Spine per-turn budget enforcement — lives in the DO so that instance-
+// local state on SpineService (which may not persist across RPC calls)
+// cannot lose the counters and silently blow past the cap. See
+// openspec/changes/move-spine-budget-into-do/ for the full rationale.
+// The class itself stays in bundle-host/ for now; only its owner moved.
+import type { BudgetCategory, SpineBudgetConfig } from "@claw-for-cloudflare/bundle-host";
+import { BudgetTracker } from "@claw-for-cloudflare/bundle-host";
 import type { TObject } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
@@ -58,6 +65,7 @@ import type {
 } from "./scheduling/types.js";
 import { SessionStore } from "./session/session-store.js";
 import type { SessionEntryType } from "./session/types.js";
+import type { SpineCaller } from "./spine-host.js";
 import type { KvStore, SqlStore } from "./storage/types.js";
 import { applyDefaultTimeout } from "./tools/define-tool.js";
 import { ErrorCodes } from "./transport/error-codes.js";
@@ -318,6 +326,16 @@ export interface AgentRuntimeOptions {
    * of {@link AgentRuntime} may pass an explicit value here instead.
    */
   publicUrl?: string;
+  /**
+   * Optional per-turn spine RPC budget configuration. The runtime owns the
+   * `BudgetTracker` instance (keyed by capability-token nonce), so enforcement
+   * is reliable across the full DO lifetime — regardless of how CF Workers
+   * recycles `SpineService` `WorkerEntrypoint` instances under load.
+   *
+   * Sourced from `env.SPINE_BUDGET` by `AgentDO` when present. Undefined
+   * means the tracker uses `DEFAULT_BUDGET` from `bundle-host/budget-tracker`.
+   */
+  spineBudget?: SpineBudgetConfig;
 }
 
 /**
@@ -441,6 +459,15 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   >();
   /** Cache for resolved HTTP handlers (lazily populated on first HTTP request). */
   private resolvedHttpHandlers: ResolvedCapabilities["httpHandlers"] | null = null;
+  /**
+   * Per-turn spine RPC budget accumulator. Keyed by the capability-token
+   * nonce passed in on every spine method call. Living on the runtime
+   * (which lives on the DO) gives the tracker DO-lifetime persistence —
+   * unlike `SpineService`, a DO is not recycled mid-turn, so no spine call
+   * can ever see an empty counter due to an instance swap. See
+   * `withSpineBudget` and the "Spine host surface" section below.
+   */
+  private readonly spineBudget: BudgetTracker;
 
   constructor(
     sqlStore: SqlStore,
@@ -469,6 +496,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     this.configStore = new ConfigStore(this.kvStore);
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
     this.rateLimiter = new SlidingWindowRateLimiter(sqlStore);
+    this.spineBudget = new BudgetTracker(options.spineBudget);
 
     this.transport.onOpen((connection) => this.handleTransportOpen(connection));
     this.transport.onMessage((connection, data) => this.handleTransportMessage(connection, data));
@@ -3310,12 +3338,47 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   // dispatches bundle RPC calls directly onto these methods via a typed
   // `DurableObjectStub<SpineHost>`. Each method is a thin wrapper over the
   // underlying subsystem (sessionStore, kvStore, scheduleStore, scheduler,
-  // transport, costs) — no token verification or budget enforcement happens
-  // here. SpineService owns those security invariants before the method is
-  // reached; the DO only answers a call that SpineService has already
-  // validated. The `spine` prefix is load-bearing for grep-ability and to
-  // disambiguate from subsystem methods on the runtime (e.g., bare
-  // `appendEntry` on `sessionStore`).
+  // transport, costs) — no token verification happens here. SpineService
+  // owns that security invariant before the method is reached; the DO
+  // only answers a call that SpineService has already validated and
+  // whose caller context (`{aid, sid, nonce}`) is therefore trusted.
+  //
+  // Budget enforcement lives HERE (not in SpineService) because the DO
+  // has stable per-agent state across the entire turn lifetime, while a
+  // `WorkerEntrypoint` may be recycled between RPCs — see
+  // `openspec/changes/move-spine-budget-into-do/` for rationale.
+  //
+  // Every spine method routes its body through `withSpineBudget(caller,
+  // category, fn)`, which calls `this.spineBudget.check(caller.nonce,
+  // category)` before executing — forgetting the wrapper is a reviewable
+  // mistake that tests should catch. The `spine` prefix is load-bearing
+  // for grep-ability and to disambiguate from subsystem methods on the
+  // runtime (e.g., bare `appendEntry` on `sessionStore`).
+
+  /**
+   * Run a spine method body under the per-turn budget tracker. Increments
+   * the counter for `(caller.nonce, category)` before invoking `fn`, and
+   * throws `BudgetExceededError` (which SpineService maps to
+   * `ERR_BUDGET_EXCEEDED`) if the counter has already reached the cap.
+   *
+   * The helper is always async — even for sync work — so every spine
+   * method has a uniform wrapping shape. The incremental await cost is
+   * negligible compared to the DO's native event-loop serialization.
+   *
+   * Trust model: `caller` is NOT re-verified here. SpineService already
+   * verified the token signature, extracted `{aid, sid, nonce}` from the
+   * verified payload, and constructed the caller object. Only code holding
+   * a `DurableObjectNamespace<AgentDO>` binding can even reach this method,
+   * and that binding is a privileged capability not available to bundles.
+   */
+  protected async withSpineBudget<T>(
+    caller: SpineCaller,
+    category: BudgetCategory,
+    fn: () => T | Promise<T>,
+  ): Promise<T> {
+    this.spineBudget.check(caller.nonce, category);
+    return await fn();
+  }
 
   spineAppendEntry(
     sessionId: string,

@@ -20,7 +20,45 @@
  * which applies this brand on the implementation side; the brand in
  * the interface declaration is what lets the stub type narrow to the
  * spine methods at the call site.
+ *
+ * Every method takes a `SpineCaller` context as its first argument —
+ * a plain `{aid, sid, nonce}` object constructed by `SpineService`
+ * from a verified capability token. Budget enforcement lives on the
+ * DO side (`AgentRuntime.spineBudget`) and uses `caller.nonce` as the
+ * per-turn accumulator key, so every spine method can increment the
+ * per-turn budget atomically with the work it performs.
  */
+
+/**
+ * Trusted caller context passed to every `SpineHost` method.
+ *
+ * Constructed by `SpineService` from a verified capability token
+ * payload after signature and TTL checks pass. Consumers of
+ * `SpineHost` methods trust this context because any holder of a
+ * `DurableObjectNamespace<AgentDO>` binding is already privileged
+ * code (the bundle isolate cannot structured-clone a DO namespace
+ * binding and so cannot call these methods at all).
+ *
+ * The DO does NOT re-verify the fields on this object; their
+ * integrity is the caller's responsibility. See the `SpineService.verify`
+ * docstring for the full trust chain.
+ */
+export interface SpineCaller {
+  /** Verified agent id (from token payload `aid`). */
+  readonly aid: string;
+  /**
+   * Verified session id (from token payload `sid`). May be empty for
+   * agent-scoped methods such as `spineCreateSession` / `spineListSessions`
+   * that do not bind to a specific session.
+   */
+  readonly sid: string;
+  /**
+   * Verified nonce (from token payload `nonce`). Used as the per-turn
+   * budget accumulator key — every spine call made with the same nonce
+   * counts against the same per-turn budget.
+   */
+  readonly nonce: string;
+}
 
 export interface SpineHost extends Rpc.DurableObjectBranded {
   // Session store (sync on DO side)
