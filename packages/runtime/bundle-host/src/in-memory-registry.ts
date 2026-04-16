@@ -117,6 +117,36 @@ export class InMemoryBundleRegistry implements BundleRegistry {
   }
 
   /**
+   * Read the version row — mirrors `D1BundleRegistry.getVersion`'s shape
+   * with a `metadata` field exposed to the catalog-validation path.
+   * Treated as the authoritative source for `requiredCapabilities` in
+   * the dispatch-time guard.
+   */
+  async getVersion(
+    versionId: string,
+  ): Promise<{
+    versionId: string;
+    metadata: {
+      requiredCapabilities?: Array<{ id: string }>;
+      runtimeHash?: string;
+      sourceName?: string;
+      buildTimestamp?: number;
+    } | null;
+  } | null> {
+    const entry = this.versions.get(versionId);
+    if (!entry) return null;
+    const meta = entry.metadata as
+      | {
+          requiredCapabilities?: Array<{ id: string }>;
+          runtimeHash?: string;
+          sourceName?: string;
+          buildTimestamp?: number;
+        }
+      | undefined;
+    return { versionId, metadata: meta ?? null };
+  }
+
+  /**
    * Create (or dedupe) a content-addressed bundle version. Mirrors the
    * `createVersion` method on the production D1BundleRegistry so this
    * fixture satisfies the wider `BundleRegistryWriter` interface that

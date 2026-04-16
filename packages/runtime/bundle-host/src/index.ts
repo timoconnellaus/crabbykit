@@ -36,7 +36,9 @@ export type {
   BundleConfig,
   BundleDispatchState,
   BundleRegistry,
+  SetActiveOptions,
 } from "./bundle-config.js";
+export { CapabilityMismatchError } from "./bundle-config.js";
 export type { BundleAgentEvent, BundlePayload, DispatchResult } from "./dispatcher.js";
 export { BundleDispatcher, decodeBundlePayload } from "./dispatcher.js";
 export { InMemoryBundleRegistry } from "./in-memory-registry.js";
