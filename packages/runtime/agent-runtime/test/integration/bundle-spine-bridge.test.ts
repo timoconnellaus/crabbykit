@@ -1,16 +1,19 @@
 /**
  * SpineService bridge integration tests.
  *
- * Exercises the full bundle → SpineService → agent DO /spine/* pipeline
- * with real token minting and verification:
+ * Exercises the full bundle → SpineService → agent DO spine method
+ * pipeline with real token minting and verification:
  *   1. `AgentDO.initBundleDispatch` mints a capability token per turn and
  *      injects it into the bundle env as `__SPINE_TOKEN`.
  *   2. The bundle (running in the fake loader) calls `env.SPINE.appendEntry(
- *      token, entry)` on a real `SpineService` instance.
+ *      token, entry)` on a real `SpineService` instance via service binding.
  *   3. `SpineService` derives its HKDF verify-only subkey from the master
- *      `AGENT_AUTH_KEY`, verifies the token, and forwards the call to the
- *      agent DO over the namespace binding.
- *   4. The agent DO's `/spine/appendEntry` route persists the entry.
+ *      `AGENT_AUTH_KEY`, verifies the token, checks the per-turn budget,
+ *      and dispatches to the agent DO via a direct DO method-call RPC
+ *      (`host.spineAppendEntry(sessionId, entry)`) on a typed
+ *      `DurableObjectStub<SpineHost>`.
+ *   4. `AgentDO.spineAppendEntry` forwards to `AgentRuntime.spineAppendEntry`,
+ *      which persists the entry via `sessionStore.appendEntry`.
  *
  * Covers the token verification error codes (`ERR_BAD_TOKEN`,
  * `ERR_TOKEN_EXPIRED`, `ERR_TOKEN_REPLAY`) and the budget enforcement
