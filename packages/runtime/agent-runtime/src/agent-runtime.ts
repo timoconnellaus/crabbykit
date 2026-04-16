@@ -3448,6 +3448,91 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     }
   }
 
+  // --- Spine host surface ---
+  //
+  // Public methods that mirror the `SpineHost` interface. `SpineService`
+  // dispatches bundle RPC calls directly onto these methods via a typed
+  // `DurableObjectStub<SpineHost>`. Each method is a thin wrapper over the
+  // underlying subsystem (sessionStore, kvStore, scheduleStore, scheduler,
+  // transport, costs) — no token verification or budget enforcement happens
+  // here. SpineService owns those security invariants before the method is
+  // reached; the DO only answers a call that SpineService has already
+  // validated. The `spine` prefix is load-bearing for grep-ability and to
+  // disambiguate from subsystem methods on the runtime (e.g., bare
+  // `appendEntry` on `sessionStore`).
+
+  spineAppendEntry(
+    sessionId: string,
+    entry: { type: SessionEntryType; data: Record<string, unknown> },
+  ): unknown {
+    return this.sessionStore.appendEntry(sessionId, entry);
+  }
+
+  spineGetEntries(sessionId: string, _options?: unknown): unknown[] {
+    return this.sessionStore.getEntries(sessionId);
+  }
+
+  spineGetSession(sessionId: string): unknown {
+    return this.sessionStore.get(sessionId);
+  }
+
+  spineCreateSession(init?: { name?: string; source?: string; sender?: string }): unknown {
+    return this.sessionStore.create(init);
+  }
+
+  spineListSessions(_filter?: unknown): unknown[] {
+    return this.sessionStore.list();
+  }
+
+  spineBuildContext(sessionId: string): unknown {
+    return this.sessionStore.buildContext(sessionId);
+  }
+
+  spineBroadcast(sessionId: string, event: unknown): void {
+    // Stamp sessionId from the verified token payload — bundles cannot
+    // target another session's transport even if they tried to forge one
+    // into the event body.
+    const msg = {
+      ...(event as Record<string, unknown>),
+      sessionId,
+    } as unknown as ServerMessage;
+    this.broadcastToSession(sessionId, msg);
+  }
+
+  spineBroadcastGlobal(event: unknown): void {
+    this.transport.broadcast(event as unknown as ServerMessage);
+  }
+
+  spineEmitCost(sessionId: string, costEvent: unknown): void {
+    this.handleCostEvent(costEvent as CostEvent, sessionId);
+  }
+
+  async spineKvGet(capabilityId: string, key: string): Promise<unknown> {
+    const storage = createCapabilityStorage(this.kvStore, capabilityId);
+    return storage.get(key);
+  }
+
+  async spineKvPut(
+    capabilityId: string,
+    key: string,
+    value: unknown,
+    _options?: unknown,
+  ): Promise<void> {
+    const storage = createCapabilityStorage(this.kvStore, capabilityId);
+    await storage.put(key, value);
+  }
+
+  async spineKvDelete(capabilityId: string, key: string): Promise<void> {
+    const storage = createCapabilityStorage(this.kvStore, capabilityId);
+    await storage.delete(key);
+  }
+
+  async spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]> {
+    const storage = createCapabilityStorage(this.kvStore, capabilityId);
+    const entries = await storage.list(prefix);
+    return Array.from(entries.entries()).map(([key, value]) => ({ key, value }));
+  }
+
   // --- Client request/response ---
 
   private requestFromClient(
