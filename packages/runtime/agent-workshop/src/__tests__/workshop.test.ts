@@ -357,6 +357,100 @@ describe("agentWorkshop — deploy / envelope", () => {
     expect(result).toContain("Active version");
     expect(result).not.toMatch(/\(none — static brain\)/);
   });
+
+  it("workshop_deploy persists requiredCapabilities into version metadata", async () => {
+    const { cap, versions } = makeWorkshop();
+    const ctx = createMockContext({
+      agentId: "agent-cat",
+      hostCapabilityIds: ["tavily-web-search"],
+    });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "with-req" });
+    await runTool(findTool(tools, "workshop_deploy"), {
+      name: "with-req",
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    const [entry] = versions.values();
+    expect(entry.version.metadata?.requiredCapabilities).toEqual([
+      { id: "tavily-web-search" },
+    ]);
+  });
+
+  it("workshop_deploy passes knownCapabilityIds to setActive by default", async () => {
+    const { cap, setActiveCalls } = makeWorkshop();
+    const ctx = createMockContext({
+      agentId: "agent-known",
+      hostCapabilityIds: ["tavily-web-search", "file-tools"],
+    });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "known-ids" });
+    await runTool(findTool(tools, "workshop_deploy"), { name: "known-ids" });
+    const last = setActiveCalls.at(-1);
+    expect(last?.opts?.knownCapabilityIds).toEqual(["tavily-web-search", "file-tools"]);
+    expect(last?.opts?.skipCatalogCheck).toBeUndefined();
+  });
+
+  it("workshop_deploy with skipCatalogCheck: true passes the flag and omits knownCapabilityIds", async () => {
+    const { cap, setActiveCalls } = makeWorkshop();
+    const ctx = createMockContext({ agentId: "agent-skip", hostCapabilityIds: [] });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "skip-check" });
+    await runTool(findTool(tools, "workshop_deploy"), {
+      name: "skip-check",
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+      skipCatalogCheck: true,
+    });
+    const last = setActiveCalls.at(-1);
+    expect(last?.opts?.skipCatalogCheck).toBe(true);
+    expect(last?.opts?.knownCapabilityIds).toBeUndefined();
+  });
+
+  it("workshop_deploy advisory warns when declared id is not bound on workshop host", async () => {
+    const { cap } = makeWorkshop();
+    const ctx = createMockContext({
+      agentId: "agent-advise",
+      hostCapabilityIds: ["file-tools"],
+    });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "advise" });
+    const result = await runTool(findTool(tools, "workshop_deploy"), {
+      name: "advise",
+      requiredCapabilities: [{ id: "file-tools" }, { id: "tavily-web-search" }],
+      skipCatalogCheck: true,
+    });
+    expect(result).toContain("deployed successfully");
+    expect(result).toContain("tavily-web-search");
+    expect(result).toContain("Warning");
+  });
+
+  it("workshop_build advisory warns when a declared id is missing on host", async () => {
+    const { cap } = makeWorkshop();
+    const ctx = createMockContext({
+      agentId: "agent-build-advise",
+      hostCapabilityIds: ["file-tools"],
+    });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "build-advise" });
+    const result = await runTool(findTool(tools, "workshop_build"), {
+      name: "build-advise",
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    expect(result).toContain("Build successful");
+    expect(result).toContain("Advisory");
+    expect(result).toContain("tavily-web-search");
+  });
+
+  it("workshop_disable passes skipCatalogCheck: true", async () => {
+    const { cap, setActiveCalls } = makeWorkshop();
+    const ctx = createMockContext({ agentId: "agent-dis" });
+    const tools = cap.tools!(ctx);
+    await runTool(findTool(tools, "workshop_init"), { name: "dis" });
+    await runTool(findTool(tools, "workshop_deploy"), { name: "dis" });
+    await runTool(findTool(tools, "workshop_disable"), {});
+    const last = setActiveCalls.at(-1);
+    expect(last?.versionId).toBeNull();
+    expect(last?.opts?.skipCatalogCheck).toBe(true);
+  });
 });
 
 describe("agentWorkshop — runtime auto-upgrade", () => {
