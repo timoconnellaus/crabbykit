@@ -196,6 +196,102 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     this.cfTransport.handleClose(ws);
   }
 
+  // --- Spine host surface ---
+  //
+  // Public forwarders that expose every `SpineHost` method on the DO's RPC
+  // surface. `SpineService` calls these directly on a typed
+  // `DurableObjectStub<SpineHost>`; each forwarder delegates to the
+  // identically-named method on the composed runtime, which owns the real
+  // implementation. Keeping the forwarders here (rather than only on the
+  // runtime) is what makes `AgentDO` structurally satisfy `SpineHost` —
+  // the DO stub RPC surface only sees methods declared on the DO class.
+
+  spineAppendEntry(
+    sessionId: string,
+    entry: Parameters<AgentRuntime<TEnv>["spineAppendEntry"]>[1],
+  ): unknown {
+    return this.runtime.spineAppendEntry(sessionId, entry);
+  }
+
+  spineGetEntries(sessionId: string, options?: unknown): unknown[] {
+    return this.runtime.spineGetEntries(sessionId, options);
+  }
+
+  spineGetSession(sessionId: string): unknown {
+    return this.runtime.spineGetSession(sessionId);
+  }
+
+  spineCreateSession(
+    init?: Parameters<AgentRuntime<TEnv>["spineCreateSession"]>[0],
+  ): unknown {
+    return this.runtime.spineCreateSession(init);
+  }
+
+  spineListSessions(filter?: unknown): unknown[] {
+    return this.runtime.spineListSessions(filter);
+  }
+
+  spineBuildContext(sessionId: string): unknown {
+    return this.runtime.spineBuildContext(sessionId);
+  }
+
+  spineGetCompactionCheckpoint(sessionId: string): unknown {
+    return this.runtime.spineGetCompactionCheckpoint(sessionId);
+  }
+
+  spineKvGet(capabilityId: string, key: string): Promise<unknown> {
+    return this.runtime.spineKvGet(capabilityId, key);
+  }
+
+  spineKvPut(
+    capabilityId: string,
+    key: string,
+    value: unknown,
+    options?: unknown,
+  ): Promise<void> {
+    return this.runtime.spineKvPut(capabilityId, key, value, options);
+  }
+
+  spineKvDelete(capabilityId: string, key: string): Promise<void> {
+    return this.runtime.spineKvDelete(capabilityId, key);
+  }
+
+  spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]> {
+    return this.runtime.spineKvList(capabilityId, prefix);
+  }
+
+  spineScheduleCreate(schedule: unknown): Promise<unknown> {
+    return this.runtime.spineScheduleCreate(schedule);
+  }
+
+  spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void> {
+    return this.runtime.spineScheduleUpdate(scheduleId, patch);
+  }
+
+  spineScheduleDelete(scheduleId: string): Promise<void> {
+    return this.runtime.spineScheduleDelete(scheduleId);
+  }
+
+  spineScheduleList(): Promise<unknown[]> {
+    return this.runtime.spineScheduleList();
+  }
+
+  spineAlarmSet(timestamp: number): Promise<void> {
+    return this.runtime.spineAlarmSet(timestamp);
+  }
+
+  spineBroadcast(sessionId: string, event: unknown): void {
+    this.runtime.spineBroadcast(sessionId, event);
+  }
+
+  spineBroadcastGlobal(event: unknown): void {
+    this.runtime.spineBroadcastGlobal(event);
+  }
+
+  spineEmitCost(sessionId: string, costEvent: unknown): void {
+    this.runtime.spineEmitCost(sessionId, costEvent);
+  }
+
   // --- Protected getters/setters that forward to the composed runtime ---
   //
   // These preserve the legacy `this.sessionStore`, `this.kvStore`, etc.

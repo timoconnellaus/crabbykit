@@ -219,3 +219,116 @@ describe("spine bridge — unsupported ops", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("spine bridge — compaction checkpoint (direct method)", () => {
+  it("returns null when the session has no compaction entry", async () => {
+    const stub = getStub("spine-compaction-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const checkpoint = await (stub as any).spineGetCompactionCheckpoint(sessionId);
+    expect(checkpoint).toBeNull();
+    client.close();
+  });
+
+  it("returns the most recent compaction entry data when one exists", async () => {
+    const stub = getStub("spine-compaction-2");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    // Seed a user message so the compaction entry has a valid parent.
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const msg = await (stub as any).spineAppendEntry(sessionId, {
+      type: "message",
+      data: { role: "user", content: "before-compact", timestamp: 1 },
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    await (stub as any).spineAppendEntry(sessionId, {
+      type: "compaction",
+      data: {
+        summary: "rolled up everything",
+        firstKeptEntryId: (msg as { id: string }).id,
+        tokensBefore: 42,
+      },
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const checkpoint = (await (stub as any).spineGetCompactionCheckpoint(sessionId)) as {
+      summary: string;
+      firstKeptEntryId: string;
+      tokensBefore: number;
+    };
+    expect(checkpoint.summary).toBe("rolled up everything");
+    expect(checkpoint.firstKeptEntryId).toBe((msg as { id: string }).id);
+    expect(checkpoint.tokensBefore).toBe(42);
+    client.close();
+  });
+});
+
+describe("spine bridge — schedule store (direct method)", () => {
+  it("spineScheduleCreate persists a schedule reachable via spineScheduleList", async () => {
+    const stub = getStub("spine-schedule-1");
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const created = (await (stub as any).spineScheduleCreate({
+      name: "bundle-scheduled",
+      cron: "*/5 * * * *",
+      handlerType: "prompt",
+      prompt: "tick",
+    })) as { id: string; name: string };
+    expect(created.id).toBeTruthy();
+    expect(created.name).toBe("bundle-scheduled");
+
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const list = (await (stub as any).spineScheduleList()) as Array<{ id: string }>;
+    expect(list.some((s) => s.id === created.id)).toBe(true);
+  });
+
+  it("spineScheduleUpdate mutates an existing schedule", async () => {
+    const stub = getStub("spine-schedule-2");
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const created = (await (stub as any).spineScheduleCreate({
+      name: "to-update",
+      cron: "* * * * *",
+      handlerType: "prompt",
+      prompt: "initial",
+    })) as { id: string };
+
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    await (stub as any).spineScheduleUpdate(created.id, { prompt: "updated-prompt" });
+
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const list = (await (stub as any).spineScheduleList()) as Array<{
+      id: string;
+      prompt: string | null;
+    }>;
+    const found = list.find((s) => s.id === created.id);
+    expect(found?.prompt).toBe("updated-prompt");
+  });
+
+  it("spineScheduleDelete removes a schedule", async () => {
+    const stub = getStub("spine-schedule-3");
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const created = (await (stub as any).spineScheduleCreate({
+      name: "to-delete",
+      cron: "* * * * *",
+      handlerType: "prompt",
+      prompt: "bye",
+    })) as { id: string };
+
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    await (stub as any).spineScheduleDelete(created.id);
+
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    const list = (await (stub as any).spineScheduleList()) as Array<{ id: string }>;
+    expect(list.some((s) => s.id === created.id)).toBe(false);
+  });
+});
+
+describe("spine bridge — alarm (direct method)", () => {
+  it("spineAlarmSet forwards an epoch-ms timestamp to the underlying scheduler", async () => {
+    const stub = getStub("spine-alarm-1");
+    // Pick a timestamp one hour from now. We don't have a way to read
+    // the DO's alarm directly from the test harness, but the call MUST
+    // succeed without throwing — which would expose a plumbing bug in
+    // `spineAlarmSet`'s Date conversion or the underlying scheduler.
+    const target = Date.now() + 60 * 60 * 1000;
+    // biome-ignore lint/suspicious/noExplicitAny: calling typed spine methods on a DO stub
+    await expect((stub as any).spineAlarmSet(target)).resolves.toBeUndefined();
+  });
+});

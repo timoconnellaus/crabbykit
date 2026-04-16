@@ -3533,6 +3533,60 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     return Array.from(entries.entries()).map(([key, value]) => ({ key, value }));
   }
 
+  /**
+   * Return the most recent compaction checkpoint for a session, or `null`
+   * if no compaction has occurred. Walks the session's entry chain from
+   * leaf to root looking for a `compaction` entry — mirrors the boundary
+   * detection logic in `SessionStore.buildContext`. Returns the
+   * `CompactionEntryData` shape (summary, firstKeptEntryId, tokensBefore).
+   */
+  spineGetCompactionCheckpoint(sessionId: string): unknown {
+    const entries = this.sessionStore.getEntries(sessionId);
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i];
+      if (entry.type === "compaction") {
+        return entry.data;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Create a schedule via the underlying `ScheduleStore`. Bundles pass a
+   * schedule config shaped like the store's `create` argument. The
+   * `SpineHost` interface widens the parameter to `unknown`; we narrow
+   * here at the boundary.
+   */
+  async spineScheduleCreate(schedule: unknown): Promise<unknown> {
+    return this.scheduleStore.create(
+      schedule as Parameters<ScheduleStore["create"]>[0],
+    );
+  }
+
+  async spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void> {
+    this.scheduleStore.update(
+      scheduleId,
+      patch as Parameters<ScheduleStore["update"]>[1],
+    );
+  }
+
+  async spineScheduleDelete(scheduleId: string): Promise<void> {
+    this.scheduleStore.delete(scheduleId);
+  }
+
+  async spineScheduleList(): Promise<unknown[]> {
+    return this.scheduleStore.list();
+  }
+
+  /**
+   * Set the DO alarm to fire at `timestamp` (epoch milliseconds). The
+   * `Scheduler` adapter interface expresses this as `setWakeTime(Date)`,
+   * so we convert from the spine wire format (epoch ms) here.
+   */
+  async spineAlarmSet(timestamp: number): Promise<void> {
+    await this.scheduler.setWakeTime(new Date(timestamp));
+  }
+
   // --- Client request/response ---
 
   private requestFromClient(
