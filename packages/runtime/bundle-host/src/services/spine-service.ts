@@ -1,12 +1,20 @@
 /**
- * SpineService — WorkerEntrypoint that bridges bundle async RPC to the host
- * DO's existing sync SessionStore, KvStore, Scheduler, and Transport.
+ * SpineService — stateless verify-and-forward bridge between bundle RPC
+ * callers and the host agent DO.
  *
  * Every method takes a sealed capability token as its first argument.
- * Identity (agentId, sessionId) is derived from the verified token payload.
- * No method accepts sessionId or agentId as a caller-supplied argument.
+ * Identity (agentId, sessionId, nonce) is derived from the verified
+ * token payload. No method accepts sessionId or agentId as a
+ * caller-supplied argument.
  *
- * Per-turn RPC budget enforcement prevents denial-of-service from a bundle.
+ * Per-turn RPC budget enforcement lives in `AgentRuntime` (the DO), NOT
+ * here. `SpineService` is a `WorkerEntrypoint` whose instance may not
+ * persist across RPC invocations — keeping the budget counter here would
+ * lose state on instance recycle and produce flaky cap enforcement. The
+ * DO has stable per-agent state for the full turn lifetime, so the
+ * tracker there is authoritative. SpineService's only remaining
+ * per-instance state is the HKDF subkey cache (pure crypto, no
+ * correctness implications if re-derived).
  *
  * Dispatch mechanism: SpineService calls public `spine*` methods directly
  * on a typed `DurableObjectStub<SpineHost>` via native DO method-call RPC.
@@ -17,19 +25,15 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import type { SpineHost } from "@claw-for-cloudflare/agent-runtime";
+import type { SpineCaller, SpineHost } from "@claw-for-cloudflare/agent-runtime";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
-import type { SpineBudgetConfig } from "../budget-tracker.js";
-import { BudgetTracker } from "../budget-tracker.js";
 
 // Re-export SpineHost so existing host-side consumers keep a stable
 // import path through the `bundle-host` barrel.
 export type { SpineHost };
 
 export const SPINE_SUBKEY_LABEL = "claw/spine-v1";
-
-export type { SpineBudgetConfig } from "../budget-tracker.js";
 
 // --- Error codes ---
 
@@ -66,20 +70,12 @@ export interface SpineEnv {
   AGENT_AUTH_KEY: string;
   /** DO namespace binding to reach the agent DO. */
   AGENT: DurableObjectNamespace;
-  /** Optional budget configuration. */
-  SPINE_BUDGET?: SpineBudgetConfig;
 }
 
 // --- SpineService ---
 
 export class SpineService extends WorkerEntrypoint<SpineEnv> {
-  private readonly budget: BudgetTracker;
   private subkeyPromise: Promise<CryptoKey> | null = null;
-
-  constructor(ctx: ExecutionContext, env: SpineEnv) {
-    super(ctx, env);
-    this.budget = new BudgetTracker(env.SPINE_BUDGET);
-  }
 
   // --- Token verification (shared by all methods) ---
 
@@ -107,14 +103,15 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
    * Replay protection is intentionally NOT enforced here: a single
    * per-turn token carries the bundle through many SpineService RPCs,
    * and a single-use nonce would cap a turn at exactly one spine op.
-   * The budget tracker (keyed by nonce) caps total calls per turn; the
+   * Budget enforcement (keyed by nonce) now lives on the DO side
+   * (`AgentRuntime.spineBudget`) — it caps total calls per turn; the
    * token's `exp` (default 60s) bounds the reuse window; `globalOutbound:
    * null` on the bundle isolate prevents token exfiltration.
    *
-   * The nonce stays in the payload for log correlation and is consumed
-   * once by `BudgetTracker` per call to increment its per-turn counter.
+   * The nonce stays in the payload for log correlation and is forwarded
+   * to the DO via the `SpineCaller` context object.
    */
-  private async verify(token: string): Promise<{ aid: string; sid: string; nonce: string }> {
+  private async verify(token: string): Promise<SpineCaller> {
     const subkey = await this.getSubkey();
     const result: VerifyOutcome = await verifyToken(token, subkey);
 
@@ -147,84 +144,63 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- Session store methods ---
 
   async appendEntry(token: string, entry: unknown): Promise<unknown> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineAppendEntry(sid, entry);
+      return await this.getHost(caller.aid).spineAppendEntry(caller, entry);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async getEntries(token: string, options?: unknown): Promise<unknown[]> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineGetEntries(sid, options);
+      return await this.getHost(caller.aid).spineGetEntries(caller, options);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async getSession(token: string): Promise<unknown> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineGetSession(sid);
+      return await this.getHost(caller.aid).spineGetSession(caller);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async createSession(token: string, init?: unknown): Promise<unknown> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineCreateSession(init);
+      return await this.getHost(caller.aid).spineCreateSession(caller, init);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async listSessions(token: string, filter?: unknown): Promise<unknown[]> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineListSessions(filter);
+      return await this.getHost(caller.aid).spineListSessions(caller, filter);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async buildContext(token: string): Promise<unknown> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineBuildContext(sid);
+      return await this.getHost(caller.aid).spineBuildContext(caller);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async getCompactionCheckpoint(token: string): Promise<unknown> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineGetCompactionCheckpoint(sid);
+      return await this.getHost(caller.aid).spineGetCompactionCheckpoint(caller);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -233,12 +209,9 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- KV store methods ---
 
   async kvGet(token: string, capabilityId: string, key: string): Promise<unknown> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "kv");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineKvGet(capabilityId, key);
+      return await this.getHost(caller.aid).spineKvGet(caller, capabilityId, key);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -251,36 +224,27 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     value: unknown,
     options?: unknown,
   ): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "kv");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineKvPut(capabilityId, key, value, options);
+      await this.getHost(caller.aid).spineKvPut(caller, capabilityId, key, value, options);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async kvDelete(token: string, capabilityId: string, key: string): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "kv");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineKvDelete(capabilityId, key);
+      await this.getHost(caller.aid).spineKvDelete(caller, capabilityId, key);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async kvList(token: string, capabilityId: string, prefix?: string): Promise<unknown[]> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "kv");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineKvList(capabilityId, prefix);
+      return await this.getHost(caller.aid).spineKvList(caller, capabilityId, prefix);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -289,60 +253,45 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- Scheduler methods ---
 
   async scheduleCreate(token: string, schedule: unknown): Promise<unknown> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "alarm");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineScheduleCreate(schedule);
+      return await this.getHost(caller.aid).spineScheduleCreate(caller, schedule);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async scheduleUpdate(token: string, scheduleId: string, patch: unknown): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "alarm");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineScheduleUpdate(scheduleId, patch);
+      await this.getHost(caller.aid).spineScheduleUpdate(caller, scheduleId, patch);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async scheduleDelete(token: string, scheduleId: string): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "alarm");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineScheduleDelete(scheduleId);
+      await this.getHost(caller.aid).spineScheduleDelete(caller, scheduleId);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async scheduleList(token: string): Promise<unknown[]> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "alarm");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      return await host.spineScheduleList();
+      return await this.getHost(caller.aid).spineScheduleList(caller);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async alarmSet(token: string, timestamp: number): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "alarm");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineAlarmSet(timestamp);
+      await this.getHost(caller.aid).spineAlarmSet(caller, timestamp);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -351,24 +300,18 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- Transport-out methods (send-only) ---
 
   async broadcast(token: string, event: unknown): Promise<void> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "broadcast");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineBroadcast(sid, event);
+      await this.getHost(caller.aid).spineBroadcast(caller, event);
     } catch (err) {
       throw this.sanitize(err);
     }
   }
 
   async broadcastGlobal(token: string, event: unknown): Promise<void> {
-    const { aid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "broadcast");
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineBroadcastGlobal(event);
+      await this.getHost(caller.aid).spineBroadcastGlobal(caller, event);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -377,12 +320,9 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- Cost emission ---
 
   async emitCost(token: string, costEvent: unknown): Promise<void> {
-    const { aid, sid, nonce } = await this.verify(token);
-    this.budget.check(nonce, "sql"); // cost emission appends a session entry
-
+    const caller = await this.verify(token);
     try {
-      const host = this.getHost(aid);
-      await host.spineEmitCost(sid, costEvent);
+      await this.getHost(caller.aid).spineEmitCost(caller, costEvent);
     } catch (err) {
       throw this.sanitize(err);
     }
