@@ -22,6 +22,7 @@ import { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
 import { type AgentDelegate, createDelegatingRuntime } from "./runtime-delegating.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import type { Schedule } from "./scheduling/types.js";
+import type { SpineHost } from "./spine-host.js";
 import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import { CfWebSocketTransport } from "./transport/cloudflare.js";
 
@@ -813,10 +814,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
 export type { CompactionConfig } from "./agent-runtime.js";
 
-// SpineHost is the nominal contract that `bundle-host`'s `SpineService`
-// consumes. The host DO implements the contract via the internal
-// `/spine/*` HTTP route table in `agent-runtime.ts` (see the
-// `handleSpineRequest` switch statement) rather than as direct methods,
-// so a structural `const _check: SpineHost = new AgentDO(...)` would
-// not compile. The drift check lives in `bundle-host`'s integration
-// tests, which exercise every route end-to-end.
+// Compile-time assertion that `AgentDO` structurally satisfies
+// `SpineHost`. If this line fails to compile, a spine method has been
+// added, removed, renamed, or had its signature changed on `SpineHost`
+// without a corresponding change on `AgentDO` / `AgentRuntime`. Fix
+// the drift at the call site — do not weaken this check. The function
+// form (rather than `const x: SpineHost = y`) sidesteps the class's
+// generic parameter: we want to assert that *every* `AgentDO<TEnv>`
+// instance satisfies the interface, regardless of `TEnv`.
+//
+// biome-ignore lint/correctness/noUnusedVariables: compile-time check only
+const _spineHostAssertion: (x: AgentDO<unknown>) => SpineHost = (x) => x;
