@@ -14,6 +14,7 @@ import type {
   BundleMetadata,
   BundleModelConfig,
 } from "./types.js";
+import { validateRequirements } from "./validate.js";
 
 /**
  * Create a bundle brain. Returns a fetch-handler default export that the
@@ -32,7 +33,15 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
   const resolveModel = (): BundleModelConfig =>
     typeof setup.model === "function" ? setup.model() : setup.model;
 
-  const metadata: BundleMetadata = setup.metadata ?? {};
+  // Validate `requiredCapabilities` at build time so malformed declarations
+  // surface at `workshop_build` instead of at deploy/dispatch. Empty or
+  // undefined declarations round-trip as `undefined` in metadata so legacy
+  // bundles without a declaration remain byte-compatible.
+  const validated = validateRequirements(setup.requiredCapabilities);
+
+  const baseMetadata: BundleMetadata = setup.metadata ?? {};
+  const metadata: BundleMetadata =
+    validated.length > 0 ? { ...baseMetadata, requiredCapabilities: validated } : baseMetadata;
 
   return {
     async fetch(request: Request, env: TEnv & BundleEnv): Promise<Response> {

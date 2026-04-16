@@ -100,6 +100,27 @@ export interface BundleModelConfig {
  */
 export type { PromptOptions as BundlePromptOptions } from "./prompt/types.js";
 
+// --- Bundle capability requirement ---
+
+/**
+ * Declaration that a bundle requires a specific host-side capability.
+ *
+ * The `id` field matches a host-registered `Capability.id` (kebab-case,
+ * 2..64 chars). Declarations are persisted into {@link BundleMetadata}
+ * and validated against the host's registered capabilities at
+ * `BundleRegistry.setActive` time (primary) and dispatch-time (backup).
+ *
+ * Declared requirements are a build-time-static contract — they must be
+ * extractable from the bundle's metadata without running any bundle code.
+ * Contrast with {@link BundleAgentSetup.capabilities}, the runtime factory
+ * that needs `env` to construct bundle-side capability instances.
+ */
+export interface BundleCapabilityRequirement {
+  /** Capability id, must match a host-registered capability's id.
+   *  Kebab-case, charset `/^[a-z][a-z0-9-]*[a-z0-9]$/`, 2..64 chars. */
+  id: string;
+}
+
 // --- Bundle metadata ---
 
 export interface BundleMetadata {
@@ -111,6 +132,15 @@ export interface BundleMetadata {
   authoredBy?: string;
   version?: string;
   buildTimestamp?: number;
+  /**
+   * Host-side capabilities this bundle requires to be bound in the host
+   * worker's env. Populated by {@link defineBundleAgent} from
+   * `setup.requiredCapabilities` after build-time input validation.
+   *
+   * Consumers needing only the id projection can call
+   * `meta.requiredCapabilities?.map(r => r.id) ?? []` at the call site.
+   */
+  requiredCapabilities?: BundleCapabilityRequirement[];
 }
 
 // --- Bundle setup (input to defineBundleAgent) ---
@@ -132,9 +162,29 @@ export interface BundleAgentSetup<TEnv extends BundleEnv = BundleEnv> {
   tools?: (env: TEnv) => unknown[];
 
   /**
-   * Capability factories for this bundle's brain.
+   * Capability factories for this bundle's brain. Runtime factory —
+   * evaluated inside the bundle isolate when the bundle boots, with
+   * access to the bundle's projected `env`. Produces bundle-side
+   * capability instances (e.g. `tavilyClient({ service: env.TAVILY })`).
+   *
+   * Phase-incompatible with {@link BundleAgentSetup.requiredCapabilities},
+   * which is a build-time-static declaration extracted into metadata
+   * without running any bundle code.
    */
   capabilities?: (env: TEnv) => BundleCapability[];
+
+  /**
+   * Host-side capabilities this bundle requires. Build-time-static
+   * declaration — extractable from metadata without running any bundle
+   * code. Validated against the host's registered capabilities at
+   * `BundleRegistry.setActive` time (promotion rejected on mismatch) and
+   * at dispatch time (pointer cleared on mismatch).
+   *
+   * Phase-incompatible with {@link BundleAgentSetup.capabilities}, the
+   * runtime factory that needs `env` to construct bundle-side capability
+   * instances.
+   */
+  requiredCapabilities?: BundleCapabilityRequirement[];
 
   /**
    * Optional metadata about this bundle.

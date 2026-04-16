@@ -38,6 +38,7 @@ export type {
   BundleAgentSetup,
   BundleCapability,
   BundleCapabilityHooks,
+  BundleCapabilityRequirement,
   BundleContext,
   BundleCostEvent,
   BundleEnv,
@@ -52,3 +53,4 @@ export type {
   BundleSessionChannel,
   BundleSessionStoreClient,
 } from "./types.js";
+export { validateRequirements } from "./validate.js";
