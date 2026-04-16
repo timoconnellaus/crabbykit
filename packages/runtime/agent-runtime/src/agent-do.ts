@@ -815,13 +815,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 export type { CompactionConfig } from "./agent-runtime.js";
 
 // Compile-time assertion that `AgentDO` structurally satisfies
-// `SpineHost`. If this line fails to compile, a spine method has been
-// added, removed, renamed, or had its signature changed on `SpineHost`
+// `SpineHost`. If this type alias fails to resolve (or the helper
+// function below fails to type-check), a spine method has been added,
+// removed, renamed, or had its signature changed on `SpineHost`
 // without a corresponding change on `AgentDO` / `AgentRuntime`. Fix
-// the drift at the call site — do not weaken this check. The function
-// form (rather than `const x: SpineHost = y`) sidesteps the class's
-// generic parameter: we want to assert that *every* `AgentDO<TEnv>`
-// instance satisfies the interface, regardless of `TEnv`.
+// the drift at the call site — do not weaken this check. The helper
+// is exported under a `_` prefix so downstream packages compiled with
+// `noUnusedLocals: true` don't trip on an unused local — it also
+// doubles as a doc-visible "this is a static guard" marker.
 //
-// biome-ignore lint/correctness/noUnusedVariables: compile-time check only
-const _spineHostAssertion: (x: AgentDO<unknown>) => SpineHost = (x) => x;
+// We use a generic helper rather than `const x: SpineHost = y` so the
+// assertion applies to *every* `AgentDO<TEnv>` instance regardless of
+// `TEnv`; the class's generic parameter would otherwise need a
+// concrete substitution.
+export function _assertSpineHost<TEnv>(x: AgentDO<TEnv>): SpineHost {
+  return x;
+}
