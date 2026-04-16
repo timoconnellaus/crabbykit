@@ -61,32 +61,45 @@ export interface SpineCaller {
 }
 
 export interface SpineHost extends Rpc.DurableObjectBranded {
-  // Session store (sync on DO side)
-  spineAppendEntry(sessionId: string, entry: unknown): unknown;
-  spineGetEntries(sessionId: string, options?: unknown): unknown[];
-  spineGetSession(sessionId: string): unknown;
-  spineCreateSession(init?: unknown): unknown;
-  spineListSessions(filter?: unknown): unknown[];
-  spineBuildContext(sessionId: string): unknown;
-  spineGetCompactionCheckpoint(sessionId: string): unknown;
+  // Session store
+  //
+  // Every method is async so the implementation can uniformly route its
+  // body through `AgentRuntime.withSpineBudget(...)` — the budget check
+  // happens atomically with the work, and the call pattern matches the
+  // KV / scheduler methods which were already async. Methods whose
+  // underlying subsystem is synchronous (SessionStore) simply resolve
+  // with the sync result.
+  spineAppendEntry(caller: SpineCaller, entry: unknown): Promise<unknown>;
+  spineGetEntries(caller: SpineCaller, options?: unknown): Promise<unknown[]>;
+  spineGetSession(caller: SpineCaller): Promise<unknown>;
+  spineCreateSession(caller: SpineCaller, init?: unknown): Promise<unknown>;
+  spineListSessions(caller: SpineCaller, filter?: unknown): Promise<unknown[]>;
+  spineBuildContext(caller: SpineCaller): Promise<unknown>;
+  spineGetCompactionCheckpoint(caller: SpineCaller): Promise<unknown>;
 
-  // KV store (async on DO side)
-  spineKvGet(capabilityId: string, key: string): Promise<unknown>;
-  spineKvPut(capabilityId: string, key: string, value: unknown, options?: unknown): Promise<void>;
-  spineKvDelete(capabilityId: string, key: string): Promise<void>;
-  spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]>;
+  // KV store
+  spineKvGet(caller: SpineCaller, capabilityId: string, key: string): Promise<unknown>;
+  spineKvPut(
+    caller: SpineCaller,
+    capabilityId: string,
+    key: string,
+    value: unknown,
+    options?: unknown,
+  ): Promise<void>;
+  spineKvDelete(caller: SpineCaller, capabilityId: string, key: string): Promise<void>;
+  spineKvList(caller: SpineCaller, capabilityId: string, prefix?: string): Promise<unknown[]>;
 
   // Scheduler
-  spineScheduleCreate(schedule: unknown): Promise<unknown>;
-  spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void>;
-  spineScheduleDelete(scheduleId: string): Promise<void>;
-  spineScheduleList(): Promise<unknown[]>;
-  spineAlarmSet(timestamp: number): Promise<void>;
+  spineScheduleCreate(caller: SpineCaller, schedule: unknown): Promise<unknown>;
+  spineScheduleUpdate(caller: SpineCaller, scheduleId: string, patch: unknown): Promise<void>;
+  spineScheduleDelete(caller: SpineCaller, scheduleId: string): Promise<void>;
+  spineScheduleList(caller: SpineCaller): Promise<unknown[]>;
+  spineAlarmSet(caller: SpineCaller, timestamp: number): Promise<void>;
 
-  // Transport (sync broadcast on DO side)
-  spineBroadcast(sessionId: string, event: unknown): void;
-  spineBroadcastGlobal(event: unknown): void;
+  // Transport (broadcast)
+  spineBroadcast(caller: SpineCaller, event: unknown): Promise<void>;
+  spineBroadcastGlobal(caller: SpineCaller, event: unknown): Promise<void>;
 
   // Cost emission
-  spineEmitCost(sessionId: string, costEvent: unknown): void;
+  spineEmitCost(caller: SpineCaller, costEvent: unknown): Promise<void>;
 }

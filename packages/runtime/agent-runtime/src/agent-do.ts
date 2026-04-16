@@ -22,7 +22,7 @@ import { createCfRuntimeContext } from "./runtime-context-cloudflare.js";
 import { type AgentDelegate, createDelegatingRuntime } from "./runtime-delegating.js";
 import { createCfScheduler } from "./scheduling/cloudflare-scheduler.js";
 import type { Schedule } from "./scheduling/types.js";
-import type { SpineHost } from "./spine-host.js";
+import type { SpineCaller, SpineHost } from "./spine-host.js";
 import { createCfKvStore, createCfSqlStore } from "./storage/cloudflare.js";
 import { CfWebSocketTransport } from "./transport/cloudflare.js";
 
@@ -215,91 +215,98 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
   // implementation. Keeping the forwarders here (rather than only on the
   // runtime) is what makes `AgentDO` structurally satisfy `SpineHost` —
   // the DO stub RPC surface only sees methods declared on the DO class.
+  //
+  // Every method takes a `SpineCaller` context as its first argument —
+  // a trusted `{aid, sid, nonce}` object constructed by SpineService from
+  // a verified capability token. Budget enforcement happens inside the
+  // runtime's `withSpineBudget` helper; the forwarders just pass through.
 
   spineAppendEntry(
-    sessionId: string,
+    caller: SpineCaller,
     entry: Parameters<AgentRuntime<TEnv>["spineAppendEntry"]>[1],
-  ): unknown {
-    return this.runtime.spineAppendEntry(sessionId, entry);
+  ): Promise<unknown> {
+    return this.runtime.spineAppendEntry(caller, entry);
   }
 
-  spineGetEntries(sessionId: string, options?: unknown): unknown[] {
-    return this.runtime.spineGetEntries(sessionId, options);
+  spineGetEntries(caller: SpineCaller, options?: unknown): Promise<unknown[]> {
+    return this.runtime.spineGetEntries(caller, options);
   }
 
-  spineGetSession(sessionId: string): unknown {
-    return this.runtime.spineGetSession(sessionId);
+  spineGetSession(caller: SpineCaller): Promise<unknown> {
+    return this.runtime.spineGetSession(caller);
   }
 
   spineCreateSession(
-    init?: Parameters<AgentRuntime<TEnv>["spineCreateSession"]>[0],
-  ): unknown {
-    return this.runtime.spineCreateSession(init);
+    caller: SpineCaller,
+    init?: Parameters<AgentRuntime<TEnv>["spineCreateSession"]>[1],
+  ): Promise<unknown> {
+    return this.runtime.spineCreateSession(caller, init);
   }
 
-  spineListSessions(filter?: unknown): unknown[] {
-    return this.runtime.spineListSessions(filter);
+  spineListSessions(caller: SpineCaller, filter?: unknown): Promise<unknown[]> {
+    return this.runtime.spineListSessions(caller, filter);
   }
 
-  spineBuildContext(sessionId: string): unknown {
-    return this.runtime.spineBuildContext(sessionId);
+  spineBuildContext(caller: SpineCaller): Promise<unknown> {
+    return this.runtime.spineBuildContext(caller);
   }
 
-  spineGetCompactionCheckpoint(sessionId: string): unknown {
-    return this.runtime.spineGetCompactionCheckpoint(sessionId);
+  spineGetCompactionCheckpoint(caller: SpineCaller): Promise<unknown> {
+    return this.runtime.spineGetCompactionCheckpoint(caller);
   }
 
-  spineKvGet(capabilityId: string, key: string): Promise<unknown> {
-    return this.runtime.spineKvGet(capabilityId, key);
+  spineKvGet(caller: SpineCaller, capabilityId: string, key: string): Promise<unknown> {
+    return this.runtime.spineKvGet(caller, capabilityId, key);
   }
 
   spineKvPut(
+    caller: SpineCaller,
     capabilityId: string,
     key: string,
     value: unknown,
     options?: unknown,
   ): Promise<void> {
-    return this.runtime.spineKvPut(capabilityId, key, value, options);
+    return this.runtime.spineKvPut(caller, capabilityId, key, value, options);
   }
 
-  spineKvDelete(capabilityId: string, key: string): Promise<void> {
-    return this.runtime.spineKvDelete(capabilityId, key);
+  spineKvDelete(caller: SpineCaller, capabilityId: string, key: string): Promise<void> {
+    return this.runtime.spineKvDelete(caller, capabilityId, key);
   }
 
-  spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]> {
-    return this.runtime.spineKvList(capabilityId, prefix);
+  spineKvList(caller: SpineCaller, capabilityId: string, prefix?: string): Promise<unknown[]> {
+    return this.runtime.spineKvList(caller, capabilityId, prefix);
   }
 
-  spineScheduleCreate(schedule: unknown): Promise<unknown> {
-    return this.runtime.spineScheduleCreate(schedule);
+  spineScheduleCreate(caller: SpineCaller, schedule: unknown): Promise<unknown> {
+    return this.runtime.spineScheduleCreate(caller, schedule);
   }
 
-  spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void> {
-    return this.runtime.spineScheduleUpdate(scheduleId, patch);
+  spineScheduleUpdate(caller: SpineCaller, scheduleId: string, patch: unknown): Promise<void> {
+    return this.runtime.spineScheduleUpdate(caller, scheduleId, patch);
   }
 
-  spineScheduleDelete(scheduleId: string): Promise<void> {
-    return this.runtime.spineScheduleDelete(scheduleId);
+  spineScheduleDelete(caller: SpineCaller, scheduleId: string): Promise<void> {
+    return this.runtime.spineScheduleDelete(caller, scheduleId);
   }
 
-  spineScheduleList(): Promise<unknown[]> {
-    return this.runtime.spineScheduleList();
+  spineScheduleList(caller: SpineCaller): Promise<unknown[]> {
+    return this.runtime.spineScheduleList(caller);
   }
 
-  spineAlarmSet(timestamp: number): Promise<void> {
-    return this.runtime.spineAlarmSet(timestamp);
+  spineAlarmSet(caller: SpineCaller, timestamp: number): Promise<void> {
+    return this.runtime.spineAlarmSet(caller, timestamp);
   }
 
-  spineBroadcast(sessionId: string, event: unknown): void {
-    this.runtime.spineBroadcast(sessionId, event);
+  spineBroadcast(caller: SpineCaller, event: unknown): Promise<void> {
+    return this.runtime.spineBroadcast(caller, event);
   }
 
-  spineBroadcastGlobal(event: unknown): void {
-    this.runtime.spineBroadcastGlobal(event);
+  spineBroadcastGlobal(caller: SpineCaller, event: unknown): Promise<void> {
+    return this.runtime.spineBroadcastGlobal(caller, event);
   }
 
-  spineEmitCost(sessionId: string, costEvent: unknown): void {
-    this.runtime.spineEmitCost(sessionId, costEvent);
+  spineEmitCost(caller: SpineCaller, costEvent: unknown): Promise<void> {
+    return this.runtime.spineEmitCost(caller, costEvent);
   }
 
   // --- Protected getters/setters that forward to the composed runtime ---

@@ -3381,75 +3381,97 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   }
 
   spineAppendEntry(
-    sessionId: string,
+    caller: SpineCaller,
     entry: { type: SessionEntryType; data: Record<string, unknown> },
-  ): unknown {
-    return this.sessionStore.appendEntry(sessionId, entry);
+  ): Promise<unknown> {
+    return this.withSpineBudget(caller, "sql", () =>
+      this.sessionStore.appendEntry(caller.sid, entry),
+    );
   }
 
-  spineGetEntries(sessionId: string, _options?: unknown): unknown[] {
-    return this.sessionStore.getEntries(sessionId);
+  spineGetEntries(caller: SpineCaller, _options?: unknown): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.getEntries(caller.sid));
   }
 
-  spineGetSession(sessionId: string): unknown {
-    return this.sessionStore.get(sessionId);
+  spineGetSession(caller: SpineCaller): Promise<unknown> {
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.get(caller.sid));
   }
 
-  spineCreateSession(init?: { name?: string; source?: string; sender?: string }): unknown {
-    return this.sessionStore.create(init);
+  spineCreateSession(
+    caller: SpineCaller,
+    init?: { name?: string; source?: string; sender?: string },
+  ): Promise<unknown> {
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.create(init));
   }
 
-  spineListSessions(_filter?: unknown): unknown[] {
-    return this.sessionStore.list();
+  spineListSessions(caller: SpineCaller, _filter?: unknown): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.list());
   }
 
-  spineBuildContext(sessionId: string): unknown {
-    return this.sessionStore.buildContext(sessionId);
+  spineBuildContext(caller: SpineCaller): Promise<unknown> {
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.buildContext(caller.sid));
   }
 
-  spineBroadcast(sessionId: string, event: unknown): void {
-    // Stamp sessionId from the verified token payload — bundles cannot
-    // target another session's transport even if they tried to forge one
-    // into the event body.
-    const msg = {
-      ...(event as Record<string, unknown>),
-      sessionId,
-    } as unknown as ServerMessage;
-    this.broadcastToSession(sessionId, msg);
+  spineBroadcast(caller: SpineCaller, event: unknown): Promise<void> {
+    return this.withSpineBudget(caller, "broadcast", () => {
+      // Stamp sessionId from the verified token payload — bundles cannot
+      // target another session's transport even if they tried to forge one
+      // into the event body.
+      const msg = {
+        ...(event as Record<string, unknown>),
+        sessionId: caller.sid,
+      } as unknown as ServerMessage;
+      this.broadcastToSession(caller.sid, msg);
+    });
   }
 
-  spineBroadcastGlobal(event: unknown): void {
-    this.transport.broadcast(event as unknown as ServerMessage);
+  spineBroadcastGlobal(caller: SpineCaller, event: unknown): Promise<void> {
+    return this.withSpineBudget(caller, "broadcast", () => {
+      this.transport.broadcast(event as unknown as ServerMessage);
+    });
   }
 
-  spineEmitCost(sessionId: string, costEvent: unknown): void {
-    this.handleCostEvent(costEvent as CostEvent, sessionId);
+  spineEmitCost(caller: SpineCaller, costEvent: unknown): Promise<void> {
+    // Cost emission appends a session entry via handleCostEvent — counts
+    // against the `sql` bucket to match pre-change SpineService accounting.
+    return this.withSpineBudget(caller, "sql", () => {
+      this.handleCostEvent(costEvent as CostEvent, caller.sid);
+    });
   }
 
-  async spineKvGet(capabilityId: string, key: string): Promise<unknown> {
-    const storage = createCapabilityStorage(this.kvStore, capabilityId);
-    return storage.get(key);
+  spineKvGet(caller: SpineCaller, capabilityId: string, key: string): Promise<unknown> {
+    return this.withSpineBudget(caller, "kv", () => {
+      const storage = createCapabilityStorage(this.kvStore, capabilityId);
+      return storage.get(key);
+    });
   }
 
-  async spineKvPut(
+  spineKvPut(
+    caller: SpineCaller,
     capabilityId: string,
     key: string,
     value: unknown,
     _options?: unknown,
   ): Promise<void> {
-    const storage = createCapabilityStorage(this.kvStore, capabilityId);
-    await storage.put(key, value);
+    return this.withSpineBudget(caller, "kv", async () => {
+      const storage = createCapabilityStorage(this.kvStore, capabilityId);
+      await storage.put(key, value);
+    });
   }
 
-  async spineKvDelete(capabilityId: string, key: string): Promise<void> {
-    const storage = createCapabilityStorage(this.kvStore, capabilityId);
-    await storage.delete(key);
+  spineKvDelete(caller: SpineCaller, capabilityId: string, key: string): Promise<void> {
+    return this.withSpineBudget(caller, "kv", async () => {
+      const storage = createCapabilityStorage(this.kvStore, capabilityId);
+      await storage.delete(key);
+    });
   }
 
-  async spineKvList(capabilityId: string, prefix?: string): Promise<unknown[]> {
-    const storage = createCapabilityStorage(this.kvStore, capabilityId);
-    const entries = await storage.list(prefix);
-    return Array.from(entries.entries()).map(([key, value]) => ({ key, value }));
+  spineKvList(caller: SpineCaller, capabilityId: string, prefix?: string): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "kv", async () => {
+      const storage = createCapabilityStorage(this.kvStore, capabilityId);
+      const entries = await storage.list(prefix);
+      return Array.from(entries.entries()).map(([key, value]) => ({ key, value }));
+    });
   }
 
   /**
@@ -3459,15 +3481,17 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * detection logic in `SessionStore.buildContext`. Returns the
    * `CompactionEntryData` shape (summary, firstKeptEntryId, tokensBefore).
    */
-  spineGetCompactionCheckpoint(sessionId: string): unknown {
-    const entries = this.sessionStore.getEntries(sessionId);
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const entry = entries[i];
-      if (entry.type === "compaction") {
-        return entry.data;
+  spineGetCompactionCheckpoint(caller: SpineCaller): Promise<unknown> {
+    return this.withSpineBudget(caller, "sql", () => {
+      const entries = this.sessionStore.getEntries(caller.sid);
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const entry = entries[i];
+        if (entry.type === "compaction") {
+          return entry.data;
+        }
       }
-    }
-    return null;
+      return null;
+    });
   }
 
   /**
@@ -3476,25 +3500,30 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * `SpineHost` interface widens the parameter to `unknown`; we narrow
    * here at the boundary.
    */
-  async spineScheduleCreate(schedule: unknown): Promise<unknown> {
-    return this.scheduleStore.create(
-      schedule as Parameters<ScheduleStore["create"]>[0],
+  spineScheduleCreate(caller: SpineCaller, schedule: unknown): Promise<unknown> {
+    return this.withSpineBudget(caller, "alarm", () =>
+      this.scheduleStore.create(schedule as Parameters<ScheduleStore["create"]>[0]),
     );
   }
 
-  async spineScheduleUpdate(scheduleId: string, patch: unknown): Promise<void> {
-    this.scheduleStore.update(
-      scheduleId,
-      patch as Parameters<ScheduleStore["update"]>[1],
-    );
+  spineScheduleUpdate(
+    caller: SpineCaller,
+    scheduleId: string,
+    patch: unknown,
+  ): Promise<void> {
+    return this.withSpineBudget(caller, "alarm", () => {
+      this.scheduleStore.update(scheduleId, patch as Parameters<ScheduleStore["update"]>[1]);
+    });
   }
 
-  async spineScheduleDelete(scheduleId: string): Promise<void> {
-    this.scheduleStore.delete(scheduleId);
+  spineScheduleDelete(caller: SpineCaller, scheduleId: string): Promise<void> {
+    return this.withSpineBudget(caller, "alarm", () => {
+      this.scheduleStore.delete(scheduleId);
+    });
   }
 
-  async spineScheduleList(): Promise<unknown[]> {
-    return this.scheduleStore.list();
+  spineScheduleList(caller: SpineCaller): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "alarm", () => this.scheduleStore.list());
   }
 
   /**
@@ -3502,8 +3531,10 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * `Scheduler` adapter interface expresses this as `setWakeTime(Date)`,
    * so we convert from the spine wire format (epoch ms) here.
    */
-  async spineAlarmSet(timestamp: number): Promise<void> {
-    await this.scheduler.setWakeTime(new Date(timestamp));
+  spineAlarmSet(caller: SpineCaller, timestamp: number): Promise<void> {
+    return this.withSpineBudget(caller, "alarm", async () => {
+      await this.scheduler.setWakeTime(new Date(timestamp));
+    });
   }
 
   // --- Client request/response ---
