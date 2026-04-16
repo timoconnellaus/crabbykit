@@ -840,6 +840,10 @@ export type { CompactionConfig } from "./agent-runtime.js";
 // `noUnusedLocals: true` don't trip on an unused local — it also
 // doubles as a doc-visible "this is a static guard" marker.
 //
+// Every spine method takes `SpineCaller` as its first argument —
+// the assertion catches both missing methods and argument-shape drift
+// (e.g. forgetting to add the `caller` parameter on a new method).
+//
 // We use a generic helper rather than `const x: SpineHost = y` so the
 // assertion applies to *every* `AgentDO<TEnv>` instance regardless of
 // `TEnv`; the class's generic parameter would otherwise need a
