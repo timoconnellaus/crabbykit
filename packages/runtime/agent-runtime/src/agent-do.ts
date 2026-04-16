@@ -206,6 +206,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     this.cfTransport.handleClose(ws);
   }
 
+  /**
+   * Returns the host's registered capability ids, used by the bundle
+   * catalog validation paths. Delegates to the runtime; exposed on the DO
+   * so subclasses and the `initBundleDispatch` wiring can read it without
+   * reaching into the runtime directly.
+   */
+  getBundleHostCapabilityIds(): string[] {
+    return this.runtime.getBundleHostCapabilityIds();
+  }
+
   // --- Spine host surface ---
   //
   // Public forwarders that expose every `SpineHost` method on the DO's RPC

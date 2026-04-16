@@ -566,6 +566,18 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   }
 
   /**
+   * Returns the host's registered capability ids for bundle catalog
+   * validation. Deduplicated, in registration order. Used by
+   * `BundleRegistry.setActive` (passed as `knownCapabilityIds`) and by
+   * the dispatch-time guard in `BundleDispatcher` / the inline dispatch
+   * path in `AgentDO.initBundleDispatch` to enforce that bundles do not
+   * declare capabilities the host has not bound.
+   */
+  getBundleHostCapabilityIds(): string[] {
+    return Array.from(new Set(this.getCachedCapabilities().map((c) => c.id)));
+  }
+
+  /**
    * Override to register subagent spawn modes. Each mode describes a
    * named scoped view of the agent that can be used to spawn a child
    * subagent via `call_subagent` / `start_subagent`. Shares the same
