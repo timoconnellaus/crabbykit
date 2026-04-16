@@ -126,6 +126,7 @@ describe("bundle spine bridge: appendEntry", () => {
 describe("bundle spine bridge: token verification", () => {
   let spine: SpineService;
   let agentId: string;
+  let stub: DurableObjectStub;
 
   beforeEach(() => {
     resetTestBundleHolders();
@@ -135,9 +136,25 @@ describe("bundle spine bridge: token verification", () => {
     setTestBundleRegistry(registry);
     setTestBundleLoader(makeFakeWorkerLoader());
     spine = makeRealSpineService();
-    const { agentId: aid } = getBundleStubAndId("spine-verify");
-    agentId = aid;
+    const handle = getBundleStubAndId("spine-verify");
+    agentId = handle.agentId;
+    stub = handle.stub;
   });
+
+  /**
+   * Create a real session on the DO via the spine method surface and
+   * return its id. Callers mint tokens bound to this id so subsequent
+   * `spine.appendEntry` calls reach a session the DO actually knows
+   * about — matching production, where the bundle prompt handler mints
+   * tokens tied to the session it was called for.
+   */
+  async function createRealSession(): Promise<string> {
+    // biome-ignore lint/suspicious/noExplicitAny: direct DO stub method call
+    const session = (await (stub as any).spineCreateSession({
+      name: "bundle-spine-bridge-test",
+    })) as { id: string };
+    return session.id;
+  }
 
   it("bad (tampered) token is rejected with ERR_BAD_TOKEN", async () => {
     // Mint a valid token under the spine subkey, then flip a character
@@ -175,8 +192,15 @@ describe("bundle spine bridge: token verification", () => {
     // per-turn budget. A bundle MUST be able to make many spine calls
     // with the same token. Replay protection still exists via token
     // `exp` (default 60s) and `globalOutbound: null` on the isolate.
+    //
+    // Direct-method dispatch propagates DO exceptions faithfully — so
+    // we need a REAL sessionId backed by a session the DO knows about,
+    // not a synthetic `"fake-session"` that would trip `sessionStore
+    // .appendEntry`'s "Session not found" guard. Create one via the
+    // spine surface itself.
+    const sessionId = await createRealSession();
     const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const token = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
+    const token = await mintToken({ agentId, sessionId }, subkey);
 
     // Three successive calls with the same token succeed.
     for (let i = 0; i < 3; i++) {
@@ -190,8 +214,9 @@ describe("bundle spine bridge: token verification", () => {
   it("budget cap fires on the 101st SQL op within the same turn (same token)", async () => {
     // With nonce reusable, the per-turn budget (100 SQL ops by default)
     // is the real spam brake. Hit it.
+    const sessionId = await createRealSession();
     const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const token = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
+    const token = await mintToken({ agentId, sessionId }, subkey);
 
     for (let i = 0; i < 100; i++) {
       await spine.appendEntry(token, {
