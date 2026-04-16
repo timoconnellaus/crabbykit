@@ -38,8 +38,9 @@ describe("Client Types", () => {
         capability_state: true,
         mode_event: true,
         pong: true,
+        bundle_disabled: true,
       };
-      expect(Object.keys(handlers)).toHaveLength(13);
+      expect(Object.keys(handlers)).toHaveLength(14);
     });
 
     it("discriminates client messages by type", () => {

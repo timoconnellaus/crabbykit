@@ -207,6 +207,7 @@ export type { Transport, TransportConnection } from "./transport/transport.js";
 export type {
   AbortMessage,
   AgentEventMessage,
+  BundleDisabledMessage,
   CapabilityActionMessage,
   CapabilityStateMessage,
   ClientMessage,

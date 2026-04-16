@@ -45,3 +45,11 @@ export type { InferRequest, InferResponse, LlmEnv } from "./services/llm-service
 export { LlmService } from "./services/llm-service.js";
 export type { SpineEnv, SpineErrorCode, SpineHost } from "./services/spine-service.js";
 export { SpineError, SpineService } from "./services/spine-service.js";
+// Re-export catalog validation helper + error class so consumers that
+// already depend on bundle-host (e.g. agent-runtime) don't need an
+// additional workspace edge to bundle-registry just for the guard.
+export {
+  validateCatalogAgainstKnownIds,
+  type CapabilityRequirementLike,
+  type CatalogValidationResult,
+} from "@claw-for-cloudflare/bundle-registry";

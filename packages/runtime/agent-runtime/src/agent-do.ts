@@ -495,6 +495,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     let consecutiveFailures = 0;
     let spineSubkeyPromise: Promise<CryptoKey> | null = null;
     let llmSubkeyPromise: Promise<CryptoKey> | null = null;
+    // Last active version id whose catalog we validated against the
+    // current host. Resets on pointer change (bundlePointerRefresher,
+    // catalog-mismatch disable) and on cold start (new DO instance).
+    // Used by the dispatch-time guard to short-circuit revalidation in
+    // the steady state. See Phase 5 in
+    // openspec/changes/define-bundle-capability-catalog/.
+    let validatedVersionId: string | null = null;
 
     const getSpineSubkey = async (): Promise<CryptoKey> => {
       if (!spineSubkeyPromise) {
@@ -526,6 +533,87 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       const id = await registry.getActiveForAgent(agentId);
       await ctx.storage.put("activeBundleVersionId", id);
       return id;
+    };
+
+    /**
+     * Dispatch-time catalog guard. When the active version id differs
+     * from the dispatcher's last-validated id (pointer changed, cold
+     * start, out-of-band write), read the version metadata and compare
+     * declared `requiredCapabilities` against the host's registered
+     * capability set. Returns `{ valid: true }` when the declaration is
+     * empty/undefined or the host satisfies it; otherwise the caller
+     * routes through `disableForCatalogMismatch`.
+     *
+     * Registry implementations without `getVersion` (narrow read-only
+     * stubs) short-circuit to valid — matches legacy behavior for
+     * bundles that cannot introspect metadata.
+     */
+    const validateCatalogCached = async (
+      versionId: string,
+    ): Promise<{ valid: true } | { valid: false; missingIds: string[] }> => {
+      const { validateCatalogAgainstKnownIds } = await import(
+        "@claw-for-cloudflare/bundle-host"
+      );
+      if (!registry.getVersion) {
+        validatedVersionId = versionId;
+        return { valid: true };
+      }
+      const version = await registry.getVersion(versionId);
+      const required = version?.metadata?.requiredCapabilities;
+      const knownIds = new Set(this.getBundleHostCapabilityIds());
+      const result = validateCatalogAgainstKnownIds(required, knownIds);
+      if (result.valid) {
+        validatedVersionId = versionId;
+        return { valid: true };
+      }
+      return { valid: false, missingIds: result.missingIds };
+    };
+
+    /**
+     * Handle a dispatch-time catalog mismatch: clear the pointer via
+     * `setActive(..., null, { skipCatalogCheck: true })`, reset the
+     * cached pointer + the failure counter, and broadcast a structured
+     * `bundle_disabled` event to the affected session so the client UI
+     * can surface a diagnostic naming the missing ids. Does NOT
+     * increment `consecutiveFailures` — catalog mismatches are
+     * deterministic and orthogonal to the transient-failure counter.
+     */
+    const disableForCatalogMismatch = async (
+      missingIds: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `catalog mismatch: missing [${missingIds.join(", ")}] declared by version '${versionId}'`;
+      this.runtime.logger.warn("[BundleDispatch] Disabling bundle for catalog mismatch", {
+        agentId,
+        versionId,
+        missingIds,
+      });
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on catalog mismatch",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_CAPABILITY_MISMATCH",
+          missingIds,
+          versionId,
+        },
+      });
     };
 
     // Drift check state. `autoRebuildAttempted` ensures we do the hash
@@ -632,9 +720,24 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     // `AgentContext.notifyBundlePointerChanged()` after mutating — which
     // runs through here.
     this.runtime.bundlePointerRefresher = async () => {
+      // Invalidate the validation cache BEFORE re-reading — the new
+      // pointer may reference a version with a different catalog
+      // declaration and needs fresh validation on the next turn.
+      validatedVersionId = null;
       const id = await registry.getActiveForAgent(agentId);
       await ctx.storage.put("activeBundleVersionId", id);
       consecutiveFailures = 0;
+    };
+
+    // Install the `bundle_disabled` broadcaster so the catalog guard
+    // (and future disable paths) can surface structured reason payloads
+    // to connected clients.
+    this.runtime.broadcastBundleDisabled = (sessionId: string, data) => {
+      this.runtime.broadcastToSession(sessionId, {
+        type: "bundle_disabled",
+        sessionId,
+        data,
+      });
     };
 
     // Install the bundle prompt handler on the runtime
@@ -656,6 +759,20 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         await maybeAutoRebuild(versionId);
         const refreshed = await checkActiveBundle();
         if (refreshed) versionId = refreshed;
+      }
+
+      // Dispatch-time catalog guard. Protects against out-of-band
+      // pointer mutations, cold-start with stale cached pointer, and
+      // host redeploys where the capability set changed. When the
+      // guard fires on mismatch, clear the pointer, broadcast
+      // `bundle_disabled` with the structured reason, and fall through
+      // to static brain.
+      if (versionId !== validatedVersionId) {
+        const guard = await validateCatalogCached(versionId);
+        if (!guard.valid) {
+          await disableForCatalogMismatch(guard.missingIds, versionId, sessionId);
+          return false;
+        }
       }
 
       try {
@@ -737,6 +854,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             });
           }
           consecutiveFailures = 0;
+          validatedVersionId = null;
           await ctx.storage.put("activeBundleVersionId", null);
         }
 
@@ -813,6 +931,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           skipCatalogCheck: true,
         });
         consecutiveFailures = 0;
+        validatedVersionId = null;
         await ctx.storage.put("activeBundleVersionId", null);
 
         return Response.json({ status: "disabled" });

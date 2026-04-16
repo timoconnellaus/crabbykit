@@ -170,6 +170,30 @@ export interface CapabilityStateMessage {
   sessionId?: string;
 }
 
+/**
+ * Broadcast by the bundle dispatch subsystem when a bundle is disabled
+ * (manual `/bundle/disable`, transient-failure auto-revert, or catalog
+ * mismatch at promotion / dispatch time). `data.rationale` is the
+ * human-readable string existing consumers already read; `data.reason`
+ * is the optional structured form. Currently the only defined code is
+ * `"ERR_CAPABILITY_MISMATCH"`; future disable paths may introduce
+ * further codes without breaking legacy consumers.
+ */
+export interface BundleDisabledMessage {
+  type: "bundle_disabled";
+  sessionId: string;
+  data: {
+    rationale: string;
+    versionId: string | null;
+    sessionId?: string;
+    reason?: {
+      code: "ERR_CAPABILITY_MISMATCH";
+      missingIds: string[];
+      versionId: string;
+    };
+  };
+}
+
 export type ServerMessage =
   | AgentEventMessage
   | ToolEventMessage
@@ -183,7 +207,8 @@ export type ServerMessage =
   | SystemPromptMessage
   | CapabilityStateMessage
   | ModeEventMessage
-  | PongMessage;
+  | PongMessage
+  | BundleDisabledMessage;
 
 // --- Client → Server messages ---
 

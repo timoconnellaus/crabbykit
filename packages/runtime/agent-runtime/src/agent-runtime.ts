@@ -429,6 +429,29 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   bundlePointerRefresher?: () => Promise<void>;
 
+  /**
+   * Broadcast a `bundle_disabled` agent event to clients. Installed by
+   * `initBundleDispatch` and fired by the dispatch-time catalog guard
+   * when a mismatched bundle is disabled mid-turn. Consumers hang a
+   * structured `data.reason` off the event so UIs can render a
+   * diagnostic naming the missing capabilities; the existing
+   * `data.rationale` human-readable string is always populated for
+   * legacy consumers that only read strings.
+   */
+  broadcastBundleDisabled?: (
+    sessionId: string,
+    data: {
+      rationale: string;
+      versionId: string | null;
+      sessionId?: string;
+      reason?: {
+        code: "ERR_CAPABILITY_MISMATCH";
+        missingIds: string[];
+        versionId: string;
+      };
+    },
+  ) => void;
+
   sessionStore: SessionStore;
   scheduleStore: ScheduleStore;
   configStore: ConfigStore;
