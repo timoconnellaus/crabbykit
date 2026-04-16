@@ -7,6 +7,13 @@
  * No method accepts sessionId or agentId as a caller-supplied argument.
  *
  * Per-turn RPC budget enforcement prevents denial-of-service from a bundle.
+ *
+ * Dispatch mechanism: SpineService calls public `spine*` methods directly
+ * on a typed `DurableObjectStub<SpineHost>` via native DO method-call RPC.
+ * The previous HTTP-style routing (building `Request` objects against
+ * `https://internal/spine/*` paths and calling `host.fetch(request)`) was
+ * replaced with this direct mechanism — `AgentDO` structurally satisfies
+ * `SpineHost`, so every `host.spineX(...)` call is compile-time checked.
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
@@ -118,14 +125,23 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     return { aid: result.payload.aid, sid: result.payload.sid, nonce: result.payload.nonce };
   }
 
-  private getHost(agentId: string): DurableObjectStub {
-    // `agentId` is the host DO's `ctx.id.toString()` — a hex-encoded
-    // 256-bit DO id, NOT a human name. Resolve via `idFromString` so we
-    // round-trip back to the exact same DO that minted the token. Using
-    // `idFromName(agentId)` would hash the hex string as a fresh name and
-    // route to a completely different DO.
+  /**
+   * Resolve the host DO stub for an agent, narrowed to the `SpineHost`
+   * method surface. `agentId` is the host DO's `ctx.id.toString()` — a
+   * hex-encoded 256-bit DO id, NOT a human name. Resolve via
+   * `idFromString` so we round-trip back to the exact same DO that
+   * minted the token. Using `idFromName(agentId)` would hash the hex
+   * string as a fresh name and route to a completely different DO.
+   *
+   * Returning `DurableObjectStub<SpineHost>` narrows the stub's RPC
+   * surface to the 19 `spine*` methods declared on the interface —
+   * every `host.spineX(...)` call below is compile-time checked against
+   * the real method signature, turning method-name typos and signature
+   * drift into build errors instead of runtime 404s.
+   */
+  private getHost(agentId: string): DurableObjectStub<SpineHost> {
     const id = this.env.AGENT.idFromString(agentId);
-    return this.env.AGENT.get(id);
+    return this.env.AGENT.get(id) as DurableObjectStub<SpineHost>;
   }
 
   // --- Session store methods ---
@@ -136,13 +152,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/appendEntry", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid, entry }),
-        }),
-      );
-      return res.json();
+      return await host.spineAppendEntry(sid, entry);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -154,13 +164,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/getEntries", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid, options }),
-        }),
-      );
-      return (await res.json()) as unknown[];
+      return await host.spineGetEntries(sid, options);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -172,13 +176,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/getSession", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid }),
-        }),
-      );
-      return res.json();
+      return await host.spineGetSession(sid);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -190,13 +188,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/createSession", {
-          method: "POST",
-          body: JSON.stringify({ init }),
-        }),
-      );
-      return res.json();
+      return await host.spineCreateSession(init);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -208,13 +200,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/listSessions", {
-          method: "POST",
-          body: JSON.stringify({ filter }),
-        }),
-      );
-      return (await res.json()) as unknown[];
+      return await host.spineListSessions(filter);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -226,13 +212,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/buildContext", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid }),
-        }),
-      );
-      return res.json();
+      return await host.spineBuildContext(sid);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -244,13 +224,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/getCompactionCheckpoint", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid }),
-        }),
-      );
-      return res.json();
+      return await host.spineGetCompactionCheckpoint(sid);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -264,13 +238,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/kvGet", {
-          method: "POST",
-          body: JSON.stringify({ capabilityId, key }),
-        }),
-      );
-      return res.json();
+      return await host.spineKvGet(capabilityId, key);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -288,12 +256,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/kvPut", {
-          method: "POST",
-          body: JSON.stringify({ capabilityId, key, value, options }),
-        }),
-      );
+      await host.spineKvPut(capabilityId, key, value, options);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -305,12 +268,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/kvDelete", {
-          method: "POST",
-          body: JSON.stringify({ capabilityId, key }),
-        }),
-      );
+      await host.spineKvDelete(capabilityId, key);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -322,13 +280,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/kvList", {
-          method: "POST",
-          body: JSON.stringify({ capabilityId, prefix }),
-        }),
-      );
-      return (await res.json()) as unknown[];
+      return await host.spineKvList(capabilityId, prefix);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -342,13 +294,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/scheduleCreate", {
-          method: "POST",
-          body: JSON.stringify({ schedule }),
-        }),
-      );
-      return res.json();
+      return await host.spineScheduleCreate(schedule);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -360,12 +306,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/scheduleUpdate", {
-          method: "POST",
-          body: JSON.stringify({ scheduleId, patch }),
-        }),
-      );
+      await host.spineScheduleUpdate(scheduleId, patch);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -377,12 +318,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/scheduleDelete", {
-          method: "POST",
-          body: JSON.stringify({ scheduleId }),
-        }),
-      );
+      await host.spineScheduleDelete(scheduleId);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -394,12 +330,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      const res = await host.fetch(
-        new Request("https://internal/spine/scheduleList", {
-          method: "POST",
-        }),
-      );
-      return (await res.json()) as unknown[];
+      return await host.spineScheduleList();
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -411,12 +342,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/alarmSet", {
-          method: "POST",
-          body: JSON.stringify({ timestamp }),
-        }),
-      );
+      await host.spineAlarmSet(timestamp);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -430,12 +356,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/broadcast", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid, event }),
-        }),
-      );
+      await host.spineBroadcast(sid, event);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -447,12 +368,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/broadcastGlobal", {
-          method: "POST",
-          body: JSON.stringify({ event }),
-        }),
-      );
+      await host.spineBroadcastGlobal(event);
     } catch (err) {
       throw this.sanitize(err);
     }
@@ -466,12 +382,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
     try {
       const host = this.getHost(aid);
-      await host.fetch(
-        new Request("https://internal/spine/emitCost", {
-          method: "POST",
-          body: JSON.stringify({ sessionId: sid, costEvent }),
-        }),
-      );
+      await host.spineEmitCost(sid, costEvent);
     } catch (err) {
       throw this.sanitize(err);
     }

@@ -12,10 +12,17 @@
  * `bundle-host/src/services/spine-service.ts` imports this interface
  * to constrain the shape of its RPC callbacks without creating a
  * direct runtime edge from `bundle-host` into `agent-runtime` for
- * values — only a type-level one.
+ * values — only a type-level one. Specifically, `SpineService` types
+ * its DO stub as `DurableObjectStub<SpineHost>`, which requires the
+ * interface to extend `Rpc.DurableObjectBranded` — the runtime brand
+ * Cloudflare Workers types use to tag shapes that can be proxied
+ * across the DO RPC boundary. `AgentDO` extends `DurableObject`,
+ * which applies this brand on the implementation side; the brand in
+ * the interface declaration is what lets the stub type narrow to the
+ * spine methods at the call site.
  */
 
-export interface SpineHost {
+export interface SpineHost extends Rpc.DurableObjectBranded {
   // Session store (sync on DO side)
   spineAppendEntry(sessionId: string, entry: unknown): unknown;
   spineGetEntries(sessionId: string, options?: unknown): unknown[];
