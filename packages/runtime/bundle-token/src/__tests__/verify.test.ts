@@ -45,7 +45,7 @@ async function deriveTestSignSubkey(masterKey: string, label: string): Promise<C
 }
 
 async function mintTestToken(
-  opts: { agentId: string; sessionId: string; ttlMs?: number },
+  opts: { agentId: string; sessionId: string; ttlMs?: number; scope?: string[] },
   subkey: CryptoKey,
 ): Promise<string> {
   const payload: TokenPayload = {
@@ -53,6 +53,7 @@ async function mintTestToken(
     sid: opts.sessionId,
     exp: Date.now() + (opts.ttlMs ?? 60_000),
     nonce: crypto.randomUUID(),
+    scope: opts.scope ?? ["spine", "llm"],
   };
   const payloadJson = JSON.stringify(payload);
   const payloadB64 = base64urlEncode(new TextEncoder().encode(payloadJson));
@@ -62,23 +63,24 @@ async function mintTestToken(
 }
 
 describe("bundle-token verify", () => {
-  let spineSignSubkey: CryptoKey;
-  let spineVerifySubkey: CryptoKey;
-  let llmVerifySubkey: CryptoKey;
+  let bundleSignSubkey: CryptoKey;
+  let bundleVerifySubkey: CryptoKey;
+  // Old label subkey for testing cross-label rejection
+  let oldLabelVerifySubkey: CryptoKey;
 
   beforeAll(async () => {
-    spineSignSubkey = await deriveTestSignSubkey(MASTER_KEY, "claw/spine-v1");
-    spineVerifySubkey = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/spine-v1");
-    llmVerifySubkey = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/llm-v1");
+    bundleSignSubkey = await deriveTestSignSubkey(MASTER_KEY, "claw/bundle-v1");
+    bundleVerifySubkey = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/bundle-v1");
+    oldLabelVerifySubkey = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/old-label-v1");
   });
 
   describe("verifyToken", () => {
     it("verifies a valid token with the matching verify-only subkey", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
-      const result = await verifyToken(token, spineVerifySubkey);
+      const result = await verifyToken(token, bundleVerifySubkey);
 
       expect(result.valid).toBe(true);
       if (result.valid) {
@@ -86,15 +88,16 @@ describe("bundle-token verify", () => {
         expect(result.payload.sid).toBe("session-1");
         expect(result.payload.exp).toBeGreaterThan(Date.now());
         expect(result.payload.nonce).toBeTruthy();
+        expect(result.payload.scope).toEqual(["spine", "llm"]);
       }
     });
 
     it("rejects expired token", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1", ttlMs: -1000 },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
-      const result = await verifyToken(token, spineVerifySubkey);
+      const result = await verifyToken(token, bundleVerifySubkey);
 
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -105,7 +108,7 @@ describe("bundle-token verify", () => {
     it("rejects tampered payload", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
 
       const [payloadB64, signature] = token.split(".");
@@ -118,7 +121,7 @@ describe("bundle-token verify", () => {
         .replace(/=+$/, "");
       const tamperedToken = `${tamperedPayload}.${signature}`;
 
-      const result = await verifyToken(tamperedToken, spineVerifySubkey);
+      const result = await verifyToken(tamperedToken, bundleVerifySubkey);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.code).toBe("ERR_BAD_TOKEN");
@@ -128,13 +131,13 @@ describe("bundle-token verify", () => {
     it("rejects tampered signature", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
 
       const [payload] = token.split(".");
       const tamperedToken = `${payload}.AAAA_tampered_signature`;
 
-      const result = await verifyToken(tamperedToken, spineVerifySubkey);
+      const result = await verifyToken(tamperedToken, bundleVerifySubkey);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.code).toBe("ERR_BAD_TOKEN");
@@ -144,10 +147,10 @@ describe("bundle-token verify", () => {
     it("rejects token verified with wrong-label subkey", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
 
-      const result = await verifyToken(token, llmVerifySubkey);
+      const result = await verifyToken(token, oldLabelVerifySubkey);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.code).toBe("ERR_BAD_TOKEN");
@@ -155,17 +158,115 @@ describe("bundle-token verify", () => {
     });
 
     it("rejects malformed token (no dot separator)", async () => {
-      const result = await verifyToken("no-dot-separator", spineVerifySubkey);
+      const result = await verifyToken("no-dot-separator", bundleVerifySubkey);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.code).toBe("ERR_MALFORMED");
       }
     });
+
+    describe("requiredScope option", () => {
+      it("accepts token with matching scope", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: ["spine"] },
+          bundleSignSubkey,
+        );
+        const result = await verifyToken(token, bundleVerifySubkey, { requiredScope: "spine" });
+        expect(result.valid).toBe(true);
+      });
+
+      it("rejects token missing required scope", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: ["spine"] },
+          bundleSignSubkey,
+        );
+        const result = await verifyToken(token, bundleVerifySubkey, { requiredScope: "llm" });
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.code).toBe("ERR_SCOPE_DENIED");
+        }
+      });
+
+      it("rejects token with empty scope array", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: [] },
+          bundleSignSubkey,
+        );
+        const result = await verifyToken(token, bundleVerifySubkey, { requiredScope: "spine" });
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.code).toBe("ERR_SCOPE_DENIED");
+        }
+      });
+
+      it("accepts token with multi-scope including required", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: ["spine", "llm", "tavily-web-search"] },
+          bundleSignSubkey,
+        );
+        for (const scope of ["spine", "llm", "tavily-web-search"]) {
+          const result = await verifyToken(token, bundleVerifySubkey, { requiredScope: scope });
+          expect(result.valid).toBe(true);
+        }
+      });
+
+      it("skips scope check when requiredScope omitted — valid even with empty scope", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: [] },
+          bundleSignSubkey,
+        );
+        const result = await verifyToken(token, bundleVerifySubkey);
+        expect(result.valid).toBe(true);
+      });
+
+      it("checks signature before scope — tampered token returns ERR_BAD_TOKEN not ERR_SCOPE_DENIED", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: [] },
+          bundleSignSubkey,
+        );
+        const [payload] = token.split(".");
+        const tampered = `${payload}.AAAA_bad_sig`;
+        const result = await verifyToken(tampered, bundleVerifySubkey, { requiredScope: "spine" });
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.code).toBe("ERR_BAD_TOKEN");
+        }
+      });
+
+      it("checks TTL before scope — expired token returns ERR_TOKEN_EXPIRED not ERR_SCOPE_DENIED", async () => {
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", ttlMs: -1000, scope: [] },
+          bundleSignSubkey,
+        );
+        const result = await verifyToken(token, bundleVerifySubkey, { requiredScope: "spine" });
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.code).toBe("ERR_TOKEN_EXPIRED");
+        }
+      });
+
+      it("checks nonce before scope — replay returns ERR_TOKEN_REPLAY not ERR_SCOPE_DENIED", async () => {
+        const tracker = new NonceTracker();
+        const token = await mintTestToken(
+          { agentId: "a1", sessionId: "s1", scope: [] },
+          bundleSignSubkey,
+        );
+        await verifyToken(token, bundleVerifySubkey, { nonceTracker: tracker });
+        const result = await verifyToken(token, bundleVerifySubkey, {
+          nonceTracker: tracker,
+          requiredScope: "spine",
+        });
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.code).toBe("ERR_TOKEN_REPLAY");
+        }
+      });
+    });
   });
 
   describe("deriveVerifyOnlySubkey", () => {
     it("produces a key that cannot sign", async () => {
-      const verifyOnly = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/spine-v1");
+      const verifyOnly = await deriveVerifyOnlySubkey(MASTER_KEY, "claw/bundle-v1");
       await expect(
         crypto.subtle.sign("HMAC", verifyOnly, new TextEncoder().encode("payload")),
       ).rejects.toThrow();
@@ -174,9 +275,9 @@ describe("bundle-token verify", () => {
     it("produces keys compatible with the same-label sign subkey", async () => {
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
-      const result = await verifyToken(token, spineVerifySubkey);
+      const result = await verifyToken(token, bundleVerifySubkey);
       expect(result.valid).toBe(true);
     });
   });
@@ -186,13 +287,13 @@ describe("bundle-token verify", () => {
       const tracker = new NonceTracker();
       const token = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
 
-      const first = await verifyToken(token, spineVerifySubkey, tracker);
+      const first = await verifyToken(token, bundleVerifySubkey, { nonceTracker: tracker });
       expect(first.valid).toBe(true);
 
-      const second = await verifyToken(token, spineVerifySubkey, tracker);
+      const second = await verifyToken(token, bundleVerifySubkey, { nonceTracker: tracker });
       expect(second.valid).toBe(false);
       if (!second.valid) {
         expect(second.code).toBe("ERR_TOKEN_REPLAY");
@@ -204,15 +305,15 @@ describe("bundle-token verify", () => {
 
       const token1 = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
       const token2 = await mintTestToken(
         { agentId: "agent-1", sessionId: "session-1" },
-        spineSignSubkey,
+        bundleSignSubkey,
       );
 
-      const result1 = await verifyToken(token1, spineVerifySubkey, tracker);
-      const result2 = await verifyToken(token2, spineVerifySubkey, tracker);
+      const result1 = await verifyToken(token1, bundleVerifySubkey, { nonceTracker: tracker });
+      const result2 = await verifyToken(token2, bundleVerifySubkey, { nonceTracker: tracker });
 
       expect(result1.valid).toBe(true);
       expect(result2.valid).toBe(true);

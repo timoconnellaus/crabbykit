@@ -2,7 +2,9 @@
  * Capability token verification.
  *
  * Verifies HMAC signature against a subkey, parses payload, checks
- * expiration, and (optionally) consumes a nonce for replay protection.
+ * expiration, (optionally) consumes a nonce for replay protection, and
+ * (optionally) checks that the token's `scope` array includes a required
+ * scope string.
  *
  * Minting lives in `@claw-for-cloudflare/bundle-host/src/security/mint.ts` —
  * this module is verify-only.
@@ -21,17 +23,53 @@ function base64urlDecode(str: string): ArrayBuffer {
 }
 
 /**
+ * Options for {@link verifyToken}.
+ */
+export interface VerifyOptions {
+  /**
+   * Optional nonce tracker for single-use replay protection. When provided,
+   * the nonce in the token payload is consumed; a replayed nonce returns
+   * `ERR_TOKEN_REPLAY`. Production services (SpineService, LlmService) do
+   * NOT use this — a single per-turn token carries many RPCs, so
+   * single-use nonces would cap a turn at one call.
+   */
+  nonceTracker?: NonceTracker;
+  /**
+   * If provided, `payload.scope` must include this string for the token to
+   * verify. Mismatch produces `ERR_SCOPE_DENIED`.
+   *
+   * Production services pass their canonical scope string:
+   *   - SpineService: `"spine"`
+   *   - LlmService: `"llm"`
+   *   - TavilyService: `"tavily-web-search"`
+   *   - Future shape-2 services: their capability's kebab-case id
+   *
+   * Tests may omit this option to exercise signature/TTL semantics in isolation.
+   */
+  requiredScope?: string;
+}
+
+/**
  * Verify a capability token against a subkey. Returns the verified payload
  * or a structured error.
  *
- * @param token - The sealed token string (payload.signature)
- * @param subkey - The HKDF-derived verify-only subkey for this service
- * @param nonceTracker - Optional nonce tracker for replay protection
+ * Checks are performed in order so that cheap failures short-circuit before
+ * expensive ones:
+ * 1. Token structure (base64url decode). Failure → `ERR_MALFORMED`.
+ * 2. HMAC signature. Failure → `ERR_BAD_TOKEN`.
+ * 3. Payload JSON parse. Failure → `ERR_MALFORMED`.
+ * 4. Expiration check. Failure → `ERR_TOKEN_EXPIRED`.
+ * 5. Nonce tracker (if provided). Failure → `ERR_TOKEN_REPLAY`.
+ * 6. Scope check (if `options.requiredScope` provided). Failure → `ERR_SCOPE_DENIED`.
+ *
+ * @param token - The sealed token string (`base64url(payload).base64url(signature)`)
+ * @param subkey - The HKDF-derived verify-only subkey (from `deriveVerifyOnlySubkey`)
+ * @param options - Optional verification options (`nonceTracker`, `requiredScope`)
  */
 export async function verifyToken(
   token: string,
   subkey: CryptoKey,
-  nonceTracker?: NonceTracker,
+  options?: VerifyOptions,
 ): Promise<VerifyOutcome> {
   const dotIndex = token.indexOf(".");
   if (dotIndex === -1) {
@@ -72,11 +110,18 @@ export async function verifyToken(
     return { valid: false, code: "ERR_TOKEN_EXPIRED" };
   }
 
-  // Check replay
-  if (nonceTracker) {
-    const consumed = nonceTracker.tryConsume(payload.nonce, payload.exp);
+  // Check replay (optional)
+  if (options?.nonceTracker) {
+    const consumed = options.nonceTracker.tryConsume(payload.nonce, payload.exp);
     if (!consumed) {
       return { valid: false, code: "ERR_TOKEN_REPLAY" };
+    }
+  }
+
+  // Check scope (optional, step 6 — after all cheaper checks)
+  if (options?.requiredScope) {
+    if (!Array.isArray(payload.scope) || !payload.scope.includes(options.requiredScope)) {
+      return { valid: false, code: "ERR_SCOPE_DENIED" };
     }
   }
 

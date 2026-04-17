@@ -7,6 +7,7 @@
  * `bundle-host/src/security/mint.ts` behind a distinct package boundary.
  */
 
-export { deriveVerifyOnlySubkey } from "./subkey.js";
+export { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey } from "./subkey.js";
 export type { TokenPayload, VerifyError, VerifyOutcome, VerifyResult } from "./types.js";
 export { NonceTracker, verifyToken } from "./verify.js";
+export type { VerifyOptions } from "./verify.js";
