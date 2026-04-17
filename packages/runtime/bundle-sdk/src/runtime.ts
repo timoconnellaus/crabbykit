@@ -31,8 +31,8 @@ export function buildBundleContext<TEnv extends BundleEnv>(
   sessionId: string,
 ): BundleContext {
   const getToken = (): string => {
-    const token = env.__SPINE_TOKEN;
-    if (!token) throw new Error("Missing __SPINE_TOKEN");
+    const token = env.__BUNDLE_TOKEN;
+    if (!token) throw new Error("Missing __BUNDLE_TOKEN");
     return token;
   };
 
@@ -269,9 +269,9 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     messages.push({ role: "user", content: prompt });
 
     // 4. Validate LLM binding and token
-    const llmToken = env.__LLM_TOKEN;
-    if (!llmToken) {
-      throw new Error("Missing __LLM_TOKEN in bundle env");
+    const bundleToken = env.__BUNDLE_TOKEN;
+    if (!bundleToken) {
+      throw new Error("Missing __BUNDLE_TOKEN in bundle env");
     }
     const llm = (env as Record<string, unknown>).LLM as BundleLlmBinding | undefined;
     if (!llm || typeof llm.inferStream !== "function") {
@@ -296,7 +296,7 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     await safeBroadcast(context, { type: "message_start", message: { ...partial } });
 
     // 7. Open upstream SSE
-    const upstream = await llm.inferStream(llmToken, {
+    const upstream = await llm.inferStream(bundleToken, {
       provider: model.provider,
       modelId: model.modelId,
       messages,

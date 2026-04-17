@@ -90,10 +90,8 @@ describe("BundleEnv type constraints", () => {
     expectTypeOf<Checked>().toBeNever();
   });
 
-  it("placeholder runtime assertion — type checks run at compile time", () => {
-    // Vitest requires at least one runtime expect per file; the type
-    // checks above fire during `tsc --noEmit`, not at runtime.
-    const sentinel: BundleEnv = { __SPINE_TOKEN: "x" };
+  it("accepts __BUNDLE_TOKEN as a string field", () => {
+    const sentinel: BundleEnv = { __BUNDLE_TOKEN: "x" };
     expectTypeOf(sentinel).toMatchTypeOf<BundleEnv>();
   });
 });

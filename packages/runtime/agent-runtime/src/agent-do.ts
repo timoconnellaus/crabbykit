@@ -493,8 +493,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
     // Mutable dispatch state
     let consecutiveFailures = 0;
-    let spineSubkeyPromise: Promise<CryptoKey> | null = null;
-    let llmSubkeyPromise: Promise<CryptoKey> | null = null;
+    let bundleSubkeyPromise: Promise<CryptoKey> | null = null;
     // Last active version id whose catalog we validated against the
     // current host. Resets on pointer change (bundlePointerRefresher,
     // catalog-mismatch disable) and on cold start (new DO instance).
@@ -503,24 +502,16 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     // openspec/changes/define-bundle-capability-catalog/.
     let validatedVersionId: string | null = null;
 
-    const getSpineSubkey = async (): Promise<CryptoKey> => {
-      if (!spineSubkeyPromise) {
-        spineSubkeyPromise = (async () => {
-          const { deriveMintSubkey } = await import("@claw-for-cloudflare/bundle-host");
-          return deriveMintSubkey(masterKey, "claw/spine-v1");
+    const getBundleSubkey = async (): Promise<CryptoKey> => {
+      if (!bundleSubkeyPromise) {
+        bundleSubkeyPromise = (async () => {
+          const { deriveMintSubkey, BUNDLE_SUBKEY_LABEL } = await import(
+            "@claw-for-cloudflare/bundle-host"
+          );
+          return deriveMintSubkey(masterKey, BUNDLE_SUBKEY_LABEL);
         })();
       }
-      return spineSubkeyPromise;
-    };
-
-    const getLlmSubkey = async (): Promise<CryptoKey> => {
-      if (!llmSubkeyPromise) {
-        llmSubkeyPromise = (async () => {
-          const { deriveMintSubkey } = await import("@claw-for-cloudflare/bundle-host");
-          return deriveMintSubkey(masterKey, "claw/llm-v1");
-        })();
-      }
-      return llmSubkeyPromise;
+      return bundleSubkeyPromise;
     };
 
     const checkActiveBundle = async (): Promise<string | null> => {
@@ -776,14 +767,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       }
 
       try {
-        const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
+        const bundleSubkey = await getBundleSubkey();
         const { mintToken } = await import("@claw-for-cloudflare/bundle-host");
-        // Separate token per service (same payload, different HKDF
-        // subkeys) so SpineService and LlmService verify independently.
-        const [spineToken, llmToken] = await Promise.all([
-          mintToken({ agentId, sessionId }, spineSubkey),
-          mintToken({ agentId, sessionId }, llmSubkey),
-        ]);
+        // Single capability token per turn with scope derived from the
+        // validated catalog: fixed "spine" + "llm" scopes plus any
+        // declared capability ids. Each service checks its own scope
+        // string via requiredScope on verifyToken.
+        const version = await registry.getVersion?.(versionId);
+        const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
+          (r: { id: string }) => r.id,
+        );
+        const scope = ["spine", "llm", ...catalogIds];
+        const bundleToken = await mintToken({ agentId, sessionId, scope }, bundleSubkey);
 
         const projectedEnv = bundleConfig.bundleEnv(env);
 
@@ -806,11 +801,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             compatibilityFlags: ["nodejs_compat"],
             mainModule,
             modules,
-            env: {
-              ...projectedEnv,
-              __SPINE_TOKEN: spineToken,
-              __LLM_TOKEN: llmToken,
-            },
+            env: { ...projectedEnv, __BUNDLE_TOKEN: bundleToken },
             globalOutbound: null,
           };
         });
@@ -871,12 +862,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       if (!versionId) return;
 
       try {
-        const [spineSubkey, llmSubkey] = await Promise.all([getSpineSubkey(), getLlmSubkey()]);
+        const bundleSubkey = await getBundleSubkey();
         const { mintToken: mint } = await import("@claw-for-cloudflare/bundle-host");
-        const [spineToken, llmToken] = await Promise.all([
-          mint({ agentId, sessionId }, spineSubkey),
-          mint({ agentId, sessionId }, llmSubkey),
-        ]);
+        const version = await registry.getVersion?.(versionId);
+        const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
+          (r: { id: string }) => r.id,
+        );
+        const scope = ["spine", "llm", ...catalogIds];
+        const bundleToken = await mint({ agentId, sessionId, scope }, bundleSubkey);
         const projectedEnv = bundleConfig.bundleEnv(env);
 
         const worker = loader.get(versionId, async () => {
@@ -888,11 +881,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             compatibilityFlags: ["nodejs_compat"],
             mainModule: "bundle.js",
             modules: { "bundle.js": source },
-            env: {
-              ...projectedEnv,
-              __SPINE_TOKEN: spineToken,
-              __LLM_TOKEN: llmToken,
-            },
+            env: { ...projectedEnv, __BUNDLE_TOKEN: bundleToken },
             globalOutbound: null,
           };
         });

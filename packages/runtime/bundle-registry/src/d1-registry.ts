@@ -100,22 +100,43 @@ export class D1BundleRegistry implements BundleRegistry {
 
     // Catalog validation runs BEFORE the D1 batch so a mismatch cannot
     // leave the registry in a partially-flipped state.
-    if (versionId !== null && options?.skipCatalogCheck !== true) {
-      if (options?.knownCapabilityIds === undefined) {
-        throw new TypeError(
-          "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
-        );
-      }
+    if (versionId !== null) {
       const version = await this.getVersion(versionId);
-      const result = validateCatalogAgainstKnownIds(
-        version?.metadata?.requiredCapabilities,
-        new Set(options.knownCapabilityIds),
-      );
-      if (!result.valid) {
-        throw new CapabilityMismatchError({
-          missingIds: result.missingIds,
-          versionId,
-        });
+      const requiredCapabilities = version?.metadata?.requiredCapabilities;
+
+      // Reserved-scope rejection: "spine" and "llm" cannot be used as
+      // capability ids — they are reserved for the two non-negotiable
+      // bundle→host channels and are unconditionally prepended to every
+      // minted token's scope array. This check runs independently of
+      // skipCatalogCheck — bypassing known-id validation does not opt out
+      // of reserved-string rejection.
+      if (requiredCapabilities && requiredCapabilities.length > 0) {
+        const RESERVED = new Set(["spine", "llm"]);
+        for (const req of requiredCapabilities) {
+          if (req && typeof req.id === "string" && RESERVED.has(req.id)) {
+            throw new TypeError(
+              `BundleRegistry.setActive: capability id "${req.id}" is a reserved scope string and cannot be used as a capability id — the dispatcher unconditionally grants this scope to all bundles`,
+            );
+          }
+        }
+      }
+
+      if (options?.skipCatalogCheck !== true) {
+        if (options?.knownCapabilityIds === undefined) {
+          throw new TypeError(
+            "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
+          );
+        }
+        const result = validateCatalogAgainstKnownIds(
+          requiredCapabilities,
+          new Set(options.knownCapabilityIds),
+        );
+        if (!result.valid) {
+          throw new CapabilityMismatchError({
+            missingIds: result.missingIds,
+            versionId,
+          });
+        }
       }
     }
 

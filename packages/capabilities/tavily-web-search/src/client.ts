@@ -1,8 +1,10 @@
 /**
  * Bundle-side Tavily capability — thin RPC proxy to TavilyService.
  *
- * Reads the capability token from env.__SPINE_TOKEN. No credentials.
- * No business logic beyond RPC marshaling.
+ * Reads the capability token from env.__BUNDLE_TOKEN — the unified per-turn
+ * capability token whose payload `scope` array includes `"tavily-web-search"`.
+ * TavilyService verifies the token with `requiredScope: "tavily-web-search"`.
+ * No credentials held here. No business logic beyond RPC marshaling.
  */
 
 import type { Capability } from "@claw-for-cloudflare/agent-runtime";
@@ -30,7 +32,7 @@ export function tavilyClient(options: TavilyClientOptions): Capability {
     description: "Web search and page fetch via Tavily API (proxied through service binding)",
 
     tools: (context) => {
-      const env = (context as unknown as { env: { __SPINE_TOKEN?: string } }).env;
+      const env = (context as unknown as { env: { __BUNDLE_TOKEN?: string } }).env;
 
       return [
         defineTool({
@@ -43,8 +45,8 @@ export function tavilyClient(options: TavilyClientOptions): Capability {
             ),
           }),
           execute: async (args) => {
-            const token = env?.__SPINE_TOKEN;
-            if (!token) throw new Error("Missing __SPINE_TOKEN");
+            const token = env?.__BUNDLE_TOKEN;
+            if (!token) throw new Error("Missing __BUNDLE_TOKEN");
 
             const result = await options.service.search(
               token,
@@ -67,8 +69,8 @@ export function tavilyClient(options: TavilyClientOptions): Capability {
             url: Type.String({ description: "The URL to fetch" }),
           }),
           execute: async (args) => {
-            const token = env?.__SPINE_TOKEN;
-            if (!token) throw new Error("Missing __SPINE_TOKEN");
+            const token = env?.__BUNDLE_TOKEN;
+            if (!token) throw new Error("Missing __BUNDLE_TOKEN");
 
             const result = await options.service.extract(
               token,

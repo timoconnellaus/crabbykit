@@ -27,13 +27,15 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { SpineCaller, SpineHost } from "@claw-for-cloudflare/agent-runtime";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
-import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
+import {
+  BUNDLE_SUBKEY_LABEL,
+  deriveVerifyOnlySubkey,
+  verifyToken,
+} from "@claw-for-cloudflare/bundle-token";
 
 // Re-export SpineHost so existing host-side consumers keep a stable
 // import path through the `bundle-host` barrel.
 export type { SpineHost };
-
-export const SPINE_SUBKEY_LABEL = "claw/spine-v1";
 
 // --- Error codes ---
 
@@ -42,6 +44,7 @@ export type SpineErrorCode =
   | "ERR_TOKEN_EXPIRED"
   | "ERR_TOKEN_REPLAY"
   | "ERR_MALFORMED"
+  | "ERR_SCOPE_DENIED"
   | "ERR_BUDGET_EXCEEDED"
   | "ERR_NOT_FOUND"
   | "ERR_INVALID_ARGUMENT"
@@ -62,10 +65,10 @@ export class SpineError extends Error {
 export interface SpineEnv {
   /**
    * Master HMAC secret (string). SpineService derives its own
-   * verify-only subkey from this on first call using the HKDF label
-   * `claw/spine-v1` — must match the host dispatcher's mint label.
-   * Replaces the older `SPINE_SUBKEY: CryptoKey` field which couldn't
-   * be expressed in wrangler.jsonc and was always undefined at runtime.
+   * verify-only subkey from this on first call using the unified HKDF
+   * label `claw/bundle-v1` — must match the host dispatcher's mint label.
+   * Domain separation between services is enforced by per-service `scope`
+   * checks on the token payload rather than separate HKDF subkeys.
    */
   AGENT_AUTH_KEY: string;
   /** DO namespace binding to reach the agent DO. */
@@ -81,7 +84,8 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   /**
    * Lazily derive (and cache) the verify-only HKDF subkey from the
-   * master `AGENT_AUTH_KEY`. Cached for the life of the WorkerEntrypoint
+   * master `AGENT_AUTH_KEY`. Uses the unified `BUNDLE_SUBKEY_LABEL`
+   * (`"claw/bundle-v1"`). Cached for the life of the WorkerEntrypoint
    * instance.
    */
   private getSubkey(): Promise<CryptoKey> {
@@ -92,7 +96,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
           "SpineService misconfigured: env.AGENT_AUTH_KEY is missing",
         );
       }
-      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, SPINE_SUBKEY_LABEL);
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
     }
     return this.subkeyPromise;
   }
@@ -100,10 +104,14 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   /**
    * Verify a capability token and return the identity fields.
    *
+   * Verifies the HMAC signature under `claw/bundle-v1` and checks that
+   * the token's `scope` array includes `"spine"`, authorizing calls to
+   * this service.
+   *
    * Replay protection is intentionally NOT enforced here: a single
    * per-turn token carries the bundle through many SpineService RPCs,
    * and a single-use nonce would cap a turn at exactly one spine op.
-   * Budget enforcement (keyed by nonce) now lives on the DO side
+   * Budget enforcement (keyed by nonce) lives on the DO side
    * (`AgentRuntime.spineBudget`) — it caps total calls per turn; the
    * token's `exp` (default 60s) bounds the reuse window; `globalOutbound:
    * null` on the bundle isolate prevents token exfiltration.
@@ -113,7 +121,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
    */
   private async verify(token: string): Promise<SpineCaller> {
     const subkey = await this.getSubkey();
-    const result: VerifyOutcome = await verifyToken(token, subkey);
+    const result: VerifyOutcome = await verifyToken(token, subkey, { requiredScope: "spine" });
 
     if (!result.valid) {
       throw new SpineError(result.code as SpineErrorCode);
@@ -356,6 +364,9 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
         msgStr.includes("ERR_BUDGET_EXCEEDED:")
       ) {
         return new SpineError("ERR_BUDGET_EXCEEDED", msgStr || "Budget exceeded");
+      }
+      if (msgStr.includes("ERR_SCOPE_DENIED:") || shape.code === "ERR_SCOPE_DENIED") {
+        return new SpineError("ERR_SCOPE_DENIED", msgStr || "Scope denied");
       }
     }
 

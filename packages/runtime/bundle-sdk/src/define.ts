@@ -81,17 +81,8 @@ async function handleTurn<TEnv extends BundleEnv>(
   env: TEnv,
   setup: BundleAgentSetup<TEnv>,
 ): Promise<Response> {
-  // __SPINE_TOKEN authenticates the bundle's identity to SpineService
-  // (session store, KV, transport). __LLM_TOKEN is a separate capability
-  // token signed with the LLM HKDF subkey and is the ONLY token
-  // LlmService will accept. Passing the spine token to LlmService fails
-  // with ERR_BAD_TOKEN because the two services derive their verify
-  // keys from different HKDF labels.
-  if (!env.__SPINE_TOKEN) {
-    return Response.json({ error: "Missing __SPINE_TOKEN" }, { status: 401 });
-  }
-  if (!env.__LLM_TOKEN) {
-    return Response.json({ error: "Missing __LLM_TOKEN" }, { status: 401 });
+  if (!env.__BUNDLE_TOKEN) {
+    return Response.json({ error: "Missing __BUNDLE_TOKEN" }, { status: 401 });
   }
 
   let body: { prompt: string; agentId: string; sessionId: string };
@@ -168,7 +159,7 @@ async function handleSmoke<TEnv extends BundleEnv>(
     return Response.json({
       status: "ok",
       model: `${model.provider}/${model.modelId}`,
-      hasToken: Boolean(env.__SPINE_TOKEN),
+      hasToken: Boolean(env.__BUNDLE_TOKEN),
     });
   } catch (err) {
     return Response.json(

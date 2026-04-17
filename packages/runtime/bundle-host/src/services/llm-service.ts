@@ -7,21 +7,21 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
-import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
+import {
+  BUNDLE_SUBKEY_LABEL,
+  deriveVerifyOnlySubkey,
+  verifyToken,
+} from "@claw-for-cloudflare/bundle-token";
 
 // --- Types ---
-
-export const LLM_SUBKEY_LABEL = "claw/llm-v1";
 
 export interface LlmEnv {
   /**
    * Master HMAC secret (string). LlmService derives its own verify-only
-   * subkey from this on first call using the HKDF label
-   * `claw/llm-v1` — must match the label the host dispatcher uses to
-   * MINT the LLM-bound capability token. This replaces the older
-   * `LLM_SUBKEY: CryptoKey` design which couldn't be expressed in
-   * wrangler.jsonc (no binding type for `CryptoKey`) and left
-   * `this.env.LLM_SUBKEY` undefined at runtime → ERR_BAD_TOKEN.
+   * subkey from this on first call using the unified HKDF label
+   * `claw/bundle-v1` (via `BUNDLE_SUBKEY_LABEL`). Domain separation from
+   * SpineService and other services is enforced by the `requiredScope: "llm"`
+   * check on the token payload rather than a separate HKDF subkey.
    */
   AGENT_AUTH_KEY: string;
   /**
@@ -94,7 +94,8 @@ export class LlmService extends WorkerEntrypoint<LlmEnv> {
 
   /**
    * Lazily derive (and cache) the verify-only HKDF subkey from the
-   * master `AGENT_AUTH_KEY`. Verify-only because LlmService should never
+   * master `AGENT_AUTH_KEY`. Uses the unified `BUNDLE_SUBKEY_LABEL`
+   * (`"claw/bundle-v1"`). Verify-only because LlmService should never
    * be able to mint tokens — only check signatures on tokens minted by
    * the host dispatcher.
    */
@@ -103,15 +104,15 @@ export class LlmService extends WorkerEntrypoint<LlmEnv> {
       if (!this.env.AGENT_AUTH_KEY) {
         throw new Error("LlmService misconfigured: env.AGENT_AUTH_KEY is missing");
       }
-      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, LLM_SUBKEY_LABEL);
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
     }
     return this.subkeyPromise;
   }
 
   async infer(token: string, request: InferRequest): Promise<InferResponse> {
-    // 1. Verify token
+    // 1. Verify token — requires "llm" scope in the unified bundle token
     const subkey = await this.getSubkey();
-    const result: VerifyOutcome = await verifyToken(token, subkey);
+    const result: VerifyOutcome = await verifyToken(token, subkey, { requiredScope: "llm" });
     if (!result.valid) {
       throw new Error(result.code);
     }
@@ -176,7 +177,7 @@ export class LlmService extends WorkerEntrypoint<LlmEnv> {
    */
   async inferStream(token: string, request: InferRequest): Promise<ReadableStream<Uint8Array>> {
     const subkey = await this.getSubkey();
-    const result: VerifyOutcome = await verifyToken(token, subkey);
+    const result: VerifyOutcome = await verifyToken(token, subkey, { requiredScope: "llm" });
     if (!result.valid) {
       throw new Error(result.code);
     }

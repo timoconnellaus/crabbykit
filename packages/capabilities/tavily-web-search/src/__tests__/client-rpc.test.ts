@@ -2,9 +2,9 @@
  * tavilyClient unit tests (task 4.31).
  *
  * Verifies:
- *  - tool calls forward the __SPINE_TOKEN to service.search / service.extract
+ *  - tool calls forward the __BUNDLE_TOKEN to service.search / service.extract
  *  - the token comes from env only (never from LLM args)
- *  - tools throw when __SPINE_TOKEN is missing (bundle not wired correctly)
+ *  - tools throw when __BUNDLE_TOKEN is missing (bundle not wired correctly)
  *  - the client never imports TavilyService credentials
  *  - schema hash is passed through for drift detection
  *  - result formatting
@@ -30,7 +30,7 @@ function makeMockService() {
 }
 
 function makeContext(token?: string): AgentContext & {
-  env: { __SPINE_TOKEN?: string };
+  env: { __BUNDLE_TOKEN?: string };
 } {
   return {
     agentId: "agent",
@@ -44,8 +44,8 @@ function makeContext(token?: string): AgentContext & {
     storage: createNoopStorage(),
     schedules: {} as never,
     rateLimit: { consume: async () => ({ allowed: true }) },
-    env: { __SPINE_TOKEN: token },
-  } as unknown as AgentContext & { env: { __SPINE_TOKEN?: string } };
+    env: { __BUNDLE_TOKEN: token },
+  } as unknown as AgentContext & { env: { __BUNDLE_TOKEN?: string } };
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: test helper
@@ -72,7 +72,7 @@ describe("tavilyClient capability shape", () => {
 });
 
 describe("web_search tool", () => {
-  it("forwards __SPINE_TOKEN and args to service.search with schema hash", async () => {
+  it("forwards __BUNDLE_TOKEN and args to service.search with schema hash", async () => {
     const service = makeMockService();
     service.search.mockResolvedValue({
       results: [
@@ -111,7 +111,7 @@ describe("web_search tool", () => {
       {
         query: "q",
         // Exercising the trust boundary: LLM-supplied tokens should be ignored
-        __SPINE_TOKEN: "llm-forged-token",
+        __BUNDLE_TOKEN: "llm-forged-token",
       },
       ctx as never,
     );
@@ -119,7 +119,7 @@ describe("web_search tool", () => {
     expect(service.search.mock.calls[0][0]).toBe("real-env-token");
   });
 
-  it("throws when __SPINE_TOKEN is absent from env", async () => {
+  it("throws when __BUNDLE_TOKEN is absent from env", async () => {
     const service = makeMockService();
     const cap = tavilyClient({ service });
     const ctx = makeContext(undefined);
@@ -127,7 +127,7 @@ describe("web_search tool", () => {
     const search = toolByName(tools, "web_search");
 
     await expect(search.execute!({ query: "q" }, ctx as never)).rejects.toThrow(
-      "Missing __SPINE_TOKEN",
+      "Missing __BUNDLE_TOKEN",
     );
     expect(service.search).not.toHaveBeenCalled();
   });
@@ -146,7 +146,7 @@ describe("web_search tool", () => {
 });
 
 describe("web_fetch tool", () => {
-  it("forwards __SPINE_TOKEN, url, and schema hash to service.extract", async () => {
+  it("forwards __BUNDLE_TOKEN, url, and schema hash to service.extract", async () => {
     const service = makeMockService();
     service.extract.mockResolvedValue({ content: "page text" });
     const cap = tavilyClient({ service });
@@ -164,7 +164,7 @@ describe("web_fetch tool", () => {
     expect(textOf(result)).toBe("page text");
   });
 
-  it("throws when __SPINE_TOKEN is absent", async () => {
+  it("throws when __BUNDLE_TOKEN is absent", async () => {
     const service = makeMockService();
     const cap = tavilyClient({ service });
     const ctx = makeContext(undefined);
@@ -172,7 +172,7 @@ describe("web_fetch tool", () => {
     const fetch = toolByName(tools, "web_fetch");
 
     await expect(fetch.execute!({ url: "https://a" }, ctx as never)).rejects.toThrow(
-      "Missing __SPINE_TOKEN",
+      "Missing __BUNDLE_TOKEN",
     );
     expect(service.extract).not.toHaveBeenCalled();
   });
@@ -191,12 +191,12 @@ describe("web_fetch tool", () => {
 });
 
 describe("tavilyClient credential isolation", () => {
-  it("does not read TAVILY_API_KEY from env — only __SPINE_TOKEN", async () => {
+  it("does not read TAVILY_API_KEY from env — only __BUNDLE_TOKEN", async () => {
     const service = makeMockService();
     service.search.mockResolvedValue({ results: [] });
     const cap = tavilyClient({ service });
     const envWithSecret = {
-      __SPINE_TOKEN: "tok",
+      __BUNDLE_TOKEN: "tok",
       TAVILY_API_KEY: "sk-leaked-123",
     };
     const ctx = {

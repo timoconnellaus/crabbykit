@@ -3,27 +3,28 @@
  *
  * Exercises the full bundle -> SpineService -> agent DO spine method
  * pipeline with real token minting and verification:
- *   1. `AgentDO.initBundleDispatch` mints a capability token per turn and
- *      injects it into the bundle env as `__SPINE_TOKEN`.
+ *   1. `AgentDO.initBundleDispatch` mints a unified capability token per turn
+ *      and injects it into the bundle env as `__BUNDLE_TOKEN`.
  *   2. The bundle (running in the fake loader) calls `env.SPINE.appendEntry(
  *      token, entry)` on a real `SpineService` instance via service binding.
  *   3. `SpineService` derives its HKDF verify-only subkey from the master
- *      `AGENT_AUTH_KEY`, verifies the token, constructs a `SpineCaller`
- *      from the verified payload, and dispatches to the agent DO via a
- *      direct DO method-call RPC (`host.spineAppendEntry(caller, entry)`)
- *      on a typed `DurableObjectStub<SpineHost>`.
+ *      `AGENT_AUTH_KEY` using `BUNDLE_SUBKEY_LABEL`, verifies the token with
+ *      `requiredScope: "spine"`, constructs a `SpineCaller` from the verified
+ *      payload, and dispatches to the agent DO via a direct DO method-call RPC
+ *      (`host.spineAppendEntry(caller, entry)`) on a typed
+ *      `DurableObjectStub<SpineHost>`.
  *   4. `AgentDO.spineAppendEntry` forwards to `AgentRuntime.spineAppendEntry`,
  *      which checks the per-turn budget then persists the entry via
  *      `sessionStore.appendEntry`.
  *
  * Covers the token verification error codes (`ERR_BAD_TOKEN`,
- * `ERR_TOKEN_EXPIRED`, `ERR_TOKEN_REPLAY`) and the budget enforcement
- * (`ERR_BUDGET_EXCEEDED`) paths — none of which had real integration
- * coverage prior to this file.
+ * `ERR_TOKEN_EXPIRED`, `ERR_SCOPE_DENIED`) and the budget enforcement
+ * (`ERR_BUDGET_EXCEEDED`) paths.
  */
 
 import { env as testEnv } from "cloudflare:test";
 import {
+  BUNDLE_SUBKEY_LABEL,
   deriveMintSubkey,
   InMemoryBundleRegistry,
   mintToken,
@@ -173,10 +174,13 @@ describe("bundle spine bridge: token verification", () => {
   }
 
   it("bad (tampered) token is rejected with ERR_BAD_TOKEN", async () => {
-    // Mint a valid token under the spine subkey, then flip a character
+    // Mint a valid token under the bundle subkey, then flip a character
     // in the signature to invalidate the HMAC.
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const validToken = await mintToken({ agentId, sessionId: "fake-session" }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const validToken = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["spine", "llm"] },
+      subkey,
+    );
     const [payloadB64, sigB64] = validToken.split(".");
     // Flip a character in the signature. Base64url alphabet: A-Za-z0-9_-
     const tamperedSig = sigB64[0] === "A" ? `B${sigB64.slice(1)}` : `A${sigB64.slice(1)}`;
@@ -191,8 +195,11 @@ describe("bundle spine bridge: token verification", () => {
   });
 
   it("expired token is rejected with ERR_TOKEN_EXPIRED", async () => {
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const expired = await mintToken({ agentId, sessionId: "fake-session", ttlMs: -1 }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const expired = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["spine"], ttlMs: -1 },
+      subkey,
+    );
 
     await expect(
       spine.appendEntry(expired, {
@@ -215,8 +222,8 @@ describe("bundle spine bridge: token verification", () => {
     // .appendEntry`'s "Session not found" guard. Create one via the
     // spine surface itself.
     const sessionId = await createRealSession();
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const token = await mintToken({ agentId, sessionId }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const token = await mintToken({ agentId, sessionId, scope: ["spine", "llm"] }, subkey);
 
     // Three successive calls with the same token succeed.
     for (let i = 0; i < 3; i++) {
@@ -232,8 +239,8 @@ describe("bundle spine bridge: token verification", () => {
     // is the real spam brake. Hit it. Budget enforcement now lives in
     // the DO's AgentRuntime, not in the SpineService instance.
     const sessionId = await createRealSession();
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const token = await mintToken({ agentId, sessionId }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const token = await mintToken({ agentId, sessionId, scope: ["spine", "llm"] }, subkey);
 
     for (let i = 0; i < 100; i++) {
       await spine.appendEntry(token, {
@@ -253,8 +260,11 @@ describe("bundle spine bridge: token verification", () => {
   it("expired token is rejected even with replay protection removed", async () => {
     // exp is enforced independently of nonce tracking. Re-assert here
     // to lock in the invariant after the replay-check removal.
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const expired = await mintToken({ agentId, sessionId: "fake-session", ttlMs: -1 }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const expired = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["spine"], ttlMs: -1 },
+      subkey,
+    );
 
     await expect(
       spine.appendEntry(expired, {
@@ -265,8 +275,11 @@ describe("bundle spine bridge: token verification", () => {
   });
 
   it("token signed with the wrong master key is rejected", async () => {
-    const wrongSubkey = await deriveMintSubkey("different-master-key", "claw/spine-v1");
-    const foreign = await mintToken({ agentId, sessionId: "fake-session" }, wrongSubkey);
+    const wrongSubkey = await deriveMintSubkey("different-master-key", BUNDLE_SUBKEY_LABEL);
+    const foreign = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["spine"] },
+      wrongSubkey,
+    );
 
     await expect(
       spine.appendEntry(foreign, {
@@ -276,18 +289,21 @@ describe("bundle spine bridge: token verification", () => {
     ).rejects.toMatchObject({ code: "ERR_BAD_TOKEN" });
   });
 
-  it("token signed with the llm subkey label is rejected by the spine subkey", async () => {
-    // Domain separation: tokens minted under "claw/llm-v1" must NOT
-    // verify under "claw/spine-v1", even though the master key is the same.
-    const llmSubkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/llm-v1");
-    const llmToken = await mintToken({ agentId, sessionId: "fake-session" }, llmSubkey);
+  it("token without 'spine' scope is rejected with ERR_SCOPE_DENIED", async () => {
+    // Scope enforcement: a valid unified token whose scope array omits
+    // "spine" must be rejected at SpineService.verify with ERR_SCOPE_DENIED.
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const noSpineToken = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["llm"] },
+      subkey,
+    );
 
     await expect(
-      spine.appendEntry(llmToken, {
+      spine.appendEntry(noSpineToken, {
         type: "message",
-        data: { role: "assistant", content: "wrong-service", timestamp: Date.now() },
+        data: { role: "assistant", content: "wrong-scope", timestamp: Date.now() },
       }),
-    ).rejects.toMatchObject({ code: "ERR_BAD_TOKEN" });
+    ).rejects.toMatchObject({ code: "ERR_SCOPE_DENIED" });
   });
 });
 
@@ -322,8 +338,8 @@ describe("bundle spine bridge: instance-recycle budget enforcement", () => {
     })) as { id: string };
     const sessionId = session.id;
 
-    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, "claw/spine-v1");
-    const token = await mintToken({ agentId, sessionId }, subkey);
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const token = await mintToken({ agentId, sessionId, scope: ["spine", "llm"] }, subkey);
 
     // First SpineService instance — issue 50 calls
     const service1 = makeRealSpineService();

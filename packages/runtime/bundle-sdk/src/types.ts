@@ -23,15 +23,16 @@ import type { PromptOptions } from "./prompt/types.js";
  * The host's `bundleEnv` factory catches non-serializable values at runtime
  * with a DataCloneError, falling back to the static brain.
  *
- * The `__SPINE_TOKEN` and `__LLM_TOKEN` fields are reserved and injected by
- * the host dispatcher. Each carries a per-service capability token signed
- * with that service's HKDF subkey, so SpineService and LlmService can
- * verify independently. Bundles read whichever token matches the service
- * they're calling — not interchangeable.
+ * The `__BUNDLE_TOKEN` field is reserved and injected automatically by the
+ * host dispatcher once per turn. It carries the unified per-turn HMAC token
+ * whose payload `scope: string[]` lists which services the bundle is
+ * authorized to call. Reserved scopes `"spine"` and `"llm"` are always
+ * present; additional scopes come from the bundle's validated
+ * `requiredCapabilities` catalog. Capability client subpaths read this
+ * single field — no per-capability token naming convention required.
  */
 export interface BundleEnv {
-  __SPINE_TOKEN?: string;
-  __LLM_TOKEN?: string;
+  __BUNDLE_TOKEN?: string;
   [key: string]: unknown;
 }
 

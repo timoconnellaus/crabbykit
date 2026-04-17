@@ -76,24 +76,40 @@ export class InMemoryBundleRegistry implements BundleRegistry {
     versionId: string | null,
     options?: SetActiveOptions,
   ): Promise<void> {
-    if (versionId !== null && options?.skipCatalogCheck !== true) {
-      if (options?.knownCapabilityIds === undefined) {
-        throw new TypeError(
-          "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
-        );
-      }
+    if (versionId !== null) {
       const version = this.versions.get(versionId);
       const required = (version?.metadata as { requiredCapabilities?: Array<{ id: string }> })
         ?.requiredCapabilities;
-      const result = validateCatalogAgainstKnownIds(
-        required,
-        new Set(options.knownCapabilityIds),
-      );
-      if (!result.valid) {
-        throw new CapabilityMismatchError({
-          missingIds: result.missingIds,
-          versionId,
-        });
+
+      // Reserved-scope rejection: "spine" and "llm" cannot be used as
+      // capability ids. This runs independently of skipCatalogCheck.
+      if (required && required.length > 0) {
+        const RESERVED = new Set(["spine", "llm"]);
+        for (const req of required) {
+          if (req && typeof req.id === "string" && RESERVED.has(req.id)) {
+            throw new TypeError(
+              `BundleRegistry.setActive: capability id "${req.id}" is a reserved scope string and cannot be used as a capability id — the dispatcher unconditionally grants this scope to all bundles`,
+            );
+          }
+        }
+      }
+
+      if (options?.skipCatalogCheck !== true) {
+        if (options?.knownCapabilityIds === undefined) {
+          throw new TypeError(
+            "BundleRegistry.setActive: knownCapabilityIds is required when skipCatalogCheck is not true",
+          );
+        }
+        const result = validateCatalogAgainstKnownIds(
+          required,
+          new Set(options.knownCapabilityIds),
+        );
+        if (!result.valid) {
+          throw new CapabilityMismatchError({
+            missingIds: result.missingIds,
+            versionId,
+          });
+        }
       }
     }
 

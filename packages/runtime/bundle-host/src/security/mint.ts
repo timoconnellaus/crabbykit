@@ -11,7 +11,12 @@
  * be used to sign.
  */
 
+import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
 import type { TokenPayload } from "@claw-for-cloudflare/bundle-token";
+
+// Re-export the label so host-side call sites that already import from
+// bundle-host can continue to use it from either package.
+export { BUNDLE_SUBKEY_LABEL };
 
 /**
  * Default token TTL. Tokens are scoped to a single turn; a turn that
@@ -30,12 +35,11 @@ function base64urlEncode(data: ArrayBuffer | Uint8Array): string {
 }
 
 /**
- * Derive a per-service mint-only subkey from the master `AGENT_AUTH_KEY`.
- * Uses HKDF with SHA-256. Each service gets a distinct label
- * (e.g., `"claw/spine-v1"`, `"claw/llm-v1"`). The resulting CryptoKey
- * has `usages: ["sign"]` only — attempting `crypto.subtle.verify` with
- * it throws, giving a runtime guarantee on top of the package-boundary
- * compile-time guarantee.
+ * Derive a mint-only subkey from the master `AGENT_AUTH_KEY`.
+ * Uses HKDF with SHA-256. Pass `BUNDLE_SUBKEY_LABEL` (`"claw/bundle-v1"`)
+ * as the label. The resulting CryptoKey has `usages: ["sign"]` only —
+ * attempting `crypto.subtle.verify` with it throws, giving a runtime
+ * guarantee on top of the package-boundary compile-time guarantee.
  */
 export async function deriveMintSubkey(masterKey: string, label: string): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(
@@ -63,6 +67,15 @@ export async function deriveMintSubkey(masterKey: string, label: string): Promis
 export interface MintOptions {
   agentId: string;
   sessionId: string;
+  /**
+   * Scopes this token authorizes. Reserved core scopes `"spine"` and `"llm"`
+   * are unconditionally prepended by the dispatcher; additional entries come
+   * from the bundle's validated capability catalog.
+   *
+   * Required — there is no sensible default. Every call site has a principled
+   * answer (the catalog validation already ran).
+   */
+  scope: string[];
   ttlMs?: number;
 }
 
@@ -77,6 +90,7 @@ export async function mintToken(opts: MintOptions, subkey: CryptoKey): Promise<s
     sid: opts.sessionId,
     exp: Date.now() + (opts.ttlMs ?? DEFAULT_TTL_MS),
     nonce: crypto.randomUUID(),
+    scope: opts.scope,
   };
 
   const payloadJson = JSON.stringify(payload);

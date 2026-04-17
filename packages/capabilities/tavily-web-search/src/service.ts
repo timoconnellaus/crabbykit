@@ -3,9 +3,20 @@
  *
  * Bundle-side clients call through via JSRPC with a capability token.
  * Cost emission via spine. Errors sanitized before crossing RPC boundary.
+ *
+ * Token verification: the unified bundle capability token is verified with
+ * `requiredScope: "tavily-web-search"` (this capability's kebab-case id).
+ * The HKDF subkey is derived from `AGENT_AUTH_KEY` using the shared
+ * `BUNDLE_SUBKEY_LABEL` (`"claw/bundle-v1"`), same as SpineService and
+ * LlmService.
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
+import {
+  BUNDLE_SUBKEY_LABEL,
+  deriveVerifyOnlySubkey,
+  verifyToken,
+} from "@claw-for-cloudflare/bundle-token";
 import { SCHEMA_CONTENT_HASH } from "./schemas.js";
 
 const TAVILY_API_URL = "https://api.tavily.com";
@@ -14,11 +25,33 @@ const TAVILY_EXTRACT_COST_USD = 0.005;
 
 export interface TavilyServiceEnv {
   TAVILY_API_KEY: string;
-  TAVILY_SUBKEY: CryptoKey;
+  /**
+   * Master HMAC secret (string). TavilyService derives its own verify-only
+   * subkey from this on first call using the unified HKDF label
+   * `claw/bundle-v1` (via `BUNDLE_SUBKEY_LABEL`). Replaces the previous
+   * `TAVILY_SUBKEY: CryptoKey` field which was declared but never populated.
+   */
+  AGENT_AUTH_KEY: string;
   SPINE: Fetcher & { emitCost(token: string, costEvent: unknown): Promise<void> };
 }
 
 export class TavilyService extends WorkerEntrypoint<TavilyServiceEnv> {
+  private subkeyPromise: Promise<CryptoKey> | null = null;
+
+  /**
+   * Lazily derive (and cache) the verify-only HKDF subkey from the
+   * master `AGENT_AUTH_KEY`. Uses the unified `BUNDLE_SUBKEY_LABEL`.
+   */
+  private getSubkey(): Promise<CryptoKey> {
+    if (!this.subkeyPromise) {
+      if (!this.env.AGENT_AUTH_KEY) {
+        throw new Error("TavilyService misconfigured: env.AGENT_AUTH_KEY is missing");
+      }
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    }
+    return this.subkeyPromise;
+  }
+
   async search(
     token: string,
     args: {
@@ -35,8 +68,14 @@ export class TavilyService extends WorkerEntrypoint<TavilyServiceEnv> {
       throw new Error("ERR_SCHEMA_VERSION");
     }
 
-    // Token verification would happen here via TAVILY_SUBKEY
-    // (simplified for initial implementation — full verify in integration)
+    // Verify token — requires "tavily-web-search" scope in the unified bundle token
+    const subkey = await this.getSubkey();
+    const verifyResult = await verifyToken(token, subkey, {
+      requiredScope: "tavily-web-search",
+    });
+    if (!verifyResult.valid) {
+      throw new Error(verifyResult.code);
+    }
 
     try {
       const res = await fetch(`${TAVILY_API_URL}/search`, {
@@ -89,6 +128,15 @@ export class TavilyService extends WorkerEntrypoint<TavilyServiceEnv> {
   ): Promise<{ content: string }> {
     if (schemaHash && schemaHash !== SCHEMA_CONTENT_HASH) {
       throw new Error("ERR_SCHEMA_VERSION");
+    }
+
+    // Verify token — requires "tavily-web-search" scope
+    const subkey = await this.getSubkey();
+    const verifyResult = await verifyToken(token, subkey, {
+      requiredScope: "tavily-web-search",
+    });
+    if (!verifyResult.valid) {
+      throw new Error(verifyResult.code);
     }
 
     try {

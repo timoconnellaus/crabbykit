@@ -9,10 +9,9 @@
 
 import { validateCatalogAgainstKnownIds } from "@claw-for-cloudflare/bundle-registry";
 import type { BundleConfig, BundleDispatchState, BundleRegistry } from "./bundle-config.js";
-import { deriveMintSubkey, mintToken } from "./security/mint.js";
+import { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "./security/mint.js";
 
 const DEFAULT_MAX_LOAD_FAILURES = 3;
-const SPINE_SUBKEY_LABEL = "claw/spine-v1";
 const BUNDLE_ENVELOPE_VERSION = 1;
 
 /**
@@ -137,7 +136,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
   private registry: BundleRegistry | null = null;
   private loader: WorkerLoader | null = null;
   private masterKey: string | null = null;
-  private spineSubkey: CryptoKey | null = null;
+  private bundleSubkey: CryptoKey | null = null;
   private state: BundleDispatchState = {
     activeVersionId: null,
     consecutiveFailures: 0,
@@ -186,8 +185,8 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     if (!this.masterKey) {
       this.masterKey = this.config.authKey(this.env);
     }
-    if (!this.spineSubkey) {
-      this.spineSubkey = await deriveMintSubkey(this.masterKey, SPINE_SUBKEY_LABEL);
+    if (!this.bundleSubkey) {
+      this.bundleSubkey = await deriveMintSubkey(this.masterKey, BUNDLE_SUBKEY_LABEL);
     }
   }
 
@@ -263,8 +262,16 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     }
 
     try {
-      // 1. Mint a capability token for this turn
-      const token = await mintToken({ agentId: this.agentId, sessionId }, this.spineSubkey!);
+      // 1. Compute scope from the validated catalog and mint a single capability token
+      const version = await this.registry?.getVersion?.(versionId);
+      const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
+        (r: { id: string }) => r.id,
+      );
+      const scope = ["spine", "llm", ...catalogIds];
+      const token = await mintToken(
+        { agentId: this.agentId, sessionId, scope },
+        this.bundleSubkey!,
+      );
 
       // 2. Load bundle via Worker Loader
       const bundleEnv = this.config.bundleEnv(this.env);
@@ -281,7 +288,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
           compatibilityFlags: ["nodejs_compat"],
           mainModule,
           modules,
-          env: { ...bundleEnv, __SPINE_TOKEN: token },
+          env: { ...bundleEnv, __BUNDLE_TOKEN: token },
           globalOutbound: null, // No direct outbound network access
         };
       });
@@ -334,7 +341,16 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
     if (!versionId) return;
 
     try {
-      const token = await mintToken({ agentId: this.agentId, sessionId }, this.spineSubkey!);
+      // Compute scope from the catalog (same as dispatchTurn)
+      const version = await this.registry?.getVersion?.(versionId);
+      const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
+        (r: { id: string }) => r.id,
+      );
+      const scope = ["spine", "llm", ...catalogIds];
+      const token = await mintToken(
+        { agentId: this.agentId, sessionId, scope },
+        this.bundleSubkey!,
+      );
 
       const bundleEnv = this.config.bundleEnv(this.env);
       const worker = this.loader?.get(versionId, async () => {
@@ -346,7 +362,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
           compatibilityFlags: ["nodejs_compat"],
           mainModule: "bundle.js",
           modules: { "bundle.js": source },
-          env: { ...bundleEnv, __SPINE_TOKEN: token },
+          env: { ...bundleEnv, __BUNDLE_TOKEN: token },
           globalOutbound: null,
         };
       });

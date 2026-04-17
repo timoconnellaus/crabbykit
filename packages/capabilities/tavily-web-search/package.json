@@ -12,6 +12,7 @@
   "dependencies": {
     "@claw-for-cloudflare/agent-runtime": "workspace:*",
     "@claw-for-cloudflare/agent-core": "workspace:*",
+    "@claw-for-cloudflare/bundle-token": "workspace:*",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {

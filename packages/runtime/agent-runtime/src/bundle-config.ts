@@ -203,9 +203,10 @@ export interface BundleConfig<TEnv = Record<string, unknown>> {
   authKey: (env: TEnv) => string;
   /**
    * Factory projecting the bundle's env from the host env.
-   * Only service bindings and serializable values. __SPINE_TOKEN and
-   * __LLM_TOKEN are injected automatically. Native bindings that aren't
-   * structured-cloneable cause DataCloneError → fallback to static brain.
+   * Only service bindings and serializable values. __BUNDLE_TOKEN is
+   * injected automatically by the dispatcher — do not include it here.
+   * Native bindings that aren't structured-cloneable cause DataCloneError
+   * → fallback to static brain.
    */
   bundleEnv: (env: TEnv) => Record<string, unknown>;
   /** Consecutive load failures before auto-revert to static. Default: 3. */

@@ -152,22 +152,22 @@ describe("bundle dispatch: turn dispatch", () => {
     await runTurn(stub, "second");
 
     expect(envCaptures.length).toBeGreaterThanOrEqual(2);
-    const token1 = envCaptures[0].__SPINE_TOKEN as string;
-    const token2 = envCaptures[1].__SPINE_TOKEN as string;
+    const token1 = envCaptures[0].__BUNDLE_TOKEN as string;
+    const token2 = envCaptures[1].__BUNDLE_TOKEN as string;
     expect(typeof token1).toBe("string");
     expect(typeof token2).toBe("string");
+    // Each turn mints a fresh nonce → distinct tokens.
     expect(token1).not.toEqual(token2);
   });
 
-  it("mints separate spine and llm tokens with different subkeys", async () => {
-    const { stub, agentId } = getBundleStubAndId("dispatch-token-subkeys");
+  it("projects a single __BUNDLE_TOKEN (no separate spine/llm tokens)", async () => {
+    const { stub, agentId } = getBundleStubAndId("dispatch-token-unified");
     await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await runTurn(stub, "hi");
 
-    expect(envCaptures[0]).toHaveProperty("__SPINE_TOKEN");
-    expect(envCaptures[0]).toHaveProperty("__LLM_TOKEN");
-    // Different subkeys → different signatures even though payload is identical.
-    expect(envCaptures[0].__SPINE_TOKEN).not.toEqual(envCaptures[0].__LLM_TOKEN);
+    expect(envCaptures[0]).toHaveProperty("__BUNDLE_TOKEN");
+    expect(envCaptures[0]).not.toHaveProperty("__SPINE_TOKEN");
+    expect(envCaptures[0]).not.toHaveProperty("__LLM_TOKEN");
   });
 
   it("invokes loader.get() with the active versionId", async () => {
@@ -177,15 +177,14 @@ describe("bundle dispatch: turn dispatch", () => {
     expect(getVersionIdCalls).toContain("v-ref");
   });
 
-  it("forwards the projected bundleEnv plus injected tokens", async () => {
+  it("forwards the projected bundleEnv plus the injected __BUNDLE_TOKEN", async () => {
     const { stub, agentId } = getBundleStubAndId("dispatch-env-projection");
     await registry.setActive(agentId, "v-ref", { skipCatalogCheck: true });
     await runTurn(stub, "hi");
 
     expect(envCaptures.length).toBeGreaterThanOrEqual(1);
     expect(envCaptures[0].TIMEZONE).toBe("UTC");
-    expect(envCaptures[0]).toHaveProperty("__SPINE_TOKEN");
-    expect(envCaptures[0]).toHaveProperty("__LLM_TOKEN");
+    expect(envCaptures[0]).toHaveProperty("__BUNDLE_TOKEN");
   });
 
   it("bundle dispatch path does NOT invoke the static-brain MockPiAgent", async () => {

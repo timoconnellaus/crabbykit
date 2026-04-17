@@ -16,6 +16,7 @@
 import type { AgentTool } from "@claw-for-cloudflare/agent-core";
 import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyClient } from "../client.js";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";
@@ -23,8 +24,41 @@ import type { TavilyServiceEnv } from "../service.js";
 import { TavilyService } from "../service.js";
 
 const TAVILY_SECRET = "tvly-secret-xyz-4321";
-const TEST_TOKEN = "bundle-capability-token-abc";
+const TEST_AUTH_KEY = "test-auth-key-aaaaaaaaaaaaaaaaaaaaaaaaa";
 const TEST_SESSION = "session-42";
+
+/**
+ * Mint a real bundle capability token for integration tests.
+ * Mirrors the dispatcher's mintToken logic — same HKDF label, same scope convention.
+ */
+async function mintTestToken(agentId = "agent-int", sessionId = TEST_SESSION): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(TEST_AUTH_KEY),
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+  const mintKey = await crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(32),
+      info: new TextEncoder().encode(BUNDLE_SUBKEY_LABEL),
+    },
+    keyMaterial,
+    { name: "HMAC", hash: "SHA-256", length: 256 },
+    false,
+    ["sign"],
+  );
+  const exp = Date.now() + 60_000;
+  const nonce = crypto.randomUUID();
+  const payload = { aid: agentId, sid: sessionId, exp, nonce, scope: ["spine", "llm", "tavily-web-search"] };
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const sig = await crypto.subtle.sign("HMAC", mintKey, new TextEncoder().encode(payloadB64));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${payloadB64}.${sigB64}`;
+}
 
 function mockFetchResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -47,7 +81,7 @@ function makeTestContext(token: string) {
     schedules: {} as never,
     rateLimit: { consume: async () => ({ allowed: true }) },
     notifyBundlePointerChanged: async () => {},
-    env: { __SPINE_TOKEN: token },
+    env: { __BUNDLE_TOKEN: token },
   };
 }
 
@@ -60,11 +94,12 @@ beforeEach(() => {
 
 describe("Tavily bundle integration — client → service → cost emission", () => {
   it("routes a web_search call through the service, forwards the token, emits a cost", async () => {
+    const testToken = await mintTestToken();
     // Host side: service with credentials + SPINE mock
     const emitCost = vi.fn().mockResolvedValue(undefined);
     const serviceEnv: TavilyServiceEnv = {
       TAVILY_API_KEY: TAVILY_SECRET,
-      TAVILY_SUBKEY: {} as CryptoKey,
+      AGENT_AUTH_KEY: TEST_AUTH_KEY,
       SPINE: {
         emitCost,
       } as unknown as TavilyServiceEnv["SPINE"],
@@ -89,7 +124,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
       service: service as unknown as Service<TavilyService>,
     });
 
-    const ctx = makeTestContext(TEST_TOKEN);
+    const ctx = makeTestContext(testToken);
     const tools = capability.tools!(ctx) as unknown as AgentTool<any>[];
     const search = tools.find((t) => t.name === "web_search");
     expect(search).toBeDefined();
@@ -107,7 +142,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     // 3. Service emitted a cost event via SPINE with the bundle's token
     expect(emitCost).toHaveBeenCalledOnce();
     const [forwardedToken, costEvent] = emitCost.mock.calls[0];
-    expect(forwardedToken).toBe(TEST_TOKEN);
+    expect(forwardedToken).toBe(testToken);
     expect(costEvent.capabilityId).toBe("tavily");
     expect(costEvent.toolName).toBe("web_search");
     expect(costEvent.amount).toBeGreaterThan(0);
@@ -115,9 +150,10 @@ describe("Tavily bundle integration — client → service → cost emission", (
   });
 
   it("passes the schema content hash for drift detection", async () => {
+    const testToken = await mintTestToken();
     const service = new TavilyService({} as never, {
       TAVILY_API_KEY: TAVILY_SECRET,
-      TAVILY_SUBKEY: {} as CryptoKey,
+      AGENT_AUTH_KEY: TEST_AUTH_KEY,
       SPINE: {
         emitCost: vi.fn().mockResolvedValue(undefined),
       } as unknown as TavilyServiceEnv["SPINE"],
@@ -128,7 +164,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     const cap = tavilyClient({
       service: service as unknown as Service<TavilyService>,
     });
-    const ctx = makeTestContext(TEST_TOKEN);
+    const ctx = makeTestContext(testToken);
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = tools.find((t) => t.name === "web_search")!;
 
@@ -140,10 +176,11 @@ describe("Tavily bundle integration — client → service → cost emission", (
   });
 
   it("routes web_fetch through service and emits its own cost event", async () => {
+    const testToken = await mintTestToken();
     const emitCost = vi.fn().mockResolvedValue(undefined);
     const service = new TavilyService({} as never, {
       TAVILY_API_KEY: TAVILY_SECRET,
-      TAVILY_SUBKEY: {} as CryptoKey,
+      AGENT_AUTH_KEY: TEST_AUTH_KEY,
       SPINE: { emitCost } as unknown as TavilyServiceEnv["SPINE"],
     });
 
@@ -154,7 +191,7 @@ describe("Tavily bundle integration — client → service → cost emission", (
     const cap = tavilyClient({
       service: service as unknown as Service<TavilyService>,
     });
-    const ctx = makeTestContext(TEST_TOKEN);
+    const ctx = makeTestContext(testToken);
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const fetchTool = tools.find((t) => t.name === "web_fetch")!;
 

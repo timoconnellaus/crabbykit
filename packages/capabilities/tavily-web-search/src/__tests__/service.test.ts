@@ -10,12 +10,71 @@
  *  - schema drift rejection
  */
 
+import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";
 import type { TavilyServiceEnv } from "../service.js";
 import { TavilyService } from "../service.js";
 
 const TAVILY_SECRET = "tvly-secret-xyz-0123456789";
+const TEST_AUTH_KEY = "test-auth-key-aaaaaaaaaaaaaaaaaaaaaaaaa";
+
+/**
+ * Mint a valid bundle capability token for TavilyService tests.
+ * Derives the mint-capable key via HKDF (sign usage), then signs a payload.
+ * Uses the unified BUNDLE_SUBKEY_LABEL and includes "tavily-web-search" scope.
+ */
+async function makeTavilyToken(
+  agentId = "test-agent",
+  sessionId = "test-session",
+): Promise<string> {
+  // Derive a sign-capable key directly (mirrors deriveMintSubkey logic)
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(TEST_AUTH_KEY),
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+  const mintKey = await crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(32),
+      info: new TextEncoder().encode(BUNDLE_SUBKEY_LABEL),
+    },
+    keyMaterial,
+    { name: "HMAC", hash: "SHA-256", length: 256 },
+    false,
+    ["sign"],
+  );
+
+  // Build payload matching TokenPayload shape
+  const exp = Date.now() + 60_000;
+  const nonce = crypto.randomUUID();
+  const payload = {
+    aid: agentId,
+    sid: sessionId,
+    exp,
+    nonce,
+    scope: ["spine", "llm", "tavily-web-search"],
+  };
+  const payloadB64 = btoa(JSON.stringify(payload))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  const sig = await crypto.subtle.sign(
+    "HMAC",
+    mintKey,
+    new TextEncoder().encode(payloadB64),
+  );
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  return `${payloadB64}.${sigB64}`;
+}
+
 
 function buildEnv(): TavilyServiceEnv & {
   _emitCostMock: ReturnType<typeof vi.fn>;
@@ -23,7 +82,7 @@ function buildEnv(): TavilyServiceEnv & {
   const emitCostMock = vi.fn().mockResolvedValue(undefined);
   return {
     TAVILY_API_KEY: TAVILY_SECRET,
-    TAVILY_SUBKEY: {} as CryptoKey,
+    AGENT_AUTH_KEY: "test-auth-key-aaaaaaaaaaaaaaaaaaaaaaaaa",
     SPINE: {
       emitCost: emitCostMock,
     } as unknown as TavilyServiceEnv["SPINE"],
@@ -62,8 +121,8 @@ describe("TavilyService.search", () => {
         results: [{ title: "t", url: "https://a", content: "c" }],
       }),
     );
-
-    const out = await svc.search("tok", { query: "rust ownership" });
+    const token = await makeTavilyToken();
+    const out = await svc.search(token, { query: "rust ownership" });
 
     expect(out.results).toHaveLength(1);
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -78,8 +137,8 @@ describe("TavilyService.search", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-
-    await svc.search("tok", {
+    const token = await makeTavilyToken();
+    await svc.search(token, {
       query: "q",
       maxResults: 10,
       searchDepth: "advanced",
@@ -98,12 +157,12 @@ describe("TavilyService.search", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-
-    await svc.search("tok-123", { query: "q" });
+    const token = await makeTavilyToken();
+    await svc.search(token, { query: "q" });
 
     expect(env._emitCostMock).toHaveBeenCalledOnce();
     const [forwardedToken, event] = env._emitCostMock.mock.calls[0];
-    expect(forwardedToken).toBe("tok-123");
+    expect(forwardedToken).toBe(token);
     expect(event.capabilityId).toBe("tavily");
     expect(event.toolName).toBe("web_search");
     expect(event.currency).toBe("USD");
@@ -115,8 +174,8 @@ describe("TavilyService.search", () => {
     env._emitCostMock.mockRejectedValue(new Error("spine down"));
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-
-    const out = await svc.search("tok", { query: "q" });
+    const token = await makeTavilyToken();
+    const out = await svc.search(token, { query: "q" });
     expect(out.results).toEqual([]);
   });
 
@@ -126,16 +185,16 @@ describe("TavilyService.search", () => {
     mockFetch.mockImplementation(
       async () => new Response(`{"error":"bad key ${TAVILY_SECRET}"}`, { status: 401 }),
     );
-
-    await expect(svc.search("tok", { query: "q" })).rejects.toThrow(/^ERR_UPSTREAM_AUTH$/);
+    const token = await makeTavilyToken();
+    await expect(svc.search(token, { query: "q" })).rejects.toThrow(/^ERR_UPSTREAM_AUTH$/);
   });
 
   it("sanitizes 429 to ERR_UPSTREAM_RATE", async () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => new Response("rate", { status: 429 }));
-
-    await expect(svc.search("tok", { query: "q" })).rejects.toThrow("ERR_UPSTREAM_RATE");
+    const token = await makeTavilyToken();
+    await expect(svc.search(token, { query: "q" })).rejects.toThrow("ERR_UPSTREAM_RATE");
   });
 
   it("sanitizes generic network errors to ERR_UPSTREAM_OTHER with no secret leakage", async () => {
@@ -144,9 +203,9 @@ describe("TavilyService.search", () => {
     mockFetch.mockImplementation(async () => {
       throw new Error(`boom while using ${TAVILY_SECRET}`);
     });
-
+    const token = await makeTavilyToken();
     try {
-      await svc.search("tok", { query: "q" });
+      await svc.search(token, { query: "q" });
       throw new Error("unreachable");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -168,7 +227,8 @@ describe("TavilyService.search", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-    await expect(svc.search("tok", { query: "q" }, SCHEMA_CONTENT_HASH)).resolves.toBeDefined();
+    const token = await makeTavilyToken();
+    await expect(svc.search(token, { query: "q" }, SCHEMA_CONTENT_HASH)).resolves.toBeDefined();
   });
 });
 
@@ -179,8 +239,8 @@ describe("TavilyService.extract", () => {
     mockFetch.mockImplementation(async () =>
       jsonResponse({ results: [{ raw_content: "page body" }] }),
     );
-
-    const out = await svc.extract("tok", { url: "https://a" });
+    const token = await makeTavilyToken();
+    const out = await svc.extract(token, { url: "https://a" });
     expect(out.content).toBe("page body");
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, init] = mockFetch.mock.calls[0];
@@ -194,8 +254,8 @@ describe("TavilyService.extract", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [{ raw_content: "x" }] }));
-
-    await svc.extract("tok", { url: "https://a" });
+    const token = await makeTavilyToken();
+    await svc.extract(token, { url: "https://a" });
     expect(env._emitCostMock).toHaveBeenCalledOnce();
     const event = env._emitCostMock.mock.calls[0][1];
     expect(event.capabilityId).toBe("tavily");
@@ -206,8 +266,8 @@ describe("TavilyService.extract", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => jsonResponse({ results: [] }));
-
-    const out = await svc.extract("tok", { url: "https://a" });
+    const token = await makeTavilyToken();
+    const out = await svc.extract(token, { url: "https://a" });
     expect(out.content).toBe("");
   });
 
@@ -215,7 +275,8 @@ describe("TavilyService.extract", () => {
     const env = buildEnv();
     const svc = makeService(env);
     mockFetch.mockImplementation(async () => new Response("nope", { status: 403 }));
-    await expect(svc.extract("tok", { url: "https://a" })).rejects.toThrow("ERR_UPSTREAM_AUTH");
+    const token = await makeTavilyToken();
+    await expect(svc.extract(token, { url: "https://a" })).rejects.toThrow("ERR_UPSTREAM_AUTH");
   });
 
   it("rejects schema drift", async () => {

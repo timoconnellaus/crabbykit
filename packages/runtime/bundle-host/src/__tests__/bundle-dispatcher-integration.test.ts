@@ -5,7 +5,7 @@
  *  - A real bundle built from {@link defineBundleAgent}
  *  - A real {@link InMemoryBundleRegistry} with seeded bytes
  *  - A fake {@link WorkerLoader} that synthesizes a runnable entrypoint from
- *    the factory's `modules` payload and environment (including __SPINE_TOKEN)
+ *    the factory's `modules` payload and environment (including __BUNDLE_TOKEN)
  *  - A fake mock spine the bundle would reach through; since our reference
  *    bundle never calls spine, the mock just records that it would have been
  *    reachable through the env
@@ -86,9 +86,9 @@ const REFERENCE_BUNDLE_SOURCE = `
 const metadata = { name: "ReferenceBundle", description: "integration fixture" };
 
 async function handleTurn(request, env) {
-  const token = env.__SPINE_TOKEN;
+  const token = env.__BUNDLE_TOKEN;
   if (!token) {
-    return new Response("Missing __SPINE_TOKEN", { status: 401 });
+    return new Response("Missing __BUNDLE_TOKEN", { status: 401 });
   }
   const { prompt } = await request.json();
   const lines = [
@@ -110,7 +110,7 @@ async function handleTurn(request, env) {
 }
 
 async function handleSmoke(env) {
-  return Response.json({ status: "ok", hasToken: typeof env.__SPINE_TOKEN === "string" });
+  return Response.json({ status: "ok", hasToken: typeof env.__BUNDLE_TOKEN === "string" });
 }
 
 export default {
@@ -195,20 +195,22 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
     await dispatcher.hasActiveBundle();
   });
 
-  it("mints a capability token and surfaces it to the bundle env as __SPINE_TOKEN", async () => {
+  it("mints a unified capability token and surfaces it to the bundle env as __BUNDLE_TOKEN", async () => {
     const result = await dispatcher.dispatchTurn("session-1", "hello");
     expect(result.dispatched).toBe(true);
 
     expect(lastEnvSeen).not.toBeNull();
-    expect(typeof (lastEnvSeen as BundleEnv).__SPINE_TOKEN).toBe("string");
+    expect(typeof (lastEnvSeen as BundleEnv).__BUNDLE_TOKEN).toBe("string");
 
-    // Verify the token under the same subkey the dispatcher used
-    const subkey = await deriveVerifyOnlySubkey(TEST_AUTH_KEY, "claw/spine-v1");
-    const outcome = await verifyToken((lastEnvSeen as BundleEnv).__SPINE_TOKEN as string, subkey);
+    // Verify the token under the unified BUNDLE_SUBKEY_LABEL
+    const subkey = await deriveVerifyOnlySubkey(TEST_AUTH_KEY, "claw/bundle-v1");
+    const outcome = await verifyToken((lastEnvSeen as BundleEnv).__BUNDLE_TOKEN as string, subkey);
     expect(outcome.valid).toBe(true);
     if (outcome.valid) {
       expect(outcome.payload.aid).toBe("agent-1");
       expect(outcome.payload.sid).toBe("session-1");
+      expect(outcome.payload.scope).toContain("spine");
+      expect(outcome.payload.scope).toContain("llm");
     }
   });
 
@@ -226,7 +228,7 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
     expect(result.events[1].event).toBe("agent_end");
   });
 
-  it("forwards bundleEnv projection plus the injected __SPINE_TOKEN", async () => {
+  it("forwards bundleEnv projection plus the injected __BUNDLE_TOKEN", async () => {
     const cfg = makeConfig(registry, loader, () => ({
       TIMEZONE: "UTC",
       FEATURE_FLAG: true,
@@ -239,7 +241,7 @@ describe("BundleDispatcher.dispatchTurn — full integration", () => {
       TIMEZONE: "UTC",
       FEATURE_FLAG: true,
     });
-    expect(lastEnvSeen).toHaveProperty("__SPINE_TOKEN");
+    expect(lastEnvSeen).toHaveProperty("__BUNDLE_TOKEN");
   });
 
   it("invokes the loader's get() with the active version ID", async () => {
@@ -353,13 +355,13 @@ describe("defineBundleAgent reference check", () => {
     });
 
     const smoke = await bundle.fetch(new Request("https://bundle/smoke", { method: "POST" }), {
-      __SPINE_TOKEN: "tok",
+      __BUNDLE_TOKEN: "tok",
     } as BundleEnv);
     expect(smoke.status).toBe(200);
     const smokeBody = (await smoke.json()) as Record<string, unknown>;
     expect(smokeBody.status).toBe("ok");
 
-    // With the streaming runtime, /turn requires __LLM_TOKEN + a SPINE
+    // With the streaming runtime, /turn requires __BUNDLE_TOKEN + a SPINE
     // binding. Without SPINE the bundle cannot reach host state and
     // returns 500 — that's the intended failure mode, not agent events
     // in the HTTP body. The live-streaming contract is exercised by
@@ -369,7 +371,7 @@ describe("defineBundleAgent reference check", () => {
         method: "POST",
         body: JSON.stringify({ prompt: "hi", agentId: "a", sessionId: "s" }),
       }),
-      { __SPINE_TOKEN: "tok", __LLM_TOKEN: "tok" } as BundleEnv,
+      { __BUNDLE_TOKEN: "tok" } as BundleEnv,
     );
     expect(turn.status).toBe(500);
     const errorBody = (await turn.json()) as { error: string };

@@ -6,8 +6,7 @@
  *   - the bundle's declared model provider/modelId are forwarded to
  *     `env.LLM.inferStream(token, request)`
  *   - the bundle never sees an apiKey field (credentials live host-side)
- *   - the LLM-bound token is used, not the spine token — they're
- *     signed with different HKDF subkeys
+ *   - the unified __BUNDLE_TOKEN is forwarded to LlmService
  *   - streaming token deltas flow out via `spine.broadcast` as
  *     message_start → message_update → message_end → agent_end
  *   - the final assistant message is persisted via `spine.appendEntry`
@@ -105,8 +104,7 @@ describe("OpenRouter bundle — streaming inference path", () => {
         body: JSON.stringify({ prompt: "hi", agentId: "agent-1", sessionId: "session-1" }),
       }),
       {
-        __SPINE_TOKEN: "tok-spine",
-        __LLM_TOKEN: "tok-llm",
+        __BUNDLE_TOKEN: "tok-bundle",
         LLM: llm,
         SPINE: spine,
       } as unknown as BundleEnv,
@@ -117,14 +115,13 @@ describe("OpenRouter bundle — streaming inference path", () => {
     // Drain the body so the readable stream completes and work() finishes.
     await res.text();
 
-    // LlmService must receive the LLM-bound token, not the spine token —
-    // they're signed with different HKDF subkeys.
+    // LlmService must receive the unified bundle token.
     expect(llm.inferStream).toHaveBeenCalledOnce();
     const [forwardedToken, request] = llm.inferStream.mock.calls[0] as [
       string,
       Record<string, unknown>,
     ];
-    expect(forwardedToken).toBe("tok-llm");
+    expect(forwardedToken).toBe("tok-bundle");
     expect(request).toMatchObject({
       provider: "openrouter",
       modelId: "anthropic/claude-sonnet-4",
@@ -141,9 +138,9 @@ describe("OpenRouter bundle — streaming inference path", () => {
     expect(reqMessages[1]).toEqual({ role: "user", content: "hi" });
 
     // Streaming lifecycle should have been broadcast via spine.broadcast
-    // with the spine token. Inspect the event types emitted.
+    // with the unified bundle token. Inspect the event types emitted.
     const broadcastEvents = spine.broadcast.mock.calls.map(([token, payload]) => {
-      expect(token).toBe("tok-spine");
+      expect(token).toBe("tok-bundle");
       return (payload as { event: { type: string } }).event.type;
     });
     expect(broadcastEvents[0]).toBe("message_start");
@@ -154,7 +151,7 @@ describe("OpenRouter bundle — streaming inference path", () => {
     // The final assistant message must be persisted via spine.appendEntry.
     expect(spine.appendEntry).toHaveBeenCalledOnce();
     const [persistToken, persistEntry] = spine.appendEntry.mock.calls[0] as [string, unknown];
-    expect(persistToken).toBe("tok-spine");
+    expect(persistToken).toBe("tok-bundle");
     const entry = persistEntry as {
       type: string;
       data: { role: string; content: Array<{ type: string; text: string }> };
@@ -180,8 +177,7 @@ describe("OpenRouter bundle — streaming inference path", () => {
         body: JSON.stringify({ prompt: "hi", agentId: "agent-1", sessionId: "session-1" }),
       }),
       {
-        __SPINE_TOKEN: "tok-spine",
-        __LLM_TOKEN: "tok-llm",
+        __BUNDLE_TOKEN: "tok-bundle",
         LLM: llm,
         SPINE: spine,
       } as unknown as BundleEnv,
@@ -216,8 +212,7 @@ describe("OpenRouter bundle — streaming inference path", () => {
         body: JSON.stringify({ prompt: "hi" }),
       }),
       {
-        __SPINE_TOKEN: "tok-spine",
-        __LLM_TOKEN: "tok-llm",
+        __BUNDLE_TOKEN: "tok-bundle",
         LLM: llm,
         SPINE: spine,
       } as unknown as BundleEnv,

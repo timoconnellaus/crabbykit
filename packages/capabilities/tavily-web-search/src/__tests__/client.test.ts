@@ -29,7 +29,7 @@ describe("tavilyClient", () => {
   });
 
   it("client tools read token from env, not from LLM arguments", () => {
-    // Contract: the client reads __SPINE_TOKEN from env, never from
+    // Contract: the client reads __BUNDLE_TOKEN from env, never from
     // LLM-supplied tool arguments. This prevents token forgery.
     // This is a documentation test — the actual enforcement is in the
     // client's execute implementation.

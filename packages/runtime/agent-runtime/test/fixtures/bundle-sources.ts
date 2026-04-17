@@ -5,7 +5,7 @@
  * {@link InMemoryBundleRegistry}. The {@link makeFakeWorkerLoader} helper runs
  * these as real modules via a `data:text/javascript` URL import, so the bundle
  * side of the dispatch path is exercised end-to-end (NDJSON framing,
- * `__SPINE_TOKEN` inspection, `env.SPINE` RPC calls, etc.).
+ * `__BUNDLE_TOKEN` inspection, `env.SPINE` RPC calls, etc.).
  */
 
 /**
@@ -30,9 +30,9 @@ export const REFERENCE_BUNDLE_SOURCE = `
 const metadata = { name: "ReferenceBundle", description: "integration fixture" };
 
 async function handleTurn(request, env) {
-  const token = env.__SPINE_TOKEN;
+  const token = env.__BUNDLE_TOKEN;
   if (!token) {
-    return new Response("Missing __SPINE_TOKEN", { status: 401 });
+    return new Response("Missing __BUNDLE_TOKEN", { status: 401 });
   }
   const { prompt } = await request.json();
   const lines = [
@@ -54,7 +54,7 @@ async function handleTurn(request, env) {
 }
 
 async function handleSmoke(env) {
-  return Response.json({ status: "ok", hasToken: typeof env.__SPINE_TOKEN === "string" });
+  return Response.json({ status: "ok", hasToken: typeof env.__BUNDLE_TOKEN === "string" });
 }
 
 export default {
@@ -109,7 +109,7 @@ export default {
       // Non-JSON prompt — treat as a no-op turn.
     }
     const { action, tokenOverride } = instructions;
-    const token = tokenOverride ?? env.__SPINE_TOKEN;
+    const token = tokenOverride ?? env.__BUNDLE_TOKEN;
     const results = {};
 
     try {

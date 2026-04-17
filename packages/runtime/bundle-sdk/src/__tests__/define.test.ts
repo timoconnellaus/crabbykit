@@ -50,7 +50,7 @@ describe("defineBundleAgent", () => {
       const bundle = defineBundleAgent(minimalSetup);
 
       const res = await bundle.fetch(new Request("https://bundle/smoke", { method: "POST" }), {
-        __SPINE_TOKEN: "test-token",
+        __BUNDLE_TOKEN: "test-token",
       } as BundleEnv);
 
       expect(res.status).toBe(200);
@@ -77,7 +77,7 @@ describe("defineBundleAgent", () => {
   });
 
   describe("POST /turn", () => {
-    it("rejects without spine token", async () => {
+    it("rejects without bundle token", async () => {
       const bundle = defineBundleAgent(minimalSetup);
 
       const res = await bundle.fetch(
@@ -89,24 +89,8 @@ describe("defineBundleAgent", () => {
       );
 
       expect(res.status).toBe(401);
-    });
-
-    it("rejects without LLM token", async () => {
-      const bundle = defineBundleAgent(minimalSetup);
-
-      const res = await bundle.fetch(
-        new Request("https://bundle/turn", {
-          method: "POST",
-          body: JSON.stringify({
-            prompt: "hello",
-            agentId: "agent-1",
-            sessionId: "session-1",
-          }),
-        }),
-        { __SPINE_TOKEN: "test-token" } as BundleEnv,
-      );
-
-      expect(res.status).toBe(401);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toBe("Missing __BUNDLE_TOKEN");
     });
 
     it("rejects without SPINE binding", async () => {
@@ -122,8 +106,7 @@ describe("defineBundleAgent", () => {
           }),
         }),
         {
-          __SPINE_TOKEN: "test-token",
-          __LLM_TOKEN: "llm-token",
+          __BUNDLE_TOKEN: "test-token",
         } as BundleEnv,
       );
 
@@ -142,7 +125,7 @@ describe("defineBundleAgent", () => {
           method: "POST",
           body: JSON.stringify({ type: "steer", content: "be concise" }),
         }),
-        { __SPINE_TOKEN: "test-token" } as BundleEnv,
+        { __BUNDLE_TOKEN: "test-token" } as BundleEnv,
       );
 
       expect(res.status).toBe(200);

@@ -15,6 +15,16 @@ import type { BundleCapabilityRequirement } from "./types.js";
  *  with a hyphen. Matches the charset constraint on host `Capability.id`. */
 const CAPABILITY_ID_REGEX = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 
+/**
+ * Reserved scope strings that cannot be used as capability ids.
+ * These are the two non-negotiable bundle→host channels that the dispatcher
+ * unconditionally prepends to every minted token's scope array.
+ * Allowing a capability id to collide with these strings would let a bundle
+ * obtain a reserved-scope token via a declaration that looks like a capability
+ * requirement — breaking the invariant that reserved scopes are author-independent.
+ */
+const RESERVED_SCOPE_IDS = new Set(["spine", "llm"]);
+
 /** Minimum characters in a capability id. 2 is the floor (a valid kebab
  *  id cannot be shorter than `ab`). */
 const CAPABILITY_ID_MIN_LENGTH = 2;
@@ -88,6 +98,12 @@ export function validateRequirements(raw: unknown): BundleCapabilityRequirement[
     if (!CAPABILITY_ID_REGEX.test(id)) {
       throw new TypeError(
         `requiredCapabilities[${i}].id must match /^[a-z][a-z0-9-]*[a-z0-9]$/ (got ${JSON.stringify(id)})`,
+      );
+    }
+
+    if (RESERVED_SCOPE_IDS.has(id)) {
+      throw new TypeError(
+        `requiredCapabilities[${i}].id "${id}" is a reserved scope string and cannot be used as a capability id — the dispatcher unconditionally grants this scope to all bundles`,
       );
     }
 
