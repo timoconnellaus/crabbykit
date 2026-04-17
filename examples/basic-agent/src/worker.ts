@@ -33,6 +33,7 @@ import { taskTracker } from "@claw-for-cloudflare/task-tracker";
 import { TavilyConfigSchema, tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
 import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
+import { VectorMemoryService } from "@claw-for-cloudflare/vector-memory/service";
 import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
 import codeReviewSkillMd from "../skills/code-review/SKILL.md?raw";
 import debugSystematicSkillMd from "../skills/debug-systematic/SKILL.md?raw";
@@ -70,6 +71,7 @@ export interface Env {
   SPINE_SERVICE: Fetcher;
   LLM_SERVICE: Fetcher;
   SKILLS_SERVICE: Service<SkillsService>;
+  VECTOR_MEMORY_SERVICE: Service<VectorMemoryService>;
   // Default public URL used by channels (e.g. Telegram) when registering
   // webhooks. Optional — the add-account flow falls back to deriving one
   // from the incoming request origin when this isn't set.
@@ -135,6 +137,7 @@ export const BasicAgent = defineAgent<Env>({
       LLM: env.LLM_SERVICE,
       SPINE: env.SPINE_SERVICE,
       SKILLS: env.SKILLS_SERVICE,
+      VECTOR_MEMORY: env.VECTOR_MEMORY_SERVICE,
     }),
   },
 
@@ -453,4 +456,5 @@ export {
   SandboxContainer,
   SkillsService,
   SpineService,
+  VectorMemoryService,
 };

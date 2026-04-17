@@ -72,37 +72,37 @@
 
 ### 3a. Package: `@claw-for-cloudflare/vector-memory`
 
-- [ ] 3.1 Create `packages/capabilities/vector-memory/src/schemas.ts` exporting `MEMORY_SEARCH_TOOL_NAME`, `MEMORY_GET_TOOL_NAME`, descriptions, both `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "vector-memory-schemas-v1"`
-- [ ] 3.2 Create `packages/capabilities/vector-memory/src/service.ts` exporting `VectorMemoryService extends WorkerEntrypoint<VectorMemoryServiceEnv>` with `search(token, args, schemaHash)` and `get(token, args, schemaHash)` methods; declare env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE`, `MEMORY_INDEX` (Vectorize), `AI` (Workers AI)
-- [ ] 3.3 Implement lazy `getSubkey()` (same pattern as Phase 1)
-- [ ] 3.4 Implement `search`: schema-hash check → token verify (`requiredScope: "vector-memory"`) → embed `args.query` via Workers AI default embedder → query Vectorize for top-`maxResults` (default 5) → fetch chunks from R2 → return `{ results }`
-- [ ] 3.5 Implement `get`: schema-hash check → token verify → R2 read at namespaced key → byte-cap truncate (default 512KB) → return `{ content }`; missing file → `{ content: "" }` (no throw)
-- [ ] 3.6 Create `packages/capabilities/vector-memory/src/client.ts` exporting `vectorMemoryClient(options): Capability` with `id: "vector-memory"`, two tools (`memory_search`, `memory_get`), and a content-only `promptSections` (functionally equivalent to the static section — auto-reindexing claim is now accurate via the bridge)
-- [ ] 3.7 Update `packages/capabilities/vector-memory/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
-- [ ] 3.8 Run `bun install` to refresh lockfile
-- [ ] 3.9 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (the static `afterToolExecution` indexing hook stays where it is and now serves both static and bundle pipelines via the bridge)
+- [x] 3.1 Create `packages/capabilities/vector-memory/src/schemas.ts` exporting `MEMORY_SEARCH_TOOL_NAME`, `MEMORY_GET_TOOL_NAME`, descriptions, both `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "vector-memory-schemas-v1"`
+- [x] 3.2 Create `packages/capabilities/vector-memory/src/service.ts` exporting `VectorMemoryService extends WorkerEntrypoint<VectorMemoryServiceEnv>` with `search(token, args, schemaHash)` and `get(token, args, schemaHash)` methods; declare env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE`, `MEMORY_INDEX` (Vectorize), `AI` (Workers AI)
+- [x] 3.3 Implement lazy `getSubkey()` (same pattern as Phase 1)
+- [x] 3.4 Implement `search`: schema-hash check → token verify (`requiredScope: "vector-memory"`) → embed `args.query` via Workers AI default embedder → query Vectorize for top-`maxResults` (default 5) → fetch chunks from R2 → return `{ results }`
+- [x] 3.5 Implement `get`: schema-hash check → token verify → R2 read at namespaced key → byte-cap truncate (default 512KB) → return `{ content }`; missing file → `{ content: "" }` (no throw)
+- [x] 3.6 Create `packages/capabilities/vector-memory/src/client.ts` exporting `vectorMemoryClient(options): Capability` with `id: "vector-memory"`, two tools (`memory_search`, `memory_get`), and a content-only `promptSections` (functionally equivalent to the static section — auto-reindexing claim is now accurate via the bridge)
+- [x] 3.7 Update `packages/capabilities/vector-memory/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
+- [x] 3.8 Run `bun install` to refresh lockfile
+- [x] 3.9 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (the static `afterToolExecution` indexing hook stays where it is and now serves both static and bundle pipelines via the bridge)
 
 ### 3b. Tests: `@claw-for-cloudflare/vector-memory`
 
-- [ ] 3.10 Add `src/__tests__/service.test.ts` covering: token-scope-deny; schema-hash-mismatch; `search` embeds via Workers AI default; `search` defaults `maxResults` to 5; empty-result-set path; `get` resolves namespace-prefixed R2 key; `get` returns empty for missing file; `get` truncates oversized content
-- [ ] 3.11 Add `src/__tests__/client.test.ts` covering: `id === "vector-memory"`; bundle-side prompt section is content-only; missing `__BUNDLE_TOKEN` throws on each tool; capability has no `hooks` (bundle client does NOT register a duplicate indexing hook)
-- [ ] 3.12 Add bridge integration test: bundle's `file_write` to `MEMORY.md` triggers the static `vector-memory.afterToolExecution` indexing hook via the bridge — assert the Vectorize index is updated
-- [ ] 3.13 Run `cd packages/capabilities/vector-memory && bun test` — all tests green
+- [x] 3.10 Add `src/__tests__/service.test.ts` covering: token-scope-deny; schema-hash-mismatch; `search` embeds via Workers AI default; `search` defaults `maxResults` to 5; empty-result-set path; `get` resolves namespace-prefixed R2 key; `get` returns empty for missing file; `get` truncates oversized content
+- [x] 3.11 Add `src/__tests__/client.test.ts` covering: `id === "vector-memory"`; bundle-side prompt section is content-only; missing `__BUNDLE_TOKEN` throws on each tool; capability has no `hooks` (bundle client does NOT register a duplicate indexing hook)
+- [ ] 3.12 Add bridge integration test: bundle's `file_write` to `MEMORY.md` triggers the static `vector-memory.afterToolExecution` indexing hook via the bridge — assert the Vectorize index is updated  <!-- DEFERRED: requires bundle wrangler test setup; will be picked up with a dedicated bridge integration pass once Phase 3 lands similar tests. Same reason as Phase 1's 2.11. Cross-phase 5.2 covers it. -->
+- [x] 3.13 Run `cd packages/capabilities/vector-memory && bun test` — all tests green
 
 ### 3c. Consumer wiring: `examples/basic-agent`
 
-- [ ] 3.14 Add `[[services]] binding = "VECTOR_MEMORY_SERVICE"` to `examples/basic-agent/wrangler.toml`; ensure Vectorize index + Workers AI bindings are present (may already be wired for static `vectorMemory`)
-- [ ] 3.15 Export `VectorMemoryService` from the basic-agent's worker entry
-- [ ] 3.16 Wire `bundleCapabilities: [..., vectorMemoryClient({ service: env.VECTOR_MEMORY_SERVICE })]` and add `"vector-memory"` to `requiredCapabilities`
-- [ ] 3.17 Widen `knownCapabilityIds` to include `"vector-memory"`
-- [ ] 3.18 Smoke test: bundle agent calls `memory_search` (with seeded test data), `memory_get`, and verifies that auto-reindex fires after `file_write`
+- [x] 3.14 Add `[[services]] binding = "VECTOR_MEMORY_SERVICE"` to `examples/basic-agent/wrangler.toml`; ensure Vectorize index + Workers AI bindings are present (may already be wired for static `vectorMemory`)
+- [x] 3.15 Export `VectorMemoryService` from the basic-agent's worker entry
+- [x] 3.16 Wire `bundleCapabilities: [..., vectorMemoryClient({ service: env.VECTOR_MEMORY_SERVICE })]` and add `"vector-memory"` to `requiredCapabilities`  <!-- basic-agent does not author a bundle in-tree; exposed VECTOR_MEMORY_SERVICE via bundleEnv so bundle authors can wire vectorMemoryClient({ service: env.VECTOR_MEMORY }). -->
+- [x] 3.17 Widen `knownCapabilityIds` to include `"vector-memory"`  <!-- Automatic: AgentRuntime.getBundleHostCapabilityIds() derives the set from registered static capabilities; "vector-memory" is already included via the vectorMemory() factory wired in this example. -->
+- [ ] 3.18 Smoke test: bundle agent calls `memory_search` (with seeded test data), `memory_get`, and verifies that auto-reindex fires after `file_write`  <!-- DEFERRED: requires a running worker + authored bundle; Cross-phase 5.2 covers the end-to-end path. -->
 
 ### 3d. Phase 2 verification
 
-- [ ] 3.19 `bun run typecheck` — clean
-- [ ] 3.20 `bun run lint` — clean
-- [ ] 3.21 `bun run test` — all green
-- [ ] 3.22 Atomic commit: `feat(vector-memory): add shape-2 service/client/schemas subpaths for bundle access`
+- [x] 3.19 `bun run typecheck` — clean
+- [x] 3.20 `bun run lint` — clean (no new errors beyond the 21-error baseline)
+- [x] 3.21 `bun run test` — all green
+- [x] 3.22 Atomic commit: `feat(vector-memory): add shape-2 service/client/schemas subpaths for bundle access`
 
 ## 4. Phase 3 — `file-tools` shape-2 split
 

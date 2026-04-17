@@ -75,6 +75,11 @@
       "binding": "SKILLS_SERVICE",
       "service": "basic-agent",
       "entrypoint": "SkillsService"
+    },
+    {
+      "binding": "VECTOR_MEMORY_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "VectorMemoryService"
     }
   ],
   "ai": {
