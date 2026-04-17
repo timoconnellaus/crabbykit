@@ -16,9 +16,12 @@
         "@claw-for-cloudflare/channel-telegram": "workspace:*",
         "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
         "@claw-for-cloudflare/compaction-summary": "workspace:*",
+        "@claw-for-cloudflare/doom-loop-detection": "workspace:*",
         "@claw-for-cloudflare/file-tools": "workspace:*",
         "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
         "@claw-for-cloudflare/sandbox": "workspace:*",
+        "@claw-for-cloudflare/skills": "workspace:*",
+        "@claw-for-cloudflare/tool-output-truncation": "workspace:*",
         "@cloudflare/containers": "^0.1.0",
       },
       "devDependencies": {

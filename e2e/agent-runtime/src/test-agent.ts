@@ -74,6 +74,26 @@ export function clearTelegramTestState() {
   telegramClientFactory = null;
 }
 
+// -----------------------------------------------------------------------------
+// Extra static capabilities — test-controlled registration
+// -----------------------------------------------------------------------------
+//
+// Tests that want to exercise the Phase 0 bridge against real capability
+// hooks (`skills`, `doom-loop-detection`, `tool-output-truncation`,
+// `vector-memory`, ...) register them through this setter. The test agent's
+// `getCapabilities()` reads the array on every call so each test sees a
+// clean slate. Tests MUST clear via `clearExtraStaticCaps()` in afterEach.
+
+let extraStaticCaps: Capability[] = [];
+
+export function setExtraStaticCaps(caps: Capability[]): void {
+  extraStaticCaps = [...caps];
+}
+
+export function clearExtraStaticCaps(): void {
+  extraStaticCaps = [];
+}
+
 function buildTelegramCapability(): ChannelCapability | null {
   if (!telegramAccounts || telegramAccounts.length === 0) return null;
   return defineTelegramChannel({
@@ -301,6 +321,7 @@ export class E2EAgent extends AgentDO<Env> {
     // Sandbox capability is added by the dev entry point (test-agent-dev.ts)
     // which can import @cloudflare/containers. Pool-workers can't load that module.
     capabilities.push(...this.getExtraCapabilities(storage));
+    capabilities.push(...extraStaticCaps);
 
     return capabilities;
   }
