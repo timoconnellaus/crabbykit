@@ -18,6 +18,7 @@
  * Tasks 2.20 and 3.26 are covered by this file.
  */
 
+import type { WorkerLoader } from "@cloudflare/workers-types";
 import type { BundleEnv } from "@claw-for-cloudflare/bundle-sdk";
 import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
