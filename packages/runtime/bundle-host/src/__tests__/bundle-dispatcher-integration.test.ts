@@ -23,6 +23,7 @@ import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
 import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundleConfig } from "../bundle-config.js";
+import type { BundleDisabledEvent } from "../dispatcher.js";
 import { BundleDispatcher } from "../dispatcher.js";
 import { InMemoryBundleRegistry } from "../in-memory-registry.js";
 
@@ -341,6 +342,229 @@ describe("BundleDispatcher.disable", () => {
   });
 });
 
+describe("BundleDispatcher catalog mismatch → bundle_disabled broadcast (Gap 8)", () => {
+  /**
+   * When the dispatcher's dispatch-time catalog guard finds a capability
+   * declared in the bundle's metadata that is not in the host's registered
+   * set, it must:
+   *   1. Return { dispatched: false } — fall back to static brain
+   *   2. Emit a `bundle_disabled` event with reason.code = "ERR_CAPABILITY_MISMATCH"
+   *   3. Clear the active pointer (registry shows null after dispatch)
+   *   4. NOT mint a __BUNDLE_TOKEN (no loader call occurs)
+   *
+   * All covered by wiring a `broadcastEvent` capture into the dispatcher
+   * options and observing the result.
+   */
+
+  const MISMATCH_BUNDLE_SOURCE = `
+export default {
+  async fetch(request, env) {
+    return Response.json({ tokenPresent: typeof env.__BUNDLE_TOKEN === "string" });
+  },
+};
+`;
+
+  function makeConfigWithMismatch(
+    registry: InMemoryBundleRegistry,
+    loaderCallLog: string[],
+  ): BundleConfig<TestEnv> {
+    const loader = makeFakeLoader({
+      onGetCall: (versionId) => loaderCallLog.push(versionId),
+    });
+    return {
+      registry: () => registry,
+      loader: () => loader,
+      authKey: () => TEST_AUTH_KEY,
+      bundleEnv: () => ({}),
+    };
+  }
+
+  it("returns dispatched=false when declared capability is missing from host", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-mismatch", MISMATCH_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    registry.setActiveSync("agent-mm", "v-mismatch");
+
+    const loaderCalls: string[] = [];
+    const dispatcher = new BundleDispatcher(
+      makeConfigWithMismatch(registry, loaderCalls),
+      {} as TestEnv,
+      "agent-mm",
+      {
+        // Host registers no capabilities — so "tavily-web-search" is missing
+        getHostCapabilityIds: () => [],
+      },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const result = await dispatcher.dispatchTurn("session-1", "hi");
+    expect(result.dispatched).toBe(false);
+    if (!result.dispatched) {
+      expect(result.reason).toMatch(/catalog mismatch/);
+    }
+  });
+
+  it("clears the active pointer on catalog mismatch", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-mismatch-clear", MISMATCH_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "file-tools" }],
+    });
+    registry.setActiveSync("agent-mm-clear", "v-mismatch-clear");
+
+    const dispatcher = new BundleDispatcher(
+      {
+        registry: () => registry,
+        loader: () => makeFakeLoader(),
+        authKey: () => TEST_AUTH_KEY,
+        bundleEnv: () => ({}),
+      },
+      {} as TestEnv,
+      "agent-mm-clear",
+      { getHostCapabilityIds: () => [] },
+    );
+    await dispatcher.hasActiveBundle();
+    await dispatcher.dispatchTurn("session-1", "hi");
+
+    // Pointer cleared — registry now returns null for the agent
+    expect(await registry.getActiveForAgent("agent-mm-clear")).toBeNull();
+  });
+
+  it("broadcasts bundle_disabled event with reason.code = ERR_CAPABILITY_MISMATCH", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-mismatch-event", MISMATCH_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "vector-memory" }, { id: "file-tools" }],
+    });
+    registry.setActiveSync("agent-mm-event", "v-mismatch-event");
+
+    const broadcastedEvents: BundleDisabledEvent[] = [];
+    const dispatcher = new BundleDispatcher(
+      {
+        registry: () => registry,
+        loader: () => makeFakeLoader(),
+        authKey: () => TEST_AUTH_KEY,
+        bundleEnv: () => ({}),
+      },
+      {} as TestEnv,
+      "agent-mm-event",
+      {
+        getHostCapabilityIds: () => [],
+        broadcastEvent: (event) => broadcastedEvents.push(event),
+      },
+    );
+    await dispatcher.hasActiveBundle();
+    await dispatcher.dispatchTurn("session-1", "hi");
+
+    expect(broadcastedEvents).toHaveLength(1);
+    const event = broadcastedEvents[0];
+    expect(event.type).toBe("bundle_disabled");
+    expect(event.data.reason).toBeDefined();
+    expect(event.data.reason?.code).toBe("ERR_CAPABILITY_MISMATCH");
+    if (event.data.reason?.code === "ERR_CAPABILITY_MISMATCH") {
+      expect(event.data.reason.missingIds).toEqual(
+        expect.arrayContaining(["vector-memory", "file-tools"]),
+      );
+      expect(event.data.reason.versionId).toBe("v-mismatch-event");
+    }
+  });
+
+  it("does NOT call the loader (no __BUNDLE_TOKEN minted) on catalog mismatch", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-mismatch-noload", MISMATCH_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    registry.setActiveSync("agent-mm-noload", "v-mismatch-noload");
+
+    const loaderCalls: string[] = [];
+    const dispatcher = new BundleDispatcher(
+      makeConfigWithMismatch(registry, loaderCalls),
+      {} as TestEnv,
+      "agent-mm-noload",
+      { getHostCapabilityIds: () => [] },
+    );
+    await dispatcher.hasActiveBundle();
+    await dispatcher.dispatchTurn("session-1", "hi");
+
+    // The loader.get() must NOT have been called — no token was minted
+    expect(loaderCalls).toHaveLength(0);
+  });
+
+  it("catalog mismatch does NOT count toward maxLoadFailures", async () => {
+    // After a mismatch, the pointer is cleared and consecutive failures are
+    // reset. A subsequent turn (after re-deploying a valid version) should
+    // start fresh with a zero failure count.
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-mismatch-fail", MISMATCH_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    registry.setActiveSync("agent-mm-fail", "v-mismatch-fail");
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const dispatcher = new BundleDispatcher(
+      {
+        registry: () => registry,
+        loader: () => makeFakeLoader(),
+        authKey: () => TEST_AUTH_KEY,
+        bundleEnv: () => ({}),
+        maxLoadFailures: 1, // Would auto-revert after 1 load failure
+      },
+      {} as TestEnv,
+      "agent-mm-fail",
+      { getHostCapabilityIds: () => [] },
+    );
+    await dispatcher.hasActiveBundle();
+
+    // Three dispatches — all catalog mismatches, none count as load failures
+    await dispatcher.dispatchTurn("session-1", "hi"); // clears pointer on first mismatch
+    // After the first mismatch the pointer is null, so subsequent turns
+    // return dispatched=false with "no active bundle" reason (not mismatch)
+    const r2 = await dispatcher.dispatchTurn("session-1", "hi");
+    expect(r2.dispatched).toBe(false);
+    if (!r2.dispatched) {
+      // Must be "no active bundle", not a mismatch, and no auto-revert
+      expect(r2.reason).not.toMatch(/auto-revert/);
+    }
+
+    // Auto-revert message should NOT have fired
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("Auto-reverting"),
+      expect.anything(),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("bundle with all required capabilities present does NOT get disabled", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-ok-caps", REFERENCE_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "tavily-web-search" }],
+    });
+    registry.setActiveSync("agent-ok-caps", "v-ok-caps");
+
+    const broadcastedEvents: BundleDisabledEvent[] = [];
+    const dispatcher = new BundleDispatcher(
+      {
+        registry: () => registry,
+        loader: () => makeFakeLoader(),
+        authKey: () => TEST_AUTH_KEY,
+        bundleEnv: () => ({}),
+      },
+      {} as TestEnv,
+      "agent-ok-caps",
+      {
+        // Host registers the capability the bundle declared
+        getHostCapabilityIds: () => ["tavily-web-search", "file-tools"],
+        broadcastEvent: (event) => broadcastedEvents.push(event),
+      },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const result = await dispatcher.dispatchTurn("session-1", "hello");
+    expect(result.dispatched).toBe(true);
+    expect(broadcastedEvents).toHaveLength(0);
+  });
+});
+
 describe("defineBundleAgent reference check", () => {
   it("the real defineBundleAgent produces a functional /turn endpoint (smoke)", async () => {
     // Cross-check: the same code paths the reference bundle exercises above
@@ -376,5 +600,128 @@ describe("defineBundleAgent reference check", () => {
     expect(turn.status).toBe(500);
     const errorBody = (await turn.json()) as { error: string };
     expect(errorBody.error).toContain("SPINE");
+  });
+});
+
+// Gap 8: catalog mismatch at dispatch time → no mint, no env projection, static fallback
+describe("BundleDispatcher catalog-mismatch dispatch guard (Gap 8)", () => {
+  it("returns dispatched=false when bundle requires a capability absent from host", async () => {
+    // Bundle declares it needs "secret-capability" but the host only has "file-tools".
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-needs-secret", REFERENCE_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "secret-capability" }],
+    });
+    registry.setActiveSync("agent-cat-fail", "v-needs-secret");
+
+    let envProjected: Record<string, unknown> | null = null;
+    const spyLoader = makeFakeLoader({
+      onFactoryCall: (env) => {
+        envProjected = env;
+      },
+    });
+
+    // Host only offers "file-tools" — "secret-capability" is absent.
+    const dispatcher = new BundleDispatcher(
+      makeConfig(registry, spyLoader),
+      {} as TestEnv,
+      "agent-cat-fail",
+      { getHostCapabilityIds: () => ["file-tools"] },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await dispatcher.dispatchTurn("s1", "hello");
+    warnSpy.mockRestore();
+
+    // Dispatcher must signal fallback, not bundle success
+    expect(result.dispatched).toBe(false);
+    if (!result.dispatched) {
+      expect(result.reason).toMatch(/catalog mismatch/);
+      expect(result.reason).toContain("secret-capability");
+    }
+  });
+
+  it("does NOT project bundleEnv or mint a token on catalog mismatch", async () => {
+    // The factory callback (onFactoryCall) would only fire if the loader's
+    // get() is called — which only happens after catalog validation passes
+    // and mintToken runs. A catalog failure must short-circuit before either.
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-needs-missing", REFERENCE_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "nonexistent-cap" }],
+    });
+    registry.setActiveSync("agent-no-mint", "v-needs-missing");
+
+    let loaderWasCalled = false;
+    let envProjected: Record<string, unknown> | null = null;
+    const spyLoader = makeFakeLoader({
+      onGetCall: () => {
+        loaderWasCalled = true;
+      },
+      onFactoryCall: (env) => {
+        envProjected = env;
+      },
+    });
+
+    const dispatcher = new BundleDispatcher(
+      makeConfig(registry, spyLoader),
+      {} as TestEnv,
+      "agent-no-mint",
+      // Empty host capability set — "nonexistent-cap" is absent
+      { getHostCapabilityIds: () => [] },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await dispatcher.dispatchTurn("s1", "hello");
+    warnSpy.mockRestore();
+
+    expect(result.dispatched).toBe(false);
+
+    // Loader must NOT have been called — no mint, no env projection
+    expect(loaderWasCalled).toBe(false);
+    expect(envProjected).toBeNull();
+  });
+
+  it("clears the registry pointer after catalog mismatch (static fallback is permanent)", async () => {
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-clears", REFERENCE_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "gone-capability" }],
+    });
+    registry.setActiveSync("agent-clears", "v-clears");
+
+    const dispatcher = new BundleDispatcher(
+      makeConfig(registry, makeFakeLoader()),
+      {} as TestEnv,
+      "agent-clears",
+      { getHostCapabilityIds: () => [] },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await dispatcher.dispatchTurn("s1", "hello");
+    warnSpy.mockRestore();
+
+    // Registry pointer must be cleared — bundle is permanently disabled
+    expect(await registry.getActiveForAgent("agent-clears")).toBeNull();
+  });
+
+  it("dispatches normally when bundle requires a capability that the host provides", async () => {
+    // Positive control: catalog match → dispatch proceeds normally.
+    const registry = new InMemoryBundleRegistry();
+    registry.seed("v-matches", REFERENCE_BUNDLE_SOURCE, {
+      requiredCapabilities: [{ id: "file-tools" }],
+    });
+    registry.setActiveSync("agent-matches", "v-matches");
+
+    const dispatcher = new BundleDispatcher(
+      makeConfig(registry, makeFakeLoader()),
+      {} as TestEnv,
+      "agent-matches",
+      { getHostCapabilityIds: () => ["file-tools"] },
+    );
+    await dispatcher.hasActiveBundle();
+
+    const result = await dispatcher.dispatchTurn("s1", "hi");
+    expect(result.dispatched).toBe(true);
   });
 });
