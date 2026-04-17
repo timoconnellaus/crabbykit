@@ -107,6 +107,28 @@ describe("validateRequirements", () => {
       validateRequirements([{ id: "valid-id" }, { id: "invalid id" }]),
     ).toThrow(/\[1\]/);
   });
+
+  // Reserved-scope rejection (Gap 1)
+  it('throws TypeError when id is reserved scope "spine"', () => {
+    expect(() => validateRequirements([{ id: "spine" }])).toThrow(TypeError);
+    expect(() => validateRequirements([{ id: "spine" }])).toThrow(/reserved scope/);
+    expect(() => validateRequirements([{ id: "spine" }])).toThrow(/"spine"/);
+  });
+
+  it('throws TypeError when id is reserved scope "llm"', () => {
+    expect(() => validateRequirements([{ id: "llm" }])).toThrow(TypeError);
+    expect(() => validateRequirements([{ id: "llm" }])).toThrow(/reserved scope/);
+    expect(() => validateRequirements([{ id: "llm" }])).toThrow(/"llm"/);
+  });
+
+  it("accepts ids that share a prefix with reserved scopes (whole-string match only)", () => {
+    // "spine-agent" starts with "spine" but is not equal — must pass
+    const r1 = validateRequirements([{ id: "spine-agent" }]);
+    expect(r1).toEqual([{ id: "spine-agent" }]);
+    // "my-llm" ends with "llm" but is not equal — must pass
+    const r2 = validateRequirements([{ id: "my-llm" }]);
+    expect(r2).toEqual([{ id: "my-llm" }]);
+  });
 });
 
 describe("defineBundleAgent requiredCapabilities", () => {

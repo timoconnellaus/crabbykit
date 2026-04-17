@@ -170,4 +170,58 @@ describe("D1BundleRegistry.setActive catalog validation", () => {
     expect(parsed.code).toBe("ERR_CAPABILITY_MISMATCH");
     expect(parsed.missingIds).toEqual(["x"]);
   });
+
+  // Reserved-scope rejection (Gap 2): independent of catalog-check
+  it('throws TypeError when requiredCapabilities contains reserved id "spine"', async () => {
+    const r = makeRegistry();
+    const v = await r.createVersion({
+      bytes: bytesFrom("v-reserved-spine"),
+      metadata: { requiredCapabilities: [{ id: "spine" }] },
+    });
+    await expect(
+      r.setActive("agent-reserved-spine", v.versionId, {
+        knownCapabilityIds: ["spine"],
+      }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      r.setActive("agent-reserved-spine", v.versionId, {
+        knownCapabilityIds: ["spine"],
+      }),
+    ).rejects.toThrow(/reserved scope/);
+    // Pointer must NOT have been flipped
+    expect(await r.getActiveForAgent("agent-reserved-spine")).toBeNull();
+  });
+
+  it('throws TypeError when requiredCapabilities contains reserved id "llm"', async () => {
+    const r = makeRegistry();
+    const v = await r.createVersion({
+      bytes: bytesFrom("v-reserved-llm"),
+      metadata: { requiredCapabilities: [{ id: "llm" }] },
+    });
+    await expect(
+      r.setActive("agent-reserved-llm", v.versionId, {
+        knownCapabilityIds: ["llm"],
+      }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      r.setActive("agent-reserved-llm", v.versionId, {
+        knownCapabilityIds: ["llm"],
+      }),
+    ).rejects.toThrow(/reserved scope/);
+    expect(await r.getActiveForAgent("agent-reserved-llm")).toBeNull();
+  });
+
+  // Gap 4 (D1 side): reserved-id check is NOT bypassable by skipCatalogCheck
+  it("reserved-id rejection fires even with skipCatalogCheck: true", async () => {
+    const r = makeRegistry();
+    const v = await r.createVersion({
+      bytes: bytesFrom("v-reserved-skip"),
+      metadata: { requiredCapabilities: [{ id: "spine" }] },
+    });
+    await expect(
+      r.setActive("agent-reserved-skip", v.versionId, { skipCatalogCheck: true }),
+    ).rejects.toThrow(TypeError);
+    // Pointer stays null — reserved-id check precedes the skipCatalogCheck branch
+    expect(await r.getActiveForAgent("agent-reserved-skip")).toBeNull();
+  });
 });

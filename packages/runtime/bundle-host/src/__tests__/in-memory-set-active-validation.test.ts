@@ -89,4 +89,46 @@ describe("InMemoryBundleRegistry.setActive catalog validation", () => {
     await r.setActive("agent-skip-wins", "v-ok", { skipCatalogCheck: true });
     expect(await r.getActiveForAgent("agent-skip-wins")).toBe("v-ok");
   });
+
+  // Reserved-scope rejection (Gap 3)
+  it('throws TypeError when requiredCapabilities contains reserved id "spine"', async () => {
+    const r = setup({ requiredCapabilities: [{ id: "spine" }] });
+    await expect(
+      r.setActive("agent-reserved-spine", "v-ok", { knownCapabilityIds: ["spine"] }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      r.setActive("agent-reserved-spine", "v-ok", { knownCapabilityIds: ["spine"] }),
+    ).rejects.toThrow(/reserved scope/);
+    // Pointer must NOT have been flipped
+    expect(await r.getActiveForAgent("agent-reserved-spine")).toBeNull();
+  });
+
+  it('throws TypeError when requiredCapabilities contains reserved id "llm"', async () => {
+    const r = setup({ requiredCapabilities: [{ id: "llm" }] });
+    await expect(
+      r.setActive("agent-reserved-llm", "v-ok", { knownCapabilityIds: ["llm"] }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      r.setActive("agent-reserved-llm", "v-ok", { knownCapabilityIds: ["llm"] }),
+    ).rejects.toThrow(/reserved scope/);
+    expect(await r.getActiveForAgent("agent-reserved-llm")).toBeNull();
+  });
+
+  // Gap 4: reserved-id check is NOT bypassable by skipCatalogCheck: true
+  it("reserved-id rejection fires even with skipCatalogCheck: true", async () => {
+    const r = setup({ requiredCapabilities: [{ id: "spine" }] });
+    await expect(
+      r.setActive("agent-reserved-skip", "v-ok", { skipCatalogCheck: true }),
+    ).rejects.toThrow(TypeError);
+    // The reserved-id check runs before the skipCatalogCheck branch
+    expect(await r.getActiveForAgent("agent-reserved-skip")).toBeNull();
+  });
+
+  it("reserved-id rejection for llm fires even with skipCatalogCheck: true", async () => {
+    const r = setup({ requiredCapabilities: [{ id: "llm" }] });
+    await expect(
+      r.setActive("agent-reserved-skip-llm", "v-ok", { skipCatalogCheck: true }),
+    ).rejects.toThrow(TypeError);
+    expect(await r.getActiveForAgent("agent-reserved-skip-llm")).toBeNull();
+  });
 });
