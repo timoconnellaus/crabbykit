@@ -108,39 +108,39 @@
 
 ### 4a. Package: `@claw-for-cloudflare/file-tools`
 
-- [ ] 4.1 Create `packages/capabilities/file-tools/src/schemas.ts` exporting tool-name + description constants for all nine tools (`file_read`, `file_write`, `file_edit`, `file_delete`, `file_copy`, `file_move`, `file_list`, `file_tree`, `file_find`), nine `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "file-tools-schemas-v1"`
-- [ ] 4.2 Create `packages/capabilities/file-tools/src/service.ts` exporting `FileToolsService extends WorkerEntrypoint<FileToolsServiceEnv>` with nine methods (`read`, `write`, `edit`, `delete`, `copy`, `move`, `list`, `tree`, `find`); env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET`, `STORAGE_NAMESPACE` (no `SPINE` binding required — broadcast handled by the static hook via the bridge)
-- [ ] 4.3 Implement lazy `getSubkey()`
-- [ ] 4.4 Implement each method: schema-hash check → token verify (`requiredScope: "file-tools"`) → reuse existing R2 implementation logic from the corresponding `file-*.ts` modules (extract to a shared internal helper if needed; the namespaced-bucket logic stays identical to the static tools)
-- [ ] 4.5 Confirm methods do NOT call `spine.broadcastGlobal` or any spine method directly — the service is a pure RPC executor; UI broadcast comes from the static capability's hook firing through the bridge
-- [ ] 4.6 Create `packages/capabilities/file-tools/src/client.ts` exporting `fileToolsClient(options): Capability` with `id: "file-tools"` and nine tools; each tool reads `env.__BUNDLE_TOKEN`, throws on missing, calls `options.service.<method>(token, args, SCHEMA_CONTENT_HASH)`
-- [ ] 4.7 Update `packages/capabilities/file-tools/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
-- [ ] 4.8 Run `bun install`
-- [ ] 4.9 Verify legacy `src/index.ts`, `src/capability.ts`, `src/ui-bridge.ts` are unchanged (the static `broadcastAgentMutation` hook now also fires for bundle events via the bridge)
+- [x] 4.1 Create `packages/capabilities/file-tools/src/schemas.ts` exporting tool-name + description constants for all nine tools (`file_read`, `file_write`, `file_edit`, `file_delete`, `file_copy`, `file_move`, `file_list`, `file_tree`, `file_find`), nine `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "file-tools-schemas-v1"`
+- [x] 4.2 Create `packages/capabilities/file-tools/src/service.ts` exporting `FileToolsService extends WorkerEntrypoint<FileToolsServiceEnv>` with nine methods (`read`, `write`, `edit`, `delete`, `copy`, `move`, `list`, `tree`, `find`); env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET`, `STORAGE_NAMESPACE` (no `SPINE` binding required — broadcast handled by the static hook via the bridge)
+- [x] 4.3 Implement lazy `getSubkey()`
+- [x] 4.4 Implement each method: schema-hash check → token verify (`requiredScope: "file-tools"`) → reuse existing R2 implementation logic from the corresponding `file-*.ts` modules (extract to a shared internal helper if needed; the namespaced-bucket logic stays identical to the static tools)
+- [x] 4.5 Confirm methods do NOT call `spine.broadcastGlobal` or any spine method directly — the service is a pure RPC executor; UI broadcast comes from the static capability's hook firing through the bridge
+- [x] 4.6 Create `packages/capabilities/file-tools/src/client.ts` exporting `fileToolsClient(options): Capability` with `id: "file-tools"` and nine tools; each tool reads `env.__BUNDLE_TOKEN`, throws on missing, calls `options.service.<method>(token, args, SCHEMA_CONTENT_HASH)`
+- [x] 4.7 Update `packages/capabilities/file-tools/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
+- [x] 4.8 Run `bun install`
+- [x] 4.9 Verify legacy `src/index.ts`, `src/capability.ts`, `src/ui-bridge.ts` are unchanged (the static `broadcastAgentMutation` hook now also fires for bundle events via the bridge)
 
 ### 4b. Tests: `@claw-for-cloudflare/file-tools`
 
-- [ ] 4.10 Add `src/__tests__/service.test.ts` covering for each method: token-scope-deny; schema-hash-mismatch; path validation rejects traversal; happy-path R2 operation matches static-tool result shape
-- [ ] 4.11 Add a test asserting service makes NO spine call (mock spine, expect zero invocations) when methods succeed — the broadcast comes from elsewhere
-- [ ] 4.12 Add `src/__tests__/client.test.ts` covering: `id === "file-tools"`; all nine tool names present; missing `__BUNDLE_TOKEN` throws on every tool; no host-only surfaces (`hooks`, `httpHandlers`, `configNamespaces`, `onAction`, `promptSections`)
-- [ ] 4.13 Add bridge integration test: bundle's `file_write` triggers the static capability's `broadcastAgentMutation` hook via the bridge — assert UI receives `file_changed` with the correct path
-- [ ] 4.14 Add bridge integration test for `file_move`: assert the static hook fires once for the source path and once for the destination path (matching the static behavior)
-- [ ] 4.15 Run `cd packages/capabilities/file-tools && bun test` — all tests green
+- [x] 4.10 Add `src/__tests__/service.test.ts` covering for each method: token-scope-deny; schema-hash-mismatch; path validation rejects traversal; happy-path R2 operation matches static-tool result shape
+- [x] 4.11 Add a test asserting service makes NO spine call (mock spine, expect zero invocations) when methods succeed — the broadcast comes from elsewhere  <!-- Service env has no SPINE by type (compile-time `_NoSpine` check), plus runtime test attaches a `SPINE = vi.fn()` to the env and asserts it was never called across all five mutation methods. -->
+- [x] 4.12 Add `src/__tests__/client.test.ts` covering: `id === "file-tools"`; all nine tool names present; missing `__BUNDLE_TOKEN` throws on every tool; no host-only surfaces (`hooks`, `httpHandlers`, `configNamespaces`, `onAction`, `promptSections`)
+- [ ] 4.13 Add bridge integration test: bundle's `file_write` triggers the static capability's `broadcastAgentMutation` hook via the bridge — assert UI receives `file_changed` with the correct path  <!-- DEFERRED: requires bundle wrangler test setup; will be picked up with a dedicated bridge integration pass. Same reason as Phase 1's 2.11 / Phase 2's 3.12. Cross-phase 5.2 covers it. -->
+- [ ] 4.14 Add bridge integration test for `file_move`: assert the static hook fires once for the source path and once for the destination path (matching the static behavior)  <!-- DEFERRED: requires bundle wrangler test setup; will be picked up with the same integration pass as 4.13. Cross-phase 5.2 covers it. -->
+- [x] 4.15 Run `cd packages/capabilities/file-tools && bun test` — all tests green
 
 ### 4c. Consumer wiring: `examples/basic-agent`
 
-- [ ] 4.16 Add `[[services]] binding = "FILE_TOOLS_SERVICE"` to `examples/basic-agent/wrangler.toml`
-- [ ] 4.17 Export `FileToolsService` from the basic-agent's worker entry
-- [ ] 4.18 Wire `bundleCapabilities: [..., fileToolsClient({ service: env.FILE_TOOLS_SERVICE })]` and add `"file-tools"` to `requiredCapabilities`
-- [ ] 4.19 Widen `knownCapabilityIds` to include `"file-tools"`
-- [ ] 4.20 Smoke test: bundle agent calls `file_write` then `file_read` to round-trip a file; assert UI receives `file_changed` (the static hook fires via the bridge)
+- [x] 4.16 Add `[[services]] binding = "FILE_TOOLS_SERVICE"` to `examples/basic-agent/wrangler.toml`
+- [x] 4.17 Export `FileToolsService` from the basic-agent's worker entry
+- [x] 4.18 Wire `bundleCapabilities: [..., fileToolsClient({ service: env.FILE_TOOLS_SERVICE })]` and add `"file-tools"` to `requiredCapabilities`  <!-- basic-agent does not author a bundle in-tree; exposed FILE_TOOLS_SERVICE via bundleEnv so bundle authors can wire fileToolsClient({ service: env.FILE_TOOLS }). -->
+- [x] 4.19 Widen `knownCapabilityIds` to include `"file-tools"`  <!-- Automatic: AgentRuntime.getBundleHostCapabilityIds() derives the set from registered static capabilities; "file-tools" is already included via the fileTools() factory wired in this example. -->
+- [ ] 4.20 Smoke test: bundle agent calls `file_write` then `file_read` to round-trip a file; assert UI receives `file_changed` (the static hook fires via the bridge)  <!-- DEFERRED: requires a running worker + authored bundle. Cross-phase 5.2 covers the end-to-end path. -->
 
 ### 4d. Phase 3 verification
 
-- [ ] 4.21 `bun run typecheck` — clean
-- [ ] 4.22 `bun run lint` — clean
-- [ ] 4.23 `bun run test` — all green
-- [ ] 4.24 Atomic commit: `feat(file-tools): add shape-2 service/client/schemas subpaths for bundle access`
+- [x] 4.21 `bun run typecheck` — clean
+- [x] 4.22 `bun run lint` — clean (no new errors beyond the 21-error baseline)
+- [x] 4.23 `bun run test` — all green
+- [x] 4.24 Atomic commit: `feat(file-tools): add shape-2 service/client/schemas subpaths for bundle access`
 
 ## 5. Cross-phase verification
 

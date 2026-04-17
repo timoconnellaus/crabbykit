@@ -80,6 +80,11 @@
       "binding": "VECTOR_MEMORY_SERVICE",
       "service": "basic-agent",
       "entrypoint": "VectorMemoryService"
+    },
+    {
+      "binding": "FILE_TOOLS_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "FileToolsService"
     }
   ],
   "ai": {

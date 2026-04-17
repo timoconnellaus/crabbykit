@@ -22,6 +22,7 @@ import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
 import { credentialStore } from "@claw-for-cloudflare/credential-store";
 import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
 import { fileTools } from "@claw-for-cloudflare/file-tools";
+import { FileToolsService } from "@claw-for-cloudflare/file-tools/service";
 import { HeartbeatConfigSchema, heartbeat } from "@claw-for-cloudflare/heartbeat";
 import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
@@ -72,6 +73,7 @@ export interface Env {
   LLM_SERVICE: Fetcher;
   SKILLS_SERVICE: Service<SkillsService>;
   VECTOR_MEMORY_SERVICE: Service<VectorMemoryService>;
+  FILE_TOOLS_SERVICE: Service<FileToolsService>;
   // Default public URL used by channels (e.g. Telegram) when registering
   // webhooks. Optional — the add-account flow falls back to deriving one
   // from the incoming request origin when this isn't set.
@@ -138,6 +140,7 @@ export const BasicAgent = defineAgent<Env>({
       SPINE: env.SPINE_SERVICE,
       SKILLS: env.SKILLS_SERVICE,
       VECTOR_MEMORY: env.VECTOR_MEMORY_SERVICE,
+      FILE_TOOLS: env.FILE_TOOLS_SERVICE,
     }),
   },
 
@@ -452,6 +455,7 @@ export {
   BackendStorage,
   ContainerProxy,
   DbService,
+  FileToolsService,
   LlmService,
   SandboxContainer,
   SkillsService,
