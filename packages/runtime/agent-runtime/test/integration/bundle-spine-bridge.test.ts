@@ -305,6 +305,30 @@ describe("bundle spine bridge: token verification", () => {
       }),
     ).rejects.toMatchObject({ code: "ERR_SCOPE_DENIED" });
   });
+
+  // Gap 5: ERR_SCOPE_DENIED round-trips through spine.emitCost (the sanitize
+  // path must not collapse it to ERR_INTERNAL).
+  it("spine.emitCost with a non-spine-scoped token surfaces ERR_SCOPE_DENIED (not ERR_INTERNAL)", async () => {
+    // A token with only "llm" scope is otherwise valid (correct signature,
+    // not expired) but lacks "spine". SpineService.verify rejects it with
+    // ERR_SCOPE_DENIED before the DO is ever reached. The sanitize branch
+    // already handles SpineError directly (it returns the error unchanged).
+    // This test locks in that the code round-trips correctly.
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const llmOnlyToken = await mintToken(
+      { agentId, sessionId: "fake-session", scope: ["llm"] },
+      subkey,
+    );
+
+    await expect(
+      spine.emitCost(llmOnlyToken, {
+        capabilityId: "test",
+        toolName: "test",
+        amount: 0.001,
+        currency: "USD",
+      }),
+    ).rejects.toMatchObject({ code: "ERR_SCOPE_DENIED" });
+  });
 });
 
 describe("bundle spine bridge: instance-recycle budget enforcement", () => {
