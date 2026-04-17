@@ -209,6 +209,7 @@ export function resolveCapabilities(
         rawHook(messages, {
           ...ctx,
           storage: capStorage,
+          broadcastState: capBroadcastState,
           agentConfig: resolveHookAgentConfig(),
         }),
       );
@@ -220,6 +221,7 @@ export function resolveCapabilities(
         rawHook(event, {
           ...ctx,
           storage: capStorage,
+          broadcastState: capBroadcastState,
           agentConfig: resolveHookAgentConfig(),
         }),
       );
@@ -231,6 +233,7 @@ export function resolveCapabilities(
         rawHook(event, {
           ...ctx,
           storage: capStorage,
+          broadcastState: capBroadcastState,
           agentConfig: resolveHookAgentConfig(),
         }),
       );
