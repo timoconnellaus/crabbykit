@@ -639,6 +639,8 @@ describe("BundleDispatcher catalog-mismatch dispatch guard (Gap 8)", () => {
       expect(result.reason).toMatch(/catalog mismatch/);
       expect(result.reason).toContain("secret-capability");
     }
+    // And the bundle env must never have been projected to the loader.
+    expect(envProjected).toBeNull();
   });
 
   it("does NOT project bundleEnv or mint a token on catalog mismatch", async () => {
