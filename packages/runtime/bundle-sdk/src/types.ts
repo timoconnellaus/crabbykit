@@ -298,14 +298,41 @@ export interface BundleToolExecutionEvent {
 }
 
 /**
- * Bundle-side hook bridge client. Calls SpineService's `recordToolExecution`
- * (observer) and `processBeforeInference` (mutator). Messages cross the
+ * Before-tool-execution event payload the bundle SDK forwards to the
+ * host via the hook bridge. Shape mirrors agent-runtime's
+ * `BeforeToolExecutionEvent` (`toolName`, `args`, `toolCallId`); kept
+ * structural rather than imported to keep the bundle runtime free of
+ * cross-package type edges.
+ */
+export interface BundleBeforeToolExecutionEvent {
+  toolName: string;
+  args: unknown;
+  toolCallId: string;
+}
+
+/**
+ * Result of the `beforeToolExecution` hook chain as observed by the
+ * bundle. When `block: true`, the bundle MUST skip tool execution and
+ * surface `reason` to the model as a tool error.
+ */
+export interface BundleBeforeToolExecutionResult {
+  block?: boolean;
+  reason?: string;
+}
+
+/**
+ * Bundle-side hook bridge client. Calls SpineService's
+ * `recordToolExecution` (observer), `processBeforeInference` (mutator),
+ * and `processBeforeToolExecution` (pre-tool gate). Messages cross the
  * RPC boundary as `unknown[]` — the host verifies and narrows to
  * `AgentMessage[]` inside its hook chain.
  */
 export interface BundleHookBridge {
   recordToolExecution(event: BundleToolExecutionEvent): Promise<void>;
   processBeforeInference(messages: unknown[]): Promise<unknown[]>;
+  processBeforeToolExecution(
+    event: BundleBeforeToolExecutionEvent,
+  ): Promise<BundleBeforeToolExecutionResult | undefined>;
 }
 
 // --- Bundle default-export contract ---

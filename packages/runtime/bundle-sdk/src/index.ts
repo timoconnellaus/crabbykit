@@ -37,6 +37,8 @@ export {
 } from "./spine-clients.js";
 export type {
   BundleAgentSetup,
+  BundleBeforeToolExecutionEvent,
+  BundleBeforeToolExecutionResult,
   BundleCapability,
   BundleCapabilityHooks,
   BundleCapabilityRequirement,

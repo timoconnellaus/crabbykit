@@ -114,6 +114,13 @@ export interface SpineHost extends Rpc.DurableObjectBranded {
   // mutated) array. Bundle SDK MUST use the returned array as input to the
   // model call — see `openspec/changes/bundle-shape-2-rollout/design.md`
   // Decision 5.
+  //
+  // `spineProcessBeforeToolExecution` runs the host's
+  // `beforeToolExecutionHooks` chain against a bundle-originated tool
+  // event before the tool executes. Returns `{ block: true, reason }` if
+  // any hook vetoed the execution (first blocker wins), otherwise
+  // `undefined`. Bundle SDK MUST honor the block and skip tool execution.
   spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void>;
   spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]>;
+  spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown>;
 }

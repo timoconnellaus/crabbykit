@@ -12,9 +12,13 @@
  *           R2 path → static `skills.afterToolExecution` dirty-tracking
  *           hook observes the mutation (writes an `InstalledSkill` record
  *           into the capability KV store).
- *   - 5.4 (partial): `spineProcessBeforeInference` threads messages
- *           through `tool-output-truncation.beforeInference`, which
- *           rewrites oversized tool-result content.
+ *   - 5.4 (tool-output-truncation half): `spineProcessBeforeInference`
+ *           threads messages through `tool-output-truncation.beforeInference`,
+ *           which rewrites oversized tool-result content.
+ *   - 5.4 (doom-loop-detection half): `spineProcessBeforeToolExecution`
+ *           threads events through `doom-loop-detection.beforeToolExecution`,
+ *           which blocks repeated identical tool calls at the capability's
+ *           configured threshold.
  *
  * Dispatches RPCs directly on the DO stub — matches
  * `packages/runtime/agent-runtime/test/integration/hook-bridge.test.ts`
@@ -22,10 +26,6 @@
  * rather than SpineService token verification (covered elsewhere).
  *
  * NOT COVERED HERE (intentional):
- *   - `doom-loop-detection` uses `beforeToolExecution`, which Phase 0 did
- *     NOT bridge — only `afterToolExecution` + `beforeInference`. Bridging
- *     `beforeToolExecution` is a follow-up scope decision; task 5.4's
- *     doom-loop half will land with that change.
  *   - `vector-memory` auto-reindex (task 3.12) needs a Vectorize binding
  *     that miniflare does not yet simulate; deferred to a Vectorize-mocking
  *     harness.
@@ -33,6 +33,7 @@
 
 import { env } from "cloudflare:test";
 import { agentStorage } from "@claw-for-cloudflare/agent-storage";
+import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
 import { skills } from "@claw-for-cloudflare/skills";
 import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
 import { afterEach, describe, expect, it } from "vitest";
@@ -68,6 +69,7 @@ interface SpineCaller {
 interface BridgeStub {
   spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void>;
   spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]>;
+  spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown>;
   spineKvList(
     caller: SpineCaller,
     capabilityId: string,
@@ -357,5 +359,50 @@ describe("hook bridge — tool-output-truncation via Phase 0 bridge", () => {
     // truncation marker the capability appends.
     expect(returnedText.length).toBeLessThan(longText.length);
     expect(returnedText.length).toBeGreaterThan(0);
+  });
+});
+
+describe("hook bridge — doom-loop-detection via Phase 0 bridge", () => {
+  afterEach(() => {
+    clearExtraStaticCaps();
+    clearMockResponses();
+  });
+
+  it("5.4 (doom-loop half) — three identical spineProcessBeforeToolExecution calls block on the third at threshold=3", async () => {
+    // Register doom-loop-detection BEFORE priming the session: capability
+    // hooks are resolved once on first bridge call / ensureAgent, and the
+    // resolved arrays are what the bridge iterates. Register first, then
+    // prime so the hook sees the capability.
+    setExtraStaticCaps([doomLoopDetection({ threshold: 3 })]);
+
+    const stub = getStub("bridge-doom-loop-1");
+    const sessionId = await getFirstSessionId(stub);
+
+    const event = {
+      toolName: "echo",
+      args: { text: "spin" },
+      toolCallId: "c-1",
+    };
+
+    // First two calls should NOT block (consecutiveCount+1 = 1, then 2).
+    const r1 = await asBridge(stub).spineProcessBeforeToolExecution(makeCaller(sessionId), event);
+    expect(r1).toBeUndefined();
+
+    const r2 = await asBridge(stub).spineProcessBeforeToolExecution(makeCaller(sessionId), {
+      ...event,
+      toolCallId: "c-2",
+    });
+    expect(r2).toBeUndefined();
+
+    // Third identical call should block: consecutiveCount+1 = 3 >= threshold=3.
+    const r3 = (await asBridge(stub).spineProcessBeforeToolExecution(makeCaller(sessionId), {
+      ...event,
+      toolCallId: "c-3",
+    })) as { block?: boolean; reason?: string } | undefined;
+
+    expect(r3).toBeDefined();
+    expect(r3?.block).toBe(true);
+    expect(r3?.reason).toMatch(/Doom loop detected/i);
+    expect(r3?.reason).toContain("echo");
   });
 });

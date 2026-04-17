@@ -25,6 +25,8 @@ import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
 import { createCapabilityStorage, createNoopStorage } from "./capabilities/storage.js";
 import type {
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
   Capability,
   CapabilityHookContext,
   CapabilityHttpContext,
@@ -3618,6 +3620,60 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         }
       }
       return result;
+    });
+  }
+
+  /**
+   * Run the `beforeToolExecution` hook chain against a bundle-originated
+   * tool event. Mirrors the static path's `setBeforeToolCall` block:
+   * iterates `beforeToolExecutionHooks` in registration order, catches
+   * per-hook errors so one bad hook does not abort the chain, and
+   * short-circuits on the first `{ block: true, reason }` return.
+   *
+   * Returns the first blocker's result (unchanged) or `undefined` if no
+   * hook blocked. Bundle SDK MUST honor the block by skipping tool
+   * execution and returning the reason to the model as a tool-error.
+   *
+   * Widened to `unknown`/`unknown` in the SpineHost interface to dodge
+   * the TS depth limiter when `DurableObjectStub<SpineHost>` materializes
+   * method signatures; we narrow to `BeforeToolExecutionEvent` /
+   * `BeforeToolExecutionResult | undefined` at the DO boundary.
+   */
+  spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown> {
+    const btcEvent = event as BeforeToolExecutionEvent;
+    return this.withSpineBudget(caller, "hook_before_tool", async () => {
+      await this.ensureCapabilityHooksResolved(caller.sid);
+      const hookContext: CapabilityHookContext = {
+        agentId: this.runtimeContext.agentId,
+        publicUrl: this.publicUrl,
+        sessionId: caller.sid,
+        sessionStore: this.sessionStore,
+        storage: createNoopStorage(),
+        capabilityIds: this.getCapabilityIds(),
+      };
+      for (const hook of this.beforeToolExecutionHooks) {
+        try {
+          const result = await hook(btcEvent, hookContext);
+          if (result?.block) {
+            const blocked: BeforeToolExecutionResult = {
+              block: true,
+              reason: result.reason,
+            };
+            return blocked;
+          }
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.logger.error("[capabilities] beforeToolExecution hook error (bridge)", {
+            message: error.message,
+          });
+          this.onError?.(error, {
+            source: "hook",
+            sessionId: caller.sid,
+            toolName: btcEvent.toolName,
+          });
+        }
+      }
+      return undefined;
     });
   }
 

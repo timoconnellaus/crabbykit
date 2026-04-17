@@ -27,6 +27,8 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type {
   AgentMessage,
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
   SpineCaller,
   SpineHost,
   ToolExecutionEvent,
@@ -37,7 +39,7 @@ import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 // SpineService's hook-bridge methods. Keeps the public RPC contract
 // legible on the SpineService side; AgentMessage/ToolExecutionEvent are
 // sourced from agent-runtime's barrel.
-export type { AgentMessage, ToolExecutionEvent };
+export type { AgentMessage, BeforeToolExecutionEvent, BeforeToolExecutionResult, ToolExecutionEvent };
 
 import {
   BUNDLE_SUBKEY_LABEL,
@@ -370,6 +372,31 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     const caller = await this.verify(token);
     try {
       return await this.getHost(caller.aid).spineProcessBeforeInference(caller, messages);
+    } catch (err) {
+      throw this.sanitize(err);
+    }
+  }
+
+  /**
+   * Run the host's `beforeToolExecution` hook chain against a
+   * bundle-originated tool event. Returns `{ block: true, reason }` if
+   * any hook blocked execution (first blocker wins), otherwise
+   * `undefined`. Bundle SDK MUST skip tool execution on a block and
+   * surface the reason to the model as a tool error.
+   *
+   * A `{ block: true }` return is a NORMAL value — it is NOT an error
+   * and does NOT flow through `sanitize`. Only real exceptions (budget
+   * overruns, scope denials, internal failures) cross the error path.
+   */
+  async processBeforeToolExecution(
+    token: string,
+    event: BeforeToolExecutionEvent,
+  ): Promise<BeforeToolExecutionResult | undefined> {
+    const caller = await this.verify(token);
+    try {
+      return (await this.getHost(caller.aid).spineProcessBeforeToolExecution(caller, event)) as
+        | BeforeToolExecutionResult
+        | undefined;
     } catch (err) {
       throw this.sanitize(err);
     }

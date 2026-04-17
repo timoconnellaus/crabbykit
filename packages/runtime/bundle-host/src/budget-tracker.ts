@@ -20,6 +20,12 @@ export interface SpineBudgetConfig {
    * Conservative default: exceeds any legitimate per-turn inference count.
    */
   maxHookBeforeInference: number;
+  /**
+   * Cap on `beforeToolExecution` bridge calls per turn. Fires once per
+   * tool call attempt (same cost shape as `hook_after_tool`), so the
+   * default matches that cap.
+   */
+  maxHookBeforeTool: number;
 }
 
 export const DEFAULT_BUDGET: SpineBudgetConfig = {
@@ -29,6 +35,7 @@ export const DEFAULT_BUDGET: SpineBudgetConfig = {
   maxAlarms: 5,
   maxHookAfterTool: 200,
   maxHookBeforeInference: 100,
+  maxHookBeforeTool: 200,
 };
 
 export type BudgetCategory =
@@ -37,7 +44,8 @@ export type BudgetCategory =
   | "broadcast"
   | "alarm"
   | "hook_after_tool"
-  | "hook_before_inference";
+  | "hook_before_inference"
+  | "hook_before_tool";
 
 /**
  * Error code embedded directly in the message so it survives Cloudflare's
@@ -101,6 +109,8 @@ export class BudgetTracker {
         return this.config.maxHookAfterTool;
       case "hook_before_inference":
         return this.config.maxHookBeforeInference;
+      case "hook_before_tool":
+        return this.config.maxHookBeforeTool;
     }
   }
 

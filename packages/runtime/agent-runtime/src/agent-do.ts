@@ -327,6 +327,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     return this.runtime.spineProcessBeforeInference(caller, messages);
   }
 
+  spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown> {
+    return this.runtime.spineProcessBeforeToolExecution(caller, event);
+  }
+
   // --- Protected getters/setters that forward to the composed runtime ---
   //
   // These preserve the legacy `this.sessionStore`, `this.kvStore`, etc.

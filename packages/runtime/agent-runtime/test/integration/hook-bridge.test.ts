@@ -27,7 +27,12 @@ import {
 } from "@claw-for-cloudflare/bundle-host";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentDO } from "../../src/agent-do.js";
-import type { Capability, ToolExecutionEvent } from "../../src/capabilities/types.js";
+import type {
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
+  Capability,
+  ToolExecutionEvent,
+} from "../../src/capabilities/types.js";
 import type { SpineCaller } from "../../src/spine-host.js";
 import {
   clearExtraCapabilities,
@@ -54,6 +59,14 @@ function makeCaller(overrides: Partial<SpineCaller> = {}): SpineCaller {
 
 function makeEvent(toolName = "test_tool", isError = false): ToolExecutionEvent {
   return { toolName, args: { foo: "bar" }, isError };
+}
+
+function makeBtcEvent(
+  toolName = "test_tool",
+  args: unknown = { foo: "bar" },
+  toolCallId = "call-1",
+): BeforeToolExecutionEvent {
+  return { toolName, args, toolCallId };
 }
 
 function textMessage(text: string): AgentMessage {
@@ -378,6 +391,219 @@ describe("hook bridge — parity with the static tool-execution path", () => {
   });
 });
 
+describe("hook bridge — spineProcessBeforeToolExecution", () => {
+  afterEach(() => {
+    clearExtraCapabilities();
+    clearMockResponses();
+  });
+
+  it("invokes beforeToolExecution hooks in registration order", async () => {
+    const order: string[] = [];
+    const cap = (id: string): Capability => ({
+      id,
+      name: id,
+      description: id,
+      hooks: {
+        beforeToolExecution: async () => {
+          order.push(id);
+        },
+      },
+    });
+    setExtraCapabilities([cap("btc-A"), cap("btc-B"), cap("btc-C")]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-order-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    await spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent());
+
+    expect(order).toEqual(["btc-A", "btc-B", "btc-C"]);
+    client.close();
+  });
+
+  it("continues the chain when one hook throws (subsequent hooks still run)", async () => {
+    const order: string[] = [];
+    setExtraCapabilities([
+      {
+        id: "ok-1",
+        name: "ok-1",
+        description: "ok-1",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("ok-1");
+          },
+        },
+      },
+      {
+        id: "bad",
+        name: "bad",
+        description: "bad",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("bad");
+            throw new Error("btc-boom");
+          },
+        },
+      },
+      {
+        id: "ok-2",
+        name: "ok-2",
+        description: "ok-2",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("ok-2");
+          },
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-error-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    // Per-hook error swallowing — bridge call resolves cleanly (no block)
+    // even though the middle hook threw.
+    await expect(
+      spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent()),
+    ).resolves.toBeUndefined();
+    expect(order).toEqual(["ok-1", "bad", "ok-2"]);
+
+    client.close();
+  });
+
+  it("first blocking hook short-circuits the chain and returns its reason", async () => {
+    const order: string[] = [];
+    setExtraCapabilities([
+      {
+        id: "first",
+        name: "first",
+        description: "first",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("first");
+          },
+        },
+      },
+      {
+        id: "blocker",
+        name: "blocker",
+        description: "blocker",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("blocker");
+            return { block: true, reason: "nope" };
+          },
+        },
+      },
+      {
+        id: "tail",
+        name: "tail",
+        description: "tail",
+        hooks: {
+          beforeToolExecution: async () => {
+            order.push("tail");
+          },
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-block-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    const result = (await spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent())) as
+      | BeforeToolExecutionResult
+      | undefined;
+
+    expect(result).toEqual({ block: true, reason: "nope" });
+    // Tail hook must NOT have run — first blocker wins.
+    expect(order).toEqual(["first", "blocker"]);
+    client.close();
+  });
+
+  it("returns undefined when no hook blocks", async () => {
+    setExtraCapabilities([
+      {
+        id: "noop",
+        name: "noop",
+        description: "noop",
+        hooks: {
+          beforeToolExecution: async () => {},
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-noop-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    await expect(
+      spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent()),
+    ).resolves.toBeUndefined();
+    client.close();
+  });
+
+  it("enforces the hook_before_tool per-turn budget", async () => {
+    setExtraCapabilities([
+      {
+        id: "noop-btc",
+        name: "noop-btc",
+        description: "noop-btc",
+        hooks: {
+          beforeToolExecution: async () => {},
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-budget-before-tool-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    // Default maxHookBeforeTool = 200.
+    for (let i = 0; i < 200; i++) {
+      await spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent());
+    }
+    await expect(
+      spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent()),
+    ).rejects.toThrow(/budget exceeded/i);
+
+    client.close();
+  });
+
+  it("passes a CapabilityHookContext carrying the verified caller's sessionId", async () => {
+    const seen: Array<{ toolName: string; sessionId: string }> = [];
+    setExtraCapabilities([
+      {
+        id: "btc-observer",
+        name: "btc-observer",
+        description: "btc-observer",
+        hooks: {
+          beforeToolExecution: async (event, ctx) => {
+            seen.push({ toolName: event.toolName, sessionId: ctx.sessionId });
+          },
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-context-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+    const caller = makeCaller({ sid: sessionId });
+
+    await spine(stub).spineProcessBeforeToolExecution(caller, makeBtcEvent("gated_tool"));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].toolName).toBe("gated_tool");
+    expect(seen[0].sessionId).toBe(sessionId);
+    client.close();
+  });
+});
+
 // --- SpineService-mediated bridge tests ---
 //
 // These cover task 1.12: scope-check rejection, token-derived caller,
@@ -500,6 +726,95 @@ describe("hook bridge — SpineService.recordToolExecution / processBeforeInfere
       textMessage("seed") as unknown as AgentMessage,
     ])) as AgentMessage[];
     expect(out.map((m) => (m as { content: string }).content)).toEqual(["prepended", "seed"]);
+    client.close();
+  });
+});
+
+describe("hook bridge — SpineService.processBeforeToolExecution", () => {
+  let service: SpineService;
+
+  beforeEach(() => {
+    clearExtraCapabilities();
+    clearMockResponses();
+    service = makeRealSpineService();
+  });
+
+  afterEach(() => {
+    clearExtraCapabilities();
+  });
+
+  it("token without 'spine' scope is rejected with ERR_SCOPE_DENIED", async () => {
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const llmOnly = await mintToken(
+      { agentId: "fake-agent", sessionId: "fake-session", scope: ["llm"] },
+      subkey,
+    );
+    await expect(service.processBeforeToolExecution(llmOnly, makeBtcEvent())).rejects.toMatchObject(
+      {
+        code: "ERR_SCOPE_DENIED",
+      },
+    );
+  });
+
+  it("verified call delegates to the host with the token-derived caller", async () => {
+    const seenSids: string[] = [];
+    setExtraCapabilities([
+      {
+        id: "btc-delegate-observer",
+        name: "btc-delegate-observer",
+        description: "btc-delegate-observer",
+        hooks: {
+          beforeToolExecution: async (_event, ctx) => {
+            seenSids.push(ctx.sessionId);
+          },
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-service-delegate-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+
+    const agentId = (testEnv as unknown as TestEnv).AGENT.idFromName(
+      "hook-bridge-btc-service-delegate-1",
+    ).toString();
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const token = await mintToken({ agentId, sessionId, scope: ["spine", "llm"] }, subkey);
+
+    const result = await service.processBeforeToolExecution(token, makeBtcEvent("gated_tool"));
+
+    expect(result).toBeUndefined();
+    expect(seenSids).toEqual([sessionId]);
+    client.close();
+  });
+
+  it("round-trips a { block: true, reason } result through the service (NOT an error)", async () => {
+    setExtraCapabilities([
+      {
+        id: "svc-blocker",
+        name: "svc-blocker",
+        description: "svc-blocker",
+        hooks: {
+          beforeToolExecution: async () => ({ block: true, reason: "policy" }),
+        },
+      },
+    ]);
+    setMockResponses([{ text: "irrelevant" }]);
+
+    const stub = getStub("hook-bridge-btc-service-block-1");
+    const { sessionId, client } = await connectAndGetSession(stub);
+
+    const agentId = (testEnv as unknown as TestEnv).AGENT.idFromName(
+      "hook-bridge-btc-service-block-1",
+    ).toString();
+    const subkey = await deriveMintSubkey(TEST_BUNDLE_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
+    const token = await mintToken({ agentId, sessionId, scope: ["spine", "llm"] }, subkey);
+
+    // Crucial: this must be a normal resolution, NOT a rejection — the
+    // sanitize path would otherwise swallow the blocker reason into a
+    // generic ERR_INTERNAL.
+    const result = await service.processBeforeToolExecution(token, makeBtcEvent());
+    expect(result).toEqual({ block: true, reason: "policy" });
     client.close();
   });
 });
