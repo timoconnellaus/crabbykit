@@ -25,8 +25,20 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import type { SpineCaller, SpineHost } from "@claw-for-cloudflare/agent-runtime";
+import type {
+  AgentMessage,
+  SpineCaller,
+  SpineHost,
+  ToolExecutionEvent,
+} from "@claw-for-cloudflare/agent-runtime";
 import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
+
+// Re-export the bridge payload types the bundle SDK uses when calling
+// SpineService's hook-bridge methods. Keeps the public RPC contract
+// legible on the SpineService side; AgentMessage/ToolExecutionEvent are
+// sourced from agent-runtime's barrel.
+export type { AgentMessage, ToolExecutionEvent };
+
 import {
   BUNDLE_SUBKEY_LABEL,
   deriveVerifyOnlySubkey,
@@ -331,6 +343,33 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     const caller = await this.verify(token);
     try {
       await this.getHost(caller.aid).spineEmitCost(caller, costEvent);
+    } catch (err) {
+      throw this.sanitize(err);
+    }
+  }
+
+  // --- Hook bridge (bundle → host) ---
+  //
+  // Bundle SDK calls these from its tool-execution wrapper (`recordToolExecution`)
+  // and immediately before each model inference (`processBeforeInference`).
+  // Both verify under `requiredScope: "spine"` — the bridge is part of the
+  // spine surface, not a separate capability. The host runs its existing
+  // hook chains against bundle-originated events so capability authors
+  // register once and the hook fires for both static and bundle brains.
+
+  async recordToolExecution(token: string, event: ToolExecutionEvent): Promise<void> {
+    const caller = await this.verify(token);
+    try {
+      await this.getHost(caller.aid).spineRecordToolExecution(caller, event);
+    } catch (err) {
+      throw this.sanitize(err);
+    }
+  }
+
+  async processBeforeInference(token: string, messages: AgentMessage[]): Promise<AgentMessage[]> {
+    const caller = await this.verify(token);
+    try {
+      return await this.getHost(caller.aid).spineProcessBeforeInference(caller, messages);
     } catch (err) {
       throw this.sanitize(err);
     }

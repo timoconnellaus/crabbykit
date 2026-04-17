@@ -319,6 +319,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     return this.runtime.spineEmitCost(caller, costEvent);
   }
 
+  spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void> {
+    return this.runtime.spineRecordToolExecution(caller, event);
+  }
+
+  spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]> {
+    return this.runtime.spineProcessBeforeInference(caller, messages);
+  }
+
   // --- Protected getters/setters that forward to the composed runtime ---
   //
   // These preserve the legacy `this.sessionStore`, `this.kvStore`, etc.
@@ -542,9 +550,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const validateCatalogCached = async (
       versionId: string,
     ): Promise<{ valid: true } | { valid: false; missingIds: string[] }> => {
-      const { validateCatalogAgainstKnownIds } = await import(
-        "@claw-for-cloudflare/bundle-host"
-      );
+      const { validateCatalogAgainstKnownIds } = await import("@claw-for-cloudflare/bundle-host");
       if (!registry.getVersion) {
         validatedVersionId = versionId;
         return { valid: true };

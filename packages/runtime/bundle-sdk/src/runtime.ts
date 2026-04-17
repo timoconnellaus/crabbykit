@@ -9,6 +9,7 @@
 import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
 import {
   createCostEmitter,
+  createHookBridge,
   createKvStoreClient,
   createSchedulerClient,
   createSessionChannel,
@@ -45,6 +46,7 @@ export function buildBundleContext<TEnv extends BundleEnv>(
     scheduler: createSchedulerClient(spine as never, getToken),
     channel: createSessionChannel(spine as never, getToken),
     emitCost: createCostEmitter(spine as never, getToken),
+    hookBridge: createHookBridge(spine as never, getToken),
   };
 }
 
@@ -278,6 +280,15 @@ export function runBundleTurn<TEnv extends BundleEnv>(
       throw new Error("Missing env.LLM service binding with inferStream method");
     }
 
+    // 4b. Route messages through the host hook-bus bridge so every
+    //     `beforeInference` hook registered on the host fires against the
+    //     bundle's pre-inference message stream and the inference call
+    //     uses the (possibly mutated) result. Matches Decision 5 in the
+    //     bundle-shape-2-rollout design.
+    const bridgedMessages = (await context.hookBridge.processBeforeInference(
+      messages as unknown[],
+    )) as MinimalMessage[];
+
     // 5. Seed assistant-message partial. Mirrors the shape pi-ai emits
     //    so the client reducer treats bundle streams identically to
     //    native inference.
@@ -299,7 +310,7 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     const upstream = await llm.inferStream(bundleToken, {
       provider: model.provider,
       modelId: model.modelId,
-      messages,
+      messages: bridgedMessages,
     });
 
     // 8. Stream deltas

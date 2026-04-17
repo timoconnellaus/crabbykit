@@ -60,6 +60,8 @@ interface SpineMock {
   scheduleList: ReturnType<typeof vi.fn>;
   alarmSet: ReturnType<typeof vi.fn>;
   emitCost: ReturnType<typeof vi.fn>;
+  recordToolExecution: ReturnType<typeof vi.fn>;
+  processBeforeInference: ReturnType<typeof vi.fn>;
 }
 
 function makeSpineMock(): SpineMock {
@@ -83,6 +85,12 @@ function makeSpineMock(): SpineMock {
     scheduleList: vi.fn().mockResolvedValue([]),
     alarmSet: vi.fn().mockResolvedValue(undefined),
     emitCost: vi.fn().mockResolvedValue(undefined),
+    recordToolExecution: vi.fn().mockResolvedValue(undefined),
+    // Default pass-through: host's beforeInference bridge returns
+    // the input messages unchanged, mirroring the no-hook case.
+    processBeforeInference: vi.fn((_token: string, messages: unknown[]) =>
+      Promise.resolve(messages),
+    ),
   };
 }
 

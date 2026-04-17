@@ -28,6 +28,7 @@ import type {
   Capability,
   CapabilityHookContext,
   CapabilityHttpContext,
+  ToolExecutionEvent,
 } from "./capabilities/types.js";
 import type { Command, CommandContext, CommandResult } from "./commands/define-command.js";
 import type { CompactionConfig as CompactionCfg } from "./compaction/types.js";
@@ -3492,6 +3493,131 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     // against the `sql` bucket to match pre-change SpineService accounting.
     return this.withSpineBudget(caller, "sql", () => {
       this.handleCostEvent(costEvent as CostEvent, caller.sid);
+    });
+  }
+
+  /**
+   * Run the `afterToolExecution` hook chain against a bundle-originated
+   * tool event. Observer-only — result discarded. Mirrors the static
+   * path's `setAfterToolCall` block: iterates `afterToolExecutionHooks`
+   * in registration order, catches per-hook errors so one bad hook does
+   * not abort the chain. Single source of truth for hook behavior —
+   * capability authors register once and the hook fires for both static
+   * and bundle brains.
+   */
+  /**
+   * Lazily resolve capability hooks for the bundle bridge.
+   *
+   * In the static path, `ensureAgent(sessionId)` populates
+   * `afterToolExecutionHooks` and `beforeInferenceHooks` as a side effect.
+   * Bundle dispatch short-circuits `handlePrompt` before `ensureAgent`,
+   * so a pure-bundle turn would otherwise fire the bridge against empty
+   * hook arrays — silently breaking every `afterToolExecution` /
+   * `beforeInference` consumer for bundle brains.
+   *
+   * This helper performs the minimum work needed to wire the hook
+   * arrays (capability resolution with a stub context). It is idempotent
+   * via the `resolvedCapabilitiesCache` guard so calling it redundantly
+   * alongside `ensureAgent` is a no-op.
+   */
+  private async ensureCapabilityHooksResolved(sessionId: string): Promise<void> {
+    if (this.resolvedCapabilitiesCache) return;
+    await this.ensureAgentConfigLoaded();
+    const context: AgentContext = {
+      agentId: this.runtimeContext.agentId,
+      publicUrl: this.publicUrl,
+      sessionId,
+      stepNumber: 0,
+      emitCost: (cost) => this.handleCostEvent(cost, sessionId),
+      broadcast: this.createSessionBroadcast(sessionId),
+      broadcastToAll: (name, data) => this.broadcastCustomToAll(name, data),
+      requestFromClient: (eventName, eventData, timeoutMs) =>
+        this.requestFromClient(sessionId, eventName, eventData, timeoutMs),
+      storage: createNoopStorage(),
+      broadcastState: () => {},
+      schedules: this.buildScheduleManager(),
+      rateLimit: this.rateLimiter,
+      notifyBundlePointerChanged: this.buildBundleNotifier(),
+      getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+    };
+    const resolved = resolveCapabilities(
+      this.getCachedCapabilities(),
+      context,
+      (capId) => createCapabilityStorage(this.kvStore, capId),
+      (capId) => this.createCapabilityBroadcastState(capId, sessionId),
+      this.agentConfigSnapshot,
+    );
+    this.resolvedCapabilitiesCache = resolved;
+    this.beforeInferenceHooks = resolved.beforeInferenceHooks;
+    this.beforeToolExecutionHooks = resolved.beforeToolExecutionHooks;
+    this.afterToolExecutionHooks = resolved.afterToolExecutionHooks;
+    this.capabilityDisposers = resolved.disposers;
+  }
+
+  spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void> {
+    // Widened to `unknown` in the SpineHost interface to avoid exhausting
+    // the TS depth limiter when Workers' DurableObjectStub<SpineHost>
+    // materializes method signatures; we narrow here at the DO boundary.
+    const toolEvent = event as ToolExecutionEvent;
+    return this.withSpineBudget(caller, "hook_after_tool", async () => {
+      await this.ensureCapabilityHooksResolved(caller.sid);
+      const hookContext: CapabilityHookContext = {
+        agentId: this.runtimeContext.agentId,
+        publicUrl: this.publicUrl,
+        sessionId: caller.sid,
+        sessionStore: this.sessionStore,
+        storage: createNoopStorage(),
+        capabilityIds: this.getCapabilityIds(),
+      };
+      for (const hook of this.afterToolExecutionHooks) {
+        try {
+          await hook(toolEvent, hookContext);
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.logger.error("[capabilities] afterToolExecution hook error (bridge)", {
+            message: error.message,
+          });
+          this.onError?.(error, {
+            source: "hook",
+            sessionId: caller.sid,
+            toolName: toolEvent.toolName,
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Thread the messages array through the host's `beforeInferenceHooks`
+   * chain in registration order, returning the final (possibly mutated)
+   * array. Mirrors `transformContext` — same hook code, same context
+   * shape, same error-swallowing semantics.
+   */
+  spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "hook_before_inference", async () => {
+      await this.ensureCapabilityHooksResolved(caller.sid);
+      const hookContext: CapabilityHookContext = {
+        agentId: this.runtimeContext.agentId,
+        publicUrl: this.publicUrl,
+        sessionId: caller.sid,
+        sessionStore: this.sessionStore,
+        storage: createNoopStorage(),
+        broadcastState: () => {},
+        capabilityIds: this.getCapabilityIds(),
+      };
+      let result = messages as AgentMessage[];
+      for (const hook of this.beforeInferenceHooks) {
+        try {
+          result = await hook(result, hookContext);
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.logger.error("[AgentRuntime] beforeInference hook error (bridge)", {
+            message: error.message,
+          });
+          this.onError?.(error, { source: "hook", sessionId: caller.sid });
+        }
+      }
+      return result;
     });
   }
 

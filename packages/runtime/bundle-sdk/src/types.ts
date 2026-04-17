@@ -228,6 +228,12 @@ export interface BundleContext {
   scheduler: BundleSchedulerClient;
   channel: BundleSessionChannel;
   emitCost: (cost: BundleCostEvent) => Promise<void>;
+  /**
+   * Host-hook-bus bridge. Bundle runtime calls `recordToolExecution`
+   * after every tool and `processBeforeInference` before every model
+   * call so the host's hook chains fire against bundle-originated events.
+   */
+  hookBridge: BundleHookBridge;
 }
 
 export interface BundleHookContext extends BundleContext {
@@ -277,6 +283,29 @@ export interface BundleCostEvent {
   currency: string;
   detail?: string;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * Tool-execution event payload the bundle SDK forwards to the host via
+ * the hook bridge. Shape mirrors agent-runtime's `ToolExecutionEvent`
+ * (`toolName`, `args`, `isError`); kept structural rather than imported
+ * to keep the bundle runtime free of cross-package type edges.
+ */
+export interface BundleToolExecutionEvent {
+  toolName: string;
+  args: unknown;
+  isError: boolean;
+}
+
+/**
+ * Bundle-side hook bridge client. Calls SpineService's `recordToolExecution`
+ * (observer) and `processBeforeInference` (mutator). Messages cross the
+ * RPC boundary as `unknown[]` — the host verifies and narrows to
+ * `AgentMessage[]` inside its hook chain.
+ */
+export interface BundleHookBridge {
+  recordToolExecution(event: BundleToolExecutionEvent): Promise<void>;
+  processBeforeInference(messages: unknown[]): Promise<unknown[]>;
 }
 
 // --- Bundle default-export contract ---

@@ -102,4 +102,18 @@ export interface SpineHost extends Rpc.DurableObjectBranded {
 
   // Cost emission
   spineEmitCost(caller: SpineCaller, costEvent: unknown): Promise<void>;
+
+  // Hook bridge — bundle-originated tool execution + inference events
+  //
+  // `spineRecordToolExecution` runs the host's `afterToolExecutionHooks`
+  // chain against a bundle-originated tool event; observer-only, awaited so
+  // per-turn ordering matches the static path.
+  //
+  // `spineProcessBeforeInference` threads the messages array through the
+  // host's `beforeInferenceHooks` chain and returns the final (possibly
+  // mutated) array. Bundle SDK MUST use the returned array as input to the
+  // model call — see `openspec/changes/bundle-shape-2-rollout/design.md`
+  // Decision 5.
+  spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void>;
+  spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]>;
 }

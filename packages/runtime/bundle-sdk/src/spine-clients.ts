@@ -7,6 +7,7 @@
  */
 
 import type {
+  BundleHookBridge,
   BundleKvStoreClient,
   BundleSchedulerClient,
   BundleSessionChannel,
@@ -39,6 +40,8 @@ interface SpineBinding {
   broadcast(token: string, event: unknown): Promise<void>;
   broadcastGlobal(token: string, event: unknown): Promise<void>;
   emitCost(token: string, costEvent: unknown): Promise<void>;
+  recordToolExecution(token: string, event: unknown): Promise<void>;
+  processBeforeInference(token: string, messages: unknown[]): Promise<unknown[]>;
 }
 
 /**
@@ -101,6 +104,23 @@ export function createSessionChannel(
   return {
     broadcast: (event) => spine.broadcast(getToken(), event),
     broadcastGlobal: (event) => spine.broadcastGlobal(getToken(), event),
+  };
+}
+
+/**
+ * Create a bundle-side hook-bridge client backed by SpineService RPC.
+ *
+ * Bundle SDK runtime calls `recordToolExecution` after every tool
+ * execution and `processBeforeInference` immediately before each model
+ * inference call — the host's existing `afterToolExecutionHooks` and
+ * `beforeInferenceHooks` chains fire against bundle-originated events,
+ * preserving functional parity between static and bundle brains.
+ * See `openspec/changes/bundle-shape-2-rollout/design.md` Decision 1.
+ */
+export function createHookBridge(spine: SpineBinding, getToken: () => string): BundleHookBridge {
+  return {
+    recordToolExecution: (event) => spine.recordToolExecution(getToken(), event),
+    processBeforeInference: (messages) => spine.processBeforeInference(getToken(), messages),
   };
 }
 

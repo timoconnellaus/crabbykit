@@ -9,6 +9,17 @@ export interface SpineBudgetConfig {
   maxKvOps: number;
   maxBroadcasts: number;
   maxAlarms: number;
+  /**
+   * Cap on `afterToolExecution` bridge calls per turn.
+   * Conservative default: exceeds any legitimate per-turn tool budget while
+   * still surfacing runaway tool loops inside a bundle.
+   */
+  maxHookAfterTool: number;
+  /**
+   * Cap on `beforeInference` bridge calls per turn.
+   * Conservative default: exceeds any legitimate per-turn inference count.
+   */
+  maxHookBeforeInference: number;
 }
 
 export const DEFAULT_BUDGET: SpineBudgetConfig = {
@@ -16,9 +27,17 @@ export const DEFAULT_BUDGET: SpineBudgetConfig = {
   maxKvOps: 50,
   maxBroadcasts: 200,
   maxAlarms: 5,
+  maxHookAfterTool: 200,
+  maxHookBeforeInference: 100,
 };
 
-export type BudgetCategory = "sql" | "kv" | "broadcast" | "alarm";
+export type BudgetCategory =
+  | "sql"
+  | "kv"
+  | "broadcast"
+  | "alarm"
+  | "hook_after_tool"
+  | "hook_before_inference";
 
 /**
  * Error code embedded directly in the message so it survives Cloudflare's
@@ -78,6 +97,10 @@ export class BudgetTracker {
         return this.config.maxBroadcasts;
       case "alarm":
         return this.config.maxAlarms;
+      case "hook_after_tool":
+        return this.config.maxHookAfterTool;
+      case "hook_before_inference":
+        return this.config.maxHookBeforeInference;
     }
   }
 

@@ -29,6 +29,7 @@ export type { PromptOptions, PromptSection, PromptSectionSource } from "./prompt
 export { buildBundleContext } from "./runtime.js";
 export {
   createCostEmitter,
+  createHookBridge,
   createKvStoreClient,
   createSchedulerClient,
   createSessionChannel,
@@ -43,6 +44,7 @@ export type {
   BundleCostEvent,
   BundleEnv,
   BundleExport,
+  BundleHookBridge,
   BundleHookContext,
   BundleKvStoreClient,
   BundleMetadata,
@@ -52,5 +54,6 @@ export type {
   BundleSchedulerClient,
   BundleSessionChannel,
   BundleSessionStoreClient,
+  BundleToolExecutionEvent,
 } from "./types.js";
 export { validateRequirements } from "./validate.js";
