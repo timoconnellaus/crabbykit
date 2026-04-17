@@ -70,6 +70,11 @@
       "binding": "LLM_SERVICE",
       "service": "basic-agent",
       "entrypoint": "LlmService"
+    },
+    {
+      "binding": "SKILLS_SERVICE",
+      "service": "basic-agent",
+      "entrypoint": "SkillsService"
     }
   ],
   "ai": {

@@ -27,6 +27,7 @@ import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
 import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
 import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
 import { skills } from "@claw-for-cloudflare/skills";
+import { SkillsService } from "@claw-for-cloudflare/skills/service";
 import { explorer } from "@claw-for-cloudflare/subagent-explorer";
 import { taskTracker } from "@claw-for-cloudflare/task-tracker";
 import { TavilyConfigSchema, tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
@@ -68,6 +69,7 @@ export interface Env {
   AGENT_AUTH_KEY: string;
   SPINE_SERVICE: Fetcher;
   LLM_SERVICE: Fetcher;
+  SKILLS_SERVICE: Service<SkillsService>;
   // Default public URL used by channels (e.g. Telegram) when registering
   // webhooks. Optional — the add-account flow falls back to deriving one
   // from the incoming request origin when this isn't set.
@@ -132,6 +134,7 @@ export const BasicAgent = defineAgent<Env>({
     bundleEnv: (env) => ({
       LLM: env.LLM_SERVICE,
       SPINE: env.SPINE_SERVICE,
+      SKILLS: env.SKILLS_SERVICE,
     }),
   },
 
@@ -448,5 +451,6 @@ export {
   DbService,
   LlmService,
   SandboxContainer,
+  SkillsService,
   SpineService,
 };

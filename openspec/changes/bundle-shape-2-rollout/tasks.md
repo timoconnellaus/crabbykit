@@ -31,42 +31,42 @@
 - [x] 1.15 Run `bun run typecheck` from repo root — clean
 - [x] 1.16 Run `bun run lint` from repo root — clean (including `scripts/check-package-deps.ts`)
 - [x] 1.17 Run `bun run test` from repo root — all green; existing static-brain hook tests untouched; new bridge tests green
-- [ ] 1.18 Atomic commit: `feat(runtime): add bundle/host hook bridge for afterToolExecution and beforeInference`
+- [x] 1.18 Atomic commit: `feat(runtime): add bundle/host hook bridge for afterToolExecution and beforeInference`
 
 ## 2. Phase 1 — `skills` shape-2 split
 
 ### 2a. Package: `@claw-for-cloudflare/skills`
 
-- [ ] 2.1 Create `packages/capabilities/skills/src/schemas.ts` exporting `SKILL_LOAD_TOOL_NAME`, `SKILL_LOAD_TOOL_DESCRIPTION`, `SkillLoadArgsSchema` (TypeBox), and `SCHEMA_CONTENT_HASH = "skills-schemas-v1"`
-- [ ] 2.2 Create `packages/capabilities/skills/src/service.ts` exporting `SkillsService extends WorkerEntrypoint<SkillsServiceEnv>` with `load(token, args, schemaHash)` method; declare env: `AGENT_AUTH_KEY`, `SKILL_REGISTRY` (D1 binding), `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE` (string)
-- [ ] 2.3 Implement lazy `getSubkey()` private method using `deriveVerifyOnlySubkey(env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL)` cached as `subkeyPromise` field
-- [ ] 2.4 Implement `load`: schema-hash check → token verify (`requiredScope: "skills"`) → installed-skill record lookup (D1 via `SKILL_REGISTRY`) → not-found / not-enabled text response → R2 read of skill content → frontmatter strip → `{ content }` return
-- [ ] 2.5 Create `packages/capabilities/skills/src/client.ts` exporting `skillsClient(options: { service: Service<SkillsService> }): Capability` with single `skill_load` tool that reads `env.__BUNDLE_TOKEN`, throws `Missing __BUNDLE_TOKEN` when undefined, calls `options.service.load(token, args, SCHEMA_CONTENT_HASH)`, returns service response as tool text
-- [ ] 2.6 Update `packages/capabilities/skills/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*` to `dependencies`
-- [ ] 2.7 Run `bun install` from repo root to refresh lockfile
-- [ ] 2.8 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (no edits to the static `skills(...)` factory or its hooks)
+- [x] 2.1 Create `packages/capabilities/skills/src/schemas.ts` exporting `SKILL_LOAD_TOOL_NAME`, `SKILL_LOAD_TOOL_DESCRIPTION`, `SkillLoadArgsSchema` (TypeBox), and `SCHEMA_CONTENT_HASH = "skills-schemas-v1"`
+- [x] 2.2 Create `packages/capabilities/skills/src/service.ts` exporting `SkillsService extends WorkerEntrypoint<SkillsServiceEnv>` with `load(token, args, schemaHash)` method; declare env: `AGENT_AUTH_KEY`, `SKILL_REGISTRY` (D1 binding), `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE` (string)
+- [x] 2.3 Implement lazy `getSubkey()` private method using `deriveVerifyOnlySubkey(env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL)` cached as `subkeyPromise` field
+- [x] 2.4 Implement `load`: schema-hash check → token verify (`requiredScope: "skills"`) → installed-skill record lookup (D1 via `SKILL_REGISTRY`) → not-found / not-enabled text response → R2 read of skill content → frontmatter strip → `{ content }` return
+- [x] 2.5 Create `packages/capabilities/skills/src/client.ts` exporting `skillsClient(options: { service: Service<SkillsService> }): Capability` with single `skill_load` tool that reads `env.__BUNDLE_TOKEN`, throws `Missing __BUNDLE_TOKEN` when undefined, calls `options.service.load(token, args, SCHEMA_CONTENT_HASH)`, returns service response as tool text
+- [x] 2.6 Update `packages/capabilities/skills/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*` to `dependencies`
+- [x] 2.7 Run `bun install` from repo root to refresh lockfile
+- [x] 2.8 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (no edits to the static `skills(...)` factory or its hooks)
 
 ### 2b. Tests: `@claw-for-cloudflare/skills`
 
-- [ ] 2.9 Add `src/__tests__/service.test.ts` covering: subkey lazy-derivation cached once; token without `"skills"` scope throws `ERR_SCOPE_DENIED`; missing `AGENT_AUTH_KEY` throws misconfiguration error; schema-hash mismatch throws `ERR_SCHEMA_VERSION`; unknown skill returns text not-found; disabled skill returns text not-enabled; enabled skill returns frontmatter-stripped content
-- [ ] 2.10 Add `src/__tests__/client.test.ts` covering: returned capability `id === "skills"`; missing `__BUNDLE_TOKEN` throws; tool forwards `(token, args, SCHEMA_CONTENT_HASH)` to service; capability has no `hooks`/`httpHandlers`/`configNamespaces`/`onAction`/`promptSections`
-- [ ] 2.11 Add bridge integration test: bundle agent's `skill_load` triggers static `skills.afterToolExecution` (dirty-tracking) hook via the bridge — assert hook ran
-- [ ] 2.12 Run `cd packages/capabilities/skills && bun test` — all tests green
+- [x] 2.9 Add `src/__tests__/service.test.ts` covering: subkey lazy-derivation cached once; token without `"skills"` scope throws `ERR_SCOPE_DENIED`; missing `AGENT_AUTH_KEY` throws misconfiguration error; schema-hash mismatch throws `ERR_SCHEMA_VERSION`; unknown skill returns text not-found; disabled skill returns text not-enabled; enabled skill returns frontmatter-stripped content
+- [x] 2.10 Add `src/__tests__/client.test.ts` covering: returned capability `id === "skills"`; missing `__BUNDLE_TOKEN` throws; tool forwards `(token, args, SCHEMA_CONTENT_HASH)` to service; capability has no `hooks`/`httpHandlers`/`configNamespaces`/`onAction`/`promptSections`
+- [ ] 2.11 Add bridge integration test: bundle agent's `skill_load` triggers static `skills.afterToolExecution` (dirty-tracking) hook via the bridge — assert hook ran  <!-- DEFERRED: requires bundle wrangler test setup; will be picked up with a dedicated bridge integration pass once Phase 2/3 land similar tests. -->
+- [x] 2.12 Run `cd packages/capabilities/skills && bun test` — all tests green
 
 ### 2c. Consumer wiring: `examples/basic-agent`
 
-- [ ] 2.13 Add `[[services]] binding = "SKILLS_SERVICE" class_name = "SkillsService"` to `examples/basic-agent/wrangler.toml`; add R2 + D1 bindings the service needs (or reuse existing ones if already wired for static `skills`)
-- [ ] 2.14 Export `SkillsService` from `examples/basic-agent/src/worker.ts` (or wherever existing `WorkerEntrypoint` exports live)
-- [ ] 2.15 In the basic-agent's `defineAgent` (or bundle definition), wire `bundleCapabilities: [..., skillsClient({ service: env.SKILLS_SERVICE })]` and add `"skills"` to the bundle's `requiredCapabilities` declaration
-- [ ] 2.16 Widen the host's `knownCapabilityIds` set passed to `validateRequiredCapabilities` to include `"skills"`
-- [ ] 2.17 Add a smoke test (or extend the existing bundle smoke) that exercises `skill_load` end-to-end from a bundle agent against the basic-agent example
+- [x] 2.13 Add `[[services]] binding = "SKILLS_SERVICE" class_name = "SkillsService"` to `examples/basic-agent/wrangler.toml`; add R2 + D1 bindings the service needs (or reuse existing ones if already wired for static `skills`)
+- [x] 2.14 Export `SkillsService` from `examples/basic-agent/src/worker.ts` (or wherever existing `WorkerEntrypoint` exports live)
+- [x] 2.15 In the basic-agent's `defineAgent` (or bundle definition), wire `bundleCapabilities: [..., skillsClient({ service: env.SKILLS_SERVICE })]` and add `"skills"` to the bundle's `requiredCapabilities` declaration  <!-- basic-agent does not author a bundle in-tree; exposed SKILLS_SERVICE via bundleEnv so bundle authors can wire skillsClient({ service: env.SKILLS }). -->
+- [x] 2.16 Widen the host's `knownCapabilityIds` set passed to `validateRequiredCapabilities` to include `"skills"`  <!-- Automatic: AgentRuntime.getBundleHostCapabilityIds() derives the set from registered static capabilities; "skills" is already included via the skills() factory already wired in this example. -->
+- [ ] 2.17 Add a smoke test (or extend the existing bundle smoke) that exercises `skill_load` end-to-end from a bundle agent against the basic-agent example  <!-- DEFERRED: requires a running worker + authored bundle; Phase 3's cross-cap smoke (5.2) covers the end-to-end path. -->
 
 ### 2d. Phase 1 verification
 
-- [ ] 2.18 Run `bun run typecheck` — clean
-- [ ] 2.19 Run `bun run lint` — clean
-- [ ] 2.20 Run `bun run test` — all green
-- [ ] 2.21 Atomic commit: `feat(skills): add shape-2 service/client/schemas subpaths for bundle access`
+- [x] 2.18 Run `bun run typecheck` — clean
+- [x] 2.19 Run `bun run lint` — clean (no new errors beyond the 16-error baseline)
+- [x] 2.20 Run `bun run test` — all green
+- [x] 2.21 Atomic commit: `feat(skills): add shape-2 service/client/schemas subpaths for bundle access`
 
 ## 3. Phase 2 — `vector-memory` shape-2 split
 
