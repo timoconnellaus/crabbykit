@@ -20,13 +20,15 @@ const TAVILY_SECRET = "tvly-secret-xyz-0123456789";
 const TEST_AUTH_KEY = "test-auth-key-aaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /**
- * Mint a valid bundle capability token for TavilyService tests.
+ * Mint a bundle capability token for TavilyService tests.
  * Derives the mint-capable key via HKDF (sign usage), then signs a payload.
- * Uses the unified BUNDLE_SUBKEY_LABEL and includes "tavily-web-search" scope.
+ * `scope` defaults to the full set expected by TavilyService (includes
+ * "tavily-web-search"). Pass an explicit scope to test denial paths.
  */
 async function makeTavilyToken(
   agentId = "test-agent",
   sessionId = "test-session",
+  scope = ["spine", "llm", "tavily-web-search"],
 ): Promise<string> {
   // Derive a sign-capable key directly (mirrors deriveMintSubkey logic)
   const keyMaterial = await crypto.subtle.importKey(
@@ -57,7 +59,7 @@ async function makeTavilyToken(
     sid: sessionId,
     exp,
     nonce,
-    scope: ["spine", "llm", "tavily-web-search"],
+    scope,
   };
   const payloadB64 = btoa(JSON.stringify(payload))
     .replace(/\+/g, "-")
@@ -285,5 +287,46 @@ describe("TavilyService.extract", () => {
     await expect(svc.extract("tok", { url: "https://a" }, "bad-hash")).rejects.toThrow(
       "ERR_SCHEMA_VERSION",
     );
+  });
+});
+
+// Gap 6: TavilyService scope-denial paths
+describe("TavilyService scope verification (Gap 6)", () => {
+  it("search rejects token that lacks 'tavily-web-search' scope with ERR_SCOPE_DENIED", async () => {
+    const env = buildEnv();
+    const svc = makeService(env);
+    // Token has "spine" and "llm" but NOT "tavily-web-search"
+    const noTavilyToken = await makeTavilyToken("test-agent", "test-session", ["spine", "llm"]);
+    await expect(svc.search(noTavilyToken, { query: "q" })).rejects.toThrow("ERR_SCOPE_DENIED");
+    // No outbound fetch should have been called
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("extract rejects token that lacks 'tavily-web-search' scope with ERR_SCOPE_DENIED", async () => {
+    const env = buildEnv();
+    const svc = makeService(env);
+    const noTavilyToken = await makeTavilyToken("test-agent", "test-session", ["spine", "llm"]);
+    await expect(svc.extract(noTavilyToken, { url: "https://a" })).rejects.toThrow(
+      "ERR_SCOPE_DENIED",
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("search rejects empty-scope token with ERR_SCOPE_DENIED", async () => {
+    const env = buildEnv();
+    const svc = makeService(env);
+    const emptyToken = await makeTavilyToken("test-agent", "test-session", []);
+    await expect(svc.search(emptyToken, { query: "q" })).rejects.toThrow("ERR_SCOPE_DENIED");
+  });
+
+  it("search accepts token that includes 'tavily-web-search' scope", async () => {
+    const env = buildEnv();
+    const svc = makeService(env);
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ results: [{ title: "t", url: "https://a", content: "c" }] }),
+    );
+    const validToken = await makeTavilyToken();
+    const out = await svc.search(validToken, { query: "q" });
+    expect(out.results).toHaveLength(1);
   });
 });
