@@ -6,7 +6,7 @@
  * This runtime is async-by-default and stateless across turns.
  */
 
-import { buildDefaultSystemPrompt } from "./prompt/build-system-prompt.js";
+import { mergeSections } from "./prompt/merge-sections.js";
 import {
   createCostEmitter,
   createHookBridge,
@@ -15,7 +15,14 @@ import {
   createSessionChannel,
   createSessionStoreClient,
 } from "./spine-clients.js";
-import type { BundleAgentSetup, BundleContext, BundleEnv } from "./types.js";
+import type {
+  BundleAgentSetup,
+  BundleCapability,
+  BundleCapabilityHooks,
+  BundleContext,
+  BundleEnv,
+  BundlePromptSection,
+} from "./types.js";
 
 interface SpineBinding {
   [method: string]: (...args: unknown[]) => Promise<unknown>;
@@ -251,9 +258,38 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     const model = typeof setup.model === "function" ? setup.model() : setup.model;
     const timestamp = Date.now();
 
-    // 1. Compose system prompt
-    const systemPrompt =
-      typeof setup.prompt === "string" ? setup.prompt : buildDefaultSystemPrompt(setup.prompt);
+    // 1a. Resolve bundle-side capabilities and author-supplied tools
+    //     once per turn. Both factories run inside the bundle isolate
+    //     with access to the projected env. Capability tools/sections
+    //     and per-cap hooks are then collected for the per-turn loop.
+    const capabilities: BundleCapability[] = setup.capabilities?.(env) ?? [];
+    const setupTools: unknown[] = setup.tools?.(env) ?? [];
+
+    const mergedTools: unknown[] = [...setupTools];
+    const capabilitySections: Array<string | BundlePromptSection> = [];
+    const beforeInferenceHooks: NonNullable<BundleCapabilityHooks["beforeInference"]>[] = [];
+    const afterToolExecutionHooks: NonNullable<BundleCapabilityHooks["afterToolExecution"]>[] = [];
+    for (const cap of capabilities) {
+      const capTools = cap.tools?.(context) ?? [];
+      for (const t of capTools) mergedTools.push(t);
+      const capSections = cap.promptSections?.(context) ?? [];
+      for (const s of capSections) capabilitySections.push(s);
+      if (cap.hooks?.beforeInference) beforeInferenceHooks.push(cap.hooks.beforeInference);
+      if (cap.hooks?.afterToolExecution) afterToolExecutionHooks.push(cap.hooks.afterToolExecution);
+    }
+    // Phase 0a: mergedTools and the bundle-side hook arrays are plumbed
+    // into the closure but NOT advertised to the LLM yet. Tool
+    // advertisement and execution land in Phase 0b together so the
+    // model can never emit a call the bundle silently fails to run.
+    void mergedTools;
+    void beforeInferenceHooks;
+    void afterToolExecutionHooks;
+
+    // 1b. Compose system prompt: setup.prompt: string overrides all
+    //     capability sections (parity with static `defineAgent`).
+    //     Otherwise default-builder output is followed by capability
+    //     sections.
+    const systemPrompt = mergeSections(setup.prompt, capabilitySections);
 
     // 2. Load history via spine (walks to most recent compaction boundary)
     let history: MinimalMessage[] = [];

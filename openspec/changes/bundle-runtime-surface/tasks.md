@@ -2,21 +2,21 @@
 
 ### 1a. Bundle SDK runtime — resolve setup.capabilities and setup.tools
 
-- [ ] 1.1 In `packages/runtime/bundle-sdk/src/runtime.ts`, at the start of `runBundleTurn`'s `work` closure, invoke `setup.capabilities?.(env) ?? []` and `setup.tools?.(env) ?? []` to obtain `BundleCapability[]` and the bundle's author-supplied tools
-- [ ] 1.2 Build the merged tool list: concat `setup.tools(env)` with each capability's `cap.tools(ctx) ?? []`. Build the merged section list: collect each capability's `cap.promptSections(ctx) ?? []`. Build hook chains: collect each capability's `cap.hooks?.beforeInference` and `cap.hooks?.afterToolExecution`
-- [ ] 1.3 Update the system-prompt build to splice merged section list (string-content of normalized sections, see Phase 1) AFTER the default-builder output. Respect the `setup.prompt: string` override rule — when `setup.prompt` is a string, the merged section list is NOT spliced into the prompt (suppressed). Add a new helper `mergeSections(promptOptions, capabilitySections)` in `bundle-sdk/src/prompt/` that encapsulates the rule
-- [ ] 1.4 Preserve the v1 text-only fast path: when merged tools and merged sections are both empty AND no host hook bridge calls are required, take the existing streaming path with no per-tool round-trips. Detect via `mergedTools.length === 0 && mergedSections.length === 0`
-- [ ] 1.5 **Do NOT advertise the merged tool list to the LLM in this commit.** Plumb the tool list into a local variable available to `runBundleTurn`'s closure, but the `inferStream` call SHALL continue to omit `tools` from its request. Tool advertisement lands together with the execution loop in Phase 0b — splitting them would let the model emit tool calls the bundle silently fails to execute (worse than current text-only behavior)
+- [x] 1.1 In `packages/runtime/bundle-sdk/src/runtime.ts`, at the start of `runBundleTurn`'s `work` closure, invoke `setup.capabilities?.(env) ?? []` and `setup.tools?.(env) ?? []` to obtain `BundleCapability[]` and the bundle's author-supplied tools
+- [x] 1.2 Build the merged tool list: concat `setup.tools(env)` with each capability's `cap.tools(ctx) ?? []`. Build the merged section list: collect each capability's `cap.promptSections(ctx) ?? []`. Build hook chains: collect each capability's `cap.hooks?.beforeInference` and `cap.hooks?.afterToolExecution`
+- [x] 1.3 Update the system-prompt build to splice merged section list (string-content of normalized sections, see Phase 1) AFTER the default-builder output. Respect the `setup.prompt: string` override rule — when `setup.prompt` is a string, the merged section list is NOT spliced into the prompt (suppressed). Add a new helper `mergeSections(promptOptions, capabilitySections)` in `bundle-sdk/src/prompt/` that encapsulates the rule
+- [x] 1.4 Preserve the v1 text-only fast path: when merged tools and merged sections are both empty AND no host hook bridge calls are required, take the existing streaming path with no per-tool round-trips. Detect via `mergedTools.length === 0 && mergedSections.length === 0`
+- [x] 1.5 **Do NOT advertise the merged tool list to the LLM in this commit.** Plumb the tool list into a local variable available to `runBundleTurn`'s closure, but the `inferStream` call SHALL continue to omit `tools` from its request. Tool advertisement lands together with the execution loop in Phase 0b — splitting them would let the model emit tool calls the bundle silently fails to execute (worse than current text-only behavior)
 
 ### 1b. Tests
 
-- [ ] 1.6 Unit tests in `bundle-sdk/src/__tests__/`: `runBundleTurn` with `setup.capabilities` returning a capability with one tool merges the tool into the LLM call's tool inventory; with `setup.tools` returning tools they appear too; with both empty the fast-path is taken
-- [ ] 1.7 Unit test for `mergeSections`: string override suppresses; PromptOptions allows; default (undefined prompt) splices
+- [x] 1.6 Unit tests in `bundle-sdk/src/__tests__/`: `runBundleTurn` with `setup.capabilities` returning a capability with one tool merges the tool into the LLM call's tool inventory; with `setup.tools` returning tools they appear too; with both empty the fast-path is taken
+- [x] 1.7 Unit test for `mergeSections`: string override suppresses; PromptOptions allows; default (undefined prompt) splices
 
 ### 1c. Verification
 
-- [ ] 1.8 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
-- [ ] 1.9 Atomic commit: `feat(bundle): resolve setup.capabilities and setup.tools per turn; merge into prompt build`
+- [x] 1.8 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
+- [x] 1.9 Atomic commit: `feat(bundle): resolve setup.capabilities and setup.tools per turn; merge into prompt build`
 
 ## 2. Phase 0b — Bundle tool-execution loop
 
