@@ -22,37 +22,37 @@
 
 ### 2a. Provider tool-call parsers
 
-- [ ] 2.0 **Vendoring decision**: spend AT MOST 1 day evaluating whether pi-agent-core's existing tool-call parsers can be extracted into an isolate-safe shared package consumed by both bundle-sdk and host. Document the outcome in the commit message. If extractable, vendor and use; if not, proceed with fresh parsers (next tasks). Reason: OpenAI streaming tool-call argument deltas + multi-byte UTF-8 across SSE-event boundaries + provider quirks (OpenRouter mixing formats, Anthropic `input_json_delta` accumulation rules) are known foot-guns; reusing battle-tested code beats reimplementing
-- [ ] 2.1 Create `packages/runtime/bundle-sdk/src/providers/openai-toolcalls.ts` (or vendor equivalent): extract OpenAI/OpenRouter `tool_calls` deltas from SSE payloads (parallel to `extractDelta`), accumulate `function.arguments` JSON string per call-id across events, surface complete calls when the stop reason indicates tool-use. Handle: split-arguments across events, multi-byte UTF-8 across SSE-event boundaries (decoder needs `stream: true` until terminator), interleaved text+tool deltas
-- [ ] 2.2 Create `packages/runtime/bundle-sdk/src/providers/anthropic-toolcalls.ts`: extract Anthropic `tool_use` content-block + `input_json_delta` deltas similarly
-- [ ] 2.3 Update `iterateSseData` consumers to also yield tool-call deltas; consider returning a discriminated union `{ type: "text", delta } | { type: "toolCall", call }` from a unified iterator
-- [ ] 2.4 Recorded SSE fixture test matrix — hard cases enumerated explicitly: (a) text-only stream, (b) single tool call with single-event arguments, (c) single tool call with arguments split across 5+ events, (d) two parallel tool calls in one assistant message, (e) interleaved text + tool, (f) premature stream close mid-arguments, (g) UTF-8 multi-byte char split across SSE-event boundary inside arguments JSON, (h) OpenRouter upstream-provider variation (at least one Anthropic-via-OpenRouter fixture)
+- [x] 2.0 **Vendoring decision**: spend AT MOST 1 day evaluating whether pi-agent-core's existing tool-call parsers can be extracted into an isolate-safe shared package consumed by both bundle-sdk and host. Document the outcome in the commit message. If extractable, vendor and use; if not, proceed with fresh parsers (next tasks). Reason: OpenAI streaming tool-call argument deltas + multi-byte UTF-8 across SSE-event boundaries + provider quirks (OpenRouter mixing formats, Anthropic `input_json_delta` accumulation rules) are known foot-guns; reusing battle-tested code beats reimplementing
+- [x] 2.1 Create `packages/runtime/bundle-sdk/src/providers/openai-toolcalls.ts` (or vendor equivalent): extract OpenAI/OpenRouter `tool_calls` deltas from SSE payloads (parallel to `extractDelta`), accumulate `function.arguments` JSON string per call-id across events, surface complete calls when the stop reason indicates tool-use. Handle: split-arguments across events, multi-byte UTF-8 across SSE-event boundaries (decoder needs `stream: true` until terminator), interleaved text+tool deltas
+- [x] 2.2 Create `packages/runtime/bundle-sdk/src/providers/anthropic-toolcalls.ts`: extract Anthropic `tool_use` content-block + `input_json_delta` deltas similarly
+- [x] 2.3 Update `iterateSseData` consumers to also yield tool-call deltas; consider returning a discriminated union `{ type: "text", delta } | { type: "toolCall", call }` from a unified iterator
+- [x] 2.4 Recorded SSE fixture test matrix — hard cases enumerated explicitly: (a) text-only stream, (b) single tool call with single-event arguments, (c) single tool call with arguments split across 5+ events, (d) two parallel tool calls in one assistant message, (e) interleaved text + tool, (f) premature stream close mid-arguments, (g) UTF-8 multi-byte char split across SSE-event boundary inside arguments JSON, (h) OpenRouter upstream-provider variation (at least one Anthropic-via-OpenRouter fixture)
 
 ### 2b. Tool execution loop in runBundleTurn
 
-- [ ] 2.4a **Now advertise the merged tool list to the LLM** by passing it on the `inferStream` request (provider-agnostic tool-definition shape — verify against `packages/runtime/ai-proxy/`'s request schema). This is the boundary at which the model can emit tool calls; the loop below executes them
-- [ ] 2.5 After the LLM stream emits a tool-use stop reason, for each completed tool call: call `ctx.hookBridge.processBeforeToolExecution({ toolName, args, toolCallId })`; if `block: true`, append a tool-result message with `reason` as error and SKIP execution; otherwise look up the tool in the merged tool list
-- [ ] 2.6 Execute each non-blocked tool by calling its `execute(args, ctx)` (typed against the bundle's `BundleContext`); catch and convert errors to tool-error results
-- [ ] 2.7 After each tool execution: run bundle-side `BundleCapability.hooks.afterToolExecution` (in capability registration order across the bundle's capabilities) before calling `ctx.hookBridge.recordToolExecution({ toolName, args, isError })`
-- [ ] 2.8 Append tool-result message(s) to the conversation; broadcast tool-call/tool-result events with the same wire format static brain produces (verify by comparing against `agent-runtime`'s tool-event broadcasts)
-- [ ] 2.9 Re-run inference: call `ctx.hookBridge.processBeforeInference(messages)` first (existing bridge call), then `LlmService.inferStream` again with the updated message list; loop until the model emits a non-tool-use stop reason
-- [ ] 2.10 Cap inference iterations per turn at a sensible default (e.g. 25) to prevent runaway loops; surface as an explicit error message when hit
+- [x] 2.4a **Now advertise the merged tool list to the LLM** by passing it on the `inferStream` request (provider-agnostic tool-definition shape — verify against `packages/runtime/ai-proxy/`'s request schema). This is the boundary at which the model can emit tool calls; the loop below executes them
+- [x] 2.5 After the LLM stream emits a tool-use stop reason, for each completed tool call: call `ctx.hookBridge.processBeforeToolExecution({ toolName, args, toolCallId })`; if `block: true`, append a tool-result message with `reason` as error and SKIP execution; otherwise look up the tool in the merged tool list
+- [x] 2.6 Execute each non-blocked tool by calling its `execute(args, ctx)` (typed against the bundle's `BundleContext`); catch and convert errors to tool-error results
+- [x] 2.7 After each tool execution: run bundle-side `BundleCapability.hooks.afterToolExecution` (in capability registration order across the bundle's capabilities) before calling `ctx.hookBridge.recordToolExecution({ toolName, args, isError })`
+- [x] 2.8 Append tool-result message(s) to the conversation; broadcast tool-call/tool-result events with the same wire format static brain produces (verify by comparing against `agent-runtime`'s tool-event broadcasts)
+- [x] 2.9 Re-run inference: call `ctx.hookBridge.processBeforeInference(messages)` first (existing bridge call), then `LlmService.inferStream` again with the updated message list; loop until the model emits a non-tool-use stop reason
+- [x] 2.10 Cap inference iterations per turn at a sensible default (e.g. 25) to prevent runaway loops; surface as an explicit error message when hit
 
 ### 2c. Tool-call concurrency
 
-- [ ] 2.11 Tool-call sequencing: scope-bound the audit. Spend AT MOST 1 day attempting to extract pi-agent-core's tool-call sequencing logic into an isolate-safe shared helper. If portable within budget, both static and bundle paths use the helper. If not, ship Phase 0b with **sequential-only** tool execution and file a follow-up for parallelization. Decision is documented in the commit message
+- [x] 2.11 Tool-call sequencing: scope-bound the audit. Spend AT MOST 1 day attempting to extract pi-agent-core's tool-call sequencing logic into an isolate-safe shared helper. If portable within budget, both static and bundle paths use the helper. If not, ship Phase 0b with **sequential-only** tool execution and file a follow-up for parallelization. Decision is documented in the commit message
 
 ### 2d. Tests
 
-- [ ] 2.12 Unit tests for the loop: single-tool-call round-trips and re-inferences; two-tool-call message executes both before re-inference; blocked tool-call path appends deny reason without executing; iteration cap throws expected error
-- [ ] 2.13 Integration test: bundle agent calls Tavily's `web_search` (real shape-2 capability) end-to-end via basic-agent example; assert tool result appears in conversation; assert `recordToolExecution` was called bundle-side
-- [ ] 2.14 Integration test: bundle-side `afterToolExecution` hook on a capability fires before host hook bridge call; assert ordering
+- [x] 2.12 Unit tests for the loop: single-tool-call round-trips and re-inferences; two-tool-call message executes both before re-inference; blocked tool-call path appends deny reason without executing; iteration cap throws expected error
+- [ ] 2.13 Integration test: bundle agent calls Tavily's `web_search` (real shape-2 capability) end-to-end via basic-agent example; assert tool result appears in conversation; assert `recordToolExecution` was called bundle-side — **deferred**: e2e test against real Tavily requires basic-agent + wrangler-dev + provider credentials. Wiring is exercised by `tool-loop.test.ts` against a duck-typed shape-2 capability (same `name`+`description`+`parameters`+`execute` shape Tavily produces via `defineTool`). Manual smoke recommended before merge.
+- [x] 2.14 Integration test: bundle-side `afterToolExecution` hook on a capability fires before host hook bridge call; assert ordering
 
 ### 2e. Verification
 
-- [ ] 2.15 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
-- [ ] 2.16 Basic-agent example smoke: bundle agent calls a tool from at least one shape-2 capability and the agent completes successfully
-- [ ] 2.17 Atomic commit: `feat(bundle): add tool-execution loop with hook-bridge integration and provider tool-call parsing`
+- [x] 2.15 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
+- [ ] 2.16 Basic-agent example smoke: bundle agent calls a tool from at least one shape-2 capability and the agent completes successfully — **deferred**: requires manual `bun dev` against basic-agent + provider credentials. Captured for manual smoke before merge.
+- [x] 2.17 Atomic commit: `feat(bundle): add tool-execution loop with hook-bridge integration and provider tool-call parsing`
 
 ## 3. Phase 1 — Bundle PromptSection parity
 

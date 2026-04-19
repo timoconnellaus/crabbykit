@@ -86,8 +86,13 @@ async function dispatchTurn(opts: {
 }
 
 describe("runBundleTurn — Phase 0a capability + tool resolution", () => {
-  it("invokes setup.tools(env) exactly once per turn", async () => {
-    const tool = { name: "x", execute: () => "x" };
+  it("invokes setup.tools(env) exactly once per turn and advertises the tool to the LLM", async () => {
+    const tool = {
+      name: "x",
+      description: "x tool",
+      parameters: { type: "object", properties: {} },
+      execute: () => "x",
+    };
     const toolsFactory = vi.fn(() => [tool]);
     const llm = { inferStream: vi.fn().mockResolvedValue(openaiDeltaStream(["hi"])) };
     const spine = makeSpineMock();
@@ -99,12 +104,19 @@ describe("runBundleTurn — Phase 0a capability + tool resolution", () => {
 
     const request = await dispatchTurn({ bundle, llm, spine });
     expect(toolsFactory).toHaveBeenCalledOnce();
-    // Phase 0a: tools NOT advertised yet.
-    expect(request).not.toHaveProperty("tools");
+    // Phase 0b: tools ARE advertised when present.
+    const tools = request.tools as Array<{ type: string; function: { name: string } }>;
+    expect(Array.isArray(tools)).toBe(true);
+    expect(tools.map((t) => t.function.name)).toContain("x");
   });
 
   it("invokes setup.capabilities(env) exactly once and resolves capability tools/sections/hooks against context", async () => {
-    const capTool = { name: "cap_tool", execute: () => "" };
+    const capTool = {
+      name: "cap_tool",
+      description: "cap tool",
+      parameters: { type: "object", properties: {} },
+      execute: () => "",
+    };
     const capToolsFn = vi.fn((_ctx: unknown) => [capTool]);
     const capSectionsFn = vi.fn((_ctx: unknown) => ["CAPSECTION"]);
     const cap: BundleCapability = {
@@ -146,8 +158,9 @@ describe("runBundleTurn — Phase 0a capability + tool resolution", () => {
     // Default sections still present.
     expect(messages[0].content).toContain("B");
 
-    // Phase 0a: tools NOT advertised yet.
-    expect(request).not.toHaveProperty("tools");
+    // Phase 0b: capability tool advertised on the LLM call.
+    const tools = request.tools as Array<{ type: string; function: { name: string } }>;
+    expect(tools.map((t) => t.function.name)).toContain("cap_tool");
   });
 
   it("with neither setup.tools nor setup.capabilities follows the existing text-only path", async () => {
