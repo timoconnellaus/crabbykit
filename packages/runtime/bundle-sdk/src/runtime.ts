@@ -24,6 +24,7 @@ import {
   createSessionStoreClient,
 } from "./spine-clients.js";
 import type {
+  BundleActiveModeEnv,
   BundleAgentSetup,
   BundleCapability,
   BundleCapabilityHooks,
@@ -40,12 +41,18 @@ interface SpineBinding {
 /**
  * Construct a BundleContext for a single turn.
  * The context is rebuilt from the token on every turn — no warm state.
+ *
+ * `activeMode` (Phase 3): when supplied, exposes the active mode's
+ * identity to bundle code (`ctx.activeMode?.id`). The mode's
+ * allow/deny lists are NOT exposed — filtering is applied to the
+ * tool/section list before the LLM sees them.
  */
 export function buildBundleContext<TEnv extends BundleEnv>(
   env: TEnv,
   spine: SpineBinding,
   agentId: string,
   sessionId: string,
+  activeMode?: { id: string; name: string },
 ): BundleContext {
   const getToken = (): string => {
     const token = env.__BUNDLE_TOKEN;
@@ -63,6 +70,7 @@ export function buildBundleContext<TEnv extends BundleEnv>(
     channel: createSessionChannel(spine as never, getToken),
     emitCost: createCostEmitter(spine as never, getToken),
     hookBridge: createHookBridge(spine as never, getToken),
+    ...(activeMode ? { activeMode } : {}),
   };
 }
 
@@ -271,6 +279,15 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     const capabilities: BundleCapability[] = setup.capabilities?.(env) ?? [];
     const setupTools: unknown[] = setup.tools?.(env) ?? [];
 
+    // Phase 3: read mode filter from env. The dispatcher injects
+    // `__BUNDLE_ACTIVE_MODE` whenever the session has an active mode
+    // matching a registered Mode. Bundle applies the allow/deny
+    // filter to its full tool/section inventory before composing the
+    // LLM call.
+    const activeMode = (env as Record<string, unknown>).__BUNDLE_ACTIVE_MODE as
+      | BundleActiveModeEnv
+      | undefined;
+
     const mergedTools: unknown[] = [...setupTools];
     // `capabilitySections` collects raw entries from each capability's
     // `promptSections` for the prompt-string composition (Phase 0a).
@@ -288,31 +305,81 @@ export function runBundleTurn<TEnv extends BundleEnv>(
       capabilityId: string;
       fn: NonNullable<BundleCapabilityHooks["afterToolExecution"]>;
     }> = [];
+    // Phase 3 capability filter: drop entire capabilities (their
+    // tools, sections, hooks) when an active mode's
+    // `capabilities.allow`/`capabilities.deny` excludes them.
+    const capabilityAllowedByMode = (capId: string): boolean => {
+      const cf = activeMode?.capabilities;
+      if (!cf) return true;
+      if (cf.allow && cf.allow.length > 0 && !cf.allow.includes(capId)) return false;
+      if (cf.deny && cf.deny.length > 0 && cf.deny.includes(capId)) return false;
+      return true;
+    };
+
+    // Track section indices excluded by mode so they surface in the
+    // inspection cache with `excludedReason: "Filtered by mode: <id>"`.
+    const modeExcludedSectionKeys = new Set<string>();
+
     for (const cap of capabilities) {
+      const allowed = capabilityAllowedByMode(cap.id);
       const capTools = cap.tools?.(context) ?? [];
-      for (const t of capTools) mergedTools.push(t);
+      if (allowed) {
+        for (const t of capTools) mergedTools.push(t);
+      }
       const capSections = cap.promptSections?.(context) ?? [];
       for (let i = 0; i < capSections.length; i++) {
         const raw = capSections[i];
-        capabilitySections.push(raw);
+        if (allowed) capabilitySections.push(raw);
         const normalized = normalizeBundlePromptSection(raw, cap.id, cap.name, i);
-        if (normalized) normalizedSections.push(normalized);
+        if (normalized) {
+          if (!allowed) modeExcludedSectionKeys.add(normalized.key);
+          normalizedSections.push(normalized);
+        }
       }
-      if (cap.hooks?.beforeInference)
-        beforeInferenceHooks.push({ capabilityId: cap.id, fn: cap.hooks.beforeInference });
-      if (cap.hooks?.afterToolExecution)
-        afterToolExecutionHooks.push({ capabilityId: cap.id, fn: cap.hooks.afterToolExecution });
+      if (allowed) {
+        if (cap.hooks?.beforeInference)
+          beforeInferenceHooks.push({ capabilityId: cap.id, fn: cap.hooks.beforeInference });
+        if (cap.hooks?.afterToolExecution)
+          afterToolExecutionHooks.push({ capabilityId: cap.id, fn: cap.hooks.afterToolExecution });
+      }
     }
 
-    // Apply the string-override rule to the normalized list too —
-    // when `setup.prompt` is a string, capability sections are
+    // Tool-level filter: applied to the merged list (setup.tools
+    // entries also pass through this filter — the spec's
+    // `mode.tools.allow` is by tool name, not capability source).
+    const toolNameAllowedByMode = (name: string): boolean => {
+      const tf = activeMode?.tools;
+      if (!tf) return true;
+      if (tf.allow && tf.allow.length > 0 && !tf.allow.includes(name)) return false;
+      if (tf.deny && tf.deny.length > 0 && tf.deny.includes(name)) return false;
+      return true;
+    };
+    if (activeMode?.tools) {
+      for (let i = mergedTools.length - 1; i >= 0; i--) {
+        const t = mergedTools[i];
+        if (
+          typeof t === "object" &&
+          t !== null &&
+          typeof (t as { name?: unknown }).name === "string" &&
+          !toolNameAllowedByMode((t as { name: string }).name)
+        ) {
+          mergedTools.splice(i, 1);
+        }
+      }
+    }
+
+    // Apply the string-override rule to the normalized list first
+    // (Decision 14 — string-override suppresses BEFORE mode filter).
+    // When `setup.prompt` is a string, capability sections are
     // suppressed in the actual prompt; the inspection cache surfaces
     // them with `included: false, excludedReason: "Suppressed by
-    // setup.prompt: string override"` so operators see what was
-    // dropped and why.
+    // setup.prompt: string override"`. Mode-filtered sections take
+    // their own reason `"Filtered by mode: <id>"` when not also
+    // string-suppressed.
     const inspectionSections: PromptSection[] = [];
-    if (typeof setup.prompt === "string") {
-      for (const sec of normalizedSections) {
+    const stringOverride = typeof setup.prompt === "string";
+    for (const sec of normalizedSections) {
+      if (stringOverride) {
         inspectionSections.push({
           ...sec,
           content: "",
@@ -321,9 +388,18 @@ export function runBundleTurn<TEnv extends BundleEnv>(
           included: false,
           excludedReason: "Suppressed by setup.prompt: string override",
         });
+      } else if (modeExcludedSectionKeys.has(sec.key)) {
+        inspectionSections.push({
+          ...sec,
+          content: "",
+          lines: 0,
+          tokens: 0,
+          included: false,
+          excludedReason: `Filtered by mode: ${activeMode?.id ?? "unknown"}`,
+        });
+      } else {
+        inspectionSections.push(sec);
       }
-    } else {
-      for (const sec of normalizedSections) inspectionSections.push(sec);
     }
 
     // Build the per-name tool lookup AND the provider tool advertisement

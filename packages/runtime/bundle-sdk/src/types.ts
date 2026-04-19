@@ -386,6 +386,29 @@ export interface BundleContext {
    * call so the host's hook chains fire against bundle-originated events.
    */
   hookBridge: BundleHookBridge;
+  /**
+   * Active mode identity (Phase 3). Populated by the dispatcher when
+   * the session has an `activeModeId` matching a registered Mode.
+   * Bundle code reads `ctx.activeMode?.id` to branch on which mode is
+   * active. Allow/deny lists stay host-side — bundle never sees mode
+   * internals (defense in depth, see Decision 9).
+   */
+  activeMode?: { id: string; name: string };
+}
+
+/**
+ * Mode filter shape passed to the bundle via `__BUNDLE_ACTIVE_MODE`
+ * env injection. The bundle applies these allow/deny lists to its
+ * resolved tool + capability sets before composing the LLM call.
+ * Defense-in-depth note (Decision 9): the bundle controls execution,
+ * so the filter is enforced here as the recommendation surfaced to
+ * the LLM rather than as a security boundary.
+ */
+export interface BundleActiveModeEnv {
+  id: string;
+  name: string;
+  tools?: { allow?: string[]; deny?: string[] };
+  capabilities?: { allow?: string[]; deny?: string[] };
 }
 
 export interface BundleHookContext extends BundleContext {

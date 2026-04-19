@@ -820,6 +820,40 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         const scope = ["spine", "llm", ...catalogIds];
         const bundleToken = await mintToken({ agentId, sessionId, scope }, bundleSubkey);
 
+        // Phase 3: resolve active mode and project to the bundle env
+        // shape. `readActiveModeForSession` walks session metadata
+        // (O(1) cached) and returns null when no mode is active or
+        // when the cached id has no matching registered Mode. The
+        // bundle filter applies only when both checks pass.
+        const activeMode = this.runtime.readActiveModeForSession(sessionId);
+        const activeModeEnv = activeMode
+          ? {
+              id: activeMode.id,
+              name: activeMode.name,
+              tools: activeMode.tools,
+              capabilities: activeMode.capabilities,
+            }
+          : undefined;
+
+        // Phase 3: one-time structured warning per (agentId,
+        // bundleVersionId) on first dispatch under any active mode
+        // — surfaces the behavior shift from "modes don't apply to
+        // bundles" to operators tailing logs without spamming.
+        if (activeMode) {
+          const warningKey = `bundle:mode-warning-emitted:${agentId}:${versionId}`;
+          const alreadyEmitted = await ctx.storage.get<boolean>(warningKey);
+          if (!alreadyEmitted) {
+            await ctx.storage.put(warningKey, true);
+            this.runtime.logger.warn("[BundleDispatch] mode-aware filtering active for bundle", {
+              agentId,
+              bundleVersionId: versionId,
+              modeId: activeMode.id,
+              toolFilter: activeMode.tools,
+              capabilityFilter: activeMode.capabilities,
+            });
+          }
+        }
+
         const projectedEnv = bundleConfig.bundleEnv(env);
 
         const worker = loader.get(versionId, async () => {
@@ -845,6 +879,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
               ...projectedEnv,
               __BUNDLE_TOKEN: bundleToken,
               __BUNDLE_VERSION_ID: versionId,
+              ...(activeModeEnv ? { __BUNDLE_ACTIVE_MODE: activeModeEnv } : {}),
             },
             globalOutbound: null,
           };

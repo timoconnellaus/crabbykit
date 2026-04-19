@@ -157,7 +157,20 @@ async function handleTurn<TEnv extends BundleEnv>(
     );
   }
 
-  const context = buildBundleContext(env, spine, body.agentId, body.sessionId);
+  // Phase 3: when the dispatcher injected __BUNDLE_ACTIVE_MODE, lift
+  // its identity onto the BundleContext so bundle code can branch on
+  // `ctx.activeMode?.id`. The mode's allow/deny lists stay
+  // env-scoped (read by runBundleTurn for filter application).
+  const activeMode = (env as Record<string, unknown>).__BUNDLE_ACTIVE_MODE as
+    | { id: string; name: string }
+    | undefined;
+  const context = buildBundleContext(
+    env,
+    spine,
+    body.agentId,
+    body.sessionId,
+    activeMode ? { id: activeMode.id, name: activeMode.name } : undefined,
+  );
   const stream = runBundleTurn(setup, env, body.prompt, context);
   return new Response(stream, {
     headers: { "content-type": "application/x-ndjson" },
