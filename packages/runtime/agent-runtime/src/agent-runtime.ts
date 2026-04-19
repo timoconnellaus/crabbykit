@@ -351,6 +351,18 @@ export interface AgentRuntimeOptions {
    * means the tracker uses `DEFAULT_BUDGET` from `bundle-host/budget-tracker`.
    */
   spineBudget?: SpineBudgetConfig;
+  /**
+   * Optional callback returning the host's active bundle version id (the
+   * value cached at `ctx.storage.activeBundleVersionId` on AgentDO). Used
+   * by `spineGetBundlePromptSections` to default the version when no
+   * explicit version is supplied. Returns `null` when no bundle is
+   * active (purely-static agents) or when the runtime is not bundle-aware.
+   *
+   * Wired by `defineAgent`'s `_initBundleDispatch` closure. Non-CF
+   * runtimes leave this undefined; the spine method then returns `[]`
+   * for any version-less query.
+   */
+  getActiveBundleVersionId?: () => Promise<string | null>;
 }
 
 /**
@@ -507,6 +519,22 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   private readonly spineBudget: BudgetTracker;
 
+  /**
+   * See {@link AgentRuntimeOptions.getActiveBundleVersionId}. Defaults to
+   * a function returning `null` when not supplied — host has no bundle
+   * concept, so version-less inspection reads always return `[]`.
+   */
+  private readonly getActiveBundleVersionId: () => Promise<string | null>;
+
+  /** Capability-id namespace for bundle inspection storage (Phase 1). */
+  private static readonly BUNDLE_INSPECTION_CAP_ID = "_bundle-inspection";
+  private static bundleInspectionKey(sessionId: string, bundleVersionId: string): string {
+    return `prompt-sections:${sessionId}:v=${bundleVersionId}`;
+  }
+  private static bundleInspectionPrefix(sessionId: string): string {
+    return `prompt-sections:${sessionId}:v=`;
+  }
+
   constructor(
     sqlStore: SqlStore,
     kvStore: KvStore,
@@ -535,6 +563,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     this.mcpManager = new McpManager(sqlStore, () => this.broadcastMcpStatus());
     this.rateLimiter = new SlidingWindowRateLimiter(sqlStore);
     this.spineBudget = new BudgetTracker(options.spineBudget);
+    this.getActiveBundleVersionId = options.getActiveBundleVersionId ?? (async () => null);
 
     this.transport.onOpen((connection) => this.handleTransportOpen(connection));
     this.transport.onMessage((connection, data) => this.handleTransportMessage(connection, data));
@@ -1477,6 +1506,15 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
         this.queueStore.deleteAll(msg.sessionId);
         this.sessionStore.delete(msg.sessionId);
+        // Drop bundle inspection cache entries for this session — fire
+        // and forget; cache is best-effort and lives on KV.
+        this.runtimeContext.waitUntil(
+          this.evictBundleInspectionForSession(msg.sessionId).catch((err) => {
+            this.logger.error("[AgentRuntime] evictBundleInspection failed", {
+              message: err instanceof Error ? err.message : String(err),
+            });
+          }),
+        );
 
         if (affectedConnections.length > 0) {
           const remaining = this.sessionStore.list();
@@ -2050,6 +2088,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const allSessions = this.sessionStore.list();
     if (allSessions.length > 1) {
       this.sessionStore.delete(sessionId);
+      this.runtimeContext.waitUntil(
+        this.evictBundleInspectionForSession(sessionId).catch((err) => {
+          this.logger.error("[AgentRuntime] evictBundleInspection failed", {
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }),
+      );
     }
 
     this.broadcastSessionList();
@@ -3675,6 +3720,67 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       }
       return undefined;
     });
+  }
+
+  /**
+   * Persist the bundle's per-turn rendered `PromptSection[]` snapshot
+   * keyed by `(sessionId, bundleVersionId)`. The cache is read by the
+   * inspection panel to surface what the bundle's brain saw on the
+   * most recent turn for the active version.
+   *
+   * Version-keyed: a stale snapshot from a previous bundle version
+   * does not appear in inspection after a redeploy. Eviction on
+   * session delete is handled by the existing cache-eviction path
+   * (Phase 1 task 5.5.3).
+   */
+  spineRecordBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void> {
+    return this.withSpineBudget(caller, "inspection", async () => {
+      if (!bundleVersionId) return;
+      const storage = createCapabilityStorage(this.kvStore, AgentRuntime.BUNDLE_INSPECTION_CAP_ID);
+      await storage.put(AgentRuntime.bundleInspectionKey(sessionId, bundleVersionId), sections);
+    });
+  }
+
+  /**
+   * Read the cached `PromptSection[]` snapshot for the requested
+   * `(sessionId, bundleVersionId)`. When `bundleVersionId` is omitted,
+   * defaults to the host's active bundle version (via the constructor
+   * option). Returns `[]` for cold sessions, stale-version queries, or
+   * runtimes without a configured `getActiveBundleVersionId` callback.
+   */
+  spineGetBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    bundleVersionId?: string,
+  ): Promise<unknown[]> {
+    return this.withSpineBudget(caller, "inspection", async () => {
+      const versionId = bundleVersionId ?? (await this.getActiveBundleVersionId());
+      if (!versionId) return [];
+      const storage = createCapabilityStorage(this.kvStore, AgentRuntime.BUNDLE_INSPECTION_CAP_ID);
+      const sections = await storage.get(AgentRuntime.bundleInspectionKey(sessionId, versionId));
+      if (!Array.isArray(sections)) return [];
+      return sections;
+    });
+  }
+
+  /**
+   * Evict every `prompt-sections:<sessionId>:v=*` snapshot for a
+   * deleted session. Wired into the session-delete code path so the
+   * inspection cache does not grow unbounded across session lifetimes.
+   * Idempotent — safe to call for sessions that never dispatched a
+   * bundle.
+   */
+  async evictBundleInspectionForSession(sessionId: string): Promise<void> {
+    const storage = createCapabilityStorage(this.kvStore, AgentRuntime.BUNDLE_INSPECTION_CAP_ID);
+    const entries = await storage.list(AgentRuntime.bundleInspectionPrefix(sessionId));
+    const promises: Promise<unknown>[] = [];
+    for (const key of entries.keys()) promises.push(storage.delete(key));
+    await Promise.all(promises);
   }
 
   spineKvGet(caller: SpineCaller, capabilityId: string, key: string): Promise<unknown> {

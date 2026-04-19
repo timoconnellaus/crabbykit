@@ -7,12 +7,15 @@
  */
 
 import { mergeSections } from "./prompt/merge-sections.js";
+import { normalizeBundlePromptSection } from "./prompt/normalize-bundle-section.js";
+import type { PromptSection } from "./prompt/types.js";
 import {
   iterateProviderStream,
   type ParsedToolCall,
   type StreamChunk,
 } from "./providers/stream-iterator.js";
 import {
+  createBundleInspectionClient,
   createCostEmitter,
   createHookBridge,
   createKvStoreClient,
@@ -269,7 +272,14 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     const setupTools: unknown[] = setup.tools?.(env) ?? [];
 
     const mergedTools: unknown[] = [...setupTools];
-    const capabilitySections: Array<string | BundlePromptSection> = [];
+    // `capabilitySections` collects raw entries from each capability's
+    // `promptSections` for the prompt-string composition (Phase 0a).
+    // `normalizedSections` collects the per-capability normalized
+    // {@link PromptSection} entries for the version-keyed inspection
+    // cache (Phase 1) — entry index is per-capability so keys remain
+    // stable across re-runs.
+    const capabilitySections: Array<string | BundlePromptSection | PromptSection> = [];
+    const normalizedSections: PromptSection[] = [];
     const beforeInferenceHooks: Array<{
       capabilityId: string;
       fn: NonNullable<BundleCapabilityHooks["beforeInference"]>;
@@ -282,11 +292,38 @@ export function runBundleTurn<TEnv extends BundleEnv>(
       const capTools = cap.tools?.(context) ?? [];
       for (const t of capTools) mergedTools.push(t);
       const capSections = cap.promptSections?.(context) ?? [];
-      for (const s of capSections) capabilitySections.push(s);
+      for (let i = 0; i < capSections.length; i++) {
+        const raw = capSections[i];
+        capabilitySections.push(raw);
+        const normalized = normalizeBundlePromptSection(raw, cap.id, cap.name, i);
+        if (normalized) normalizedSections.push(normalized);
+      }
       if (cap.hooks?.beforeInference)
         beforeInferenceHooks.push({ capabilityId: cap.id, fn: cap.hooks.beforeInference });
       if (cap.hooks?.afterToolExecution)
         afterToolExecutionHooks.push({ capabilityId: cap.id, fn: cap.hooks.afterToolExecution });
+    }
+
+    // Apply the string-override rule to the normalized list too —
+    // when `setup.prompt` is a string, capability sections are
+    // suppressed in the actual prompt; the inspection cache surfaces
+    // them with `included: false, excludedReason: "Suppressed by
+    // setup.prompt: string override"` so operators see what was
+    // dropped and why.
+    const inspectionSections: PromptSection[] = [];
+    if (typeof setup.prompt === "string") {
+      for (const sec of normalizedSections) {
+        inspectionSections.push({
+          ...sec,
+          content: "",
+          lines: 0,
+          tokens: 0,
+          included: false,
+          excludedReason: "Suppressed by setup.prompt: string override",
+        });
+      }
+    } else {
+      for (const sec of normalizedSections) inspectionSections.push(sec);
     }
 
     // Build the per-name tool lookup AND the provider tool advertisement
@@ -331,6 +368,33 @@ export function runBundleTurn<TEnv extends BundleEnv>(
     if (!llm || typeof llm.inferStream !== "function") {
       throw new Error("Missing env.LLM service binding with inferStream method");
     }
+
+    // 4c. Bundle inspection cache (Phase 1) — write the normalized
+    //     PromptSection[] snapshot after each prompt build so the
+    //     inspection panel can show what the model sees on the
+    //     bundle path. Version-keyed via env.__BUNDLE_VERSION_ID
+    //     (injected by the host dispatcher per turn). Skipped
+    //     entirely when version is missing — Phase 1 is best-effort.
+    const bundleVersionId = (env as Record<string, unknown>).__BUNDLE_VERSION_ID as
+      | string
+      | undefined;
+    let recordPromptSections: ((sections: PromptSection[]) => Promise<void>) | null = null;
+    if (typeof bundleVersionId === "string" && bundleVersionId.length > 0) {
+      const spineRef = (env as Record<string, unknown>).SPINE as
+        | Parameters<typeof createBundleInspectionClient>[0]
+        | undefined;
+      if (spineRef) {
+        const inspection = createBundleInspectionClient(spineRef, () => bundleToken);
+        recordPromptSections = async (sections) => {
+          try {
+            await inspection.recordPromptSections(context.sessionId, sections, bundleVersionId);
+          } catch {
+            // Inspection cache writes are best-effort.
+          }
+        };
+      }
+    }
+    if (recordPromptSections) await recordPromptSections(inspectionSections);
 
     const finalAssistantMessages: AssistantPartial[] = [];
 

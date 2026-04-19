@@ -43,6 +43,17 @@ interface SpineBinding {
   recordToolExecution(token: string, event: unknown): Promise<void>;
   processBeforeInference(token: string, messages: unknown[]): Promise<unknown[]>;
   processBeforeToolExecution(token: string, event: unknown): Promise<unknown>;
+  recordPromptSections(
+    token: string,
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void>;
+  getBundlePromptSections(
+    token: string,
+    sessionId: string,
+    bundleVersionId?: string,
+  ): Promise<unknown[]>;
 }
 
 /**
@@ -128,6 +139,35 @@ export function createHookBridge(spine: SpineBinding, getToken: () => string): B
       spine.processBeforeToolExecution(getToken(), event) as Promise<
         { block?: boolean; reason?: string } | undefined
       >,
+  };
+}
+
+/**
+ * Create a bundle-side inspection client backed by SpineService RPC.
+ *
+ * The bundle SDK calls `recordPromptSections(sessionId, sections,
+ * bundleVersionId)` after each per-turn prompt build so the host can
+ * cache the rendered `PromptSection[]` for the inspection panel.
+ * `getBundlePromptSections(sessionId, bundleVersionId?)` returns the
+ * cached entry; both wrap through the host's `"inspection"` budget
+ * category.
+ */
+export function createBundleInspectionClient(
+  spine: SpineBinding,
+  getToken: () => string,
+): {
+  recordPromptSections(
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void>;
+  getBundlePromptSections(sessionId: string, bundleVersionId?: string): Promise<unknown[]>;
+} {
+  return {
+    recordPromptSections: (sessionId, sections, bundleVersionId) =>
+      spine.recordPromptSections(getToken(), sessionId, sections, bundleVersionId),
+    getBundlePromptSections: (sessionId, bundleVersionId) =>
+      spine.getBundlePromptSections(getToken(), sessionId, bundleVersionId),
   };
 }
 

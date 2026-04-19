@@ -64,6 +64,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const mergedOptions: AgentRuntimeOptions = {
       ...options,
       spineBudget: options.spineBudget ?? envWithBudget.SPINE_BUDGET,
+      // Bundle inspection cache (Phase 1) defaults the version on
+      // version-less reads to whatever the per-DO hot-path cache holds.
+      // The cache is `ctx.storage.activeBundleVersionId` — single-writer
+      // owned by `_initBundleDispatch` (see CLAUDE.md). Returning `null`
+      // for static-only DOs is the documented behavior.
+      getActiveBundleVersionId:
+        options.getActiveBundleVersionId ??
+        (async () => (await ctx.storage.get<string | null>("activeBundleVersionId")) ?? null),
     };
     this.runtime = createDelegatingRuntime<TEnv>(this, {
       sqlStore,
@@ -329,6 +337,28 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
   spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown> {
     return this.runtime.spineProcessBeforeToolExecution(caller, event);
+  }
+
+  spineRecordBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void> {
+    return this.runtime.spineRecordBundlePromptSections(
+      caller,
+      sessionId,
+      sections,
+      bundleVersionId,
+    );
+  }
+
+  spineGetBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    bundleVersionId?: string,
+  ): Promise<unknown[]> {
+    return this.runtime.spineGetBundlePromptSections(caller, sessionId, bundleVersionId);
   }
 
   // --- Protected getters/setters that forward to the composed runtime ---
@@ -811,7 +841,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             compatibilityFlags: ["nodejs_compat"],
             mainModule,
             modules,
-            env: { ...projectedEnv, __BUNDLE_TOKEN: bundleToken },
+            env: {
+              ...projectedEnv,
+              __BUNDLE_TOKEN: bundleToken,
+              __BUNDLE_VERSION_ID: versionId,
+            },
             globalOutbound: null,
           };
         });
@@ -891,7 +925,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             compatibilityFlags: ["nodejs_compat"],
             mainModule: "bundle.js",
             modules: { "bundle.js": source },
-            env: { ...projectedEnv, __BUNDLE_TOKEN: bundleToken },
+            env: {
+              ...projectedEnv,
+              __BUNDLE_TOKEN: bundleToken,
+              __BUNDLE_VERSION_ID: versionId,
+            },
             globalOutbound: null,
           };
         });

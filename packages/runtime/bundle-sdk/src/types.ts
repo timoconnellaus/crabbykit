@@ -8,7 +8,7 @@
  */
 
 import type { TObject } from "@sinclair/typebox";
-import type { PromptOptions } from "./prompt/types.js";
+import type { PromptOptions, PromptSection } from "./prompt/types.js";
 
 // --- BundleEnv constraint ---
 
@@ -199,9 +199,24 @@ export interface BundleCapability {
   id: string;
   name: string;
   description: string;
+  /**
+   * @deferred — no consumer in v2; planned for the
+   * `bundle-config-namespaces` follow-up. Field is kept on the type so
+   * forward-looking bundle authors who already populate it do not break
+   * when the consumer lands.
+   */
   configSchema?: TObject;
   tools?: (context: BundleContext) => unknown[];
-  promptSections?: (context: BundleContext) => Array<string | BundlePromptSection>;
+  /**
+   * Per-turn prompt sections. Phase 1 widens the return type to also
+   * accept full {@link PromptSection} entries — host normalization
+   * (see `normalizeBundlePromptSection`) attributes each entry to a
+   * source for inspection. Bare `string` entries normalize to
+   * `{ source: { type: "custom" } }`; `BundlePromptSection` entries
+   * normalize to `{ source: { type: "capability", capabilityId,
+   * capabilityName } }`.
+   */
+  promptSections?: (context: BundleContext) => Array<string | BundlePromptSection | PromptSection>;
   hooks?: BundleCapabilityHooks;
 }
 

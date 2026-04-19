@@ -26,6 +26,15 @@ export interface SpineBudgetConfig {
    * default matches that cap.
    */
   maxHookBeforeTool: number;
+  /**
+   * Cap on bundle-inspection spine ops per turn (Phase 1). Covers
+   * `recordPromptSections` (write per inference iteration) and
+   * `getBundlePromptSections` (read by inspection panel). Sized to
+   * tolerate the per-turn iteration cap (25) plus a few inspection
+   * reads without competing against the hot-path `sql`/`broadcast`
+   * budgets.
+   */
+  maxInspectionOps: number;
 }
 
 export const DEFAULT_BUDGET: SpineBudgetConfig = {
@@ -36,6 +45,7 @@ export const DEFAULT_BUDGET: SpineBudgetConfig = {
   maxHookAfterTool: 200,
   maxHookBeforeInference: 100,
   maxHookBeforeTool: 200,
+  maxInspectionOps: 50,
 };
 
 export type BudgetCategory =
@@ -45,7 +55,8 @@ export type BudgetCategory =
   | "alarm"
   | "hook_after_tool"
   | "hook_before_inference"
-  | "hook_before_tool";
+  | "hook_before_tool"
+  | "inspection";
 
 /**
  * Error code embedded directly in the message so it survives Cloudflare's
@@ -111,6 +122,8 @@ export class BudgetTracker {
         return this.config.maxHookBeforeInference;
       case "hook_before_tool":
         return this.config.maxHookBeforeTool;
+      case "inspection":
+        return this.config.maxInspectionOps;
     }
   }
 

@@ -123,4 +123,29 @@ export interface SpineHost extends Rpc.DurableObjectBranded {
   spineRecordToolExecution(caller: SpineCaller, event: unknown): Promise<void>;
   spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]>;
   spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown>;
+
+  // Bundle inspection (Phase 1)
+  //
+  // `spineRecordBundlePromptSections` writes the bundle's per-turn
+  // rendered `PromptSection[]` snapshot to a version-keyed cache
+  // (`bundle:prompt-sections:<sessionId>:v=<bundleVersionId>`). Called
+  // once per inference iteration from `runBundleTurn` so the inspection
+  // panel can show what the model sees on the bundle path.
+  //
+  // `spineGetBundlePromptSections` reads the snapshot for the
+  // requested version (defaulting to the host's active bundle version
+  // when omitted). Returns `[]` for cold sessions or stale-version
+  // queries. Wrapped through the new `"inspection"` budget category
+  // so heavy inspection traffic does not starve hot-path budgets.
+  spineRecordBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void>;
+  spineGetBundlePromptSections(
+    caller: SpineCaller,
+    sessionId: string,
+    bundleVersionId?: string,
+  ): Promise<unknown[]>;
 }

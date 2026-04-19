@@ -39,7 +39,12 @@ import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
 // SpineService's hook-bridge methods. Keeps the public RPC contract
 // legible on the SpineService side; AgentMessage/ToolExecutionEvent are
 // sourced from agent-runtime's barrel.
-export type { AgentMessage, BeforeToolExecutionEvent, BeforeToolExecutionResult, ToolExecutionEvent };
+export type {
+  AgentMessage,
+  BeforeToolExecutionEvent,
+  BeforeToolExecutionResult,
+  ToolExecutionEvent,
+};
 
 import {
   BUNDLE_SUBKEY_LABEL,
@@ -397,6 +402,51 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
       return (await this.getHost(caller.aid).spineProcessBeforeToolExecution(caller, event)) as
         | BeforeToolExecutionResult
         | undefined;
+    } catch (err) {
+      throw this.sanitize(err);
+    }
+  }
+
+  // --- Bundle inspection (Phase 1) ---
+  //
+  // Bundle SDK calls `recordPromptSections` after each per-turn prompt
+  // build to persist the rendered `PromptSection[]` snapshot for the
+  // active bundle version. The inspection panel reads via
+  // `getBundlePromptSections`. Both wrap through the new `"inspection"`
+  // budget category on the host so heavy inspection traffic does not
+  // starve hot-path budgets.
+
+  async recordPromptSections(
+    token: string,
+    sessionId: string,
+    sections: unknown[],
+    bundleVersionId: string,
+  ): Promise<void> {
+    const caller = await this.verify(token);
+    try {
+      await this.getHost(caller.aid).spineRecordBundlePromptSections(
+        caller,
+        sessionId,
+        sections,
+        bundleVersionId,
+      );
+    } catch (err) {
+      throw this.sanitize(err);
+    }
+  }
+
+  async getBundlePromptSections(
+    token: string,
+    sessionId: string,
+    bundleVersionId?: string,
+  ): Promise<unknown[]> {
+    const caller = await this.verify(token);
+    try {
+      return await this.getHost(caller.aid).spineGetBundlePromptSections(
+        caller,
+        sessionId,
+        bundleVersionId,
+      );
     } catch (err) {
       throw this.sanitize(err);
     }

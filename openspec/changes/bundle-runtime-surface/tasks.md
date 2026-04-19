@@ -58,37 +58,37 @@
 
 ### 3a. Type widening + normalization
 
-- [ ] 3.1 Widen `BundleCapability.promptSections` return type in `packages/runtime/bundle-sdk/src/types.ts` from `Array<string | BundlePromptSection>` to `Array<string | BundlePromptSection | PromptSection>`; add `PromptSection` import from `./prompt/types.js`
-- [ ] 3.2 Implement `normalizeBundlePromptSection(entry, capabilityId, capabilityName, index): PromptSection | null` (returns `null` for malformed entries):
+- [x] 3.1 Widen `BundleCapability.promptSections` return type in `packages/runtime/bundle-sdk/src/types.ts` from `Array<string | BundlePromptSection>` to `Array<string | BundlePromptSection | PromptSection>`; add `PromptSection` import from `./prompt/types.js`
+- [x] 3.2 Implement `normalizeBundlePromptSection(entry, capabilityId, capabilityName, index): PromptSection | null` (returns `null` for malformed entries):
   - String → `PromptSection` with `source: { type: "custom" }`, `key: "cap-${capabilityId}-${index}"`, computed `lines`/`tokens`, `included: true`
   - `BundlePromptSection` (kind: included|excluded) → `PromptSection` with `source: { type: "capability", capabilityId, capabilityName }`, computed `key`, `included` from `kind`
   - `PromptSection` → pass-through with default-fill for missing optional fields
   - Anything else → log warning + return `null`
-- [ ] 3.3 In `runBundleTurn` (Phase 0b output), normalize the merged section list using `normalizeBundlePromptSection` before splicing into the prompt
-- [ ] 3.4 Compute `lines`/`tokens` using same heuristics as the static path (extract to a shared utility in `bundle-sdk/src/prompt/` if not already shared)
+- [x] 3.3 In `runBundleTurn` (Phase 0b output), normalize the merged section list using `normalizeBundlePromptSection` before splicing into the prompt
+- [x] 3.4 Compute `lines`/`tokens` using same heuristics as the static path (extract to a shared utility in `bundle-sdk/src/prompt/` if not already shared)
 
 ### 3b. Inspection cache (version-keyed)
 
-- [ ] 3.5 Add `BundleSpineClient.recordPromptSections(sessionId: string, sections: PromptSection[]): Promise<void>` to the bundle-side spine client in `bundle-sdk/src/spine-clients.ts`
-- [ ] 3.6 Add `recordPromptSections(token: string, sessionId: string, sections: PromptSection[]): Promise<void>` to `SpineService` in `bundle-host/src/services/spine-service.ts`; verify token with `requiredScope: "spine"`; delegate to host
-- [ ] 3.7 Add `spineRecordBundlePromptSections(caller: SpineCaller, sessionId: string, sections: PromptSection[]): Promise<void>` to `SpineHost` in `agent-runtime/src/spine-host.ts`
-- [ ] 3.8 Implement on `AgentRuntime`: write to `ctx.storage.put("bundle:prompt-sections:" + sessionId + ":v=" + bundleVersionId, sections)`. Wrap through `withSpineBudget` (likely a write-side category — pick or add `"inspection"`)
-- [ ] 3.9 Add `spineGetBundlePromptSections(caller: SpineCaller, sessionId: string, bundleVersionId?: string): Promise<PromptSection[]>` to `SpineHost` and implement on `AgentRuntime`: read from `ctx.storage.get("bundle:prompt-sections:" + sessionId + ":v=" + (bundleVersionId ?? activeBundleVersionId))`; return `[]` if absent
-- [ ] 3.10 Add `getBundlePromptSections(token, sessionId, bundleVersionId?)` to `SpineService`; verify scope, delegate, sanitize errors. Note this is read-side; consumed by inspection panel via spine RPC
-- [ ] 3.11 Wire `recordPromptSections` into `runBundleTurn` after each prompt build (call once per turn)
+- [x] 3.5 Add `BundleSpineClient.recordPromptSections(sessionId: string, sections: PromptSection[]): Promise<void>` to the bundle-side spine client in `bundle-sdk/src/spine-clients.ts`
+- [x] 3.6 Add `recordPromptSections(token: string, sessionId: string, sections: PromptSection[]): Promise<void>` to `SpineService` in `bundle-host/src/services/spine-service.ts`; verify token with `requiredScope: "spine"`; delegate to host
+- [x] 3.7 Add `spineRecordBundlePromptSections(caller: SpineCaller, sessionId: string, sections: PromptSection[]): Promise<void>` to `SpineHost` in `agent-runtime/src/spine-host.ts`
+- [x] 3.8 Implement on `AgentRuntime`: write to `ctx.storage.put("bundle:prompt-sections:" + sessionId + ":v=" + bundleVersionId, sections)`. Wrap through `withSpineBudget` (likely a write-side category — pick or add `"inspection"`) — implemented via `kvStore` under the reserved capability id `_bundle-inspection` so the platform-agnostic abstraction is used; storage shape is identical (key includes `:v=<bundleVersionId>`).
+- [x] 3.9 Add `spineGetBundlePromptSections(caller: SpineCaller, sessionId: string, bundleVersionId?: string): Promise<PromptSection[]>` to `SpineHost` and implement on `AgentRuntime`: read from `ctx.storage.get("bundle:prompt-sections:" + sessionId + ":v=" + (bundleVersionId ?? activeBundleVersionId))`; return `[]` if absent
+- [x] 3.10 Add `getBundlePromptSections(token, sessionId, bundleVersionId?)` to `SpineService`; verify scope, delegate, sanitize errors. Note this is read-side; consumed by inspection panel via spine RPC
+- [x] 3.11 Wire `recordPromptSections` into `runBundleTurn` after each prompt build (call once per turn)
 
 ### 3c. Tests
 
-- [ ] 3.12 Unit tests for `normalizeBundlePromptSection`: each input form produces the expected `PromptSection`; malformed entries return `null` with warning
-- [ ] 3.13 Integration test: bundle dispatcher writes prompt-section snapshot per turn; subsequent `spineGetBundlePromptSections` returns the snapshot for the active version
-- [ ] 3.14 Integration test: cache for a stale bundle version is NOT returned when querying with no version argument (active version mismatch)
-- [ ] 3.15 Cold-session test: `spineGetBundlePromptSections` returns `[]` for a never-dispatched session
-- [ ] 3.16 Backwards-compat test: bundle whose capabilities return only strings/`BundlePromptSection` renders identically to pre-Phase-1 behavior (assert prompt text unchanged)
+- [x] 3.12 Unit tests for `normalizeBundlePromptSection`: each input form produces the expected `PromptSection`; malformed entries return `null` with warning
+- [x] 3.13 Integration test: bundle dispatcher writes prompt-section snapshot per turn; subsequent `spineGetBundlePromptSections` returns the snapshot for the active version
+- [ ] 3.14 Integration test: cache for a stale bundle version is NOT returned when querying with no version argument (active version mismatch) — **deferred to Phase 1 e2e follow-up**: requires DO storage harness; covered structurally by version-keying (key includes `:v=<id>`).
+- [ ] 3.15 Cold-session test: `spineGetBundlePromptSections` returns `[]` for a never-dispatched session — **deferred to Phase 1 e2e follow-up**: requires DO storage harness; covered structurally by `if (!Array.isArray(sections)) return []` in impl.
+- [x] 3.16 Backwards-compat test: bundle whose capabilities return only strings/`BundlePromptSection` renders identically to pre-Phase-1 behavior (assert prompt text unchanged)
 
 ### 3d. Verification
 
-- [ ] 3.17 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
-- [ ] 3.18 Atomic commit: `feat(bundle): normalize bundle prompt sections to full PromptSection[] with version-keyed inspection cache`
+- [x] 3.17 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
+- [x] 3.18 Atomic commit: `feat(bundle): normalize bundle prompt sections to full PromptSection[] with version-keyed inspection cache`
 
 ## 4. Phase 2 — Bundle lifecycle hooks
 
@@ -178,9 +178,9 @@
 ## 5.5. Cross-cutting infrastructure tasks
 
 - [ ] 5.5.1 **Extract `composeWorkerLoaderConfig(versionId, bytes, env, token)` helper** in `bundle-host/src/` that decodes the v1 envelope via `decodeBundlePayload` and produces the Worker Loader config. Update BOTH `initBundleDispatch` (production path: `dispatchTurn`, `dispatchClientEvent`, and the new lifecycle dispatch helpers from Phase 2) AND `BundleDispatcher` (test path) to call this helper. The convention "two paths kept in sync" is currently leaky — `dispatchClientEvent` in BundleDispatcher silently bypasses envelope decode while production `dispatchTurn` does not — and the more touch-points this proposal adds the worse the drift gets unless centralized
-- [ ] 5.5.2 **Pick budget category** for `recordPromptSections` and `getBundlePromptSections`: add new `"inspection"` category to `BudgetTracker` so inspection writes don't compete with hot-path session-store budget. Document defaults
-- [ ] 5.5.3 **Inspection cache eviction on session-delete**: in the existing session-delete code path, also delete all `bundle:prompt-sections:<sessionId>:v=*` keys for the deleted session. Use the existing storage `list` API with the prefix
-- [ ] 5.5.4 **`BundleCapability.configSchema` field**: it exists on the type but no current code reads it. This proposal does not add a consumer. Decision: keep the field (deferred to a future config-namespaces-for-bundles proposal) and add a JSDoc note `@deferred — no consumer in v2; planned for bundle-config-namespaces follow-up`. Do NOT remove it (would be a breaking type change for any forward-looking bundle author who already populated it)
+- [x] 5.5.2 **Pick budget category** for `recordPromptSections` and `getBundlePromptSections`: add new `"inspection"` category to `BudgetTracker` so inspection writes don't compete with hot-path session-store budget. Document defaults
+- [x] 5.5.3 **Inspection cache eviction on session-delete**: in the existing session-delete code path, also delete all `bundle:prompt-sections:<sessionId>:v=*` keys for the deleted session. Use the existing storage `list` API with the prefix
+- [x] 5.5.4 **`BundleCapability.configSchema` field**: it exists on the type but no current code reads it. This proposal does not add a consumer. Decision: keep the field (deferred to a future config-namespaces-for-bundles proposal) and add a JSDoc note `@deferred — no consumer in v2; planned for bundle-config-namespaces follow-up`. Do NOT remove it (would be a breaking type change for any forward-looking bundle author who already populated it)
 
 ## 6. Cross-phase verification
 
