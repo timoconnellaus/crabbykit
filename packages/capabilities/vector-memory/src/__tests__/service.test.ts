@@ -324,9 +324,7 @@ describe("VectorMemoryService.search", () => {
         metadata: { path: "MEMORY.md", startLine: 1, endLine: 2 },
       },
     ]);
-    const r2 = new Map([
-      ["agent-1/MEMORY.md", "line1\nline2\nline3\nline4\nline5\nline6"],
-    ]);
+    const r2 = new Map([["agent-1/MEMORY.md", "line1\nline2\nline3\nline4\nline5\nline6"]]);
     const env = buildEnv({}, ai, vectorize, r2);
     const svc = makeService(env);
     const token = await makeToken();
@@ -339,9 +337,7 @@ describe("VectorMemoryService.search", () => {
 
   it("skips matches with no chunk metadata", async () => {
     const ai = makeAi();
-    const vectorize = makeVectorize([
-      { id: "orphan", score: 0.8, metadata: undefined },
-    ]);
+    const vectorize = makeVectorize([{ id: "orphan", score: 0.8, metadata: undefined }]);
     const env = buildEnv({}, ai, vectorize);
     const svc = makeService(env);
     const token = await makeToken();

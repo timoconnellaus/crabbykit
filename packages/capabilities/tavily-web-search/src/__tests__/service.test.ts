@@ -65,18 +65,13 @@ async function makeTavilyToken(
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
-  const sig = await crypto.subtle.sign(
-    "HMAC",
-    mintKey,
-    new TextEncoder().encode(payloadB64),
-  );
+  const sig = await crypto.subtle.sign("HMAC", mintKey, new TextEncoder().encode(payloadB64));
   const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
   return `${payloadB64}.${sigB64}`;
 }
-
 
 function buildEnv(): TavilyServiceEnv & {
   _emitCostMock: ReturnType<typeof vi.fn>;

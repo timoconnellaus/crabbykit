@@ -16,9 +16,7 @@ export interface CapabilityRequirementLike {
   id: string;
 }
 
-export type CatalogValidationResult =
-  | { valid: true }
-  | { valid: false; missingIds: string[] };
+export type CatalogValidationResult = { valid: true } | { valid: false; missingIds: string[] };
 
 /**
  * Validate a bundle's declared requirements against the host's known

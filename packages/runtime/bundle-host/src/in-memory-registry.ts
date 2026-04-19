@@ -6,6 +6,12 @@
 import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
 import { validateCatalogAgainstKnownIds } from "@claw-for-cloudflare/bundle-registry";
 import type { BundleRegistry, SetActiveOptions } from "./bundle-config.js";
+import {
+  ActionIdCollisionError,
+  RouteCollisionError,
+  validateBundleActionIdsAgainstKnownIds,
+  validateBundleRoutesAgainstKnownRoutes,
+} from "./validate-routes.js";
 
 interface VersionEntry {
   versionId: string;
@@ -110,6 +116,49 @@ export class InMemoryBundleRegistry implements BundleRegistry {
             versionId,
           });
         }
+
+        // bundle-http-and-ui-surface: route + action-id collision guards.
+        // Both run only when the version's metadata declares the
+        // corresponding `surfaces.*` field AND the caller supplied the
+        // matching `known*` snapshot. Cross-deployment promotions that
+        // pass `skipCatalogCheck: true` skip both, matching the
+        // existing catalog opt-out semantic.
+        const surfaces = (
+          version?.metadata as
+            | {
+                surfaces?: {
+                  httpRoutes?: Array<{ method: string; path: string }>;
+                  actionCapabilityIds?: string[];
+                };
+              }
+            | undefined
+        )?.surfaces;
+
+        if (surfaces?.httpRoutes && options?.knownHttpRoutes !== undefined) {
+          const routeResult = validateBundleRoutesAgainstKnownRoutes(
+            surfaces.httpRoutes,
+            options.knownHttpRoutes,
+          );
+          if (!routeResult.valid) {
+            throw new RouteCollisionError({
+              collisions: routeResult.collisions,
+              versionId,
+            });
+          }
+        }
+
+        if (surfaces?.actionCapabilityIds && options.knownCapabilityIds) {
+          const actionResult = validateBundleActionIdsAgainstKnownIds(
+            surfaces.actionCapabilityIds,
+            options.knownCapabilityIds,
+          );
+          if (!actionResult.valid) {
+            throw new ActionIdCollisionError({
+              collidingIds: actionResult.collidingIds,
+              versionId,
+            });
+          }
+        }
       }
     }
 
@@ -138,15 +187,18 @@ export class InMemoryBundleRegistry implements BundleRegistry {
    * Treated as the authoritative source for `requiredCapabilities` in
    * the dispatch-time guard.
    */
-  async getVersion(
-    versionId: string,
-  ): Promise<{
+  async getVersion(versionId: string): Promise<{
     versionId: string;
     metadata: {
       requiredCapabilities?: Array<{ id: string }>;
       runtimeHash?: string;
       sourceName?: string;
       buildTimestamp?: number;
+      lifecycleHooks?: { onAlarm?: boolean; onSessionCreated?: boolean; onClientEvent?: boolean };
+      surfaces?: {
+        httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
+        actionCapabilityIds?: string[];
+      };
     } | null;
   } | null> {
     const entry = this.versions.get(versionId);
@@ -157,6 +209,15 @@ export class InMemoryBundleRegistry implements BundleRegistry {
           runtimeHash?: string;
           sourceName?: string;
           buildTimestamp?: number;
+          lifecycleHooks?: {
+            onAlarm?: boolean;
+            onSessionCreated?: boolean;
+            onClientEvent?: boolean;
+          };
+          surfaces?: {
+            httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
+            actionCapabilityIds?: string[];
+          };
         }
       | undefined;
     return { versionId, metadata: meta ?? null };

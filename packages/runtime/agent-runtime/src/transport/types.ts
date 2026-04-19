@@ -175,9 +175,16 @@ export interface CapabilityStateMessage {
  * (manual `/bundle/disable`, transient-failure auto-revert, or catalog
  * mismatch at promotion / dispatch time). `data.rationale` is the
  * human-readable string existing consumers already read; `data.reason`
- * is the optional structured form. Currently the only defined code is
- * `"ERR_CAPABILITY_MISMATCH"`; future disable paths may introduce
- * further codes without breaking legacy consumers.
+ * is the optional structured form. Defined codes:
+ * - `"ERR_CAPABILITY_MISMATCH"` — bundle declared `requiredCapabilities`
+ *   the host has not registered.
+ * - `"ERR_HTTP_ROUTE_COLLISION"` — bundle declared a `surfaces.httpRoutes`
+ *   entry that overlaps a host static handler (`bundle-http-and-ui-surface`).
+ * - `"ERR_ACTION_ID_COLLISION"` — bundle declared a `surfaces.actionCapabilityIds`
+ *   entry that overlaps a host-registered capability id.
+ *
+ * Future disable paths may introduce further codes without breaking
+ * legacy consumers; pattern-match on `code` rather than `instanceof`.
  */
 export interface BundleDisabledMessage {
   type: "bundle_disabled";
@@ -186,11 +193,22 @@ export interface BundleDisabledMessage {
     rationale: string;
     versionId: string | null;
     sessionId?: string;
-    reason?: {
-      code: "ERR_CAPABILITY_MISMATCH";
-      missingIds: string[];
-      versionId: string;
-    };
+    reason?:
+      | {
+          code: "ERR_CAPABILITY_MISMATCH";
+          missingIds: string[];
+          versionId: string;
+        }
+      | {
+          code: "ERR_HTTP_ROUTE_COLLISION";
+          collisions: Array<{ method: string; path: string }>;
+          versionId: string;
+        }
+      | {
+          code: "ERR_ACTION_ID_COLLISION";
+          collidingIds: string[];
+          versionId: string;
+        };
   };
 }
 

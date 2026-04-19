@@ -141,7 +141,9 @@ describe("runBundleTurn — Phase 0a capability + tool resolution", () => {
     });
 
     const request = await dispatchTurn({ bundle, llm, spine });
-    expect(capsFactory).toHaveBeenCalledOnce();
+    // Called twice: once at build time by the surfaces metadata
+    // extractor, once per turn by `runBundleTurn`.
+    expect(capsFactory).toHaveBeenCalledTimes(2);
     expect(capToolsFn).toHaveBeenCalledOnce();
     expect(capSectionsFn).toHaveBeenCalledOnce();
     // BundleContext supplied to capability factories carries the

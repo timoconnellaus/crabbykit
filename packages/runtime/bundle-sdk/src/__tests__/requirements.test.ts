@@ -103,9 +103,7 @@ describe("validateRequirements", () => {
   });
 
   it("error message names the offending entry index", () => {
-    expect(() =>
-      validateRequirements([{ id: "valid-id" }, { id: "invalid id" }]),
-    ).toThrow(/\[1\]/);
+    expect(() => validateRequirements([{ id: "valid-id" }, { id: "invalid id" }])).toThrow(/\[1\]/);
   });
 
   // Reserved-scope rejection (Gap 1)
@@ -139,10 +137,7 @@ describe("defineBundleAgent requiredCapabilities", () => {
     });
 
     const meta = await readMetadata(bundle);
-    expect(meta.requiredCapabilities).toEqual([
-      { id: "tavily-web-search" },
-      { id: "file-tools" },
-    ]);
+    expect(meta.requiredCapabilities).toEqual([{ id: "tavily-web-search" }, { id: "file-tools" }]);
   });
 
   it("omits field when declaration is undefined", async () => {
@@ -164,10 +159,7 @@ describe("defineBundleAgent requiredCapabilities", () => {
     });
 
     const meta = await readMetadata(bundle);
-    expect(meta.requiredCapabilities).toEqual([
-      { id: "file-tools" },
-      { id: "tavily-web-search" },
-    ]);
+    expect(meta.requiredCapabilities).toEqual([{ id: "file-tools" }, { id: "tavily-web-search" }]);
   });
 
   it("deduplicates silently at build time", async () => {
@@ -200,9 +192,9 @@ describe("defineBundleAgent requiredCapabilities", () => {
 
   it("throws at build time on over-count list", () => {
     const tooMany = Array.from({ length: 65 }, (_, i) => ({ id: `cap-${i}` }));
-    expect(() =>
-      defineBundleAgent({ ...minimalSetup, requiredCapabilities: tooMany }),
-    ).toThrow(RangeError);
+    expect(() => defineBundleAgent({ ...minimalSetup, requiredCapabilities: tooMany })).toThrow(
+      RangeError,
+    );
   });
 
   it("preserves other metadata fields alongside requiredCapabilities", async () => {

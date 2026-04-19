@@ -9,8 +9,8 @@
  */
 
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
 import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+import { beforeEach, describe, expect, it } from "vitest";
 import { D1BundleRegistry } from "../d1-registry.js";
 
 interface TestEnv {

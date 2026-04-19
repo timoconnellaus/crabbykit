@@ -428,13 +428,10 @@ export function agentWorkshop(
           parameters: Type.Object({
             name: Type.String({ description: "Bundle workspace name" }),
             requiredCapabilities: Type.Optional(
-              Type.Array(
-                Type.Object({ id: Type.String() }),
-                {
-                  description:
-                    "Optional: declared host-capability requirements. Used to surface advisory warnings for ids missing from the workshop host's capability set.",
-                },
-              ),
+              Type.Array(Type.Object({ id: Type.String() }), {
+                description:
+                  "Optional: declared host-capability requirements. Used to surface advisory warnings for ids missing from the workshop host's capability set.",
+              }),
             ),
           }),
           execute: async (args) => {
@@ -515,7 +512,8 @@ export function agentWorkshop(
               Type.Array(
                 Type.Object({
                   id: Type.String({
-                    description: "Host capability id, kebab-case, must match a registered Capability.id",
+                    description:
+                      "Host capability id, kebab-case, must match a registered Capability.id",
                   }),
                 }),
                 {

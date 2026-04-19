@@ -556,6 +556,53 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       return bundleSubkeyPromise;
     };
 
+    /**
+     * Build the `loader.get` second arg for a single dispatch. Centralizes
+     * envelope decode + env composition across `bundlePromptHandler`,
+     * `dispatchLifecycle`, `dispatchHttp`, `dispatchAction` so drift
+     * between dispatch paths is structurally impossible.
+     */
+    const buildLoaderConfigGetter = (
+      versionId: string,
+      bundleToken: string,
+      extras?: Record<string, unknown>,
+    ) => {
+      return async () => {
+        const bytes = await registry.getBytes(versionId);
+        if (!bytes) {
+          throw new Error(`Bundle bytes not found for version ${versionId}`);
+        }
+        const { composeWorkerLoaderConfig } = await import("@claw-for-cloudflare/bundle-host");
+        return composeWorkerLoaderConfig({
+          bytes,
+          projectedEnv: bundleConfig.bundleEnv(env),
+          bundleToken,
+          versionId,
+          extras: {
+            // bundle-http-and-ui-surface: inject the host's public URL
+            // so `BundleHttpContext.publicUrl` / `BundleActionContext.publicUrl`
+            // surface the same value the static `CapabilityHttpContext`
+            // exposes via `RuntimeContext.publicUrl`.
+            ...(this.runtime.publicUrl ? { __BUNDLE_PUBLIC_URL: this.runtime.publicUrl } : {}),
+            ...(extras ?? {}),
+          },
+        });
+      };
+    };
+
+    /**
+     * Compute the per-turn token scope from the active version's
+     * declared `requiredCapabilities`. Reserved scopes `"spine"` /
+     * `"llm"` are unconditionally prepended.
+     */
+    const computeTokenScope = async (versionId: string): Promise<string[]> => {
+      const version = await registry.getVersion?.(versionId);
+      const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
+        (r: { id: string }) => r.id,
+      );
+      return ["spine", "llm", ...catalogIds];
+    };
+
     const checkActiveBundle = async (): Promise<string | null> => {
       // Warm path: ctx.storage
       const cached = await ctx.storage.get<string | null>("activeBundleVersionId");
@@ -583,21 +630,55 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
      */
     const validateCatalogCached = async (
       versionId: string,
-    ): Promise<{ valid: true } | { valid: false; missingIds: string[] }> => {
-      const { validateCatalogAgainstKnownIds } = await import("@claw-for-cloudflare/bundle-host");
+    ): Promise<
+      | { valid: true }
+      | { valid: false; kind: "catalog"; missingIds: string[] }
+      | { valid: false; kind: "route"; collisions: Array<{ method: string; path: string }> }
+      | { valid: false; kind: "action"; collidingIds: string[] }
+    > => {
+      const {
+        validateCatalogAgainstKnownIds,
+        validateBundleRoutesAgainstKnownRoutes,
+        validateBundleActionIdsAgainstKnownIds,
+      } = await import("@claw-for-cloudflare/bundle-host");
       if (!registry.getVersion) {
         validatedVersionId = versionId;
         return { valid: true };
       }
       const version = await registry.getVersion(versionId);
       const required = version?.metadata?.requiredCapabilities;
-      const knownIds = new Set(this.getBundleHostCapabilityIds());
-      const result = validateCatalogAgainstKnownIds(required, knownIds);
-      if (result.valid) {
-        validatedVersionId = versionId;
-        return { valid: true };
+      const knownIdsArr = this.getBundleHostCapabilityIds();
+      const knownIds = new Set(knownIdsArr);
+      const catalogResult = validateCatalogAgainstKnownIds(required, knownIds);
+      if (!catalogResult.valid) {
+        return { valid: false, kind: "catalog", missingIds: catalogResult.missingIds };
       }
-      return { valid: false, missingIds: result.missingIds };
+      // bundle-http-and-ui-surface: extend the cached guard with the
+      // route + action-id collision checks. Both run only when the
+      // version's metadata declares the corresponding `surfaces.*`
+      // field; absent declaration → no check (legacy bundles
+      // round-trip unchanged).
+      const surfaces = version?.metadata?.surfaces;
+      if (surfaces?.httpRoutes) {
+        const routeResult = validateBundleRoutesAgainstKnownRoutes(
+          surfaces.httpRoutes,
+          this.runtime.getResolvedHttpHandlerSpecs(),
+        );
+        if (!routeResult.valid) {
+          return { valid: false, kind: "route", collisions: routeResult.collisions };
+        }
+      }
+      if (surfaces?.actionCapabilityIds) {
+        const actionResult = validateBundleActionIdsAgainstKnownIds(
+          surfaces.actionCapabilityIds,
+          knownIds,
+        );
+        if (!actionResult.valid) {
+          return { valid: false, kind: "action", collidingIds: actionResult.collidingIds };
+        }
+      }
+      validatedVersionId = versionId;
+      return { valid: true };
     };
 
     /**
@@ -645,6 +726,113 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           versionId,
         },
       });
+    };
+
+    /**
+     * Dispatch-time route collision handler. Mirrors
+     * `disableForCatalogMismatch` — clears the pointer, broadcasts
+     * `bundle_disabled` with structured reason, falls back to static.
+     */
+    const disableForRouteCollision = async (
+      collisions: Array<{ method: string; path: string }>,
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `route collision: bundle '${versionId}' declares routes overlapping host static handlers: ${collisions
+        .map((c) => `${c.method} ${c.path}`)
+        .join(", ")}`;
+      this.runtime.logger.warn("[BundleDispatch] route-collision-disable", {
+        agentId,
+        versionId,
+        collisions,
+      });
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on route collision",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_HTTP_ROUTE_COLLISION",
+          collisions,
+          versionId,
+        },
+      });
+    };
+
+    /**
+     * Dispatch-time action-id collision handler. Same shape as
+     * route-collision; broadcasts `ERR_ACTION_ID_COLLISION`.
+     */
+    const disableForActionIdCollision = async (
+      collidingIds: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `action-id collision: bundle '${versionId}' declares onAction on host-registered ids: ${collidingIds.join(", ")}`;
+      this.runtime.logger.warn("[BundleDispatch] action-id-collision-disable", {
+        agentId,
+        versionId,
+        collidingIds,
+      });
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on action-id collision",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_ACTION_ID_COLLISION",
+          collidingIds,
+          versionId,
+        },
+      });
+    };
+
+    /**
+     * Run the dispatch-time guard for the given version+sessionId. On
+     * collision, route through the appropriate disable helper and
+     * return `false` to signal the caller to fall through to static.
+     * Returns `true` when the guard passed (or was a no-op).
+     */
+    const runDispatchGuard = async (versionId: string, sessionId: string): Promise<boolean> => {
+      if (versionId === validatedVersionId) return true;
+      const guard = await validateCatalogCached(versionId);
+      if (guard.valid) return true;
+      if (guard.kind === "catalog") {
+        await disableForCatalogMismatch(guard.missingIds, versionId, sessionId);
+      } else if (guard.kind === "route") {
+        await disableForRouteCollision(guard.collisions, versionId, sessionId);
+      } else {
+        await disableForActionIdCollision(guard.collidingIds, versionId, sessionId);
+      }
+      return false;
     };
 
     // Drift check state. `autoRebuildAttempted` ensures we do the hash
@@ -792,39 +980,25 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         if (refreshed) versionId = refreshed;
       }
 
-      // Dispatch-time catalog guard. Protects against out-of-band
+      // Dispatch-time guard chain. Protects against out-of-band
       // pointer mutations, cold-start with stale cached pointer, and
-      // host redeploys where the capability set changed. When the
-      // guard fires on mismatch, clear the pointer, broadcast
-      // `bundle_disabled` with the structured reason, and fall through
-      // to static brain.
-      if (versionId !== validatedVersionId) {
-        const guard = await validateCatalogCached(versionId);
-        if (!guard.valid) {
-          await disableForCatalogMismatch(guard.missingIds, versionId, sessionId);
-          return false;
-        }
+      // host redeploys where capabilities, routes, or action ids
+      // diverged from the bundle's declared metadata.
+      // bundle-http-and-ui-surface: extends the catalog guard with
+      // route + action-id collision checks (Decision 2 / Decision 5).
+      if (!(await runDispatchGuard(versionId, sessionId))) {
+        return false;
       }
 
       try {
         const bundleSubkey = await getBundleSubkey();
         const { mintToken } = await import("@claw-for-cloudflare/bundle-host");
-        // Single capability token per turn with scope derived from the
-        // validated catalog: fixed "spine" + "llm" scopes plus any
-        // declared capability ids. Each service checks its own scope
-        // string via requiredScope on verifyToken.
-        const version = await registry.getVersion?.(versionId);
-        const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
-          (r: { id: string }) => r.id,
-        );
-        const scope = ["spine", "llm", ...catalogIds];
+        const scope = await computeTokenScope(versionId);
         const bundleToken = await mintToken({ agentId, sessionId, scope }, bundleSubkey);
 
         // Phase 3: resolve active mode and project to the bundle env
-        // shape. `readActiveModeForSession` walks session metadata
-        // (O(1) cached) and returns null when no mode is active or
-        // when the cached id has no matching registered Mode. The
-        // bundle filter applies only when both checks pass.
+        // shape. Bundle filter applies only when an active mode is
+        // resolvable to a registered Mode.
         const activeMode = this.runtime.readActiveModeForSession(sessionId);
         const activeModeEnv = activeMode
           ? {
@@ -835,10 +1009,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             }
           : undefined;
 
-        // Phase 3: one-time structured warning per (agentId,
-        // bundleVersionId) on first dispatch under any active mode
-        // — surfaces the behavior shift from "modes don't apply to
-        // bundles" to operators tailing logs without spamming.
         if (activeMode) {
           const warningKey = `bundle:mode-warning-emitted:${agentId}:${versionId}`;
           const alreadyEmitted = await ctx.storage.get<boolean>(warningKey);
@@ -854,36 +1024,14 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           }
         }
 
-        const projectedEnv = bundleConfig.bundleEnv(env);
-
-        const worker = loader.get(versionId, async () => {
-          const bytes = await registry.getBytes(versionId);
-          if (!bytes) {
-            throw new Error(`Bundle bytes not found for version ${versionId}`);
-          }
-          const source = new TextDecoder().decode(bytes);
-          // Workshop writes a v1 envelope (`{v:1, mainModule, modules}`)
-          // via `@cloudflare/worker-bundler#createWorker`. Legacy bundles
-          // were raw single-file JS; `decodeBundlePayload` handles both.
-          // Without this decode, envelope bytes get fed to the loader as
-          // raw JS and workerd fails with "Unexpected token ':'" on the
-          // opening `{"v":1,…}`.
-          const { decodeBundlePayload } = await import("@claw-for-cloudflare/bundle-host");
-          const { mainModule, modules } = decodeBundlePayload(source);
-          return {
-            compatibilityDate: "2025-12-01",
-            compatibilityFlags: ["nodejs_compat"],
-            mainModule,
-            modules,
-            env: {
-              ...projectedEnv,
-              __BUNDLE_TOKEN: bundleToken,
-              __BUNDLE_VERSION_ID: versionId,
-              ...(activeModeEnv ? { __BUNDLE_ACTIVE_MODE: activeModeEnv } : {}),
-            },
-            globalOutbound: null,
-          };
-        });
+        const worker = loader.get(
+          versionId,
+          buildLoaderConfigGetter(
+            versionId,
+            bundleToken,
+            activeModeEnv ? { __BUNDLE_ACTIVE_MODE: activeModeEnv } : undefined,
+          ),
+        );
 
         const res = await worker.getEntrypoint().fetch(
           new Request("https://bundle/turn", {
@@ -898,8 +1046,6 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
         // Drain the body so the bundle's ReadableStream work() promise
         // resolves and finally{} broadcasts agent_end before we return.
-        // Bundle broadcasts streaming events live via SpineService →
-        // transport.broadcastToSession; the HTTP body itself is a short ack.
         await res.text();
 
         consecutiveFailures = 0;
@@ -934,8 +1080,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
     // Phase 2: shared lifecycle dispatcher used by /alarm,
     // /session-created, /client-event. Mints a token, decodes the
-    // envelope, and POSTs the supplied body. Returns the parsed JSON
-    // response from the bundle (or null on transport error).
+    // envelope via the shared loader-config helper, and POSTs the
+    // supplied body. Returns the parsed JSON response from the bundle
+    // (or null on transport error).
     const dispatchLifecycle = async (
       sessionId: string,
       path: "/alarm" | "/session-created" | "/client-event",
@@ -946,35 +1093,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       try {
         const bundleSubkey = await getBundleSubkey();
-        const { mintToken: mint, decodeBundlePayload } = await import(
-          "@claw-for-cloudflare/bundle-host"
-        );
-        const version = await registry.getVersion?.(versionId);
-        const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
-          (r: { id: string }) => r.id,
-        );
-        const scope = ["spine", "llm", ...catalogIds];
+        const { mintToken: mint } = await import("@claw-for-cloudflare/bundle-host");
+        const scope = await computeTokenScope(versionId);
         const bundleToken = await mint({ agentId, sessionId, scope }, bundleSubkey);
-        const projectedEnv = bundleConfig.bundleEnv(env);
 
-        const worker = loader.get(versionId, async () => {
-          const bytes = await registry.getBytes(versionId);
-          if (!bytes) throw new Error("Bundle bytes not found");
-          const source = new TextDecoder().decode(bytes);
-          const { mainModule, modules } = decodeBundlePayload(source);
-          return {
-            compatibilityDate: "2025-12-01",
-            compatibilityFlags: ["nodejs_compat"],
-            mainModule,
-            modules,
-            env: {
-              ...projectedEnv,
-              __BUNDLE_TOKEN: bundleToken,
-              __BUNDLE_VERSION_ID: versionId,
-            },
-            globalOutbound: null,
-          };
-        });
+        const worker = loader.get(versionId, buildLoaderConfigGetter(versionId, bundleToken));
 
         const res = await worker.getEntrypoint().fetch(
           new Request(`https://bundle${path}`, {
@@ -993,6 +1116,246 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         });
         return null;
       }
+    };
+
+    // bundle-http-and-ui-surface: HTTP dispatch into the bundle.
+    // Mirrors `dispatchLifecycle` but adds:
+    //  - a body cap check (413 on exceed, default 256 KiB, configurable
+    //    via `BundleConfig.maxRequestBodyBytes` up to 1 MiB),
+    //  - a per-dispatch timeout (504 on timeout, default 30 000 ms,
+    //    configurable via `BundleConfig.httpDispatchTimeoutMs`).
+    // Streaming bodies are a documented Non-Goal (v1).
+    const DEFAULT_HTTP_BODY_CAP = 262_144;
+    const HTTP_BODY_CAP_HARD_LIMIT = 1_048_576;
+    const DEFAULT_HTTP_DISPATCH_TIMEOUT_MS = 30_000;
+
+    const dispatchHttp = async (
+      request: Request,
+      capabilityId: string,
+      declaredPath: string,
+      sessionId: string | null,
+    ): Promise<Response> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) {
+        this.runtime.logger.info("[BundleDispatch] /http miss-no-bundle", {
+          method: request.method,
+          path: new URL(request.url).pathname,
+        });
+        return new Response("Not found", { status: 404 });
+      }
+
+      const bodyCap = Math.min(
+        bundleConfig.maxRequestBodyBytes ?? DEFAULT_HTTP_BODY_CAP,
+        HTTP_BODY_CAP_HARD_LIMIT,
+      );
+      const timeoutMs = bundleConfig.httpDispatchTimeoutMs ?? DEFAULT_HTTP_DISPATCH_TIMEOUT_MS;
+
+      // Buffer the body once host-side and enforce the cap before
+      // dispatching. ArrayBuffer round-trip avoids streaming.
+      let bodyBytes: Uint8Array | null = null;
+      if (request.body) {
+        try {
+          const buf = await request.arrayBuffer();
+          if (buf.byteLength > 0) {
+            if (buf.byteLength > bodyCap) {
+              this.runtime.logger.warn("[BundleDispatch] /http body-cap exceeded", {
+                method: request.method,
+                path: declaredPath,
+                received: buf.byteLength,
+                cap: bodyCap,
+              });
+              return Response.json(
+                {
+                  error: "Payload Too Large",
+                  cap: bodyCap,
+                  received: buf.byteLength,
+                },
+                { status: 413 },
+              );
+            }
+            bodyBytes = new Uint8Array(buf);
+          }
+        } catch (err) {
+          this.runtime.logger.warn("[BundleDispatch] /http body buffering failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return new Response("Bad Request", { status: 400 });
+        }
+      }
+
+      const startedAt = Date.now();
+      try {
+        const bundleSubkey = await getBundleSubkey();
+        const {
+          mintToken: mint,
+          serializeRequestForBundle,
+          deserializeResponseFromBundle,
+        } = await import("@claw-for-cloudflare/bundle-host");
+        const scope = await computeTokenScope(versionId);
+        const bundleToken = await mint(
+          { agentId, sessionId: sessionId ?? "", scope },
+          bundleSubkey,
+        );
+
+        const envelope = serializeRequestForBundle({
+          request,
+          capabilityId,
+          declaredPath,
+          sessionId,
+          bodyBytes,
+        });
+
+        const worker = loader.get(versionId, buildLoaderConfigGetter(versionId, bundleToken));
+
+        const dispatchPromise = worker.getEntrypoint().fetch(
+          new Request("https://bundle/http", {
+            method: "POST",
+            body: JSON.stringify(envelope),
+          }),
+        );
+        const result = await Promise.race([
+          dispatchPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+        ]);
+        if (result === null) {
+          this.runtime.logger.warn("[BundleDispatch] /http timeout", {
+            method: request.method,
+            path: declaredPath,
+            timeoutMs,
+          });
+          return new Response("Gateway Timeout", { status: 504 });
+        }
+
+        const envelopeJson = (await result.json()) as Parameters<
+          typeof deserializeResponseFromBundle
+        >[0];
+        const response = deserializeResponseFromBundle(envelopeJson);
+        this.runtime.logger.info("[BundleDispatch] /http hit", {
+          agentId,
+          capabilityId,
+          method: request.method,
+          path: declaredPath,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+        });
+        return response;
+      } catch (err) {
+        this.runtime.logger.warn("[BundleDispatch] /http dispatch failed", {
+          method: request.method,
+          path: declaredPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return new Response("Bad Gateway", { status: 502 });
+      }
+    };
+
+    const dispatchAction = async (
+      capabilityId: string,
+      action: string,
+      data: unknown,
+      sessionId: string,
+    ): Promise<boolean> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return false;
+
+      try {
+        const bundleSubkey = await getBundleSubkey();
+        const { mintToken: mint, serializeActionForBundle } = await import(
+          "@claw-for-cloudflare/bundle-host"
+        );
+        const scope = await computeTokenScope(versionId);
+        const bundleToken = await mint({ agentId, sessionId, scope }, bundleSubkey);
+
+        const envelope = serializeActionForBundle({ capabilityId, action, data, sessionId });
+
+        const worker = loader.get(versionId, buildLoaderConfigGetter(versionId, bundleToken));
+        const res = await worker.getEntrypoint().fetch(
+          new Request("https://bundle/action", {
+            method: "POST",
+            body: JSON.stringify(envelope),
+          }),
+        );
+        if (!res.ok) {
+          this.runtime.logger.warn(`[BundleDispatch] /action returned ${res.status}`);
+          return false;
+        }
+        const result = (await res.json()) as { status?: string };
+        this.runtime.logger.info("[BundleDispatch] /action hit", {
+          agentId,
+          capabilityId,
+          action,
+          sessionId,
+          status: result.status ?? "unknown",
+        });
+        if (result.status === "noop") {
+          this.runtime.logger.info("[BundleDispatch] /action no-onAction", {
+            capabilityId,
+            action,
+          });
+          return false;
+        }
+        return result.status === "ok";
+      } catch (err) {
+        this.runtime.logger.warn("[BundleDispatch] /action dispatch failed", {
+          capabilityId,
+          action,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    };
+
+    // Install the bundle HTTP dispatcher. Reads the active version's
+    // metadata, walks declared `surfaces.httpRoutes`, runs
+    // `matchPathPattern` to extract params, runs the dispatch-time
+    // guard, then dispatches into the bundle isolate.
+    this.runtime.bundleHttpDispatcher = async (
+      request: Request,
+      sessionId: string | null,
+    ): Promise<Response | null> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return null;
+      const version = await registry.getVersion?.(versionId);
+      const declared = version?.metadata?.surfaces?.httpRoutes;
+      if (!declared || declared.length === 0) return null;
+      const { matchPathPattern } = await import("./agent-runtime-helpers.js");
+      const url = new URL(request.url);
+      let match: { capabilityId: string; declaredPath: string } | null = null;
+      for (const decl of declared) {
+        if (decl.method !== request.method) continue;
+        const params = matchPathPattern(decl.path, url.pathname);
+        if (params === null) continue;
+        if (typeof decl.capabilityId !== "string" || decl.capabilityId.length === 0) continue;
+        match = { capabilityId: decl.capabilityId, declaredPath: decl.path };
+        break;
+      }
+      if (!match) return null;
+      // Run the dispatch-time guard with a synthetic session id since
+      // bundle HTTP routes are session-less in v1. The guard's
+      // broadcast lands on no live transport when sessionId is "" —
+      // that's acceptable: HTTP-route operators see the disable in
+      // server logs.
+      if (!(await runDispatchGuard(versionId, sessionId ?? ""))) {
+        return null;
+      }
+      return dispatchHttp(request, match.capabilityId, match.declaredPath, sessionId);
+    };
+
+    this.runtime.bundleActionDispatcher = async (
+      capabilityId: string,
+      action: string,
+      data: unknown,
+      sessionId: string,
+    ): Promise<boolean> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return false;
+      const version = await registry.getVersion?.(versionId);
+      const declared = version?.metadata?.surfaces?.actionCapabilityIds;
+      if (!declared || !declared.includes(capabilityId)) return false;
+      if (!(await runDispatchGuard(versionId, sessionId))) {
+        return false;
+      }
+      return dispatchAction(capabilityId, action, data, sessionId);
     };
 
     // Read the bundle's lifecycleHooks declaration so we can skip
@@ -1074,8 +1437,18 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       // POST /bundle/refresh — re-read the active pointer from the
       // registry. Out-of-band escape hatch for mutations that happened
-      // outside this DO process.
+      // outside this DO process. Self-auths via `validateAuth`
+      // (matches /bundle/disable). preFetch runs BEFORE the
+      // handleRequest auth gate; without this self-check an
+      // unauthenticated caller could force a registry round-trip on
+      // every request (review m4).
       if (url.pathname === "/bundle/refresh" && request.method === "POST") {
+        if (this.runtime.validateAuth) {
+          const allowed = await this.runtime.validateAuth(request);
+          if (!allowed) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+        }
         await this.runtime.bundlePointerRefresher?.();
         const id = (await ctx.storage.get<string | null>("activeBundleVersionId")) ?? null;
         return Response.json({ status: "refreshed", activeVersionId: id });

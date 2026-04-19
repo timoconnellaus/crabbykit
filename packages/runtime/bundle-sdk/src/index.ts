@@ -36,6 +36,7 @@ export {
   createSessionStoreClient,
 } from "./spine-clients.js";
 export type {
+  BundleActionContext,
   BundleAgentSetup,
   BundleBeforeToolExecutionEvent,
   BundleBeforeToolExecutionResult,
@@ -48,14 +49,24 @@ export type {
   BundleExport,
   BundleHookBridge,
   BundleHookContext,
+  BundleHttpContext,
+  BundleHttpHandler,
+  BundleHttpRequest,
+  BundleHttpResponse,
   BundleKvStoreClient,
   BundleMetadata,
   BundleModelConfig,
   BundlePromptOptions,
   BundlePromptSection,
+  BundleRouteDeclaration,
   BundleSchedulerClient,
   BundleSessionChannel,
   BundleSessionStoreClient,
   BundleToolExecutionEvent,
 } from "./types.js";
-export { validateRequirements } from "./validate.js";
+export {
+  BundleMetadataExtractionError,
+  validateActionCapabilityIds,
+  validateHttpRoutes,
+  validateRequirements,
+} from "./validate.js";

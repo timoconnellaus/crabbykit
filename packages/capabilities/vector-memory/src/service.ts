@@ -80,9 +80,7 @@ function isChunkMetadata(value: unknown): value is ChunkMetadata {
   if (typeof value !== "object" || value === null) return false;
   const r = value as Record<string, unknown>;
   return (
-    typeof r.path === "string" &&
-    typeof r.startLine === "number" &&
-    typeof r.endLine === "number"
+    typeof r.path === "string" && typeof r.startLine === "number" && typeof r.endLine === "number"
   );
 }
 
@@ -102,14 +100,9 @@ export class VectorMemoryService extends WorkerEntrypoint<VectorMemoryServiceEnv
   private getSubkey(): Promise<CryptoKey> {
     if (!this.subkeyPromise) {
       if (!this.env.AGENT_AUTH_KEY) {
-        throw new Error(
-          "VectorMemoryService misconfigured: env.AGENT_AUTH_KEY is missing",
-        );
+        throw new Error("VectorMemoryService misconfigured: env.AGENT_AUTH_KEY is missing");
       }
-      this.subkeyPromise = deriveVerifyOnlySubkey(
-        this.env.AGENT_AUTH_KEY,
-        BUNDLE_SUBKEY_LABEL,
-      );
+      this.subkeyPromise = deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL);
     }
     return this.subkeyPromise;
   }
@@ -168,9 +161,7 @@ export class VectorMemoryService extends WorkerEntrypoint<VectorMemoryServiceEnv
         bestByPath.set(metadata.path, match);
       }
     }
-    const ordered = Array.from(bestByPath.values()).sort(
-      (a, b) => (b.score ?? 0) - (a.score ?? 0),
-    );
+    const ordered = Array.from(bestByPath.values()).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
     // Fetch snippets from R2 for each deduplicated match.
     const results: MemorySearchResult[] = [];

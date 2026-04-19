@@ -371,9 +371,7 @@ describe("agentWorkshop — deploy / envelope", () => {
       requiredCapabilities: [{ id: "tavily-web-search" }],
     });
     const [entry] = versions.values();
-    expect(entry.version.metadata?.requiredCapabilities).toEqual([
-      { id: "tavily-web-search" },
-    ]);
+    expect(entry.version.metadata?.requiredCapabilities).toEqual([{ id: "tavily-web-search" }]);
   });
 
   it("workshop_deploy passes knownCapabilityIds to setActive by default", async () => {

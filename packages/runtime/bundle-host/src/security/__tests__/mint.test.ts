@@ -1,7 +1,7 @@
 import {
+  deriveVerifyOnlySubkey,
   NonceTracker,
   verifyToken,
-  deriveVerifyOnlySubkey,
 } from "@claw-for-cloudflare/bundle-token";
 import { beforeAll, describe, expect, it } from "vitest";
 import { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "../mint.js";

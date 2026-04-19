@@ -8,6 +8,14 @@
  * workspace that may import them.
  */
 
+// Re-export catalog validation helper + error class so consumers that
+// already depend on bundle-host (e.g. agent-runtime) don't need an
+// additional workspace edge to bundle-registry just for the guard.
+export {
+  type CapabilityRequirementLike,
+  type CatalogValidationResult,
+  validateCatalogAgainstKnownIds,
+} from "@claw-for-cloudflare/bundle-registry";
 export type {
   BudgetCategory,
   SpineBudgetConfig,
@@ -42,16 +50,30 @@ export { CapabilityMismatchError } from "./bundle-config.js";
 export type { BundleAgentEvent, BundlePayload, DispatchResult } from "./dispatcher.js";
 export { BundleDispatcher, decodeBundlePayload } from "./dispatcher.js";
 export { InMemoryBundleRegistry } from "./in-memory-registry.js";
+export {
+  type ComposedLoaderConfig,
+  composeWorkerLoaderConfig,
+} from "./loader-config.js";
 export { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "./security/mint.js";
+export {
+  type BundleActionResponseEnvelope,
+  type BundleHttpResponseEnvelope,
+  deserializeResponseFromBundle,
+  type HostActionEnvelope,
+  type HostHttpEnvelope,
+  serializeActionForBundle,
+  serializeRequestForBundle,
+} from "./serialization.js";
 export type { InferRequest, InferResponse, LlmEnv } from "./services/llm-service.js";
 export { LlmService } from "./services/llm-service.js";
 export type { SpineEnv, SpineErrorCode, SpineHost } from "./services/spine-service.js";
 export { SpineError, SpineService } from "./services/spine-service.js";
-// Re-export catalog validation helper + error class so consumers that
-// already depend on bundle-host (e.g. agent-runtime) don't need an
-// additional workspace edge to bundle-registry just for the guard.
 export {
-  validateCatalogAgainstKnownIds,
-  type CapabilityRequirementLike,
-  type CatalogValidationResult,
-} from "@claw-for-cloudflare/bundle-registry";
+  ActionIdCollisionError,
+  type ActionIdValidationResult,
+  RouteCollisionError,
+  type RouteSpec,
+  type RouteValidationResult,
+  validateBundleActionIdsAgainstKnownIds,
+  validateBundleRoutesAgainstKnownRoutes,
+} from "./validate-routes.js";

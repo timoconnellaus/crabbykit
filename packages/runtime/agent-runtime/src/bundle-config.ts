@@ -43,6 +43,19 @@ export interface BundleVersionMetadata {
     onSessionCreated?: boolean;
     onClientEvent?: boolean;
   };
+  /**
+   * Build-time declaration of HTTP routes and `onAction`-bearing
+   * capabilities the bundle exposes (`bundle-http-and-ui-surface`).
+   * The host reads this at promotion time AND at dispatch time to
+   * decide whether to forward an incoming request / `capability_action`
+   * into the bundle isolate. Absent on bundles authored before this
+   * field landed — treated as "no surfaces" (host falls through to the
+   * existing default behavior).
+   */
+  surfaces?: {
+    httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
+    actionCapabilityIds?: string[];
+  };
 }
 
 /** Shape returned from `BundleRegistry.getVersion` used by drift detection. */
@@ -88,6 +101,15 @@ export interface SetActiveOptions {
    * missing it is a programmer error and throws `TypeError`.
    */
   knownCapabilityIds?: string[];
+  /**
+   * Pre-computed snapshot of the host's currently-resolved static HTTP
+   * handler shape (method+path tuples). When provided AND the version's
+   * metadata declares `surfaces.httpRoutes`, the registry validates the
+   * bundle's declared routes do not collide with any host static
+   * handler and throws `RouteCollisionError` on mismatch. Undefined
+   * skips the check (cross-deployment promotion path).
+   */
+  knownHttpRoutes?: Array<{ method: string; path: string }>;
   /**
    * Skip catalog validation. Supported use cases:
    *
@@ -218,6 +240,17 @@ export interface BundleConfig<TEnv = Record<string, unknown>> {
   bundleEnv: (env: TEnv) => Record<string, unknown>;
   /** Consecutive load failures before auto-revert to static. Default: 3. */
   maxLoadFailures?: number;
+  /**
+   * Maximum bundle HTTP request body size before the host returns 413
+   * without dispatching (`bundle-http-and-ui-surface`). Default 256 KiB
+   * (262 144 bytes), hard-capped at 1 MiB regardless of higher values.
+   */
+  maxRequestBodyBytes?: number;
+  /**
+   * Per-dispatch timeout for bundle HTTP routes (`bundle-http-and-ui-surface`).
+   * Default 30 000 ms. Returns 504 Gateway Timeout on expiry.
+   */
+  httpDispatchTimeoutMs?: number;
   /**
    * Optional auto-rebuild support. When present, stale bundles (those built
    * against an older runtime source) are regenerated on DO startup from the

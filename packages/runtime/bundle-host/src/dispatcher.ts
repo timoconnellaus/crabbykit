@@ -480,10 +480,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
 
     const version = await getVersion(versionId);
     const required = version?.metadata?.requiredCapabilities;
-    const result = validateCatalogAgainstKnownIds(
-      required,
-      new Set(this.getHostCapabilityIds()),
-    );
+    const result = validateCatalogAgainstKnownIds(required, new Set(this.getHostCapabilityIds()));
     if (result.valid) {
       this.validatedVersionId = versionId;
       return { valid: true };

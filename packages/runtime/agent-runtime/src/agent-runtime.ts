@@ -457,6 +457,44 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   bundleSessionCreatedHandler?: (session: { id: string; name: string }) => Promise<void>;
 
   /**
+   * Optional bundle HTTP dispatcher (`bundle-http-and-ui-surface`).
+   * Installed by `initBundleDispatch` when the active bundle's metadata
+   * declares `surfaces.httpRoutes`. `handleRequest` invokes it AFTER
+   * `validateAuth` runs AND AFTER `matchHttpHandler` returns null —
+   * i.e. on the post-auth, post-static-handler fallthrough. When the
+   * dispatcher returns a `Response`, the runtime returns it; when
+   * `null`, the runtime falls through to the existing 404.
+   *
+   * MUST NOT be installed onto `preFetchHandler` — that runs BEFORE
+   * `validateAuth` and would silently bypass the auth gate (Decision 9).
+   */
+  bundleHttpDispatcher?: (request: Request, sessionId: string | null) => Promise<Response | null>;
+
+  /**
+   * Optional bundle `capability_action` dispatcher
+   * (`bundle-http-and-ui-surface`). Installed by `initBundleDispatch`
+   * when the active bundle's metadata declares
+   * `surfaces.actionCapabilityIds`. `handleCapabilityAction` invokes it
+   * AFTER the resolved-static-handler check returns nothing AND AFTER
+   * the host built-in switch (`agent-config`, `schedules`, `queue`)
+   * has had a chance to match. Returns `true` when the bundle handled
+   * the action (host stops); returns `false` when the bundle did not
+   * declare this capabilityId, errored, or returned `noop` — in which
+   * case the host falls through to the warn-log default.
+   *
+   * MUST NOT be installed onto `preFetchHandler` (it isn't HTTP, but
+   * the same auth-precedence invariant applies symbolically — the
+   * dispatcher trusts that `handleCapabilityAction` already ran the
+   * normal validation gates).
+   */
+  bundleActionDispatcher?: (
+    capabilityId: string,
+    action: string,
+    data: unknown,
+    sessionId: string,
+  ) => Promise<boolean>;
+
+  /**
    * Optional bundle pointer refresher. When set, re-queries
    * `bundle-registry.getActiveForAgent(...)` and updates the per-DO
    * `activeBundleVersionId` cache + clears the consecutive failure counter.
@@ -483,11 +521,22 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rationale: string;
       versionId: string | null;
       sessionId?: string;
-      reason?: {
-        code: "ERR_CAPABILITY_MISMATCH";
-        missingIds: string[];
-        versionId: string;
-      };
+      reason?:
+        | {
+            code: "ERR_CAPABILITY_MISMATCH";
+            missingIds: string[];
+            versionId: string;
+          }
+        | {
+            code: "ERR_HTTP_ROUTE_COLLISION";
+            collisions: Array<{ method: string; path: string }>;
+            versionId: string;
+          }
+        | {
+            code: "ERR_ACTION_ID_COLLISION";
+            collidingIds: string[];
+            versionId: string;
+          };
     },
   ) => void;
 
@@ -1252,6 +1301,16 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         return httpMatch.handler(request, httpMatch.ctx);
       }
 
+      // bundle-http-and-ui-surface: post-auth, post-static-handler
+      // fallthrough into the bundle isolate. v1 passes `null` for
+      // sessionId — future work can plumb a `?sessionId=` query
+      // parameter through. NOT installed onto `preFetchHandler`
+      // (Decision 9 — would bypass `validateAuth`).
+      if (this.bundleHttpDispatcher) {
+        const bundleResponse = await this.bundleHttpDispatcher(request, null);
+        if (bundleResponse) return bundleResponse;
+      }
+
       return new Response("Not found", { status: 404 });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -1895,14 +1954,14 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           const { namespace, value } = data as { namespace: string; value: unknown };
           await this.applyAgentConfigSet(namespace, value, sessionId);
         }
-        break;
+        return;
       }
       case "schedules": {
         if (action === "toggle") {
           const { scheduleId, enabled } = data as { scheduleId: string; enabled: boolean };
           await this.updateSchedule(scheduleId, { enabled });
         }
-        break;
+        return;
       }
       case "queue": {
         if (action === "message") {
@@ -1927,14 +1986,21 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
             this.broadcastQueueState(sessionId);
           }
         }
-        break;
-      }
-      default: {
-        this.logger.warn(
-          `[AgentRuntime] No handler for capability_action capabilityId="${capabilityId}"`,
-        );
+        return;
       }
     }
+
+    // bundle-http-and-ui-surface: post-static, post-built-in fallthrough
+    // into the bundle isolate. Returns `true` when the bundle owned and
+    // handled the action; `false` falls through to the warn-log default.
+    if (this.bundleActionDispatcher) {
+      const handled = await this.bundleActionDispatcher(capabilityId, action, data, sessionId);
+      if (handled) return;
+    }
+
+    this.logger.warn(
+      `[AgentRuntime] No handler for capability_action capabilityId="${capabilityId}"`,
+    );
   }
 
   // --- Agent loop ---
@@ -3036,6 +3102,26 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     );
     this.resolvedHttpHandlers = resolved.httpHandlers;
     return this.resolvedHttpHandlers;
+  }
+
+  /**
+   * Project the resolved HTTP handler list down to its method+path
+   * tuples. Used by the dispatch-time route guard in
+   * `AgentDO.initBundleDispatch` (`bundle-http-and-ui-surface`) to
+   * detect collisions with bundle-declared routes without exposing the
+   * full `httpHandlers` resolution result across the package boundary.
+   */
+  getResolvedHttpHandlerSpecs(): Array<{ method: string; path: string }> {
+    return this.resolveHttpHandlers().map((h) => ({ method: h.method, path: h.path }));
+  }
+
+  /**
+   * Resolved capability ids the host has registered. Re-export of
+   * {@link getBundleHostCapabilityIds} under the spec-mandated name.
+   * Used by the dispatch-time action-id collision guard.
+   */
+  getResolvedCapabilityIds(): string[] {
+    return this.getBundleHostCapabilityIds();
   }
 
   private async matchHttpHandler(

@@ -11,8 +11,8 @@
  * be used to sign.
  */
 
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
 import type { TokenPayload } from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
 
 // Re-export the label so host-side call sites that already import from
 // bundle-host can continue to use it from either package.

@@ -34,8 +34,7 @@ export const MemoryGetArgsSchema = Type.Object({
 });
 
 export const MEMORY_GET_TOOL_NAME = "memory_get";
-export const MEMORY_GET_TOOL_DESCRIPTION =
-  "Read the full content of a memory file.";
+export const MEMORY_GET_TOOL_DESCRIPTION = "Read the full content of a memory file.";
 
 // --- Schema content hash for drift detection ---
 

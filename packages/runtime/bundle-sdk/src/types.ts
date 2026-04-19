@@ -156,6 +156,44 @@ export interface BundleMetadata {
     onSessionCreated?: boolean;
     onClientEvent?: boolean;
   };
+  /**
+   * Build-time declaration of which HTTP routes and `onAction`-bearing
+   * capabilities the bundle exposes. Populated by `defineBundleAgent` by
+   * walking `setup.capabilities(probeEnv)` once with a minimal probe env.
+   * Host reads this at dispatch time to decide whether to forward an
+   * incoming HTTP request or `capability_action` message into the
+   * bundle isolate. Absent on bundles published before this field
+   * landed — treated as "no surfaces declared" (host falls through).
+   *
+   * Intentionally a separate top-level field (not nested under
+   * `lifecycleHooks`) — HTTP routes and action ids are router declarations,
+   * not lifecycle hooks.
+   */
+  surfaces?: {
+    /** Routes contributed by `BundleCapability.httpHandlers` factories. */
+    httpRoutes?: BundleRouteDeclaration[];
+    /** Capability ids whose `BundleCapability` declared an `onAction` handler. */
+    actionCapabilityIds?: string[];
+  };
+}
+
+/**
+ * Build-time declaration of a single HTTP route a bundle capability has
+ * registered. Stored on {@link BundleMetadata.surfaces.httpRoutes} so the
+ * host can answer "does any active bundle own this method+path" without
+ * instantiating the bundle isolate.
+ */
+export interface BundleRouteDeclaration {
+  /** HTTP method. Limited to GET/POST/PUT/DELETE in v1. */
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  /**
+   * Path the bundle registered. May contain `:name` wildcard segments
+   * (matched by the same `matchPathPattern` helper the static handler
+   * resolver uses).
+   */
+  path: string;
+  /** Capability id that owns the handler — used for dispatch lookup. */
+  capabilityId: string;
 }
 
 // --- Bundle lifecycle hook contexts (Phase 2) ---
@@ -355,6 +393,128 @@ export interface BundleCapability {
    */
   promptSections?: (context: BundleContext) => Array<string | BundlePromptSection | PromptSection>;
   hooks?: BundleCapabilityHooks;
+  /**
+   * HTTP routes this capability mounts on the agent's fetch surface.
+   * Resolved per turn from the bundle context. Walked once at build time
+   * by `defineBundleAgent` to populate {@link BundleMetadata.surfaces.httpRoutes}
+   * — the host uses that declaration to decide whether to forward an
+   * incoming request to the bundle isolate.
+   *
+   * `sendPrompt` is intentionally NOT exposed on `BundleHttpContext` in
+   * v1 (see the `bundle-http-and-ui-surface` proposal Non-Goals).
+   * Webhook handlers that need to trigger a prompt return the prompt
+   * text in the response body and let the upstream caller route it.
+   */
+  httpHandlers?: (context: BundleContext) => BundleHttpHandler[];
+  /**
+   * UI bridge action handler. Invoked when the host receives a
+   * `capability_action` ClientMessage whose `capabilityId` matches this
+   * capability's `id` AND no static handler shadows it. Static
+   * handlers always win on collision; promotion-time and dispatch-time
+   * guards prevent declared-id collisions with host capabilities.
+   */
+  onAction?: (action: string, data: unknown, ctx: BundleActionContext) => Promise<void>;
+}
+
+/**
+ * HTTP handler declaration for a bundle capability. Same `{method, path,
+ * handler}` shape as the static `Capability.httpHandlers` entries.
+ *
+ * `path` may contain `:name` wildcard segments — extracted into
+ * `BundleHttpContext.params` by the host's `matchPathPattern` before
+ * dispatch. Allowed methods are limited to `GET/POST/PUT/DELETE` in v1.
+ */
+export interface BundleHttpHandler {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  path: string;
+  handler: (request: BundleHttpRequest, ctx: BundleHttpContext) => Promise<BundleHttpResponse>;
+}
+
+/**
+ * Buffered HTTP request handed to a bundle capability's handler.
+ * v1 carries the full request body as `Uint8Array` (decoded from base64
+ * on the bundle side) — streaming is a documented Non-Goal.
+ */
+export interface BundleHttpRequest {
+  method: string;
+  /** Lowercased header names. */
+  headers: Record<string, string>;
+  /** Parsed query string. */
+  query: Record<string, string>;
+  /** Request body as raw bytes; `null` when no body was sent. */
+  body: Uint8Array | null;
+}
+
+/**
+ * Buffered HTTP response a bundle handler returns. Body is `Uint8Array`
+ * or `null`; the host base64-encodes the bytes for the JSON envelope and
+ * reconstructs a `Response` from `{status, headers, bodyBase64}`.
+ */
+export interface BundleHttpResponse {
+  status: number;
+  /** Lowercased header names; serialized to the response. */
+  headers?: Record<string, string>;
+  body?: Uint8Array | null;
+}
+
+/**
+ * Context handed to a bundle capability's HTTP handler. Mirrors the
+ * subset of `CapabilityHttpContext` the v1 cross-isolate surface can
+ * safely forward — see Decision 6 in the design.
+ *
+ * Documented v1 parity gaps (NOT present): `sessionStore` raw access,
+ * `rateLimit`, `agentConfig`, `sendPrompt`. Each has a workaround in
+ * the bundle authoring guide; their absence is documented, not a bug.
+ */
+export interface BundleHttpContext {
+  capabilityId: string;
+  agentId: string;
+  /** `null` for session-less HTTP routes. v1 always passes `null`. */
+  sessionId: string | null;
+  /**
+   * Public base URL of the host worker. Sourced from the host
+   * `RuntimeContext.publicUrl` and injected into the bundle env at
+   * dispatch time as `__BUNDLE_PUBLIC_URL`. Required for any bundle
+   * webhook capability per the project convention that webhook
+   * capabilities MUST read `ctx.publicUrl` rather than accept it as a
+   * per-capability option.
+   */
+  publicUrl?: string;
+  /** Path parameters extracted from `:name` wildcards. */
+  params: Record<string, string>;
+  /** Parsed query string (mirrors `BundleHttpRequest.query`). */
+  query: Record<string, string>;
+  /** Lowercased request header names (mirrors `BundleHttpRequest.headers`). */
+  headers: Record<string, string>;
+  /** Capability-scoped KV. */
+  kvStore: BundleKvStoreClient;
+  /** Session-scoped channel. `broadcast` is a no-op when `sessionId` is `null`. */
+  channel: BundleSessionChannel;
+  /** Emit a cost event — persisted to the session and broadcast as `cost_event`. */
+  emitCost: (cost: BundleCostEvent) => Promise<void>;
+}
+
+/**
+ * Context handed to a bundle capability's `onAction` handler.
+ *
+ * Documented v1 parity gaps (NOT present): `sessionStore` raw access,
+ * `rateLimit`, `agentConfig`, `sendPrompt`. Spine lifecycle methods
+ * (`appendEntry`, `getEntries`, `buildContext`, `broadcast`) are
+ * available via {@link BundleSpineClientLifecycle}.
+ */
+export interface BundleActionContext {
+  capabilityId: string;
+  agentId: string;
+  sessionId: string;
+  publicUrl?: string;
+  /** Capability-scoped KV. */
+  kvStore: BundleKvStoreClient;
+  /** Session-scoped channel for broadcast back to the originating session. */
+  channel: BundleSessionChannel;
+  /** Spine lifecycle client (`appendEntry`, `getEntries`, `buildContext`, `broadcast`). */
+  spine: BundleSpineClientLifecycle;
+  /** Emit a cost event — persisted to the session and broadcast as `cost_event`. */
+  emitCost: (cost: BundleCostEvent) => Promise<void>;
 }
 
 export interface BundlePromptSection {
@@ -519,6 +679,8 @@ export interface BundleHookBridge {
  * - POST /client-event — handle a WebSocket message routed from host
  * - POST /alarm — handle an alarm fire
  * - POST /session-created — handle session initialization
+ * - POST /http — handle a bundle-routed HTTP request
+ * - POST /action — handle a bundle-routed `capability_action` dispatch
  * - POST /smoke — load-time smoke test
  * - POST /metadata — return declared metadata as JSON
  */

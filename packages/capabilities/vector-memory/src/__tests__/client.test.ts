@@ -16,11 +16,7 @@ import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
 import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { vectorMemoryClient } from "../client.js";
-import {
-  MEMORY_GET_TOOL_NAME,
-  MEMORY_SEARCH_TOOL_NAME,
-  SCHEMA_CONTENT_HASH,
-} from "../schemas.js";
+import { MEMORY_GET_TOOL_NAME, MEMORY_SEARCH_TOOL_NAME, SCHEMA_CONTENT_HASH } from "../schemas.js";
 import type { VectorMemoryService } from "../service.js";
 
 function makeMockService() {
@@ -126,10 +122,7 @@ describe("memory_search tool", () => {
     const tools = cap.tools!(ctx) as unknown as AgentTool<any>[];
     const search = toolByName(tools, MEMORY_SEARCH_TOOL_NAME);
 
-    const result = await search.execute!(
-      { query: "find it", maxResults: 3 },
-      ctx as never,
-    );
+    const result = await search.execute!({ query: "find it", maxResults: 3 }, ctx as never);
 
     expect(service.search).toHaveBeenCalledOnce();
     const [token, passedArgs, hash] = service.search.mock.calls[0];

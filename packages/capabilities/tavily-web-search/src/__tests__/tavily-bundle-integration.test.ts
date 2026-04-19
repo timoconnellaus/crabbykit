@@ -53,10 +53,22 @@ async function mintTestToken(agentId = "agent-int", sessionId = TEST_SESSION): P
   );
   const exp = Date.now() + 60_000;
   const nonce = crypto.randomUUID();
-  const payload = { aid: agentId, sid: sessionId, exp, nonce, scope: ["spine", "llm", "tavily-web-search"] };
-  const payloadB64 = btoa(JSON.stringify(payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const payload = {
+    aid: agentId,
+    sid: sessionId,
+    exp,
+    nonce,
+    scope: ["spine", "llm", "tavily-web-search"],
+  };
+  const payloadB64 = btoa(JSON.stringify(payload))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
   const sig = await crypto.subtle.sign("HMAC", mintKey, new TextEncoder().encode(payloadB64));
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
   return `${payloadB64}.${sigB64}`;
 }
 

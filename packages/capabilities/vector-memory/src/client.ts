@@ -39,8 +39,7 @@ export function vectorMemoryClient(options: VectorMemoryClientOptions): Capabili
   return {
     id: "vector-memory",
     name: "Vector Memory (Bundle Client)",
-    description:
-      "Persistent semantic memory with vector search (proxied through service binding)",
+    description: "Persistent semantic memory with vector search (proxied through service binding)",
 
     tools: (context) => {
       const env = (context as unknown as { env: { __BUNDLE_TOKEN?: string } }).env;

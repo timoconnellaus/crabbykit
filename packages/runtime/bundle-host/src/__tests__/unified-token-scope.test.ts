@@ -14,7 +14,11 @@
  * pool-workers needed since we exercise verifyToken directly.
  */
 
-import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
+import {
+  BUNDLE_SUBKEY_LABEL,
+  deriveVerifyOnlySubkey,
+  verifyToken,
+} from "@claw-for-cloudflare/bundle-token";
 import { describe, expect, it } from "vitest";
 import { deriveMintSubkey, mintToken } from "../security/mint.js";
 
