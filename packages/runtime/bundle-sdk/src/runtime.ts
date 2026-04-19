@@ -95,7 +95,7 @@ interface MinimalMessage {
 
 /**
  * Duck-typed bundle tool. Matches the structural subset of
- * `@claw-for-cloudflare/agent-runtime`'s `AnyAgentTool` that the bundle
+ * `@crabbykit/agent-runtime`'s `AnyAgentTool` that the bundle
  * needs to advertise to the model and execute on tool calls. Bundle
  * SDK does not import `agent-runtime` (boundary invariant), so the
  * shape is asserted at the use site.

@@ -1,5 +1,5 @@
 import { env as rawEnv } from "cloudflare:workers";
-import { handlePreviewRequest } from "@claw-for-cloudflare/cloudflare-sandbox";
+import { handlePreviewRequest } from "@crabbykit/cloudflare-sandbox";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Env } from "../../../../worker";
 

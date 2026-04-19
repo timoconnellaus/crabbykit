@@ -1,4 +1,4 @@
-import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
+import { useAgentConnection } from "@crabbykit/agent-runtime/client";
 
 /**
  * Summary info for a single channel type detected in `capabilityState`.

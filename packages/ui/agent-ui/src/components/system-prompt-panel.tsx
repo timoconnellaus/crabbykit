@@ -1,5 +1,5 @@
-import type { PromptSection, PromptSectionSource } from "@claw-for-cloudflare/agent-runtime";
-import { useSystemPrompt } from "@claw-for-cloudflare/agent-runtime/client";
+import type { PromptSection, PromptSectionSource } from "@crabbykit/agent-runtime";
+import { useSystemPrompt } from "@crabbykit/agent-runtime/client";
 import { type ComponentPropsWithoutRef, useCallback, useEffect, useMemo, useState } from "react";
 import { MarkdownContent } from "./markdown-content";
 

@@ -1,4 +1,4 @@
-import { ChannelsPanel } from "@claw-for-cloudflare/agent-ui";
+import { ChannelsPanel } from "@crabbykit/agent-ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { channelsStyles } from "../../../styles/channels";
 

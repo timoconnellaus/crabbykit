@@ -17,7 +17,7 @@
  * call — otherwise the runtime's registry lookup misses the pointer.
  */
 
-import { InMemoryBundleRegistry } from "@claw-for-cloudflare/bundle-host";
+import { InMemoryBundleRegistry } from "@crabbykit/bundle-host";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeFakeWorkerLoader } from "../../src/test-helpers/fake-worker-loader.js";
 import {

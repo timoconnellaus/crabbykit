@@ -1,5 +1,5 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import { defineTool, Type, toolResult } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@crabbykit/agent-core";
+import { defineTool, Type, toolResult } from "@crabbykit/agent-runtime";
 import type { TaskStore } from "./task-store.js";
 import {
   InvalidTransitionError,

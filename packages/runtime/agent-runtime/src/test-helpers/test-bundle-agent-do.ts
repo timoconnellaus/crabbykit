@@ -10,7 +10,7 @@
  * construction — and therefore config capture — is per-test.
  */
 
-import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentEvent, AgentMessage, AgentTool } from "@crabbykit/agent-core";
 import { Type } from "@sinclair/typebox";
 import type { AgentConfig, AgentContext } from "../agent-do.js";
 import { AgentDO } from "../agent-do.js";

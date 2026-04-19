@@ -1,9 +1,9 @@
-# `@claw-for-cloudflare/bundle-sdk`
+# `@crabbykit/bundle-sdk`
 
 Authoring API for CLAW bundle brains. Consumers import `defineBundleAgent` from this package and produce a default-export fetch handler the host loads via Worker Loader.
 
 ```ts
-import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
+import { defineBundleAgent } from "@crabbykit/bundle-sdk";
 
 export default defineBundleAgent({
   model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },
@@ -20,7 +20,7 @@ This package has zero dependency on the host (`bundle-host`) and zero path to th
 ### `BundleCapability.httpHandlers`
 
 ```ts
-import type { BundleCapability } from "@claw-for-cloudflare/bundle-sdk";
+import type { BundleCapability } from "@crabbykit/bundle-sdk";
 
 const skills: BundleCapability = {
   id: "skills",

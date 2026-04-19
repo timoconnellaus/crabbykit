@@ -1,4 +1,4 @@
-import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
+import { useAgentConnection } from "@crabbykit/agent-runtime/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**

@@ -101,7 +101,7 @@ infra/         → runtime, infra
 capabilities/  → runtime, infra, capabilities
 channels/      → runtime, infra, capabilities, channels
 federation/    → runtime, infra, federation
-ui/            → runtime (only @claw-for-cloudflare/agent-runtime)
+ui/            → runtime (only @crabbykit/agent-runtime)
 dev/           → any bucket (build-time exempt)
 ```
 
@@ -127,13 +127,13 @@ Subclassing `AgentDO` directly: override methods are **public** (not protected) 
 
 When omitted, agent is purely static. When present, each turn dispatches into a registry-backed bundle loaded via Worker Loader. Bundle calls back to DO via `SpineService` for state; `LlmService` proxies inference. Static brain is always the fallback.
 
-**Three-package split:** `@claw-for-cloudflare/bundle-sdk` holds the authoring API (`defineBundleAgent`, bundle context types, prompt builders, the runtime-source subpath that the host injects into compiled bundles). `@claw-for-cloudflare/bundle-host` holds the host-side dispatcher, `SpineService`, `LlmService`, `InMemoryBundleRegistry`, the `bundle-builder` auto-rebuild path, and the mint-side token helpers (`mintToken`, `deriveMintSubkey`). `@claw-for-cloudflare/bundle-token` is a tiny verify-only shared package (`verifyToken`, `NonceTracker`, `deriveVerifyOnlySubkey`, `BUNDLE_SUBKEY_LABEL`) imported by both halves. The SDK has zero path to the mint primitives by construction — a `vitest` assertion in `bundle-sdk/src/__tests__/mint-unreachable.test.ts` documents the invariant.
+**Three-package split:** `@crabbykit/bundle-sdk` holds the authoring API (`defineBundleAgent`, bundle context types, prompt builders, the runtime-source subpath that the host injects into compiled bundles). `@crabbykit/bundle-host` holds the host-side dispatcher, `SpineService`, `LlmService`, `InMemoryBundleRegistry`, the `bundle-builder` auto-rebuild path, and the mint-side token helpers (`mintToken`, `deriveMintSubkey`). `@crabbykit/bundle-token` is a tiny verify-only shared package (`verifyToken`, `NonceTracker`, `deriveVerifyOnlySubkey`, `BUNDLE_SUBKEY_LABEL`) imported by both halves. The SDK has zero path to the mint primitives by construction — a `vitest` assertion in `bundle-sdk/src/__tests__/mint-unreachable.test.ts` documents the invariant.
 
 **Security:** single `__BUNDLE_TOKEN` per turn, HMAC-signed under `BUNDLE_SUBKEY_LABEL = "claw/bundle-v1"` via HKDF. Token payload carries `scope: string[]` derived from the validated capability catalog: `["spine", "llm", ...catalogIds]`. Each host service verifies with `requiredScope` — SpineService requires `"spine"`, LlmService requires `"llm"`, capability services require their own kebab-case id. `ERR_SCOPE_DENIED` is propagated intact through SpineService.sanitize. Reserved scope strings `"spine"` and `"llm"` are rejected at bundle build time and at registry promotion. Identity derived from verified token payload — bundles cannot forge. `globalOutbound: null` on the loader isolate blocks direct outbound. Provider credentials live in host-side `LlmService`/capability services, never bundle env.
 
 **Spine dispatch mechanism.** `SpineService` bridges bundle RPC calls back to `AgentDO` via native DO method-call RPC on a typed `DurableObjectStub<SpineHost>` — there is no HTTP routing or `handleSpineRequest` switch. `AgentDO` structurally satisfies the `SpineHost` interface (enforced by a compile-time assertion in `agent-runtime/src/agent-do.ts`), so every `host.spineX(...)` call in `SpineService` is type-checked against a real method. Adding, renaming, or changing the signature of a spine method without updating both sides breaks the build at the point of the edit. Token verification, identity derivation, and error sanitization happen inside `SpineService` before the DO method is reached. SpineService constructs a `SpineCaller` context (`{aid, sid, nonce}`) from the verified token payload and passes it as the first argument to every spine method. Per-turn budget enforcement lives in `AgentRuntime` (the DO), not in `SpineService` — the DO has stable per-agent state that survives across the full turn lifetime, whereas `WorkerEntrypoint` instances may be recycled between RPC calls, which would silently reset an in-service budget counter. Each spine method on `AgentRuntime` wraps its body through `withSpineBudget(caller, category, fn)` which calls `spineBudget.check(caller.nonce, category)` before executing. The `BudgetTracker` class remains in `bundle-host/src/budget-tracker.ts`.
 
-**Capability service pattern (for capabilities holding secrets):** four subpaths — `index` (legacy static), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy — imports types from `@claw-for-cloudflare/bundle-sdk`), `schemas` (shared tool schemas). Tavily was the pilot. `skills`, `vector-memory`, and `file-tools` now ship shape-2 subpaths too — each exposes its service via a worker service binding on the consumer and the bundle wires a client that proxies tool calls over RPC with the unified `__BUNDLE_TOKEN` (scope must include the capability id).
+**Capability service pattern (for capabilities holding secrets):** four subpaths — `index` (legacy static), `service` (host WorkerEntrypoint with credentials), `client` (bundle-side proxy — imports types from `@crabbykit/bundle-sdk`), `schemas` (shared tool schemas). Tavily was the pilot. `skills`, `vector-memory`, and `file-tools` now ship shape-2 subpaths too — each exposes its service via a worker service binding on the consumer and the bundle wires a client that proxies tool calls over RPC with the unified `__BUNDLE_TOKEN` (scope must include the capability id).
 
 **Host hook-bus bridge (afterToolExecution + beforeInference).** Two `SpineHost` methods — `spineRecordToolExecution` and `spineProcessBeforeInference` — run the host's existing `afterToolExecutionHooks` and `beforeInferenceHooks` chains against bundle-originated events. `SpineService` exposes them as bundle-callable RPCs (`recordToolExecution`, `processBeforeInference`) under `requiredScope: "spine"`; the bundle SDK calls them via `context.hookBridge`. Bundle SDK runtime awaits `processBeforeInference` before each model call and uses the returned message array. Budget categories `hook_after_tool` (cap 200) and `hook_before_inference` (cap 100) bound runaway bundles. Purpose: capability authors register `afterToolExecution`/`beforeInference` once and the hook fires for both static and bundle brains — auto-reindexing (`vector-memory`), UI mutation broadcast (`file-tools`), loop detection (`doom-loop-detection`), output truncation (`tool-output-truncation`), and skill conflict injection (`skills`) all work identically across the two runtimes. Shape-2 capability clients therefore ship with no `afterToolExecution`/`beforeInference` hooks of their own — hooks stay on the static factory.
 
@@ -169,10 +169,10 @@ The dispatcher injects `__BUNDLE_TOKEN`, `__BUNDLE_VERSION_ID`, `__BUNDLE_PUBLIC
 
 ### Modes are the scoping mechanism
 
-A `Mode` is a named filter over tools + prompt sections. SDK answer to tool overload. Imports live ONLY at `@claw-for-cloudflare/agent-runtime/modes`:
+A `Mode` is a named filter over tools + prompt sections. SDK answer to tool overload. Imports live ONLY at `@crabbykit/agent-runtime/modes`:
 
 ```ts
-import { defineMode, planMode, filterToolsAndSections, applyMode, resolveActiveMode, type Mode, type AppliedMode } from "@claw-for-cloudflare/agent-runtime/modes";
+import { defineMode, planMode, filterToolsAndSections, applyMode, resolveActiveMode, type Mode, type AppliedMode } from "@crabbykit/agent-runtime/modes";
 ```
 
 Nothing mode-related is exported from the main barrel — agents that don't use modes don't import the file.
@@ -243,7 +243,7 @@ Module-level named constants only — no inline magic numbers. `const DEFAULT_MA
 
 - **Coverage thresholds (agent-runtime):** statements 98%, branches 90%, functions 100%, lines 99%. Excludes barrels, type-only files, test helpers, `agent-do.ts`, `agent-runtime.ts`, `runtime-delegating.ts`, `define-agent.ts`, `runtime-context-cloudflare.ts`, `mcp-manager.ts`.
 - Integration tests run in Cloudflare Workers pool via `@cloudflare/vitest-pool-workers`. UI tests in jsdom. Test fixtures generated separately (`vitest.generate.config.ts`). No mocking `SessionStore` — real SQLite via Workers pool. Every public function needs at least one test.
-- **Test helpers** at `@claw-for-cloudflare/agent-runtime/test-utils` (NOT the barrel): `createMockStorage()`, `textOf(result)`, `TOOL_CTX`.
+- **Test helpers** at `@crabbykit/agent-runtime/test-utils` (NOT the barrel): `createMockStorage()`, `textOf(result)`, `TOOL_CTX`.
 - **DO test isolation:** `isolatedStorage` is **disabled** in `vitest.config.ts` — pool-workers' storage frame checker doesn't handle SQLite WAL `.sqlite-shm` files (cloudflare/workers-sdk#5629). Instead: **unique DO name per describe block** (`getStub("a2a-do-1")`). Never reuse names across blocks. Await all DO ops; drain fire-and-forget via `/wait-idle`. Keep DO count reasonable.
 - File locations: `packages/runtime/agent-runtime/test/` (integration), `packages/*/*/src/**/__tests__/` (unit), `packages/ui/agent-ui/src/**/*.test.tsx` (components).
 

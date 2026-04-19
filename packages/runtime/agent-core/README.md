@@ -1,4 +1,4 @@
-# @claw-for-cloudflare/agent-core
+# @crabbykit/agent-core
 
 Agent loop with streaming, tool execution, and state management.
 

@@ -1,4 +1,4 @@
-import { useSchedules } from "@claw-for-cloudflare/agent-runtime/client";
+import { useSchedules } from "@crabbykit/agent-runtime/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { SchedulePanel } from "../../../components/schedule-panel";
 import { useChatContext } from "../../../context/chat-context";

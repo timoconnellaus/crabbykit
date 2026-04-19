@@ -27,10 +27,10 @@ Create apps on `/workspace/` so files persist. Typical layout:
 
 Use Bun.serve() with HTML imports and route-based API handlers.
 
-Use `@claw-for-cloudflare/container-db` for database access. Add it to package.json and run `bun install` — the package is pre-installed in the container.
+Use `@crabbykit/container-db` for database access. Add it to package.json and run `bun install` — the package is pre-installed in the container.
 
 ```typescript
-import { createDB } from "@claw-for-cloudflare/container-db";
+import { createDB } from "@crabbykit/container-db";
 import homepage from "./index.html";
 
 const db = createDB();
@@ -108,10 +108,10 @@ createRoot(document.getElementById("root")).render(<App />);
 
 ## Database (container-db)
 
-Use `@claw-for-cloudflare/container-db` for database access. Add it to package.json and run `bun install`. It works identically in dev (container) and deploy (worker).
+Use `@crabbykit/container-db` for database access. Add it to package.json and run `bun install`. It works identically in dev (container) and deploy (worker).
 
 ```typescript
-import { createDB } from "@claw-for-cloudflare/container-db";
+import { createDB } from "@crabbykit/container-db";
 const db = createDB();
 
 // Query returns { columns: string[], rows: unknown[][] }
@@ -126,7 +126,7 @@ await db.batch([
 
 Always use parameterized queries (`?` placeholders) — never interpolate values into SQL strings.
 
-`@claw-for-cloudflare/container-db` is pre-installed in the container and resolves automatically via `bun install`.
+`@crabbykit/container-db` is pre-installed in the container and resolves automatically via `bun install`.
 
 ## AI Access
 
@@ -194,8 +194,8 @@ For apps with backends, use `start_backend` first to bundle and load the backend
 ## Common Mistakes
 
 - **Not binding to 0.0.0.0**: The server MUST use `hostname: "0.0.0.0"` — localhost won't be reachable from outside the container
-- **Using bun:sqlite instead of container-db**: Always use `@claw-for-cloudflare/container-db` — bun:sqlite data doesn't persist across deploys
+- **Using bun:sqlite instead of container-db**: Always use `@crabbykit/container-db` — bun:sqlite data doesn't persist across deploys
 - **Absolute fetch paths**: Frontend fetch calls must use relative paths (`fetch("/api/items")`), not absolute URLs
 - **Missing development: true**: Without `development: true` in Bun.serve(), HMR and console output won't work
 - **Forgetting to restart after changes**: If you change server.ts structure (new routes, etc.), restart the server process
-- **Missing container-db dependency**: Add `@claw-for-cloudflare/container-db` to package.json — it's pre-installed in the container and resolves via `bun install`
+- **Missing container-db dependency**: Add `@crabbykit/container-db` to package.json — it's pre-installed in the container and resolves via `bun install`

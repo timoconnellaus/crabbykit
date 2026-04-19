@@ -2,7 +2,7 @@
  * BundleRegistry types — shared between D1 and in-memory implementations.
  */
 
-import type { BundleRegistry, SetActiveOptions } from "@claw-for-cloudflare/agent-runtime";
+import type { BundleRegistry, SetActiveOptions } from "@crabbykit/agent-runtime";
 
 export type { BundleRegistry, SetActiveOptions };
 

@@ -1,8 +1,5 @@
-import type {
-  BeforeToolExecutionEvent,
-  CapabilityHookContext,
-} from "@claw-for-cloudflare/agent-runtime";
-import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import type { BeforeToolExecutionEvent, CapabilityHookContext } from "@crabbykit/agent-runtime";
+import { createMockStorage } from "@crabbykit/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { doomLoopDetection } from "../capability.js";
 

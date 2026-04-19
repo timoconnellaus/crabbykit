@@ -1,4 +1,4 @@
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import { toR2Key } from "./paths.js";
 
 const DEFAULT_MAX_READ_BYTES = 512 * 1024;

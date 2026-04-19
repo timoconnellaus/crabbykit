@@ -18,13 +18,13 @@
  */
 
 import { env as testEnv } from "cloudflare:test";
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import {
   BUNDLE_SUBKEY_LABEL,
   deriveMintSubkey,
   mintToken,
   SpineService,
-} from "@claw-for-cloudflare/bundle-host";
+} from "@crabbykit/bundle-host";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentDO } from "../../src/agent-do.js";
 import type {

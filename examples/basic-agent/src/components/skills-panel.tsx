@@ -1,4 +1,4 @@
-import type { SkillListEntry } from "@claw-for-cloudflare/agent-runtime";
+import type { SkillListEntry } from "@crabbykit/agent-runtime";
 import { useEffect } from "react";
 import type { RegistrySkill } from "../hooks/use-skills-api";
 import { useSkillsApi } from "../hooks/use-skills-api";

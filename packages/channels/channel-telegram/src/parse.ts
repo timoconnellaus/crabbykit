@@ -1,4 +1,4 @@
-import type { ParsedInbound } from "@claw-for-cloudflare/agent-runtime";
+import type { ParsedInbound } from "@crabbykit/agent-runtime";
 import type { TelegramInbound } from "./types.js";
 
 /**

@@ -1,5 +1,5 @@
-import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { setAuthHeaders, signToken } from "@crabbykit/agent-auth";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import {
   deleteInboundPeer,
   deleteOutboundPeer,

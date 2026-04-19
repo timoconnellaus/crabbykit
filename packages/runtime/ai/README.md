@@ -1,4 +1,4 @@
-# @claw-for-cloudflare/ai
+# @crabbykit/ai
 
 LLM streaming and model management for Cloudflare Workers.
 

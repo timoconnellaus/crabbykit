@@ -31,7 +31,7 @@ export interface SandboxContainerEnv {
  * @example
  * ```ts
  * // worker.ts
- * export { SandboxContainer } from "@claw-for-cloudflare/cloudflare-sandbox";
+ * export { SandboxContainer } from "@crabbykit/cloudflare-sandbox";
  * ```
  */
 const DEFAULT_UPSTREAM_BASE_URL = "https://openrouter.ai/api/v1";

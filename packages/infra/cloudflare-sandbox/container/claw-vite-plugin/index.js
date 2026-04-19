@@ -1,5 +1,5 @@
 /**
- * @claw-for-cloudflare/vite-plugin
+ * @crabbykit/vite-plugin
  *
  * Configures Vite for the CLAW sandbox preview proxy.
  * Sets Vite's `base` to the preview path and injects a console capture script.

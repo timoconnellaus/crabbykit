@@ -15,10 +15,7 @@
  * capability installed.
  */
 
-import {
-  BUNDLE_RUNTIME_HASH,
-  BUNDLE_RUNTIME_SOURCE,
-} from "@claw-for-cloudflare/bundle-sdk/runtime-source";
+import { BUNDLE_RUNTIME_HASH, BUNDLE_RUNTIME_SOURCE } from "@crabbykit/bundle-sdk/runtime-source";
 
 /**
  * `@cloudflare/worker-bundler` pulls in esbuild-wasm, which eagerly loads a
@@ -72,10 +69,10 @@ export const RELATIVE_RUNTIME_PATHS = [
 ] as const;
 
 /**
- * Virtual `node_modules/@claw-for-cloudflare/bundle-sdk` package that
+ * Virtual `node_modules/@crabbykit/bundle-sdk` package that
  * `@cloudflare/worker-bundler`'s `resolvePackage` can find when bundle
  * source uses the natural package import
- * `import from "@claw-for-cloudflare/bundle-sdk"`. The bundler parses
+ * `import from "@crabbykit/bundle-sdk"`. The bundler parses
  * the specifier into `(packageName, subpath)`, reads
  * `node_modules/{packageName}/package.json`, uses the `exports` map to
  * resolve `./{subpath}`, and loads
@@ -83,11 +80,11 @@ export const RELATIVE_RUNTIME_PATHS = [
  * package (package.json + bundle.js) is the ONLY layout that resolver
  * accepts — a bare key at the specifier path is ignored.
  */
-const VIRTUAL_PACKAGE_DIR = "node_modules/@claw-for-cloudflare/bundle-sdk";
+const VIRTUAL_PACKAGE_DIR = "node_modules/@crabbykit/bundle-sdk";
 const VIRTUAL_PACKAGE_JSON_PATH = `${VIRTUAL_PACKAGE_DIR}/package.json`;
 const VIRTUAL_PACKAGE_BUNDLE_PATH = `${VIRTUAL_PACKAGE_DIR}/bundle.js`;
 const VIRTUAL_PACKAGE_JSON = JSON.stringify({
-  name: "@claw-for-cloudflare/bundle-sdk",
+  name: "@crabbykit/bundle-sdk",
   version: "0.0.0-virtual",
   type: "module",
   exports: {
@@ -146,7 +143,7 @@ export function bundleFileR2Key(namespace: string, name: string, relPath: string
  * List all R2 objects under the bundle prefix, fetch their contents, and
  * merge the compiled bundle-sdk runtime as virtual files at every path
  * listed in `RELATIVE_RUNTIME_PATHS`, plus the synthetic
- * `node_modules/@claw-for-cloudflare/bundle-sdk` package. The result is
+ * `node_modules/@crabbykit/bundle-sdk` package. The result is
  * ready to be passed to `createWorker`.
  *
  * The runtime is injected on EVERY call — never persisted to R2 — so

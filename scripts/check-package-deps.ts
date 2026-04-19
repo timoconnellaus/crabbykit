@@ -17,7 +17,7 @@
  * `reorganize-packages-by-role` change) for the full rule table.
  * This script enforces the rules by statically walking every
  * TypeScript source file under `packages/<bucket>/<name>/src` and
- * `.../test`, extracting `@claw-for-cloudflare/*` import specifiers
+ * `.../test`, extracting `@crabbykit/*` import specifiers
  * with a regex, resolving each to a target bucket via the filesystem
  * layout, and failing on any forbidden edge.
  *
@@ -81,15 +81,15 @@ const ALLOWED: Record<Bucket, Set<Bucket>> = {
 
 // Per-bucket target allow-lists that further restrict allowed imports.
 // Currently only `ui/` uses this: agent-ui may import from
-// `@claw-for-cloudflare/agent-runtime` (and nothing else from runtime).
-const UI_ALLOWED_RUNTIME_PACKAGES = new Set<string>(["@claw-for-cloudflare/agent-runtime"]);
+// `@crabbykit/agent-runtime` (and nothing else from runtime).
+const UI_ALLOWED_RUNTIME_PACKAGES = new Set<string>(["@crabbykit/agent-runtime"]);
 
 // Explicit exception list for value-level cross-bucket imports that
 // break the bucket rules but are deliberately tolerated because the
 // underlying architectural tension is tracked in a follow-up change.
 // Format: "<sourcePackage> -> <targetPackage>".
 //
-// - `@claw-for-cloudflare/agent-runtime` -> `@claw-for-cloudflare/a2a`:
+// - `@crabbykit/agent-runtime` -> `@crabbykit/a2a`:
 //   The agent runtime imports A2A's executor, tool factories, and task
 //   store at the value level (ClawExecutor, createCallAgentTool, etc.).
 //   The proposal places `a2a` in `federation/` for taxonomic reasons —
@@ -98,11 +98,9 @@ const UI_ALLOWED_RUNTIME_PACKAGES = new Set<string>(["@claw-for-cloudflare/agent
 //   The follow-up change `project_a2a_first_class` (tracked in MEMORY.md)
 //   will promote A2A into the runtime bucket as part of a larger
 //   "A2A first-class" refactor. Until then this edge exists.
-const VALUE_IMPORT_EXCEPTIONS = new Set<string>([
-  "@claw-for-cloudflare/agent-runtime -> @claw-for-cloudflare/a2a",
-]);
+const VALUE_IMPORT_EXCEPTIONS = new Set<string>(["@crabbykit/agent-runtime -> @crabbykit/a2a"]);
 
-/** Build a map of @claw-for-cloudflare/<name> → bucket from the filesystem. */
+/** Build a map of @crabbykit/<name> → bucket from the filesystem. */
 function loadPackageBuckets(): Map<string, Bucket> {
   const out = new Map<string, Bucket>();
   for (const bucketName of readdirSync(packagesRoot)) {
@@ -115,7 +113,7 @@ function loadPackageBuckets(): Map<string, Bucket> {
       const pkgJsonPath = join(pkgDir, "package.json");
       try {
         const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { name?: string };
-        if (pkgJson.name?.startsWith("@claw-for-cloudflare/")) {
+        if (pkgJson.name?.startsWith("@crabbykit/")) {
           out.set(pkgJson.name, bucketName as Bucket);
         }
       } catch {
@@ -158,7 +156,7 @@ interface ClawImport {
 }
 
 /**
- * Extract every @claw-for-cloudflare/<name> import specifier from a
+ * Extract every @crabbykit/<name> import specifier from a
  * source file and classify it as type-only or value.
  *
  * Classification is line-based: the whole statement containing the
@@ -189,13 +187,13 @@ function extractClawImports(source: string): ClawImport[] {
   // We match statements beginning with `import`/`export` up to the
   // specifier, and separately match dynamic imports.
   const staticRe =
-    /(^|\n)\s*(import|export)(?:\s+(type))?\s+[^"'`;]*?from\s*["'](@claw-for-cloudflare\/[^"'/]+)(?:\/[^"']+)?["']/g;
+    /(^|\n)\s*(import|export)(?:\s+(type))?\s+[^"'`;]*?from\s*["'](@crabbykit\/[^"'/]+)(?:\/[^"']+)?["']/g;
   for (const m of source.matchAll(staticRe)) {
     const keyword = m[3]; // "type" if present
     out.push({ specifier: m[4], typeOnly: keyword === "type" });
   }
 
-  const dynamicRe = /import\s*\(\s*["'](@claw-for-cloudflare\/[^"'/]+)(?:\/[^"']+)?["']/g;
+  const dynamicRe = /import\s*\(\s*["'](@crabbykit\/[^"'/]+)(?:\/[^"']+)?["']/g;
   for (const m of source.matchAll(dynamicRe)) {
     out.push({ specifier: m[1], typeOnly: false });
   }

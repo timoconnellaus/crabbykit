@@ -24,7 +24,7 @@ The extract-storage-interfaces change (completed) introduced `SqlStore` and `KvS
 
 ### 1. Import SqlStore type from agent-runtime
 
-**Decision**: `TaskStore` imports `SqlStore` from `@claw-for-cloudflare/agent-runtime` (already a peer dependency of the A2A package).
+**Decision**: `TaskStore` imports `SqlStore` from `@crabbykit/agent-runtime` (already a peer dependency of the A2A package).
 
 **Rationale**: The type is already exported from agent-runtime's barrel. Adding a new package for just the interface types is the declared non-goal from the prior change. The A2A package already depends on agent-runtime for `CapabilityStorage` and other types.
 
@@ -44,7 +44,7 @@ The extract-storage-interfaces change (completed) introduced `SqlStore` and `KvS
 
 ## Risks / Trade-offs
 
-**[Risk] Import cycle** -> `a2a` imports type from `agent-runtime`, `agent-runtime` imports `TaskStore` from `a2a`. This is already the case today (agent-do.ts imports from @claw-for-cloudflare/a2a) and is a type-only import from a2a's side, so no circular runtime dependency exists.
+**[Risk] Import cycle** -> `a2a` imports type from `agent-runtime`, `agent-runtime` imports `TaskStore` from `a2a`. This is already the case today (agent-do.ts imports from @crabbykit/a2a) and is a type-only import from a2a's side, so no circular runtime dependency exists.
 -> *Mitigation*: The cross-package imports are already established. TypeScript handles type-only cross-references without issues.
 
 **[Trade-off] Breaking change for direct TaskStore constructors** -> Anyone constructing `TaskStore` directly (outside AgentDO) will see a type error.

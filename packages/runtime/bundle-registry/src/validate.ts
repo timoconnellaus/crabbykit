@@ -1,6 +1,6 @@
 /**
  * Shared catalog validation helper used by both `D1BundleRegistry.setActive`
- * and `InMemoryBundleRegistry.setActive` (in `@claw-for-cloudflare/bundle-host`).
+ * and `InMemoryBundleRegistry.setActive` (in `@crabbykit/bundle-host`).
  *
  * Compares a bundle's declared `requiredCapabilities` against a set of
  * host-known capability ids. Returns a discriminated result that callers
@@ -10,7 +10,7 @@
 
 /** Minimal shape of a declared capability requirement. The authoritative
  *  type is `BundleCapabilityRequirement` from
- *  `@claw-for-cloudflare/bundle-sdk`; we redeclare the shape locally to
+ *  `@crabbykit/bundle-sdk`; we redeclare the shape locally to
  *  keep bundle-registry dependency-free from the SDK. */
 export interface CapabilityRequirementLike {
   id: string;

@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 // Channel-telegram tests are pure unit tests — no Durable Objects, no
 // bindings, no cloudflare:workers APIs at runtime. We run under the node
 // environment and alias `cloudflare:workers` to a no-op mock so that the
-// (transitive) `@claw-for-cloudflare/agent-runtime` barrel import resolves.
+// (transitive) `@crabbykit/agent-runtime` barrel import resolves.
 // This mirrors the pattern used by `packages/browserbase`.
 export default defineConfig({
   test: {

@@ -1,4 +1,4 @@
-import type { Mode } from "@claw-for-cloudflare/subagent";
+import type { Mode } from "@crabbykit/subagent";
 
 /** Default read-only tool name patterns. */
 const DEFAULT_READ_ONLY_PATTERNS = [
@@ -48,8 +48,8 @@ export interface ExplorerOptions {
  *
  * @example
  * ```ts
- * import { defineAgent } from "@claw-for-cloudflare/agent-runtime";
- * import { explorer } from "@claw-for-cloudflare/subagent-explorer";
+ * import { defineAgent } from "@crabbykit/agent-runtime";
+ * import { explorer } from "@crabbykit/subagent-explorer";
  *
  * defineAgent({
  *   subagentModes: () => [explorer({ model: "google/gemini-2.5-flash" })],

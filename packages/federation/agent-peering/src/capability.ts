@@ -1,5 +1,5 @@
-import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import { setAuthHeaders, signToken } from "@crabbykit/agent-auth";
+import type { Capability, CapabilityStorage } from "@crabbykit/agent-runtime";
 import {
   handshakeApproveHandler,
   handshakeCallbackHandler,

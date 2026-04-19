@@ -2,7 +2,7 @@ import type {
   CapabilityHttpContext,
   CapabilityStorage,
   HttpHandler,
-} from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
 import type { TaskStatusUpdateEvent } from "../types.js";
 import { isTerminalState, isTextPart } from "../types.js";
 import { PendingTaskStore } from "./pending-tasks.js";

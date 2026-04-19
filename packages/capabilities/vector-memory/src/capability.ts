@@ -1,10 +1,6 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type {
-  AgentContext,
-  Capability,
-  CapabilityHookContext,
-} from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { AgentTool } from "@crabbykit/agent-core";
+import type { AgentContext, Capability, CapabilityHookContext } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
 import type { EmbedFn } from "./embeddings.js";
 import { createWorkersAiEmbedder } from "./embeddings.js";
 import { indexDocument, removeDocument } from "./indexer.js";

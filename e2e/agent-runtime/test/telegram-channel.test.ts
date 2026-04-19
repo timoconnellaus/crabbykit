@@ -13,7 +13,7 @@
  */
 
 import { env } from "cloudflare:test";
-import type { TelegramAccount } from "@claw-for-cloudflare/channel-telegram";
+import type { TelegramAccount } from "@crabbykit/channel-telegram";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   clearMockResponses,

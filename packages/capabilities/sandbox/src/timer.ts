@@ -1,4 +1,4 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext } from "@crabbykit/agent-runtime";
 import type { SandboxConfig } from "./types.js";
 
 export const TIMER_ID = "sandbox:de-elevate";

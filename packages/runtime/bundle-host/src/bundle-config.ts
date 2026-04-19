@@ -2,7 +2,7 @@
  * BundleConfig — the config field consumers add to defineAgent to enable
  * bundle brain override.
  *
- * The authoritative type lives in `@claw-for-cloudflare/agent-runtime`
+ * The authoritative type lives in `@crabbykit/agent-runtime`
  * (`agent-runtime/src/bundle-config.ts`). The types were originally
  * declared there to break a circular workspace dependency between
  * `agent-runtime` and the old `agent-bundle` package. This file
@@ -19,8 +19,8 @@ export type {
   BundleVersionMetadata,
   CreateBundleVersionOpts,
   SetActiveOptions,
-} from "@claw-for-cloudflare/agent-runtime";
-export { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
+export { CapabilityMismatchError } from "@crabbykit/agent-runtime";
 
 /**
  * State tracked per bundle-enabled agent for dispatch. Kept host-local

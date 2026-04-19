@@ -32,8 +32,8 @@ import type {
   SpineCaller,
   SpineHost,
   ToolExecutionEvent,
-} from "@claw-for-cloudflare/agent-runtime";
-import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
+} from "@crabbykit/agent-runtime";
+import type { VerifyOutcome } from "@crabbykit/bundle-token";
 
 // Re-export the bridge payload types the bundle SDK uses when calling
 // SpineService's hook-bridge methods. Keeps the public RPC contract
@@ -46,11 +46,7 @@ export type {
   ToolExecutionEvent,
 };
 
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 
 // Re-export SpineHost so existing host-side consumers keep a stable
 // import path through the `bundle-host` barrel.

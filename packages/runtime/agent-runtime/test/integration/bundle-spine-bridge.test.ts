@@ -29,7 +29,7 @@ import {
   InMemoryBundleRegistry,
   mintToken,
   SpineService,
-} from "@claw-for-cloudflare/bundle-host";
+} from "@crabbykit/bundle-host";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { SpineCaller } from "../../src/spine-host.js";
 import { makeFakeWorkerLoader } from "../../src/test-helpers/fake-worker-loader.js";

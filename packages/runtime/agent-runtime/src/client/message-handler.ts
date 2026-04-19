@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import type { Dispatch, MutableRefObject, RefObject } from "react";
 import type { PromptSection } from "../prompt/types.js";
 import type { ClientMessage, ServerMessage } from "../transport/types.js";

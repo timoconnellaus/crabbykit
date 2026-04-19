@@ -1,7 +1,7 @@
 /**
  * Mint-side capability token primitives.
  *
- * Only `@claw-for-cloudflare/bundle-host` may import from this file.
+ * Only `@crabbykit/bundle-host` may import from this file.
  * Neither `bundle-sdk` nor `bundle-token` has any path to the mint
  * helpers: that is the load-bearing security property of the host/sdk
  * split. The CryptoKey returned by {@link deriveMintSubkey} has
@@ -11,8 +11,8 @@
  * be used to sign.
  */
 
-import type { TokenPayload } from "@claw-for-cloudflare/bundle-token";
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
+import type { TokenPayload } from "@crabbykit/bundle-token";
+import { BUNDLE_SUBKEY_LABEL } from "@crabbykit/bundle-token";
 
 // Re-export the label so host-side call sites that already import from
 // bundle-host can continue to use it from either package.

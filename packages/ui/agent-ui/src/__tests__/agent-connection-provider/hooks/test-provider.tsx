@@ -9,7 +9,7 @@ import {
   AgentConnectionContext,
   type AgentConnectionContextValue,
   type ClientMessage,
-} from "@claw-for-cloudflare/agent-runtime/client";
+} from "@crabbykit/agent-runtime/client";
 import { type ReactElement, type ReactNode, useMemo, useRef } from "react";
 
 export interface MockProviderOptions {

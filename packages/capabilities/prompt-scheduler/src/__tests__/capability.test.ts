@@ -1,5 +1,5 @@
-import type { AgentContext, Schedule, ScheduleManager } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, Schedule, ScheduleManager } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { promptScheduler } from "../capability.js";
 

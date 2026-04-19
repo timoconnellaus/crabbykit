@@ -1,4 +1,4 @@
-import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@crabbykit/agent-runtime";
 import {
   clearAllElevation,
   clearAllProcessOwners,

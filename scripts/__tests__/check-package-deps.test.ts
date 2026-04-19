@@ -29,12 +29,12 @@ interface ClawImport {
 function extractClawImports(source: string): ClawImport[] {
   const out: ClawImport[] = [];
   const staticRe =
-    /(^|\n)\s*(import|export)(?:\s+(type))?\s+[^"'`;]*?from\s*["'](@claw-for-cloudflare\/[^"'/]+)(?:\/[^"']+)?["']/g;
+    /(^|\n)\s*(import|export)(?:\s+(type))?\s+[^"'`;]*?from\s*["'](@crabbykit\/[^"'/]+)(?:\/[^"']+)?["']/g;
   for (const m of source.matchAll(staticRe)) {
     const keyword = m[3];
     out.push({ specifier: m[4], typeOnly: keyword === "type" });
   }
-  const dynamicRe = /import\s*\(\s*["'](@claw-for-cloudflare\/[^"'/]+)(?:\/[^"']+)?["']/g;
+  const dynamicRe = /import\s*\(\s*["'](@crabbykit\/[^"'/]+)(?:\/[^"']+)?["']/g;
   for (const m of source.matchAll(dynamicRe)) {
     out.push({ specifier: m[1], typeOnly: false });
   }
@@ -59,45 +59,41 @@ function isEdgeAllowed(source: Bucket, target: Bucket): boolean {
 
 describe("extractClawImports", () => {
   it("extracts a plain value import", () => {
-    const src = `import { foo } from "@claw-for-cloudflare/agent-runtime";`;
+    const src = `import { foo } from "@crabbykit/agent-runtime";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/agent-runtime", typeOnly: false },
+      { specifier: "@crabbykit/agent-runtime", typeOnly: false },
     ]);
   });
 
   it("flags an import type statement as type-only", () => {
-    const src = `import type { Foo } from "@claw-for-cloudflare/sandbox";`;
-    expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/sandbox", typeOnly: true },
-    ]);
+    const src = `import type { Foo } from "@crabbykit/sandbox";`;
+    expect(extractClawImports(src)).toEqual([{ specifier: "@crabbykit/sandbox", typeOnly: true }]);
   });
 
   it("flags an export type re-export as type-only", () => {
-    const src = `export type { Foo } from "@claw-for-cloudflare/agent-storage";`;
+    const src = `export type { Foo } from "@crabbykit/agent-storage";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/agent-storage", typeOnly: true },
+      { specifier: "@crabbykit/agent-storage", typeOnly: true },
     ]);
   });
 
   it("treats a plain export-from as a value re-export", () => {
-    const src = `export { foo } from "@claw-for-cloudflare/file-tools";`;
+    const src = `export { foo } from "@crabbykit/file-tools";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/file-tools", typeOnly: false },
+      { specifier: "@crabbykit/file-tools", typeOnly: false },
     ]);
   });
 
   it("treats mixed { type X, Y } imports as value imports (conservative)", () => {
-    const src = `import { type Foo, bar } from "@claw-for-cloudflare/agent-runtime";`;
+    const src = `import { type Foo, bar } from "@crabbykit/agent-runtime";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/agent-runtime", typeOnly: false },
+      { specifier: "@crabbykit/agent-runtime", typeOnly: false },
     ]);
   });
 
   it("detects dynamic await import() as a value import", () => {
-    const src = `const mod = await import("@claw-for-cloudflare/a2a");`;
-    expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/a2a", typeOnly: false },
-    ]);
+    const src = `const mod = await import("@crabbykit/a2a");`;
+    expect(extractClawImports(src)).toEqual([{ specifier: "@crabbykit/a2a", typeOnly: false }]);
   });
 
   it("ignores imports of non-@claw packages", () => {
@@ -106,9 +102,9 @@ describe("extractClawImports", () => {
   });
 
   it("normalizes subpath imports to the package name", () => {
-    const src = `import { Mode } from "@claw-for-cloudflare/agent-runtime/modes";`;
+    const src = `import { Mode } from "@crabbykit/agent-runtime/modes";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/agent-runtime", typeOnly: false },
+      { specifier: "@crabbykit/agent-runtime", typeOnly: false },
     ]);
   });
 
@@ -116,9 +112,9 @@ describe("extractClawImports", () => {
     const src = `import {
   Foo,
   Bar,
-} from "@claw-for-cloudflare/agent-runtime";`;
+} from "@crabbykit/agent-runtime";`;
     expect(extractClawImports(src)).toEqual([
-      { specifier: "@claw-for-cloudflare/agent-runtime", typeOnly: false },
+      { specifier: "@crabbykit/agent-runtime", typeOnly: false },
     ]);
   });
 });

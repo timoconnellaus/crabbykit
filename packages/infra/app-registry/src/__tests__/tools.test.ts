@@ -1,5 +1,5 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import type { SandboxExecResult, SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type { AgentContext } from "@crabbykit/agent-runtime";
+import type { SandboxExecResult, SandboxProvider } from "@crabbykit/sandbox";
 import { describe, expect, it, vi } from "vitest";
 import { AppStore } from "../app-store.js";
 import { createDeleteAppTool } from "../tools/delete-app.js";

@@ -1,9 +1,4 @@
-import {
-  type AgentContext,
-  type Capability,
-  type Static,
-  Type,
-} from "@claw-for-cloudflare/agent-runtime";
+import { type AgentContext, type Capability, type Static, Type } from "@crabbykit/agent-runtime";
 import { createFetchTool } from "./fetch.js";
 import { createSearchTool } from "./search.js";
 

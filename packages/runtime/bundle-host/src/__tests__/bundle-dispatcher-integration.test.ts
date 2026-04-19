@@ -18,10 +18,10 @@
  * Tasks 2.20 and 3.26 are covered by this file.
  */
 
-import type { BundleEnv } from "@claw-for-cloudflare/bundle-sdk";
-import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
-import { deriveVerifyOnlySubkey, verifyToken } from "@claw-for-cloudflare/bundle-token";
 import type { WorkerLoader } from "@cloudflare/workers-types";
+import type { BundleEnv } from "@crabbykit/bundle-sdk";
+import { defineBundleAgent } from "@crabbykit/bundle-sdk";
+import { deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundleConfig } from "../bundle-config.js";
 import type { BundleDisabledEvent } from "../dispatcher.js";
@@ -83,7 +83,7 @@ function makeFakeLoader(options: FakeLoaderOptions = {}): WorkerLoader & { callC
 
 // Reference bundle source — hand-written and compiled inline so we avoid
 // needing a pre-built artifact on disk. This mirrors a minimum viable
-// bundle produced by `bun build` against @claw-for-cloudflare/bundle-sdk.
+// bundle produced by `bun build` against @crabbykit/bundle-sdk.
 const REFERENCE_BUNDLE_SOURCE = `
 const metadata = { name: "ReferenceBundle", description: "integration fixture" };
 

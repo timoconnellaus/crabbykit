@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AgentTool } from "@crabbykit/agent-core";
 import {
   type AgentContext,
   type Capability,
@@ -6,7 +6,7 @@ import {
   type ConfigNamespace,
   defineTool,
   toolResult,
-} from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
 import { Type } from "@sinclair/typebox";
 import { createAfterToolExecutionHook } from "./dirty-tracking.js";
 import { deleteSkillFromR2, readSkillFromR2, writeSkillToR2 } from "./r2.js";

@@ -14,8 +14,8 @@
  * bridge, so auto-reindexing works without a duplicate bundle-side hook.
  */
 
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
+import { defineTool } from "@crabbykit/agent-runtime";
 import {
   MEMORY_GET_TOOL_DESCRIPTION,
   MEMORY_GET_TOOL_NAME,

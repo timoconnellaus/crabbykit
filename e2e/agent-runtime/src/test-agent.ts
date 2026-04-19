@@ -6,19 +6,19 @@
  * against real local bindings (R2 via miniflare, DO SQLite).
  */
 
-import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { AgentConfig, AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentEvent, AgentMessage, AgentTool } from "@crabbykit/agent-core";
+import type { AgentConfig, AgentContext, Capability } from "@crabbykit/agent-runtime";
 import {
   AgentDO,
   createCapabilityStorage,
   defineTool,
   resolveCapabilities,
   Type,
-} from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import { agentStorage } from "@claw-for-cloudflare/agent-storage";
-import { fileTools } from "@claw-for-cloudflare/file-tools";
-import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
+} from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import { agentStorage } from "@crabbykit/agent-storage";
+import { fileTools } from "@crabbykit/file-tools";
+import { promptScheduler } from "@crabbykit/prompt-scheduler";
 
 // --- Mock LLM infrastructure ---
 
@@ -51,8 +51,8 @@ export function clearMockResponses() {
 // Tests MUST call clearTelegramTestState in afterEach to avoid leakage.
 //
 
-import type { Capability as ChannelCapability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTelegramChannel, type TelegramAccount } from "@claw-for-cloudflare/channel-telegram";
+import type { Capability as ChannelCapability } from "@crabbykit/agent-runtime";
+import { defineTelegramChannel, type TelegramAccount } from "@crabbykit/channel-telegram";
 
 let telegramAccounts: TelegramAccount[] | null = null;
 // biome-ignore lint/suspicious/noExplicitAny: test hook — accepts any fake client shape

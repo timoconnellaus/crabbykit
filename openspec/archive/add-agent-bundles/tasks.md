@@ -3,7 +3,7 @@
 ### 1A. pi-agent-core import inside loader isolate
 
 - [ ] 1.1 Create a throwaway worker `spike/pi-import/` with `worker_loaders` binding and a minimal `WorkerEntrypoint` host
-- [ ] 1.2 Hand-write a minimal bundle source that does `import { AgentRuntime } from "@claw-for-cloudflare/agent-runtime"` and logs `typeof AgentRuntime`
+- [ ] 1.2 Hand-write a minimal bundle source that does `import { AgentRuntime } from "@crabbykit/agent-runtime"` and logs `typeof AgentRuntime`
 - [ ] 1.3 Compile the bundle with `bun build --target=browser --format=esm --outfile=bundle.js` against the workspace
 - [ ] 1.4 Load the compiled bundle via `LOADER.get(...)` and invoke its default fetch handler
 - [ ] 1.5 Verify the import resolves without hitting the pi-agent-core partial-json CJS issue or other transitive failures
@@ -75,7 +75,7 @@
 - [ ] 3.12 Implement `emitCost(token, costEvent)` — costEvent has no `sessionId` field; the verified token provides it
 - [ ] 3.13 Implement per-turn budget enforcement in SpineService: counters per token nonce, configurable defaults (100 SQL ops, 50 KV ops, 200 broadcasts, 5 alarm sets)
 - [ ] 3.14 Create `packages/agent-runtime/src/spine/clients/` with bundle-side client implementations: `SpineSessionStoreClient`, `SpineKvStoreClient`, `SpineSchedulerClient`, `SpineTransportClient`. Each takes a `Service<SpineService>` binding and a token in its constructor; methods forward calls with the token as first argument
-- [ ] 3.15 Add `@claw-for-cloudflare/agent-runtime/spine` subpath export in `packages/agent-runtime/package.json`
+- [ ] 3.15 Add `@crabbykit/agent-runtime/spine` subpath export in `packages/agent-runtime/package.json`
 - [ ] 3.16 Unit tests for each client — fake SpineService stub, verify each method round-trips the token correctly and propagates the verified identity
 - [ ] 3.17 Integration test: in-process SpineService with a real (in-memory) SessionStore, real bundle-side clients, run a synthetic prompt through the full RPC pipeline, verify entries land correctly and tokens are enforced
 
@@ -85,7 +85,7 @@
 - [ ] 3.19 Create `packages/agent-runtime/src/bundle/` with `define-agent-bundle.ts`, `bundle-env.ts`, `default-export-contract.ts`
 - [ ] 3.20 Implement `defineAgentBundle<BundleEnv>(setup)` returning a descriptor wrapped as a fetch handler with the documented endpoints
 - [ ] 3.21 Define the `BundleEnv` constraint type that excludes native CF binding types and accepts only `Service<T>` + serializable values
-- [ ] 3.22 Add `@claw-for-cloudflare/agent-runtime/bundle` subpath export — re-exports `defineAgentBundle`, `defineTool`, `Type`, the bundle-compatible type surface (NO `AgentDO`, NO `defineAgent`, NO native bindings)
+- [ ] 3.22 Add `@crabbykit/agent-runtime/bundle` subpath export — re-exports `defineAgentBundle`, `defineTool`, `Type`, the bundle-compatible type surface (NO `AgentDO`, NO `defineAgent`, NO native bindings)
 - [ ] 3.23 Add `package.json` `exports` rules that physically prevent DO-only types from being imported via the bundle subpath
 - [ ] 3.24 Type-level tests: `interface BundleEnv { AI: Ai }` fails to compile; `interface BundleEnv { LLM: Service<unknown> }` succeeds; `interface BundleEnv { TIMEZONE: string }` succeeds
 - [ ] 3.25 Implement `defineLoaderAgent<Env>(config)` in `packages/agent-bundle/src/host/define-loader-agent.ts` — returns a DO class
@@ -192,7 +192,7 @@
 
 ## 8. Phase 4 — Container image update
 
-- [ ] 8.1 Update `packages/cloudflare-sandbox/container/Dockerfile` to copy vendored `@claw-for-cloudflare/*` packages to `/opt/claw-sdk/` during image build
+- [ ] 8.1 Update `packages/cloudflare-sandbox/container/Dockerfile` to copy vendored `@crabbykit/*` packages to `/opt/claw-sdk/` during image build
 - [ ] 8.2 Mount `/opt/claw-sdk/` read-only at runtime via the container's filesystem configuration
 - [ ] 8.3 Generate `/opt/claw-sdk/INTEGRITY.json` at image build time with SHA-256 hashes of every vendored file; this is the manifest `bundle_build` verifies before running
 - [ ] 8.4 Copy only the subpaths needed for bundle authoring: `agent-runtime/bundle`, `agent-runtime/spine` (client side), `tavily-web-search/client`, `tavily-web-search/schemas`, plus any other capability `client` subpaths that exist

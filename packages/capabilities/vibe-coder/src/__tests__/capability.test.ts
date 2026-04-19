@@ -1,5 +1,5 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
+import type { SandboxProvider } from "@crabbykit/sandbox";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@cloudflare/worker-bundler", () => ({

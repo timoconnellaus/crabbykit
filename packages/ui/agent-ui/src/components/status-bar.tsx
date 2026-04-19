@@ -1,8 +1,4 @@
-import {
-  useActiveMode,
-  useAgentConnection,
-  useChatSession,
-} from "@claw-for-cloudflare/agent-runtime/client";
+import { useActiveMode, useAgentConnection, useChatSession } from "@crabbykit/agent-runtime/client";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 import type { BrowserState } from "../hooks/use-browser";
 import { BrowserBadge } from "./browser-badge";

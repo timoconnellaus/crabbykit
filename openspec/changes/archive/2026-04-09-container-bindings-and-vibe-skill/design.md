@@ -55,7 +55,7 @@ The `backendId` is derived from the agent ID + app name, consistent with how `st
 A tiny (~50 line) package that container apps import:
 
 ```typescript
-import { createDB } from "@claw-for-cloudflare/container-db";
+import { createDB } from "@crabbykit/container-db";
 const db = createDB(); // reads CLAW_DB_BACKEND_ID from process.env
 
 const { columns, rows } = await db.exec("SELECT * FROM items");
@@ -94,7 +94,7 @@ The consumer configures these in their container DO class or passes them through
 
 The skill teaches the Bun fullstack pattern:
 - Single `Bun.serve()` with HTML imports + API route handlers
-- `createDB()` from `@claw-for-cloudflare/container-db` for database access
+- `createDB()` from `@crabbykit/container-db` for database access
 - Tailwind via `bun-plugin-tailwind` + `bunfig.toml`
 - Deployment via `deploy_app` with backend entry
 - Common mistakes section
@@ -107,6 +107,6 @@ The skill is added as a seed in the example app's `D1SkillRegistry` and enabled 
 
 **DB_SERVICE binding on SandboxContainer DO** → The container DO currently only has R2 credentials. Adding DB_SERVICE requires updating wrangler.jsonc. The service binding is already configured for the worker — it just needs to be accessible to the DO too.
 
-**container-db package adds a dependency for container apps** → Apps need to `bun add @claw-for-cloudflare/container-db`. This is a small package with no dependencies. The alternative (raw fetch calls) is worse DX.
+**container-db package adds a dependency for container apps** → Apps need to `bun add @crabbykit/container-db`. This is a small package with no dependencies. The alternative (raw fetch calls) is worse DX.
 
 **Removing AI proxy env vars is breaking** → Any existing container app code using `process.env.CLAW_AI_BASE_URL` will break. Mitigation: update the prompt sections to teach the new pattern. Old apps in containers are ephemeral anyway — they're rebuilt each session.

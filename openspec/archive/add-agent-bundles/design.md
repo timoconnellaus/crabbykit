@@ -118,7 +118,7 @@ A multi-lens adversarial review of the original draft of this design surfaced th
 
 ### 7. Sandbox container as the bundle authoring environment
 
-**Decision:** Bundle source lives in the agent's existing sandbox container filesystem. The workshop tools (`bundle_init`, `bundle_build`, `bundle_test`, `bundle_deploy`) run inside the container via the existing `packages/sandbox` `exec` tool. `bun build` runs in the container against a TypeScript project scaffolded by `bundle_init`. Workspace package dependencies are resolved via a vendored snapshot of `@claw-for-cloudflare/*` packages **mounted read-only** into the `SandboxContainer` Docker image at a known path; `package.json` uses `file:` references. Package integrity hashes are verified before `bun build` runs. `bun install` is invoked with `--ignore-scripts` to disable lifecycle hooks.
+**Decision:** Bundle source lives in the agent's existing sandbox container filesystem. The workshop tools (`bundle_init`, `bundle_build`, `bundle_test`, `bundle_deploy`) run inside the container via the existing `packages/sandbox` `exec` tool. `bun build` runs in the container against a TypeScript project scaffolded by `bundle_init`. Workspace package dependencies are resolved via a vendored snapshot of `@crabbykit/*` packages **mounted read-only** into the `SandboxContainer` Docker image at a known path; `package.json` uses `file:` references. Package integrity hashes are verified before `bun build` runs. `bun install` is invoked with `--ignore-scripts` to disable lifecycle hooks.
 
 **Alternatives considered:**
 - **Bundle source in R2, build in the worker via esbuild-wasm.** Rejected: esbuild-wasm in a Worker isolate is cold-start heavy, the agent's existing sandbox already has `bun` and TypeScript, and vibe-coder's sandbox pattern is a proven model for this.
@@ -257,7 +257,7 @@ This change is additive. No existing static agents are migrated. Rollout proceed
 
 **Phase 0 — Spikes (gating).** Three independent spikes that gate Phase 0.5 and Phase 1, plus a baseline measurement. Each is time-boxed; outcomes are recorded as decision artifacts. If any spike returns red, the dependent phases are replanned before any code lands.
 
-  - **Spike 0.A: pi-agent-core import inside a loader isolate.** Hand-write a minimal bundle that does `import { AgentRuntime } from "@claw-for-cloudflare/agent-runtime"`, compile with `bun build`, load via Worker Loader, log success. Verifies the `loadPiSdk()` workaround composes with loader isolate module resolution.
+  - **Spike 0.A: pi-agent-core import inside a loader isolate.** Hand-write a minimal bundle that does `import { AgentRuntime } from "@crabbykit/agent-runtime"`, compile with `bun build`, load via Worker Loader, log success. Verifies the `loadPiSdk()` workaround composes with loader isolate module resolution.
   - **Spike 0.B: DurableObjectStub as a JSRPC argument.** Two-worker setup: worker A exports a `WorkerEntrypoint` with a method that takes a `DurableObjectStub` and calls a method on it; worker B holds a DO namespace and calls the method with a stub. Verifies whether option (a) or option (c) in Open Question 10 is feasible.
   - **Spike 0.C: Adapter async refactor feasibility.** Pick `handlePrompt` as a target call path. Manually rewrite its `SessionStore` access points to async, using a stub `SessionStoreClient` that resolves immediately. Verify: (i) the rewrite compiles, (ii) the existing `handlePrompt` test (or a synthetic equivalent) passes, (iii) document the count of touched call sites and any propagation depth (does awaiting `appendEntry` cause cascading async conversions in callers?). The output of this spike is the input to Phase 0.5's task estimate.
   - **Baseline 0.D: Cold-start latency measurement.** Compile a realistic bundle (`AgentRuntime` + pi-agent-core + pi-ai + 2-3 capabilities), measure the size and the cold-load latency in a fresh Worker Loader isolate. Compare against the static-agent equivalent. Record numbers as a baseline for Phase 1 comparison.
@@ -298,7 +298,7 @@ This change is additive. No existing static agents are migrated. Rollout proceed
 
 1. **~~Where does `LlmService` live~~** — **Resolved:** `packages/agent-bundle`. Decision 5.
 
-2. **~~Where does `SpineService` live~~** — **Resolved:** `packages/agent-runtime/src/spine/`, exported via `@claw-for-cloudflare/agent-runtime/spine`. Decision 1.
+2. **~~Where does `SpineService` live~~** — **Resolved:** `packages/agent-runtime/src/spine/`, exported via `@crabbykit/agent-runtime/spine`. Decision 1.
 
 3. **~~Does the bundle-side `AgentRuntime` need code changes, or do existing adapter interfaces work as-is?~~** — **Resolved:** yes, significant changes. `SessionStore` becomes async, `Transport` becomes send-only with separate client-message entry, isolate lifecycle is pinned. This is now Phase 0.5. Decision 1.
 

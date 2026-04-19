@@ -1,5 +1,5 @@
-import type { AgentTool, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool, CapabilityStorage } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import type { PushNotificationConfig } from "../types.js";
 import { isTextPart } from "../types.js";
 import { getAgentCard } from "./discovery.js";

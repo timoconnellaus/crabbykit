@@ -3,7 +3,7 @@ import {
   type AssistantMessageEvent,
   createAssistantMessageEventStream,
   type Model,
-} from "@claw-for-cloudflare/ai";
+} from "@crabbykit/ai";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";

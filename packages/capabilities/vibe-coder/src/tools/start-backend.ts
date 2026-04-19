@@ -1,8 +1,8 @@
-import type { AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
 import type { Modules } from "@cloudflare/worker-bundler";
 import { createWorker } from "@cloudflare/worker-bundler";
+import type { AgentContext, AgentTool } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
+import type { SandboxProvider } from "@crabbykit/sandbox";
 import type { BackendOptions } from "../types.js";
 
 /** Key used to store the current backend version in capability storage. */

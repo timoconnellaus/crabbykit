@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import { nanoid } from "nanoid";
 import type { SqlStore } from "../storage/types.js";
 import type { Session, SessionEntry, SessionEntryType } from "./types.js";

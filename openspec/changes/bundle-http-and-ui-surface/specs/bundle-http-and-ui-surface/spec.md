@@ -2,7 +2,7 @@
 
 ### Requirement: BundleCapability SHALL support an httpHandlers field
 
-The `BundleCapability` interface in `@claw-for-cloudflare/bundle-sdk` SHALL accept an optional `httpHandlers` field of type `(context: BundleContext) => BundleHttpHandler[]`. Each `BundleHttpHandler` SHALL be `{ method: "GET" | "POST" | "PUT" | "DELETE"; path: string; handler: (request: BundleHttpRequest, ctx: BundleHttpContext) => Promise<BundleHttpResponse> }`. The handler SHALL run inside the bundle isolate when the host dispatches a matched HTTP request.
+The `BundleCapability` interface in `@crabbykit/bundle-sdk` SHALL accept an optional `httpHandlers` field of type `(context: BundleContext) => BundleHttpHandler[]`. Each `BundleHttpHandler` SHALL be `{ method: "GET" | "POST" | "PUT" | "DELETE"; path: string; handler: (request: BundleHttpRequest, ctx: BundleHttpContext) => Promise<BundleHttpResponse> }`. The handler SHALL run inside the bundle isolate when the host dispatches a matched HTTP request.
 
 #### Scenario: Bundle declares an httpHandler and the host dispatches a matching request
 

@@ -1,5 +1,5 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import type { EmbedFn } from "../embeddings.js";
 import { createMemorySearchTool } from "../memory-search.js";

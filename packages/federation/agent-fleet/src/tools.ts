@@ -1,6 +1,6 @@
-import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { AnyAgentTool, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type, toolResult } from "@claw-for-cloudflare/agent-runtime";
+import { setAuthHeaders, signToken } from "@crabbykit/agent-auth";
+import type { AnyAgentTool, CapabilityStorage } from "@crabbykit/agent-runtime";
+import { defineTool, Type, toolResult } from "@crabbykit/agent-runtime";
 import { clearAttachedAgentId, getAttachedAgentId, setAttachedAgentId } from "./attach.js";
 import type { FleetOptions } from "./types.js";
 

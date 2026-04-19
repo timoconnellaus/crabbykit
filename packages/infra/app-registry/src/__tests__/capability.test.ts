@@ -1,6 +1,6 @@
-import type { AgentContext, CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type { AgentContext, CapabilityHookContext } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import type { SandboxProvider } from "@crabbykit/sandbox";
 import { describe, expect, it, vi } from "vitest";
 import { AppStore } from "../app-store.js";
 import { appRegistry } from "../capability.js";

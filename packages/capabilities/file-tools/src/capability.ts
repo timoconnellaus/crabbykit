@@ -1,5 +1,5 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { AgentContext, Capability } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
 import { createFileCopyTool } from "./file-copy.js";
 import { createFileDeleteTool } from "./file-delete.js";
 import { createFileEditTool } from "./file-edit.js";

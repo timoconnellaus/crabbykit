@@ -1,16 +1,35 @@
 {
-  "name": "@claw-for-cloudflare/vibe-coder",
+  "name": "@crabbykit/vibe-coder",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/capabilities/vibe-coder"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/agent-storage": "workspace:*",
-    "@claw-for-cloudflare/sandbox": "workspace:*",
+    "@crabbykit/agent-runtime": "workspace:^",
+    "@crabbykit/agent-core": "workspace:^",
+    "@crabbykit/agent-storage": "workspace:^",
+    "@crabbykit/sandbox": "workspace:^",
     "@cloudflare/worker-bundler": "^0.0.4",
     "@sinclair/typebox": "^0.34.0"
   },
@@ -19,8 +38,13 @@
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   }
 }

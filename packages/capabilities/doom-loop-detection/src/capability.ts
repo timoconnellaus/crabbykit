@@ -3,7 +3,7 @@ import {
   type CapabilityStorage,
   type Static,
   Type,
-} from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
 import { stableStringify } from "./stable-stringify.js";
 
 const DEFAULT_THRESHOLD = 3;

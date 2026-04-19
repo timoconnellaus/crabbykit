@@ -1,4 +1,4 @@
-import { useChatSession, useCommands } from "@claw-for-cloudflare/agent-runtime/client";
+import { useChatSession, useCommands } from "@crabbykit/agent-runtime/client";
 import {
   type ChangeEvent,
   type ComponentPropsWithoutRef,

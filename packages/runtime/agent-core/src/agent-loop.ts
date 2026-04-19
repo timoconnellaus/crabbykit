@@ -10,7 +10,7 @@ import {
   streamSimple,
   type ToolResultMessage,
   validateToolArguments,
-} from "@claw-for-cloudflare/ai";
+} from "@crabbykit/ai";
 import { buildToolNotFoundError, repairToolName } from "./tool-call-repair.js";
 import type {
   AgentContext,

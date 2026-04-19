@@ -70,12 +70,8 @@ describe("loadBundleFiles", () => {
     });
     expect(loaded.files["_claw/bundle-runtime.js"]).toBe("/* INJECTED v3 */");
     expect(loaded.files["src/_claw/bundle-runtime.js"]).toBe("/* INJECTED v3 */");
-    expect(loaded.files["node_modules/@claw-for-cloudflare/bundle-sdk/bundle.js"]).toBe(
-      "/* INJECTED v3 */",
-    );
-    const pkg = JSON.parse(
-      loaded.files["node_modules/@claw-for-cloudflare/bundle-sdk/package.json"]!,
-    );
+    expect(loaded.files["node_modules/@crabbykit/bundle-sdk/bundle.js"]).toBe("/* INJECTED v3 */");
+    const pkg = JSON.parse(loaded.files["node_modules/@crabbykit/bundle-sdk/package.json"]!);
     expect(pkg.exports["."]).toBe("./bundle.js");
   });
 

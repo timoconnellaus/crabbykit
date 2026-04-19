@@ -2,7 +2,7 @@
 
 ### Requirement: Mode type and defineMode factory
 
-The SDK SHALL define a `Mode` interface representing a named scoped view of the agent's capabilities and prompt, importable from the subpath `@claw-for-cloudflare/agent-runtime/modes`. The SDK SHALL export a `defineMode(mode: Mode): Mode` factory function for identity-typed authoring.
+The SDK SHALL define a `Mode` interface representing a named scoped view of the agent's capabilities and prompt, importable from the subpath `@crabbykit/agent-runtime/modes`. The SDK SHALL export a `defineMode(mode: Mode): Mode` factory function for identity-typed authoring.
 
 The `Mode` interface SHALL include:
 - `id: string` — unique, kebab-case identifier
@@ -232,7 +232,7 @@ The SDK SHALL provide `enter_mode` and `exit_mode` agent tools that mirror the `
 
 ### Requirement: Built-in planMode reference export
 
-The SDK SHALL export a `planMode` constant from `@claw-for-cloudflare/agent-runtime/modes` with `id: "plan"`, `name: "Planning"`, a conservative tool deny list covering common CLAW-ecosystem write/exec tool names (file_write, file_edit, file_delete, file_move, file_copy, exec, process, show_preview, hide_preview, browser_click, browser_type, browser_navigate), and a `promptAppend` instructing the model to investigate and produce a plan file before executing changes. `planMode` SHALL have no runtime imports from capability packages.
+The SDK SHALL export a `planMode` constant from `@crabbykit/agent-runtime/modes` with `id: "plan"`, `name: "Planning"`, a conservative tool deny list covering common CLAW-ecosystem write/exec tool names (file_write, file_edit, file_delete, file_move, file_copy, exec, process, show_preview, hide_preview, browser_click, browser_type, browser_navigate), and a `promptAppend` instructing the model to investigate and produce a plan file before executing changes. `planMode` SHALL have no runtime imports from capability packages.
 
 `planMode` SHALL carry a JSDoc comment clearly stating that its deny list is **only a starting point for agents using CLAW ecosystem capabilities**, and that consumers with custom tool names (e.g., `db_insert`, `write_file`, `api_post`) MUST extend or replace the deny list. The JSDoc SHALL show the composition pattern:
 
@@ -278,7 +278,7 @@ The `useAgentChat()` client hook SHALL expose an `activeMode: { id: string; name
 
 ### Requirement: Subpath export
 
-The `@claw-for-cloudflare/agent-runtime` package SHALL add a `./modes` subpath export that resolves to `src/modes/index.ts`. The barrel file SHALL export:
+The `@crabbykit/agent-runtime` package SHALL add a `./modes` subpath export that resolves to `src/modes/index.ts`. The barrel file SHALL export:
 - `defineMode` (factory)
 - `type Mode`, `type AppliedMode` (public types)
 - `filterToolsAndSections` (low-level filter, called directly by `packages/subagent`)
@@ -291,7 +291,7 @@ Implementation-detail helpers (e.g., an internal `excludePromptSectionsForMode` 
 Type-level imports from other `agent-runtime` modules (e.g., `PromptSection`, `AgentContext`) SHALL continue to flow through the main package barrel.
 
 #### Scenario: Subpath import works
-- **WHEN** a consumer writes `import { defineMode, planMode } from "@claw-for-cloudflare/agent-runtime/modes"`
+- **WHEN** a consumer writes `import { defineMode, planMode } from "@crabbykit/agent-runtime/modes"`
 - **THEN** the imports resolve to the `src/modes/index.ts` barrel
 
 #### Scenario: Main barrel does not re-export mode primitives

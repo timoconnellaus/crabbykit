@@ -1,4 +1,4 @@
-# @claw-for-cloudflare/agent-runtime
+# @crabbykit/agent-runtime
 
 Platform-agnostic runtime for building conversational AI agents on
 Cloudflare Workers. Provides `AgentDO`, the `defineAgent` factory, session
@@ -144,7 +144,7 @@ user on their most recent channel).
 
 ### Authoring a channel safely
 
-1. **Start with `@claw-for-cloudflare/channel-telegram`** as a
+1. **Start with `@crabbykit/channel-telegram`** as a
    reference. It builds a complete channel in ~80 lines of declarative
    code on top of `defineChannel`. Read its implementation before
    writing your own — you will absorb the security invariants from the

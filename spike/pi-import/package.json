@@ -8,12 +8,12 @@
     "spike": "bun run build:bundle && wrangler dev"
   },
   "dependencies": {
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/ai": "workspace:*",
-    "@claw-for-cloudflare/compaction-summary": "workspace:*",
-    "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
-    "@claw-for-cloudflare/tavily-web-search": "workspace:*"
+    "@crabbykit/agent-core": "workspace:^",
+    "@crabbykit/agent-runtime": "workspace:^",
+    "@crabbykit/ai": "workspace:^",
+    "@crabbykit/compaction-summary": "workspace:^",
+    "@crabbykit/prompt-scheduler": "workspace:^",
+    "@crabbykit/tavily-web-search": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",

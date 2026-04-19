@@ -1,5 +1,5 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import { filterToolsAndSections } from "@claw-for-cloudflare/agent-runtime/modes";
+import type { AgentTool } from "@crabbykit/agent-core";
+import { filterToolsAndSections } from "@crabbykit/agent-runtime/modes";
 import type { Mode, ResolvedSubagentSpawn } from "./types.js";
 
 /**
@@ -9,7 +9,7 @@ import type { Mode, ResolvedSubagentSpawn } from "./types.js";
  * - Resolves `systemPromptOverride` (string, function, or undefined)
  *   into a final system prompt string. Function form receives the
  *   parent's system prompt as the `base` parameter and the parent's
- *   {@link import("@claw-for-cloudflare/agent-runtime").AgentContext}
+ *   {@link import("@crabbykit/agent-runtime").AgentContext}
  *   as the second parameter (per design D11 / spec). When absent,
  *   the parent's base prompt is used unchanged.
  * - Filters the parent's tool list via the shared

@@ -1,0 +1,10 @@
+; Copy to .npmrc (gitignored) and set NPM_TOKEN in your shell env, OR
+; replace ${NPM_TOKEN} with the literal token for machine-wide auth.
+;
+; Get a token: npmjs.com → Access Tokens → Generate New Token
+;   - Granular (preferred): scope to "@crabbykit", "Packages and scopes" write
+;   - Classic "Automation": works too, bypasses 2FA for publish
+;
+; Verify: npm whoami
+
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}

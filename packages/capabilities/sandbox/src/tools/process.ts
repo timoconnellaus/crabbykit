@@ -1,5 +1,5 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import { checkElevation } from "../elevation.js";
 import { getOwnedProcessIds, getProcessOwner, removeProcessOwner } from "../session-state.js";
 import type { SandboxConfig, SandboxProvider } from "../types.js";

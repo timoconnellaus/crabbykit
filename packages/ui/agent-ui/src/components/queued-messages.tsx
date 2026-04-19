@@ -1,4 +1,4 @@
-import { useChatSession, useQueue } from "@claw-for-cloudflare/agent-runtime/client";
+import { useChatSession, useQueue } from "@crabbykit/agent-runtime/client";
 
 /**
  * Renders queued messages that will be processed after the current agent turn.

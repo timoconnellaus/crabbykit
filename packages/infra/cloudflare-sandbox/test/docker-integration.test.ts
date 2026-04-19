@@ -266,7 +266,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
 
     it("passes HTML through without modification", async () => {
       // The dev server from previous test should still be running
-      // Console capture is now handled by @claw-for-cloudflare/vite-plugin,
+      // Console capture is now handled by @crabbykit/vite-plugin,
       // not the container proxy — proxy is a simple pass-through.
       const res = await fetch_("/");
       const html = await res.text();

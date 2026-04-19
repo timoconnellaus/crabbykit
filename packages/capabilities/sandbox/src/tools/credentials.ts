@@ -1,6 +1,6 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import { decrypt, encrypt, generateKey } from "@claw-for-cloudflare/credential-store";
+import type { AgentContext } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
+import { decrypt, encrypt, generateKey } from "@crabbykit/credential-store";
 import type { SandboxConfig, SandboxProvider } from "../types.js";
 
 /** Allowed credential file paths (home dotfiles, .config, .local). */

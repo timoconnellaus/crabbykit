@@ -6,14 +6,14 @@
  */
 
 // Core imports
-import { Agent } from "@claw-for-cloudflare/agent-core";
-import { defineTool } from "@claw-for-cloudflare/agent-runtime";
-import { getModel } from "@claw-for-cloudflare/ai";
+import { Agent } from "@crabbykit/agent-core";
+import { defineTool } from "@crabbykit/agent-runtime";
+import { getModel } from "@crabbykit/ai";
 
 // Capability imports — representative of what a bundle would inline
-import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
-import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
-import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
+import { compactionSummary } from "@crabbykit/compaction-summary";
+import { promptScheduler } from "@crabbykit/prompt-scheduler";
+import { tavilyWebSearch } from "@crabbykit/tavily-web-search";
 
 interface CheckResult {
   imports: Record<string, string>;

@@ -8,17 +8,17 @@
     "test:dev": "vitest run --config vitest.dev.config.ts"
   },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/agent-storage": "workspace:*",
-    "@claw-for-cloudflare/channel-telegram": "workspace:*",
-    "@claw-for-cloudflare/cloudflare-sandbox": "workspace:*",
-    "@claw-for-cloudflare/compaction-summary": "workspace:*",
-    "@claw-for-cloudflare/doom-loop-detection": "workspace:*",
-    "@claw-for-cloudflare/file-tools": "workspace:*",
-    "@claw-for-cloudflare/prompt-scheduler": "workspace:*",
-    "@claw-for-cloudflare/sandbox": "workspace:*",
-    "@claw-for-cloudflare/skills": "workspace:*",
-    "@claw-for-cloudflare/tool-output-truncation": "workspace:*",
+    "@crabbykit/agent-runtime": "workspace:^",
+    "@crabbykit/agent-storage": "workspace:^",
+    "@crabbykit/channel-telegram": "workspace:^",
+    "@crabbykit/cloudflare-sandbox": "workspace:^",
+    "@crabbykit/compaction-summary": "workspace:^",
+    "@crabbykit/doom-loop-detection": "workspace:^",
+    "@crabbykit/file-tools": "workspace:^",
+    "@crabbykit/prompt-scheduler": "workspace:^",
+    "@crabbykit/sandbox": "workspace:^",
+    "@crabbykit/skills": "workspace:^",
+    "@crabbykit/tool-output-truncation": "workspace:^",
     "@cloudflare/containers": "^0.1.0"
   },
   "devDependencies": {

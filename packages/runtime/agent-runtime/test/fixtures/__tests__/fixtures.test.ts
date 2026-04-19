@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@claw-for-cloudflare/agent-core";
+import type { AgentEvent } from "@crabbykit/agent-core";
 import { describe, expect, it } from "vitest";
 import {
   createAssistantMessage,

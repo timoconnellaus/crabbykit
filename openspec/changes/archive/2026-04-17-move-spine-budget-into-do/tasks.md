@@ -30,7 +30,7 @@
   }
   ```
 - [x] 2.2 Export `SpineCaller` from `packages/runtime/agent-runtime/src/index.ts`.
-- [x] 2.3 Import `BudgetTracker` and `SpineBudgetConfig` from `@claw-for-cloudflare/bundle-host` into `packages/runtime/agent-runtime/src/agent-runtime.ts` as runtime imports (not type-only — `AgentRuntime` needs to construct an instance). If the dep-direction lint protests about `agent-runtime → bundle-host`, add a narrow exception in `scripts/check-package-deps.ts` documented as "BudgetTracker class used by spine budget enforcement — see openspec move-spine-budget-into-do", OR relocate the BudgetTracker source file (see note in design.md — prefer the exception for now, defer the relocation).
+- [x] 2.3 Import `BudgetTracker` and `SpineBudgetConfig` from `@crabbykit/bundle-host` into `packages/runtime/agent-runtime/src/agent-runtime.ts` as runtime imports (not type-only — `AgentRuntime` needs to construct an instance). If the dep-direction lint protests about `agent-runtime → bundle-host`, add a narrow exception in `scripts/check-package-deps.ts` documented as "BudgetTracker class used by spine budget enforcement — see openspec move-spine-budget-into-do", OR relocate the BudgetTracker source file (see note in design.md — prefer the exception for now, defer the relocation).
 - [x] 2.4 Add a private field on `AgentRuntime<TEnv>`: `private readonly spineBudget: BudgetTracker;`
 - [x] 2.5 In the `AgentRuntime` constructor, instantiate the tracker: `this.spineBudget = new BudgetTracker(options.spineBudget);` — accepting the budget config via the `AgentRuntimeOptions` (or equivalent construction type). Add `spineBudget?: SpineBudgetConfig` to that options type.
 - [x] 2.6 Decide how the budget config reaches `AgentRuntime` construction. Two options:
@@ -106,7 +106,7 @@
   - Construct `const caller: SpineCaller = { aid, sid, nonce };`.
   - Call the DO with the caller context: `return await this.getHost(aid).spineX(caller, ...args);` (where `...args` is whatever the method passes today without the sid).
   - Keep the try/catch around the host call, keep `throw this.sanitize(err);`.
-- [x] 5.6 Update the `SpineCaller` import: `import type { SpineCaller } from "@claw-for-cloudflare/agent-runtime";`
+- [x] 5.6 Update the `SpineCaller` import: `import type { SpineCaller } from "@crabbykit/agent-runtime";`
 - [x] 5.7 For methods that currently pass `sid` plus other args (e.g., `spineAppendEntry(sid, entry)`), the new call is `spineAppendEntry(caller, entry)` — `sid` is in `caller`, so it's no longer a separate positional arg.
 - [x] 5.8 For methods that pass only `sid` (e.g., `spineBuildContext(sid)`), the new call is `spineBuildContext(caller)` — single argument.
 - [x] 5.9 For methods that pass `capabilityId` and `key` (KV methods), the new calls are `spineKvGet(caller, capabilityId, key)` etc.

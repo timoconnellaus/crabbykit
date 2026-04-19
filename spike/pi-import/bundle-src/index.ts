@@ -8,11 +8,11 @@
 
 // The critical imports — these pull in pi-agent-core (which depends on pi-ai,
 // which depends on partial-json, the CJS package that causes the known issue).
-import { Agent } from "@claw-for-cloudflare/agent-core";
+import { Agent } from "@crabbykit/agent-core";
 // Also test importing from agent-runtime itself, since that's what
 // defineBundleAgent would ultimately need.
-import { defineTool } from "@claw-for-cloudflare/agent-runtime";
-import { getModel } from "@claw-for-cloudflare/ai";
+import { defineTool } from "@crabbykit/agent-runtime";
+import { getModel } from "@crabbykit/ai";
 
 interface ImportCheckResult {
   agentType: string;

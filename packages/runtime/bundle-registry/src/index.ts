@@ -1,4 +1,4 @@
-export { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+export { CapabilityMismatchError } from "@crabbykit/agent-runtime";
 export { D1BundleRegistry } from "./d1-registry.js";
 export { computeVersionId } from "./hash.js";
 

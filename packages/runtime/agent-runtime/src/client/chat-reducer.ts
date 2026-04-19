@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import type { CostEvent } from "../costs/types.js";
 import type { PromptSection } from "../prompt/types.js";
 import type { AgentStatus, ConnectionStatus } from "./types.js";

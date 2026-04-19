@@ -29,7 +29,7 @@ Dependency order across groups:
 - [x] 1.8 Write `modes/built-in/index.ts` — barrel re-exporting `planMode`
 - [x] 1.9 Write `modes/index.ts` — subpath barrel exporting `defineMode`, `type Mode`, `type AppliedMode`, `filterToolsAndSections`, `applyMode`, `resolveActiveMode`, and built-ins. MUST NOT export `excludePromptSectionsForMode` (implementation detail)
 - [x] 1.10 Update `packages/agent-runtime/package.json` `exports` field to include `"./modes": "./src/modes/index.ts"`
-- [x] 1.11 Verify modes subpath import from a scratch consumer: `import { defineMode, planMode } from "@claw-for-cloudflare/agent-runtime/modes"`
+- [x] 1.11 Verify modes subpath import from a scratch consumer: `import { defineMode, planMode } from "@crabbykit/agent-runtime/modes"`
 
 ## 2. Core mode unit tests
 
@@ -108,9 +108,9 @@ Dependency order across groups:
 
 ## 8. Subagent package unification
 
-- [x] 8.1 Delete `SubagentProfile` from `packages/subagent/src/types.ts`; re-export `Mode` from `@claw-for-cloudflare/agent-runtime/modes`
+- [x] 8.1 Delete `SubagentProfile` from `packages/subagent/src/types.ts`; re-export `Mode` from `@crabbykit/agent-runtime/modes`
 - [x] 8.2 Replace `ResolvedProfile` shape as needed to hold the resolved subset (systemPrompt, tools, modelId)
-- [x] 8.3 Rewrite `packages/subagent/src/resolve.ts` to import `filterToolsAndSections` from `@claw-for-cloudflare/agent-runtime/modes` and delegate tool filtering to it. Keep the file-level function name descriptive of its role (e.g., `resolveSubagentSpawn` or similar) — it is NOT renamed to `applyMode` because `applyMode` is the main-session-specific wrapper. Do NOT construct a fake `ResolvedCapabilities` object
+- [x] 8.3 Rewrite `packages/subagent/src/resolve.ts` to import `filterToolsAndSections` from `@crabbykit/agent-runtime/modes` and delegate tool filtering to it. Keep the file-level function name descriptive of its role (e.g., `resolveSubagentSpawn` or similar) — it is NOT renamed to `applyMode` because `applyMode` is the main-session-specific wrapper. Do NOT construct a fake `ResolvedCapabilities` object
 - [x] 8.4 Update `call_subagent` and `start_subagent` tools in `packages/subagent/src/tools.ts` to use parameter name `mode` (not `profile`); update tool description and JSON schema
 - [x] 8.5 Rename `PendingSubagent.profileId` → `modeId` in `packages/subagent/src/types.ts` and every call site
 - [x] 8.6 Rename `SubagentEventMeta.profileId` → `modeId` in `packages/subagent/src/event-forwarder.ts` and every call site
@@ -123,7 +123,7 @@ Dependency order across groups:
 
 NOTE: earlier spec drafts referenced a nonexistent constant `explorerProfile`. The actual export at `packages/subagent-explorer/src/explorer.ts:55` is the factory function `explorer(options?: ExplorerOptions): SubagentProfile`. Tasks below target the factory, not a constant.
 
-- [x] 9.1 Update `packages/subagent-explorer/src/explorer.ts`: change `explorer(options?)` return type from `SubagentProfile` to `Mode` (imported from `@claw-for-cloudflare/agent-runtime/modes`). Factory name stays the same
+- [x] 9.1 Update `packages/subagent-explorer/src/explorer.ts`: change `explorer(options?)` return type from `SubagentProfile` to `Mode` (imported from `@crabbykit/agent-runtime/modes`). Factory name stays the same
 - [x] 9.2 Migrate factory body: `tools: options?.tools` (string[]) → `tools: options?.tools ? { allow: options.tools } : undefined`. Update `ExplorerOptions.tools` JSDoc to describe the allow-list semantics
 - [x] 9.3 Migrate `systemPrompt: EXPLORER_SYSTEM_PROMPT` (function of `parentPrompt`) → `systemPromptOverride: (base, context) => EXPLORER_SYSTEM_PROMPT(base)`. The base parameter replaces the old `parentPrompt`
 - [x] 9.4 Retain `isReadOnlyTool` and `filterReadOnlyTools` exports — do NOT drop them

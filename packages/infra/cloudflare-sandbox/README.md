@@ -1,4 +1,4 @@
-# @claw-for-cloudflare/cloudflare-sandbox
+# @crabbykit/cloudflare-sandbox
 
 Sandbox provider for Cloudflare Containers. Provides controlled shell execution, file operations, and process management inside a container DO.
 

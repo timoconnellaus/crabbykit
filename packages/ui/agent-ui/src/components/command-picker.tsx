@@ -1,4 +1,4 @@
-import type { CommandInfo } from "@claw-for-cloudflare/agent-runtime/client";
+import type { CommandInfo } from "@crabbykit/agent-runtime/client";
 import {
   type ComponentPropsWithoutRef,
   forwardRef,

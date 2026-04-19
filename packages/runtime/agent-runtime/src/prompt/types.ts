@@ -1,5 +1,5 @@
 /**
- * Prompt types live in `@claw-for-cloudflare/bundle-sdk` — the bundle
+ * Prompt types live in `@crabbykit/bundle-sdk` — the bundle
  * SDK is the single source of truth so both the host-side runtime AND
  * the bundle-side runtime (running inside an isolated Worker Loader
  * isolate that can't reach agent-runtime) compose prompts from
@@ -11,4 +11,4 @@ export type {
   PromptOptions,
   PromptSection,
   PromptSectionSource,
-} from "@claw-for-cloudflare/bundle-sdk";
+} from "@crabbykit/bundle-sdk";

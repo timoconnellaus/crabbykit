@@ -92,7 +92,7 @@ interface KvStore {
 
 **Rationale**: Creating a separate `@claw/core` package is premature — there's only one consumer (`agent-runtime`) today. When WebSocket and lifecycle abstractions are added later, that's the right time to extract a core package. For now, a `storage/` module within agent-runtime keeps things simple and avoids workspace/build churn.
 
-**Alternative considered**: New `@claw-for-cloudflare/core` package. Deferred — too much build/publish infrastructure work for just two interfaces.
+**Alternative considered**: New `@crabbykit/core` package. Deferred — too much build/publish infrastructure work for just two interfaces.
 
 ### 6. Stores keep synchronous constructors
 

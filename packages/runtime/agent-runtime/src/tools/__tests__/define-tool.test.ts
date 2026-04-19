@@ -1,4 +1,4 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@crabbykit/agent-core";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentContext } from "../../agent-do.js";

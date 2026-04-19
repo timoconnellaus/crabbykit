@@ -20,7 +20,7 @@
 
 ## 3. Skills Capability Package — Core
 
-- [x] 3.1 Scaffold `packages/skills` — package.json (depends on `@claw-for-cloudflare/skill-registry`, `@claw-for-cloudflare/agent-storage`), tsconfig.json, vitest.config.ts, src/index.ts barrel
+- [x] 3.1 Scaffold `packages/skills` — package.json (depends on `@crabbykit/skill-registry`, `@crabbykit/agent-storage`), tsconfig.json, vitest.config.ts, src/index.ts barrel
 - [x] 3.2 Define `SkillsOptions` type in `src/types.ts`: `{ storage: AgentStorage, registry: SkillRegistry, skills: Array<{ id: string, enabled?: boolean, autoUpdate?: boolean }> }`
 - [x] 3.3 Define `InstalledSkill` type for DO state entries: `{ name, description, version, enabled, autoUpdate, stale, originalHash, r2Key, requiresCapabilities }`
 - [x] 3.4 Implement `skills()` factory function in `src/capability.ts` returning a `Capability` with id `"skills"`

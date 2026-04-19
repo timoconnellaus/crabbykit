@@ -9,7 +9,7 @@
  */
 
 import { env } from "cloudflare:test";
-import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+import { CapabilityMismatchError } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it } from "vitest";
 import { D1BundleRegistry } from "../d1-registry.js";
 

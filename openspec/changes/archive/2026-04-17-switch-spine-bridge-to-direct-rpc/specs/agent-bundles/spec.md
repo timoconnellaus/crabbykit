@@ -4,7 +4,7 @@
 
 ### Requirement: SpineService dispatches to the host DO via direct RPC method calls
 
-SpineService (the `WorkerEntrypoint` in `@claw-for-cloudflare/bundle-host`) SHALL dispatch all bridged calls to the host `AgentDO` using direct method calls on a typed `DurableObjectStub<SpineHost>`. SpineService SHALL NOT construct `Request` objects or invoke `host.fetch(...)` for any spine operation. The previously-used HTTP-style routing pattern (pathing such as `https://internal/spine/appendEntry` with JSON-serialized bodies) is removed entirely.
+SpineService (the `WorkerEntrypoint` in `@crabbykit/bundle-host`) SHALL dispatch all bridged calls to the host `AgentDO` using direct method calls on a typed `DurableObjectStub<SpineHost>`. SpineService SHALL NOT construct `Request` objects or invoke `host.fetch(...)` for any spine operation. The previously-used HTTP-style routing pattern (pathing such as `https://internal/spine/appendEntry` with JSON-serialized bodies) is removed entirely.
 
 Each SpineService method SHALL:
 

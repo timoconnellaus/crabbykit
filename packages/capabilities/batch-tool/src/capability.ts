@@ -1,6 +1,6 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, toolResult } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@crabbykit/agent-core";
+import type { Capability } from "@crabbykit/agent-runtime";
+import { defineTool, toolResult } from "@crabbykit/agent-runtime";
 import { Type } from "@sinclair/typebox";
 
 const MAX_BATCH_SIZE = 25;

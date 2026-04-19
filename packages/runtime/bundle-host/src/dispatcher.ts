@@ -7,7 +7,7 @@
  * load failure or when no bundle is active.
  */
 
-import { validateCatalogAgainstKnownIds } from "@claw-for-cloudflare/bundle-registry";
+import { validateCatalogAgainstKnownIds } from "@crabbykit/bundle-registry";
 import type { BundleConfig, BundleDispatchState, BundleRegistry } from "./bundle-config.js";
 import { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "./security/mint.js";
 

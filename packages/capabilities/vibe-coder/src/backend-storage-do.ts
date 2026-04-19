@@ -19,7 +19,7 @@ export interface SqlResult {
  * @example
  * ```ts
  * // worker.ts
- * export { BackendStorage } from "@claw-for-cloudflare/vibe-coder";
+ * export { BackendStorage } from "@crabbykit/vibe-coder";
  * ```
  */
 export class BackendStorage extends DurableObject {

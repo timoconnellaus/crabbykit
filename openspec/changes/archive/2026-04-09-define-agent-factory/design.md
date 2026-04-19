@@ -334,13 +334,13 @@ Both are zero-risk additions.
 
 ```ts
 // examples/basic-agent/src/worker.ts
-import { defineAgent } from "@claw-for-cloudflare/agent-runtime";
-import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
-import { r2Storage } from "@claw-for-cloudflare/r2-storage";
-import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
-import { taskTracker } from "@claw-for-cloudflare/task-tracker";
-import { appRegistry } from "@claw-for-cloudflare/app-registry";
-import { batchTool } from "@claw-for-cloudflare/batch-tool";
+import { defineAgent } from "@crabbykit/agent-runtime";
+import { compactionSummary } from "@crabbykit/compaction-summary";
+import { r2Storage } from "@crabbykit/r2-storage";
+import { tavilyWebSearch } from "@crabbykit/tavily-web-search";
+import { taskTracker } from "@crabbykit/task-tracker";
+import { appRegistry } from "@crabbykit/app-registry";
+import { batchTool } from "@crabbykit/batch-tool";
 // ... other capability imports
 import { getCurrentTimeTool } from "./tools/get-current-time";
 

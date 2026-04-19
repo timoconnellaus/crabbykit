@@ -1,9 +1,4 @@
-import {
-  type AgentContext,
-  type AnyAgentTool,
-  defineTool,
-  Type,
-} from "@claw-for-cloudflare/agent-runtime";
+import { type AgentContext, type AnyAgentTool, defineTool, Type } from "@crabbykit/agent-runtime";
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
 const TAVILY_SEARCH_COST_USD = 0.01;

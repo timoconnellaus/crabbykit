@@ -1,4 +1,4 @@
-import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { createCallbackHandler } from "./handlers.js";
 import { PendingTaskStore } from "./pending-tasks.js";
 import type { A2AToolOptions } from "./tools.js";

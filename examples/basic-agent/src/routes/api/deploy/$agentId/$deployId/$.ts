@@ -1,5 +1,5 @@
 import { env as rawEnv } from "cloudflare:workers";
-import { handleDeployRequest } from "@claw-for-cloudflare/vibe-coder";
+import { handleDeployRequest } from "@crabbykit/vibe-coder";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Env } from "../../../../../worker";
 

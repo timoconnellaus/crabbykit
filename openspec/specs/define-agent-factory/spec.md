@@ -164,13 +164,13 @@ Consumers SHALL still be able to write `class MyAgent extends AgentDO<Env> { ...
 The setup type SHALL be named `AgentSetup`, NOT `AgentInitContext` or any other "...Context" name. This is to visually distinguish it from `AgentContext`, `ToolExecuteContext`, `RuntimeContext`, `CommandContext`, and `CapabilityHookContext` which already exist in the codebase.
 
 #### Scenario: Type exported as AgentSetup
-- **WHEN** importing the type from `@claw-for-cloudflare/agent-runtime`
-- **THEN** `import type { AgentSetup } from "@claw-for-cloudflare/agent-runtime"` works
+- **WHEN** importing the type from `@crabbykit/agent-runtime`
+- **THEN** `import type { AgentSetup } from "@crabbykit/agent-runtime"` works
 
 ### Requirement: Consumer-facing exports
-The `@claw-for-cloudflare/agent-runtime` package SHALL export `defineAgent`, `AgentDefinition`, `AgentSetup`, `Logger`, and continue exporting `AgentDO` and all existing types.
+The `@crabbykit/agent-runtime` package SHALL export `defineAgent`, `AgentDefinition`, `AgentSetup`, `Logger`, and continue exporting `AgentDO` and all existing types.
 
 #### Scenario: Imports work from main barrel
-- **WHEN** a consumer writes `import { defineAgent } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a consumer writes `import { defineAgent } from "@crabbykit/agent-runtime"`
 - **THEN** the function is available
 

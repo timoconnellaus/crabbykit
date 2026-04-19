@@ -1,4 +1,4 @@
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it } from "vitest";
 import { fileTools } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";

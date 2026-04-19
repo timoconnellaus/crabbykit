@@ -21,10 +21,10 @@ It is deliberately scoped narrow. A follow-up proposal (`split-agent-bundle-host
   - `packages/federation/` — multi-agent coordination. `a2a`, `agent-fleet`, `agent-peering`.
   - `packages/ui/` — client-side React. `agent-ui`.
   - `packages/dev/` — build/dev tooling. `vite-plugin`.
-- **Package directories move; package names do not change.** Every `@claw-for-cloudflare/*` identifier stays identical. Import paths in consumer code are untouched. Only the filesystem location of each package directory changes. Bun's workspace glob becomes `packages/*/*` instead of `packages/*`.
+- **Package directories move; package names do not change.** Every `@crabbykit/*` identifier stays identical. Import paths in consumer code are untouched. Only the filesystem location of each package directory changes. Bun's workspace glob becomes `packages/*/*` instead of `packages/*`.
 - **Rename `r2-storage` → `file-tools`.** The current name describes its storage substrate, not its purpose. The capability is "nine file tools that happen to be backed by R2". The R2 bucket identity already has a home in `agent-storage`, which is the real "R2 storage" package. Renaming frees the `r2-*` namespace for future substrate packages and removes a persistent name-lie. The package's public API (`r2Storage({ storage })` factory function) is renamed to `fileTools({ storage })`. Existing consumers update two imports each.
 - **Add a dependency-direction lint rule.** A CI check (plain `grep`-based script or Biome custom rule) fails the build if:
-  - Any file in `packages/runtime/*` imports from `@claw-for-cloudflare/*` packages that live in `packages/capabilities/*`, `packages/channels/*`, `packages/federation/*`, or `packages/ui/*`.
+  - Any file in `packages/runtime/*` imports from `@crabbykit/*` packages that live in `packages/capabilities/*`, `packages/channels/*`, `packages/federation/*`, or `packages/ui/*`.
   - Any file in `packages/infra/*` imports from `packages/capabilities/*`, `packages/channels/*`, or `packages/federation/*`.
   - Any file in `packages/capabilities/*` imports from `packages/channels/*`.
   - Any file in `packages/ui/*` imports server-side runtime internals (only transport types are allowed).
@@ -50,14 +50,14 @@ The `r2-storage` → `file-tools` rename changes one capability's package name a
 - **Package directories move**: every `packages/<name>/` path becomes `packages/<bucket>/<name>/`. ~37 directory moves. Scripted via `git mv` to preserve history.
 - **Two packages renamed**:
   - `packages/r2-storage/` → `packages/capabilities/file-tools/`
-  - Package name `@claw-for-cloudflare/r2-storage` → `@claw-for-cloudflare/file-tools`
+  - Package name `@crabbykit/r2-storage` → `@crabbykit/file-tools`
   - Factory function `r2Storage()` → `fileTools()`
   - Consumer code in `examples/basic-agent`, any other internal consumers, and CLAUDE.md's examples all update to the new name
 - **Workspace glob update**: `package.json` `workspaces: ["packages/*"]` → `["packages/*/*"]`. Examples and e2e stay at their current root paths.
 - **CI gains a dependency-direction check**: a new script at `scripts/check-deps.ts` (or similar) runs during `bun run lint` and in CI. Walks every `src/**/*.ts` file in `packages/`, parses imports, and fails if any import crosses a forbidden bucket boundary. No runtime impact; build-time only.
 - **CLAUDE.md updated**: the "## Packages" section is rewritten to show packages grouped by bucket. The "## Architecture Rules" section gains a new "### Workspace layout" subsection describing the dependency direction rules and pointing at the `workspace-layout` spec.
 - **No behavior changes**: every existing example, every existing test, every existing wrangler binding, every existing deployed agent continues to work. This is a structural refactor with a rename.
-- **No breaking changes for external consumers**: `@claw-for-cloudflare/r2-storage` is renamed to `@claw-for-cloudflare/file-tools`. This is the only breaking change in this proposal; it is deliberate because the old name actively misleads. No deprecation alias — the repo is pre-release and greenfield; legacy shims are not introduced. Internal consumers update as part of this change.
+- **No breaking changes for external consumers**: `@crabbykit/r2-storage` is renamed to `@crabbykit/file-tools`. This is the only breaking change in this proposal; it is deliberate because the old name actively misleads. No deprecation alias — the repo is pre-release and greenfield; legacy shims are not introduced. Internal consumers update as part of this change.
 - **Out of scope**:
   - Splitting `agent-bundle` into its host and SDK halves — deferred to the `split-agent-bundle-host-and-sdk` proposal which depends on this one having landed.
   - Documenting the three-tier (infra / brain / config) capability model as a reference spec — deferred to a later `document-three-tier-capability-model` spec-only proposal if/when it becomes load-bearing.

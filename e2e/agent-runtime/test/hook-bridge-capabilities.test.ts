@@ -32,10 +32,10 @@
  */
 
 import { env } from "cloudflare:test";
-import { agentStorage } from "@claw-for-cloudflare/agent-storage";
-import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
-import { skills } from "@claw-for-cloudflare/skills";
-import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
+import { agentStorage } from "@crabbykit/agent-storage";
+import { doomLoopDetection } from "@crabbykit/doom-loop-detection";
+import { skills } from "@crabbykit/skills";
+import { toolOutputTruncation } from "@crabbykit/tool-output-truncation";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clearExtraStaticCaps,

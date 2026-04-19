@@ -8,13 +8,19 @@
     "spike/*"
   ],
   "scripts": {
+    "build": "bun run --filter '@crabbykit/*' build",
     "test": "bun run --filter '*' test",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check . && bun scripts/check-package-deps.ts",
     "lint:fix": "biome check --write . && bun scripts/check-package-deps.ts",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "bun run build && changeset publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.9"
+    "@biomejs/biome": "^2.4.9",
+    "@changesets/cli": "^2.27.0",
+    "@types/bun": "^1.3.12"
   }
 }

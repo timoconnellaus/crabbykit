@@ -12,11 +12,7 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 import { SCHEMA_CONTENT_HASH } from "./schemas.js";
 
 const TAVILY_API_URL = "https://api.tavily.com";

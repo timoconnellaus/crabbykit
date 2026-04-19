@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -11,6 +12,22 @@ const outSource = join(root, "dist/bundle-runtime-source.js");
 const outSourceDts = join(root, "dist/bundle-runtime-source.d.ts");
 
 await mkdir(dirname(outJs), { recursive: true });
+
+await Bun.build({
+  entrypoints: [entry],
+  outdir: dirname(outJs),
+  target: "browser",
+  format: "esm",
+  naming: "index.js",
+  external: ["cloudflare:workers", "cloudflare:sockets", "@crabbykit/*", "@sinclair/typebox"],
+  minify: false,
+  sourcemap: "external",
+});
+
+execSync(
+  "bun x tsc -p tsconfig.json --emitDeclarationOnly --outDir dist --declaration --declarationMap --noEmit false --rootDir src",
+  { cwd: root, stdio: "inherit" },
+);
 
 const build = await Bun.build({
   entrypoints: [entry],

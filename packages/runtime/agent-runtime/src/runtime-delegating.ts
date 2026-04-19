@@ -1,4 +1,4 @@
-import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AnyAgentTool } from "@crabbykit/agent-core";
 import type { TObject } from "@sinclair/typebox";
 import {
   type A2AClientOptions,

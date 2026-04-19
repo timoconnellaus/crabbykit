@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   compactSession,

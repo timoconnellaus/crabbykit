@@ -1,4 +1,4 @@
-import type { AgentContext, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, Capability } from "@crabbykit/agent-runtime";
 import { resetCost } from "./cost.js";
 import { createModelsHandler } from "./models-handler.js";
 import { createChatCompletionsHandler } from "./proxy-handler.js";

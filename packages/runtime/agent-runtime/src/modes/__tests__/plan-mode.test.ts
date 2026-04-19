@@ -42,7 +42,7 @@ describe("planMode built-in", () => {
     // import is the local `define-mode.ts` for the type.
     const importLines = source.split("\n").filter((line) => /^\s*import\b/.test(line));
     for (const line of importLines) {
-      expect(line).not.toMatch(/@claw-for-cloudflare\/(?!agent-runtime)/);
+      expect(line).not.toMatch(/@crabbykit\/(?!agent-runtime)/);
       expect(line).not.toMatch(/file-tools|sandbox|vibe-coder|browserbase|tavily/);
     }
   });

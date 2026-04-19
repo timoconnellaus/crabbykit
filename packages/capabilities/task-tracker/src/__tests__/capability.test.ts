@@ -1,4 +1,4 @@
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 
 // Mock cloudflare:workers — vi.mock is hoisted, so the factory must define

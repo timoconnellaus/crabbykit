@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentTool } from "@crabbykit/agent-core";
 import { estimateTextTokens } from "./build-system-prompt.js";
 import type { PromptSection } from "./types.js";
 

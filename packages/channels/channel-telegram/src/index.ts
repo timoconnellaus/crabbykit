@@ -6,8 +6,8 @@ import type {
   ChannelDefinition,
   ConfigNamespace,
   ParsedInbound,
-} from "@claw-for-cloudflare/agent-runtime";
-import { defineChannel, Type } from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
+import { defineChannel, Type } from "@crabbykit/agent-runtime";
 import { TelegramAccountStore } from "./account-store.js";
 import { parseTelegramUpdate, type TelegramUpdate } from "./parse.js";
 import { createTelegramSendReply } from "./send.js";

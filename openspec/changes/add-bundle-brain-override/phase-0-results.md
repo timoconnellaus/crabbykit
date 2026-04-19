@@ -6,7 +6,7 @@
 
 ### Approach
 - Created `spike/pi-import/` with a minimal worker hosting a `SpikeAgent` DO
-- Bundle source (`bundle-src/index.ts`) imports `Agent` from `@claw-for-cloudflare/agent-core`, `getModel` from `@claw-for-cloudflare/ai`, and `defineTool` from `@claw-for-cloudflare/agent-runtime`
+- Bundle source (`bundle-src/index.ts`) imports `Agent` from `@crabbykit/agent-core`, `getModel` from `@crabbykit/ai`, and `defineTool` from `@crabbykit/agent-runtime`
 - Compiled via `bun build --target=browser --format=esm --external "cloudflare:workers" --external "cloudflare:sockets"`
 - Host DO loads compiled bundle via `LOADER.get(cacheKey, factory)` and invokes `worker.getEntrypoint().fetch()`
 

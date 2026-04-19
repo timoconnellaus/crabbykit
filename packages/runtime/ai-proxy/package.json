@@ -1,22 +1,46 @@
 {
-  "name": "@claw-for-cloudflare/ai-proxy",
+  "name": "@crabbykit/ai-proxy",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/runtime/ai-proxy"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/sandbox": "workspace:*"
+    "@crabbykit/agent-runtime": "workspace:^",
+    "@crabbykit/sandbox": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   }
 }

@@ -1,6 +1,6 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
-import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import type { AgentTool } from "@crabbykit/agent-core";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
+import { textOf } from "@crabbykit/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { batchTool } from "../capability.js";
 

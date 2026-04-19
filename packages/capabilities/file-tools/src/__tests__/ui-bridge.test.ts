@@ -1,5 +1,5 @@
-import type { CapabilityHookContext, ToolExecutionEvent } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityHookContext, ToolExecutionEvent } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DirListing, FileConflict, FileContent, FileError, FileSaved } from "../ui-bridge.js";
 import { broadcastAgentMutation, dispatchUiAction } from "../ui-bridge.js";

@@ -1,4 +1,4 @@
-import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@crabbykit/agent-runtime";
 import { createGetConsoleLogsTool } from "./tools/get-console-logs.js";
 import { createHidePreviewTool } from "./tools/hide-preview.js";
 import { createShowPreviewTool } from "./tools/show-preview.js";

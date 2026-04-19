@@ -4,7 +4,7 @@ The extract-storage-interfaces change decoupled all agent-runtime stores from Cl
 
 ## What Changes
 
-- Change `TaskStore` constructor to accept `SqlStore` (from `@claw-for-cloudflare/agent-runtime`) instead of Cloudflare's `SqlStorage`
+- Change `TaskStore` constructor to accept `SqlStore` (from `@crabbykit/agent-runtime`) instead of Cloudflare's `SqlStorage`
 - Update `AgentDO` constructor to pass the already-created `SqlStore` adapter to `TaskStore` instead of the raw `ctx.storage.sql`
 - **BREAKING**: `TaskStore` constructor parameter type changes from `SqlStorage` to `SqlStore`
 

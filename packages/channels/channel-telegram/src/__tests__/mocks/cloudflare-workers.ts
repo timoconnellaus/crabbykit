@@ -1,5 +1,5 @@
 // Minimal mock for `cloudflare:workers` so that importing
-// `@claw-for-cloudflare/agent-runtime` (which indirectly imports from
+// `@crabbykit/agent-runtime` (which indirectly imports from
 // `agent-do.ts`) succeeds under the node test environment. The
 // channel-telegram unit tests exercise pure logic (parsing, verification,
 // chunking, `defineChannel` wiring) and never touch DurableObject at

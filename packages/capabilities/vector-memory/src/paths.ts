@@ -13,4 +13,4 @@ export function isMemoryPath(path: string): boolean {
 }
 
 // Re-export from file-tools to avoid duplicate definition.
-export { toR2Key } from "@claw-for-cloudflare/file-tools";
+export { toR2Key } from "@crabbykit/file-tools";

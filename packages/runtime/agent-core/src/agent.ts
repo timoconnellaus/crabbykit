@@ -13,7 +13,7 @@ import {
   type TextContent,
   type ThinkingBudgets,
   type Transport,
-} from "@claw-for-cloudflare/ai";
+} from "@crabbykit/ai";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import type {
   AfterToolCallContext,

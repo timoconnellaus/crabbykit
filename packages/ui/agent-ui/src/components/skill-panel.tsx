@@ -1,4 +1,4 @@
-import { useSkills } from "@claw-for-cloudflare/agent-runtime/client";
+import { useSkills } from "@crabbykit/agent-runtime/client";
 import type { ComponentPropsWithoutRef } from "react";
 import { useState } from "react";
 import { SkillViewer } from "./skill-viewer";

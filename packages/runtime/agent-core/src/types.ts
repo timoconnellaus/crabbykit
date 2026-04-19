@@ -9,7 +9,7 @@ import type {
   TextContent,
   Tool,
   ToolResultMessage,
-} from "@claw-for-cloudflare/ai";
+} from "@crabbykit/ai";
 import type { Static, TSchema } from "@sinclair/typebox";
 
 /**

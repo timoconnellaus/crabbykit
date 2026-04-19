@@ -1,4 +1,4 @@
-import { type AgentContext, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { type AgentContext, defineTool, Type } from "@crabbykit/agent-runtime";
 import type { EmbedFn } from "./embeddings.js";
 import { EMBEDDING_COST_PER_TOKEN, estimateTokenCount } from "./embeddings.js";
 import { formatResults, keywordSearch, vectorSearch } from "./searcher.js";

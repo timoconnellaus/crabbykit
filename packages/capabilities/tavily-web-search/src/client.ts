@@ -7,8 +7,8 @@
  * No credentials held here. No business logic beyond RPC marshaling.
  */
 
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_TOOL_NAME,

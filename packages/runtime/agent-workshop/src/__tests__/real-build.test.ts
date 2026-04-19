@@ -4,10 +4,10 @@
  * Existing workshop tests use a `fakeCreateWorker` (workshop.test.ts:13)
  * that skips the actual bundler entirely. That's fine for wiring tests
  * but useless for catching the real failure mode: the bundler failing
- * to inline `@claw-for-cloudflare/bundle-sdk` imports, leaving them as
+ * to inline `@crabbykit/bundle-sdk` imports, leaving them as
  * unresolved externals that blow up at load time with:
  *
- *     Uncaught Error: No such module "@claw-for-cloudflare/bundle-sdk".
+ *     Uncaught Error: No such module "@crabbykit/bundle-sdk".
  *       imported from "bundle.js"
  *
  * These tests drive `@cloudflare/worker-bundler#createWorker` end-to-end
@@ -16,7 +16,7 @@
  *
  *   1. The build succeeds.
  *   2. `mainModule` and `modules` are populated.
- *   3. No `@claw-for-cloudflare/*` import remains in the bundled output.
+ *   3. No `@crabbykit/*` import remains in the bundled output.
  *
  * The third invariant is the actual regression guard. If the bundler
  * leaves a package import unresolved, a consumer's `@cloudflare/worker-bundler`
@@ -28,14 +28,14 @@
  *   (a) The scaffolded starter (`./_claw/bundle-runtime.js` relative
  *       import) — this is what `workshop_init` writes.
  *   (b) The "natural" package import
- *       (`@claw-for-cloudflare/bundle-sdk`) — this is what a user
+ *       (`@crabbykit/bundle-sdk`) — this is what a user
  *       reaches for if they know the package name and don't read the
  *       scaffolded starter.
  */
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { BUNDLE_RUNTIME_SOURCE } from "@claw-for-cloudflare/bundle-sdk/runtime-source";
+import { BUNDLE_RUNTIME_SOURCE } from "@crabbykit/bundle-sdk/runtime-source";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -45,10 +45,10 @@ import { describe, expect, it } from "vitest";
  * imports the constants would move in lock-step and miss the drift.
  */
 const RELATIVE_RUNTIME_PATHS = ["_claw/bundle-runtime.js", "src/_claw/bundle-runtime.js"] as const;
-const VIRTUAL_PACKAGE_JSON_PATH = "node_modules/@claw-for-cloudflare/bundle-sdk/package.json";
-const VIRTUAL_PACKAGE_BUNDLE_PATH = "node_modules/@claw-for-cloudflare/bundle-sdk/bundle.js";
+const VIRTUAL_PACKAGE_JSON_PATH = "node_modules/@crabbykit/bundle-sdk/package.json";
+const VIRTUAL_PACKAGE_BUNDLE_PATH = "node_modules/@crabbykit/bundle-sdk/bundle.js";
 const VIRTUAL_PACKAGE_JSON = JSON.stringify({
-  name: "@claw-for-cloudflare/bundle-sdk",
+  name: "@crabbykit/bundle-sdk",
   version: "0.0.0-virtual",
   type: "module",
   exports: { ".": "./bundle.js" },
@@ -98,7 +98,7 @@ function runRealBuild(files: Record<string, string>): BuildResult {
 /**
  * Reach into the bundler's module output and concatenate every JS module
  * body into a single searchable string. Used to assert that no
- * `@claw-for-cloudflare/*` imports remain unresolved.
+ * `@crabbykit/*` imports remain unresolved.
  */
 function concatModules(modules: Record<string, unknown>): string {
   return Object.values(modules)
@@ -114,13 +114,13 @@ function concatModules(modules: Record<string, unknown>): string {
 }
 
 /**
- * Find any `import ... from "@claw-for-cloudflare/..."` statements the
+ * Find any `import ... from "@crabbykit/..."` statements the
  * bundler left as externals. Covers both static imports and dynamic
  * `import()` calls.
  */
 function findUnresolvedClawImports(source: string): string[] {
-  const staticRe = /import\s+[^'"]*['"](@claw-for-cloudflare\/[^'"]+)['"]/g;
-  const dynamicRe = /import\s*\(\s*['"](@claw-for-cloudflare\/[^'"]+)['"]\s*\)/g;
+  const staticRe = /import\s+[^'"]*['"](@crabbykit\/[^'"]+)['"]/g;
+  const dynamicRe = /import\s*\(\s*['"](@crabbykit\/[^'"]+)['"]\s*\)/g;
   const hits: string[] = [];
   for (const m of source.matchAll(staticRe)) hits.push(m[1]);
   for (const m of source.matchAll(dynamicRe)) hits.push(m[1]);
@@ -219,19 +219,19 @@ describe("real build: scaffolded starter (relative runtime import)", () => {
 });
 
 describe("real build: natural package import path", () => {
-  it("user-written `@claw-for-cloudflare/bundle-sdk` must not leak as an external", () => {
+  it("user-written `@crabbykit/bundle-sdk` must not leak as an external", () => {
     // Regression test for "No such module" at runtime. A user who
     // imports from the natural package path (instead of the scaffolded
     // relative `./_claw/bundle-runtime.js`) must either get a build
     // error — or, preferably, the bundler/workshop should alias the
     // package path to the injected runtime so the build succeeds and
     // runs. What MUST NOT happen is a successful build that leaves
-    // `@claw-for-cloudflare/bundle-sdk` as an unresolved import
+    // `@crabbykit/bundle-sdk` as an unresolved import
     // for workerd to trip over.
     const files: Record<string, string> = {
       "package.json": PACKAGE_JSON,
       "src/index.ts": [
-        'import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";',
+        'import { defineBundleAgent } from "@crabbykit/bundle-sdk";',
         "",
         "export default defineBundleAgent({",
         '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
@@ -255,19 +255,19 @@ describe("real build: natural package import path", () => {
     const stray = findUnresolvedClawImports(combined);
     expect(
       stray,
-      `natural import path leaked an unresolved external at runtime: ${stray.join(", ")}. A user who writes \`import from "@claw-for-cloudflare/bundle-sdk"\` gets a successful build but a broken deploy.`,
+      `natural import path leaked an unresolved external at runtime: ${stray.join(", ")}. A user who writes \`import from "@crabbykit/bundle-sdk"\` gets a successful build but a broken deploy.`,
     ).toEqual([]);
   });
 });
 
 describe("real build: compile-then-grep invariants", () => {
-  it("BUNDLE_RUNTIME_SOURCE itself has no unresolved @claw-for-cloudflare imports", async () => {
+  it("BUNDLE_RUNTIME_SOURCE itself has no unresolved @crabbykit imports", async () => {
     // If the pre-built runtime blob has stray imports, every bundle that
     // embeds it inherits them. Guard the source directly.
     const stray = findUnresolvedClawImports(BUNDLE_RUNTIME_SOURCE);
     expect(
       stray,
-      `BUNDLE_RUNTIME_SOURCE has unresolved @claw-for-cloudflare imports: ${stray.join(", ")}`,
+      `BUNDLE_RUNTIME_SOURCE has unresolved @crabbykit imports: ${stray.join(", ")}`,
     ).toEqual([]);
   });
 });

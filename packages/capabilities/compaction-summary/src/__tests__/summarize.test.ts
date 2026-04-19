@@ -1,11 +1,11 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock pi-ai before importing the module under test
 const mockStreamSimple = vi.fn();
 const mockGetModel = vi.fn();
 
-vi.mock("@claw-for-cloudflare/ai", () => ({
+vi.mock("@crabbykit/ai", () => ({
   streamSimple: mockStreamSimple,
   getModel: mockGetModel,
 }));

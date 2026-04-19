@@ -19,11 +19,7 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 import { globToRegex, toR2Key, validatePath } from "./paths.js";
 import { SCHEMA_CONTENT_HASH } from "./schemas.js";
 

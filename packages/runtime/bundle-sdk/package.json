@@ -1,7 +1,17 @@
 {
-  "name": "@claw-for-cloudflare/bundle-sdk",
+  "name": "@crabbykit/bundle-sdk",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/runtime/bundle-sdk"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -10,11 +20,22 @@
       "default": "./dist/bundle-runtime-source.js"
     }
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "postinstall": "bun build.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "@claw-for-cloudflare/ai": "workspace:*",
-    "@claw-for-cloudflare/bundle-token": "workspace:*",
+    "@crabbykit/agent-core": "workspace:^",
+    "@crabbykit/agent-runtime": "workspace:^",
+    "@crabbykit/ai": "workspace:^",
+    "@crabbykit/bundle-token": "workspace:^",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
@@ -22,11 +43,17 @@
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "scripts": {
-    "build": "bun build.ts",
-    "postinstall": "bun build.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./runtime-source": {
+        "types": "./dist/bundle-runtime-source.d.ts",
+        "default": "./dist/bundle-runtime-source.js"
+      }
+    }
   }
 }

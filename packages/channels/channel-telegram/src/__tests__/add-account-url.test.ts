@@ -1,4 +1,4 @@
-import type { CapabilityHookContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityHookContext, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it } from "vitest";
 import { defineTelegramChannel } from "../index.js";
 import type { TelegramClient } from "../telegram-client.js";

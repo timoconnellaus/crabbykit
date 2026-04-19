@@ -4,7 +4,7 @@ Minimal example: a Durable Object agent whose "brain" lives in R2 and is loaded
 at runtime via Worker Loader. Edit the brain, rerun `/chat`, and the new logic
 runs without redeploying the worker.
 
-This example deliberately does NOT use any `@claw-for-cloudflare/*` packages.
+This example deliberately does NOT use any `@crabbykit/*` packages.
 It isolates the loader pattern in the smallest possible artifact.
 
 ## Architecture

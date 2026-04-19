@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import { useCallback, useMemo } from "react";
 import type { CostEvent } from "../../costs/types.js";
 import { useAgentConnection } from "../agent-connection-provider.js";

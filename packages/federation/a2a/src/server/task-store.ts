@@ -1,4 +1,4 @@
-import type { SqlStore } from "@claw-for-cloudflare/agent-runtime";
+import type { SqlStore } from "@crabbykit/agent-runtime";
 import { nanoid } from "nanoid";
 import type {
   Artifact,

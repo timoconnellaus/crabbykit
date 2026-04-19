@@ -1,4 +1,4 @@
-import type { A2AToolOptions } from "@claw-for-cloudflare/a2a";
+import type { A2AToolOptions } from "@crabbykit/a2a";
 import {
   A2AHandler,
   ClawExecutor,
@@ -8,16 +8,16 @@ import {
   createStartTaskTool,
   PendingTaskStore,
   TaskStore,
-} from "@claw-for-cloudflare/a2a";
-import type { AgentEvent, AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
-import type { AssistantMessage, Message, Model } from "@claw-for-cloudflare/ai";
+} from "@crabbykit/a2a";
+import type { AgentEvent, AgentMessage, AnyAgentTool } from "@crabbykit/agent-core";
+import type { AssistantMessage, Message, Model } from "@crabbykit/ai";
 // Spine per-turn budget enforcement — lives in the DO so that instance-
 // local state on SpineService (which may not persist across RPC calls)
 // cannot lose the counters and silently blow past the cap. See
 // openspec/changes/move-spine-budget-into-do/ for the full rationale.
 // The class itself stays in bundle-host/ for now; only its owner moved.
-import type { BudgetCategory, SpineBudgetConfig } from "@claw-for-cloudflare/bundle-host";
-import { BudgetTracker } from "@claw-for-cloudflare/bundle-host";
+import type { BudgetCategory, SpineBudgetConfig } from "@crabbykit/bundle-host";
+import { BudgetTracker } from "@crabbykit/bundle-host";
 import type { TObject } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
@@ -87,9 +87,9 @@ let _PiAgent: any;
 let _getModel: any;
 async function loadPiSdk() {
   if (!_PiAgent) {
-    const core = await import("@claw-for-cloudflare/agent-core");
+    const core = await import("@crabbykit/agent-core");
     _PiAgent = core.Agent;
-    const ai = await import("@claw-for-cloudflare/ai");
+    const ai = await import("@crabbykit/ai");
     _getModel = ai.getModel;
   }
   return { piAgent: _PiAgent, getModel: _getModel };
@@ -3421,7 +3421,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       }
 
       if ("error" in result) {
-        const { httpStatusForError } = await import("@claw-for-cloudflare/a2a");
+        const { httpStatusForError } = await import("@crabbykit/a2a");
         const status = httpStatusForError((result as { error: { code: number } }).error.code);
         return new Response(JSON.stringify(result), {
           status,
@@ -3483,7 +3483,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       });
     }
 
-    const { isTerminalState } = await import("@claw-for-cloudflare/a2a");
+    const { isTerminalState } = await import("@crabbykit/a2a");
     const state = update.status.state as string;
     await pendingStore.updateState(
       update.taskId,

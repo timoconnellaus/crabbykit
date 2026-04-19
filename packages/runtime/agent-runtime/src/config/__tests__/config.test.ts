@@ -1,4 +1,4 @@
-import { TOOL_CTX, textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { TOOL_CTX, textOf } from "@crabbykit/agent-runtime/test-utils";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import type { Capability } from "../../capabilities/types.js";

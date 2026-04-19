@@ -1,5 +1,5 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { decrypt, encrypt, generateKey } from "@claw-for-cloudflare/credential-store";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
+import { decrypt, encrypt, generateKey } from "@crabbykit/credential-store";
 import { describe, expect, it, vi } from "vitest";
 import {
   createDeleteFileCredentialTool,

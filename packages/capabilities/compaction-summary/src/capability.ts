@@ -1,10 +1,6 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import type {
-  Capability,
-  CapabilityHookContext,
-  CompactionConfig,
-} from "@claw-for-cloudflare/agent-runtime";
-import { compactSession, estimateMessagesTokens } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentMessage } from "@crabbykit/agent-core";
+import type { Capability, CapabilityHookContext, CompactionConfig } from "@crabbykit/agent-runtime";
+import { compactSession, estimateMessagesTokens } from "@crabbykit/agent-runtime";
 import { pruneToolOutputs } from "./prune.js";
 import { createLlmSummarizer } from "./summarize.js";
 

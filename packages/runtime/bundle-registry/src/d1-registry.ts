@@ -6,7 +6,7 @@
  * KV readback verification on deploy.
  */
 
-import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
+import { CapabilityMismatchError } from "@crabbykit/agent-runtime";
 import { computeVersionId } from "./hash.js";
 import { verifyKvReadback } from "./readback.js";
 import type {

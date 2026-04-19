@@ -1,6 +1,6 @@
-import type { CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
-import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import type { CapabilityHookContext } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
+import { createMockStorage } from "@crabbykit/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { vectorMemory } from "../capability.js";
 import { createMockR2Bucket } from "./mock-r2.js";

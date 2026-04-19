@@ -30,8 +30,8 @@ export type {
   BeforeToolCallResult,
   ThinkingLevel,
   ToolExecuteContext,
-} from "@claw-for-cloudflare/agent-core";
-export type { Model } from "@claw-for-cloudflare/ai";
+} from "@crabbykit/agent-core";
+export type { Model } from "@crabbykit/ai";
 // Re-export TypeBox for tool schema definition and validation
 export { type Static, type TSchema, Type } from "@sinclair/typebox";
 export { Value } from "@sinclair/typebox/value";

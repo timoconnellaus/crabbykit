@@ -10,7 +10,7 @@
  * authorizing the call.
  *
  * This micro-package is verify-only — it exposes NO mint functions. Minting
- * lives exclusively in `@claw-for-cloudflare/bundle-host/src/security/mint.ts`.
+ * lives exclusively in `@crabbykit/bundle-host/src/security/mint.ts`.
  */
 
 /** Decoded token payload. */

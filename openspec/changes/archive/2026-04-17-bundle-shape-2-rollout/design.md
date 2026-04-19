@@ -114,7 +114,7 @@ Same pattern as `TavilyService.getSubkey()`. `subkeyPromise: Promise<CryptoKey> 
 
 Each `schemas.ts` exports `SCHEMA_CONTENT_HASH = "<id>-schemas-v1"`. Manually-set version string, bumped by hand when args schemas change in a way that would silently mistype older bundles. Tavily's pattern.
 
-### Decision 11 — `package.json` deps add `@claw-for-cloudflare/bundle-token` from the start (Phases 1–3).
+### Decision 11 — `package.json` deps add `@crabbykit/bundle-token` from the start (Phases 1–3).
 
 Tavily missed this dep on its initial landing and had to add it retroactively. Each phase here adds it from the start. The dep is needed in every shape-2 capability because the service imports `verifyToken`, `deriveVerifyOnlySubkey`, and `BUNDLE_SUBKEY_LABEL` from `bundle-token`. The bundle-side client imports nothing from `bundle-token`. Only the service gets the dep.
 

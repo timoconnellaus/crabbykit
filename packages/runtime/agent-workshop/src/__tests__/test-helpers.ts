@@ -1,11 +1,11 @@
-import type { AgentContext, AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { AgentContext, AnyAgentTool } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
 import type {
   BundleRegistryWriter,
   BundleVersion,
   CreateVersionOpts,
   SetActiveOptions,
-} from "@claw-for-cloudflare/bundle-registry";
+} from "@crabbykit/bundle-registry";
 
 /** In-memory R2 bucket backing the workshop test suite. */
 export function createMockR2Bucket() {
@@ -143,10 +143,10 @@ export function createMockContext(
       put: async () => {},
       delete: async () => {},
       list: async () => [],
-    } as unknown as import("@claw-for-cloudflare/agent-runtime").CapabilityStorage,
+    } as unknown as import("@crabbykit/agent-runtime").CapabilityStorage,
     broadcastState: () => {},
-    schedules: {} as unknown as import("@claw-for-cloudflare/agent-runtime").ScheduleManager,
-    rateLimit: {} as unknown as import("@claw-for-cloudflare/agent-runtime").RateLimiter,
+    schedules: {} as unknown as import("@crabbykit/agent-runtime").ScheduleManager,
+    rateLimit: {} as unknown as import("@crabbykit/agent-runtime").RateLimiter,
     notifyBundlePointerChanged: options.notifyBundlePointerChanged,
     getBundleHostCapabilityIds: () => options.hostCapabilityIds ?? [],
     broadcastCalls,

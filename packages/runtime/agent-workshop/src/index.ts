@@ -18,27 +18,24 @@
  * rewriting files in R2.
  *
  * The low-level build pipeline (`loadBundleFiles`, `buildBundle`,
- * `encodeEnvelope`) lives in `@claw-for-cloudflare/bundle-host` so
+ * `encodeEnvelope`) lives in `@crabbykit/bundle-host` so
  * the bundle dispatcher can reuse it for auto-rebuild on runtime
  * drift — see `dispatcher.ts` in that package.
  */
 
-import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import type { BuildBundleResult, BundleSourceBucket } from "@claw-for-cloudflare/bundle-host";
+import type { AgentContext, AnyAgentTool, Capability } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import type { BuildBundleResult, BundleSourceBucket } from "@crabbykit/bundle-host";
 import {
   buildBundle as buildBundleCore,
   bundleFileR2Key,
   bundlePrefix as bundlePrefixFor,
   encodeEnvelope,
-} from "@claw-for-cloudflare/bundle-host";
-import type { BundleRegistryWriter, CreateVersionOpts } from "@claw-for-cloudflare/bundle-registry";
-import { MAX_BUNDLE_SIZE_BYTES } from "@claw-for-cloudflare/bundle-registry";
-import {
-  BUNDLE_RUNTIME_HASH,
-  BUNDLE_RUNTIME_SOURCE,
-} from "@claw-for-cloudflare/bundle-sdk/runtime-source";
+} from "@crabbykit/bundle-host";
+import type { BundleRegistryWriter, CreateVersionOpts } from "@crabbykit/bundle-registry";
+import { MAX_BUNDLE_SIZE_BYTES } from "@crabbykit/bundle-registry";
+import { BUNDLE_RUNTIME_HASH, BUNDLE_RUNTIME_SOURCE } from "@crabbykit/bundle-sdk/runtime-source";
 
 const DEFAULT_DEPLOY_RATE_LIMIT = 5;
 const MAX_PATH_BYTES = 512;
@@ -230,7 +227,7 @@ export function agentWorkshop(
 
   function starterIndex(name: string): string {
     return [
-      'import { defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";',
+      'import { defineBundleAgent } from "@crabbykit/bundle-sdk";',
       "",
       "export default defineBundleAgent({",
       '  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },',
@@ -723,7 +720,7 @@ export function agentWorkshop(
           "5. `workshop_deploy` — deploy as your active brain (self-editing by default)",
           "6. `workshop_disable` — revert to static brain if needed",
           "",
-          "The `@claw-for-cloudflare/bundle-sdk` runtime is injected at build time — import it from `@claw-for-cloudflare/bundle-sdk` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
+          "The `@crabbykit/bundle-sdk` runtime is injected at build time — import it from `@crabbykit/bundle-sdk` in your src/index.ts. Do not write files under `_claw/`; the prefix is reserved.",
           "",
           "Self-editing is safe: the static brain is always available as a fallback.",
         ].join("\n"),

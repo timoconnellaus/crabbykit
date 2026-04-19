@@ -1,18 +1,42 @@
 {
-  "name": "@claw-for-cloudflare/agent-storage",
+  "name": "@crabbykit/agent-storage",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/infra/agent-storage"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   }
 }

@@ -1,14 +1,35 @@
 {
-  "name": "@claw-for-cloudflare/subagent",
+  "name": "@crabbykit/subagent",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/capabilities/subagent"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
-    "@claw-for-cloudflare/agent-core": "workspace:*",
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
+    "@crabbykit/agent-core": "workspace:^",
+    "@crabbykit/agent-runtime": "workspace:^",
     "@sinclair/typebox": "^0.34.0",
     "nanoid": "^5.1.5"
   },
@@ -19,10 +40,13 @@
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   }
 }

@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import type { CapabilityHookContext } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentMessage } from "@crabbykit/agent-core";
+import type { CapabilityHookContext } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { compactionSummary } from "../capability.js";
 

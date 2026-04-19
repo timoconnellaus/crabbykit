@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import { decrypt, generateKey } from "./crypto.js";
 
 /** Shape of an encrypted secret in storage. */

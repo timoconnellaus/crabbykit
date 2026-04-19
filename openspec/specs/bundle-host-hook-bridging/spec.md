@@ -5,7 +5,7 @@ TBD - created by archiving change bundle-shape-2-rollout. Update Purpose after a
 ## Requirements
 ### Requirement: `SpineHost` SHALL expose two new methods bridging the host hook chains for bundle-originated events
 
-The `SpineHost` interface in `@claw-for-cloudflare/agent-runtime/src/spine-host.ts` SHALL be extended with two methods:
+The `SpineHost` interface in `@crabbykit/agent-runtime/src/spine-host.ts` SHALL be extended with two methods:
 
 - `spineRecordToolExecution(caller: SpineCaller, event: ToolExecutionEvent): Promise<void>` — runs the host's `afterToolExecutionHooks` chain against the supplied event with a `CapabilityHookContext` constructed from the caller's `aid`/`sid`.
 - `spineProcessBeforeInference(caller: SpineCaller, messages: AgentMessage[]): Promise<AgentMessage[]>` — runs the host's `beforeInferenceHooks` chain against the supplied messages, threading them through each hook in registration order, returning the final (possibly mutated) array.
@@ -73,7 +73,7 @@ Both SHALL verify the unified bundle token with `requiredScope: "spine"` (matchi
 
 ### Requirement: Bundle SDK runtime SHALL invoke the bridge after every tool execution and before every inference call
 
-The bundle runtime in `@claw-for-cloudflare/bundle-sdk` SHALL call `spine.recordToolExecution(token, event)` after every tool execution completes (whether success or error). The call SHALL be awaited before the bundle proceeds to the next loop step.
+The bundle runtime in `@crabbykit/bundle-sdk` SHALL call `spine.recordToolExecution(token, event)` after every tool execution completes (whether success or error). The call SHALL be awaited before the bundle proceeds to the next loop step.
 
 The bundle runtime SHALL call `messages = await spine.processBeforeInference(token, messages)` immediately before each model inference call. The bundle SHALL pass the returned message array (not the original) to the inference call.
 

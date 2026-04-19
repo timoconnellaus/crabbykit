@@ -1,5 +1,5 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AnyAgentTool } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import { toR2Key, validatePath } from "./paths.js";
 
 /**

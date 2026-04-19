@@ -5,7 +5,7 @@
 The system SHALL provide an `explorer(options?)` function that returns a `Mode` configured for fast, read-only codebase exploration, and SHALL export the default configuration as a named constant `explorerMode` (replacing the legacy `explorerProfile` export). The mode SHALL have `id: "explorer"`, a `systemPromptOverride` focused on finding information quickly, and a `tools` allow-list (or deny-filter) limited to read-only operations.
 
 #### Scenario: Default explorer mode
-- **WHEN** a consumer imports `explorerMode` from `@claw-for-cloudflare/subagent-explorer`
+- **WHEN** a consumer imports `explorerMode` from `@crabbykit/subagent-explorer`
 - **THEN** a `Mode` value is available with read-only tools and no model override (inherits parent's model)
 
 #### Scenario: Explorer with model override via factory

@@ -1,5 +1,5 @@
 /**
- * `@claw-for-cloudflare/bundle-host` — host-side bundle dispatch plumbing.
+ * `@crabbykit/bundle-host` — host-side bundle dispatch plumbing.
  *
  * Exports the per-turn dispatcher, `SpineService` and `LlmService`
  * WorkerEntrypoints, the budget tracker, and the in-memory registry
@@ -15,7 +15,7 @@ export {
   type CapabilityRequirementLike,
   type CatalogValidationResult,
   validateCatalogAgainstKnownIds,
-} from "@claw-for-cloudflare/bundle-registry";
+} from "@crabbykit/bundle-registry";
 export type {
   BudgetCategory,
   SpineBudgetConfig,

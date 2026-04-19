@@ -1,4 +1,4 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@crabbykit/agent-core";
 import type { PromptSection } from "../prompt/types.js";
 import type { Mode } from "./define-mode.js";
 import { excludePromptSectionsForMode } from "./exclude-sections.js";

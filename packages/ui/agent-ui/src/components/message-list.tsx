@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
-import { type ToolState, useChatSession } from "@claw-for-cloudflare/agent-runtime/client";
+import type { AgentMessage } from "@crabbykit/agent-runtime";
+import { type ToolState, useChatSession } from "@crabbykit/agent-runtime/client";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {

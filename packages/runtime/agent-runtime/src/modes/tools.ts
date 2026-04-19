@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentTool } from "@crabbykit/agent-core";
 import { Type } from "@sinclair/typebox";
 import { defineTool, toolResult } from "../tools/define-tool.js";
 import type { Mode } from "./define-mode.js";

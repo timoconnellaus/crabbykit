@@ -1,4 +1,4 @@
-import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { Type } from "@sinclair/typebox";
 import type { AgentCardConfig } from "./claw-executor.js";
 import { ClawExecutor } from "./claw-executor.js";

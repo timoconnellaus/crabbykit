@@ -1,7 +1,7 @@
-import type { AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type { AgentContext, AgentTool } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import type { SandboxProvider } from "@crabbykit/sandbox";
 import type { BackendBundle } from "../backend-api-proxy.js";
 
 /** Metadata persisted per deployment. */

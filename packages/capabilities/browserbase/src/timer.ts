@@ -1,4 +1,4 @@
-import type { AgentContext, ScheduleCallbackContext } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, ScheduleCallbackContext } from "@crabbykit/agent-runtime";
 
 const IDLE_PREFIX = "browserbase:idle:";
 const MAX_PREFIX = "browserbase:max:";

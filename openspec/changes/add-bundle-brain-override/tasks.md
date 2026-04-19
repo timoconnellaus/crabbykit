@@ -3,7 +3,7 @@
 ### 1A. pi-agent-core import inside loader isolate
 
 - [x] 1.1 Create a throwaway worker `spike/pi-import/` with `worker_loaders` binding and a minimal WorkerEntrypoint host
-- [x] 1.2 Hand-write a minimal bundle that does `import { AgentRuntime } from "@claw-for-cloudflare/agent-runtime"` and logs `typeof AgentRuntime`
+- [x] 1.2 Hand-write a minimal bundle that does `import { AgentRuntime } from "@crabbykit/agent-runtime"` and logs `typeof AgentRuntime`
 - [x] 1.3 Compile the bundle with `bun build --target=browser --format=esm --outfile=bundle.js`
 - [x] 1.4 Load the compiled bundle via `LOADER.get(...)` and invoke its default fetch handler
 - [x] 1.5 Verify the import resolves without hitting the pi-agent-core partial-json CJS issue or other transitive failures
@@ -52,7 +52,7 @@
 - [x] 2.14 Implement `SessionChannel` send-only interface — `broadcast`, `broadcastGlobal`; explicitly no callback methods
 - [x] 2.15 Implement bundle-side `CapabilityHookContext` with async `sessionStore`, `kvStore`, etc. — distinct from the static-agent hook context type
 - [x] 2.16 Implement bundle-side small runtime that constructs per turn from a token, verifies the token, builds adapter clients, runs the inference loop, returns `AsyncIterable<AgentEvent>` (as a `ReadableStream` body)
-- [x] 2.17 Bundle subpath export from `@claw-for-cloudflare/agent-bundle/bundle` that exposes `defineBundleAgent`, `defineTool`, `Type`, the bundle hook context types — but NOT `LlmService`, `SpineService`, or any host-side WorkerEntrypoint
+- [x] 2.17 Bundle subpath export from `@crabbykit/agent-bundle/bundle` that exposes `defineBundleAgent`, `defineTool`, `Type`, the bundle hook context types — but NOT `LlmService`, `SpineService`, or any host-side WorkerEntrypoint
 - [x] 2.18 Add `package.json` `exports` rules that physically separate bundle-authoring entry from host-side entry
 - [x] 2.19 Unit tests: bundle constructs runtime, runs a simple turn against a fake spine, returns stream of events
 - [x] 2.20 Integration test: hand-compiled bundle loaded via Worker Loader handles a turn against an in-process mock SpineService
@@ -168,10 +168,10 @@
 
 ### 6A. Container image update
 
-- [x] 6.1 Update `packages/cloudflare-sandbox/container/Dockerfile` to copy vendored `@claw-for-cloudflare/*` bundle-authoring packages to `/opt/claw-sdk/` during image build
+- [x] 6.1 Update `packages/cloudflare-sandbox/container/Dockerfile` to copy vendored `@crabbykit/*` bundle-authoring packages to `/opt/claw-sdk/` during image build
 - [x] 6.2 Mount `/opt/claw-sdk/` read-only at runtime via the container's filesystem configuration
 - [x] 6.3 Generate `/opt/claw-sdk/INTEGRITY.json` at image build time with SHA-256 hashes of every vendored file
-- [x] 6.4 Vendored set includes only what bundle authors need: `@claw-for-cloudflare/agent-bundle/bundle` subpath, `@claw-for-cloudflare/tavily-web-search/client` and `/schemas`, plus any other capability `client`/`bundle` subpaths that exist
+- [x] 6.4 Vendored set includes only what bundle authors need: `@crabbykit/agent-bundle/bundle` subpath, `@crabbykit/tavily-web-search/client` and `/schemas`, plus any other capability `client`/`bundle` subpaths that exist
 - [x] 6.5 Verify that vendored snapshot does NOT include host-side WorkerEntrypoint classes (no `LlmService`, no `SpineService`, no `TavilyService`)
 - [x] 6.6 Document the image rebuild process in `packages/cloudflare-sandbox/README.md`
 - [x] 6.7 Add a CI check that the sandbox container image builds successfully after SDK changes

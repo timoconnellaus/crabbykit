@@ -129,11 +129,11 @@ The `AgentDO` constructor SHALL create `SqlStore` and `KvStore` adapters from `c
 The `SqlStore`, `SqlResult`, and `KvStore` types SHALL be exported from `agent-runtime`'s public barrel (`index.ts`). The CF adapter functions SHALL also be exported for consumers who need to create stores in custom DO classes.
 
 #### Scenario: Import from package
-- **WHEN** a consumer writes `import type { SqlStore, KvStore } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a consumer writes `import type { SqlStore, KvStore } from "@crabbykit/agent-runtime"`
 - **THEN** the types resolve correctly
 
 #### Scenario: Import CF adapters
-- **WHEN** a consumer writes `import { createCfSqlStore, createCfKvStore } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a consumer writes `import { createCfSqlStore, createCfKvStore } from "@crabbykit/agent-runtime"`
 - **THEN** the adapter functions resolve correctly
 
 ### Requirement: Mock SqlStore for unit tests

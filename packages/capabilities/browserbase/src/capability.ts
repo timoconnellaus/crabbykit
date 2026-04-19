@@ -1,4 +1,4 @@
-import type { AgentContext, AnyAgentTool, Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AnyAgentTool, Capability } from "@crabbykit/agent-runtime";
 import { BrowserbaseClient } from "./browserbase-client.js";
 import type { SessionManagerState } from "./session-manager.js";
 import { SessionManager } from "./session-manager.js";

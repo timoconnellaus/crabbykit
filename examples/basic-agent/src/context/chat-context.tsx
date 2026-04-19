@@ -5,7 +5,7 @@ import type {
   SubagentInfo,
   TaskItem,
   TaskNode,
-} from "@claw-for-cloudflare/agent-ui";
+} from "@crabbykit/agent-ui";
 import { createContext, useContext } from "react";
 import type { PendingA2ATask } from "../components/pending-tasks";
 

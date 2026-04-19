@@ -6,7 +6,7 @@
  * (optionally) checks that the token's `scope` array includes a required
  * scope string.
  *
- * Minting lives in `@claw-for-cloudflare/bundle-host/src/security/mint.ts` —
+ * Minting lives in `@crabbykit/bundle-host/src/security/mint.ts` —
  * this module is verify-only.
  */
 

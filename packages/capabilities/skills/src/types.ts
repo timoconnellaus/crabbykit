@@ -1,5 +1,5 @@
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import type { SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import type { SkillRegistry } from "@crabbykit/skill-registry";
 
 export interface SkillDeclaration {
   id: string;

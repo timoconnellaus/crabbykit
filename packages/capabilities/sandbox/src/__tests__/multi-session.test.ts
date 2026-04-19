@@ -1,4 +1,4 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { sandboxCapability } from "../capability.js";
 import type { SandboxProvider } from "../types.js";

@@ -14,7 +14,7 @@ The `AgentDO` constructor SHALL create `SqlStore` and `KvStore` adapters from `c
 ## ADDED Requirements
 
 ### Requirement: TaskStore accepts SqlStore instead of SqlStorage
-The `TaskStore` constructor SHALL accept a `SqlStore` parameter (from `@claw-for-cloudflare/agent-runtime`) instead of Cloudflare's `SqlStorage`. All existing public methods SHALL retain their signatures and behavior.
+The `TaskStore` constructor SHALL accept a `SqlStore` parameter (from `@crabbykit/agent-runtime`) instead of Cloudflare's `SqlStorage`. All existing public methods SHALL retain their signatures and behavior.
 
 #### Scenario: Construct with SqlStore
 - **WHEN** `new TaskStore(sqlStore)` is called with any `SqlStore` implementation

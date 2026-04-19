@@ -1,9 +1,6 @@
-import {
-  AgentConnectionProvider,
-  useAgentConnection,
-} from "@claw-for-cloudflare/agent-runtime/client";
-import type { SandboxBadgeProps, SubagentInfo } from "@claw-for-cloudflare/agent-ui";
-import { FilesPanel, useBrowser, usePreview, useTaskState } from "@claw-for-cloudflare/agent-ui";
+import { AgentConnectionProvider, useAgentConnection } from "@crabbykit/agent-runtime/client";
+import type { SandboxBadgeProps, SubagentInfo } from "@crabbykit/agent-ui";
+import { FilesPanel, useBrowser, usePreview, useTaskState } from "@crabbykit/agent-ui";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentRecord } from "../../components/agent-picker";

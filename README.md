@@ -10,7 +10,7 @@ CLAW gives you the primitives to build conversational AI agents that run on Clou
 - **Real-time streaming** — WebSocket transport with discriminated union protocol
 - **Tool execution** — Schema-validated tools with structured responses
 - **Capability system** — Composable extensions for adding tools, prompt sections, MCP servers, schedules, and lifecycle hooks
-- **Modes** — Named filters over the agent's tool surface and prompt (planning, research, …). `/mode <id>`, `enter_mode`, `exit_mode`, and the mode badge are auto-registered when 1+ modes are defined — a single mode still gives you an "in vs out" toggle. `planMode` ships built-in. Imported from `@claw-for-cloudflare/agent-runtime/modes`.
+- **Modes** — Named filters over the agent's tool surface and prompt (planning, research, …). `/mode <id>`, `enter_mode`, `exit_mode`, and the mode badge are auto-registered when 1+ modes are defined — a single mode still gives you an "in vs out" toggle. `planMode` ships built-in. Imported from `@crabbykit/agent-runtime/modes`.
 - **Cost tracking** — Per-call cost emission, persistence, and real-time broadcast
 - **React UI** — Drop-in chat components with styling isolation
 
@@ -95,7 +95,7 @@ Packages are organised under `packages/<bucket>/<name>/` in seven role-based buc
 ## Quick Start
 
 ```ts
-import { defineAgent, defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import { defineAgent, defineTool, Type } from "@crabbykit/agent-runtime";
 
 interface Env {
   OPENROUTER_API_KEY: string;
@@ -152,7 +152,7 @@ defineAgent<Env>({
   // Session-level modes. With 1+ modes the runtime registers `/mode`,
   // `enter_mode`, `exit_mode`, and the mode badge — a single mode still
   // yields an "in vs out" toggle. Import `planMode` and `defineMode`
-  // from `@claw-for-cloudflare/agent-runtime/modes`.
+  // from `@crabbykit/agent-runtime/modes`.
   modes: () => [planMode],
 
   // Modes used to spawn subagents via call_subagent / start_subagent.
@@ -186,7 +186,7 @@ logic, or more elaborate fetch routing, fall back to the class-based
 escape hatch:
 
 ```ts
-import { AgentDO, type AgentConfig, type AgentContext } from "@claw-for-cloudflare/agent-runtime";
+import { AgentDO, type AgentConfig, type AgentContext } from "@crabbykit/agent-runtime";
 
 export class MyAgent extends AgentDO<Env> {
   getConfig(): AgentConfig {

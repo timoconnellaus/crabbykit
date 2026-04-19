@@ -25,7 +25,7 @@ RUN gcc -o /usr/local/bin/nm-mount-helper /tmp/nm-mount-helper.c && \
 RUN cd /app && npm install node-pty && \
     apk del gcc musl-dev linux-headers python3 make g++
 
-# Install @claw-for-cloudflare/vite-plugin globally
+# Install @crabbykit/vite-plugin globally
 COPY container/claw-vite-plugin/ /opt/sandbox/claw-vite-plugin/
 RUN npm install -g /opt/sandbox/claw-vite-plugin
 

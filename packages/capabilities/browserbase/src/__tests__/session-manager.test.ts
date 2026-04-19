@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserbaseClient } from "../browserbase-client.js";
 import { SessionManager } from "../session-manager.js";

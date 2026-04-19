@@ -9,7 +9,7 @@
  *    the originating session. Drive from the UI / a websocket client.
  */
 
-import { type BundleCapability, defineBundleAgent } from "@claw-for-cloudflare/bundle-sdk";
+import { type BundleCapability, defineBundleAgent } from "@crabbykit/bundle-sdk";
 
 const demoCapability: BundleCapability = {
   id: "demo",

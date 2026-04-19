@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentTool } from "@crabbykit/agent-core";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { ContentBlock, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";

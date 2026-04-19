@@ -77,7 +77,7 @@
 - [x] 4.19 Rewrite `broadcastGlobal`: `host.spineBroadcastGlobal(event as Record<string, unknown>);`.
 - [x] 4.20 Rewrite `emitCost`: `host.spineEmitCost(sid, costEvent as CostEvent);`.
 - [x] 4.21 Verify that every method still: (a) calls `this.verify(token)` first, (b) calls `this.budget.check(nonce, category)` before the host call, (c) wraps the host call in `try { ... } catch (err) { throw this.sanitize(err); }`. These are the security invariants and they stay byte-identical.
-- [x] 4.22 Update the `SpineHost` import in `spine-service.ts` if needed. The interface is imported from `@claw-for-cloudflare/agent-runtime` (per P2 phase 5) and should be used as the type of the return value of `getHost(...)`.
+- [x] 4.22 Update the `SpineHost` import in `spine-service.ts` if needed. The interface is imported from `@crabbykit/agent-runtime` (per P2 phase 5) and should be used as the type of the return value of `getHost(...)`.
 - [x] 4.23 Update `private getHost(agentId: string): DurableObjectStub` to return `DurableObjectStub<SpineHost>` so the method calls are typed. In Cloudflare Workers types, `DurableObjectStub<T>` narrows the stub's method surface to `T`, enabling compile-time checking of method calls.
 - [x] 4.24 Run `cd packages/runtime/bundle-host && bun run typecheck` — PASS. If it fails, the most likely cause is a method signature mismatch between SpineService's call site and AgentRuntime's method signature. Fix the method signatures in `AgentRuntime` to match.
 - [x] 4.25 Commit: "refactor(bundle-host): switch SpineService to direct DO method calls"

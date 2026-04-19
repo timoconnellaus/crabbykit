@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/vite-plugin",
+  "name": "@crabbykit/vite-plugin",
   "version": "0.0.1",
   "type": "module",
   "exports": {

@@ -12,7 +12,7 @@ import {
   createAssistantMessageEventStream,
   type Model,
   type ToolCall,
-} from "@claw-for-cloudflare/ai";
+} from "@crabbykit/ai";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import { Agent } from "../agent.js";

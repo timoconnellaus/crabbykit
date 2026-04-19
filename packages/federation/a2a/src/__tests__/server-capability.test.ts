@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export name
 vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
 
-import type { CapabilityStorage, SqlStore } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage, SqlStore } from "@crabbykit/agent-runtime";
 import { a2aServer } from "../server/capability.js";
 import { TaskStore } from "../server/task-store.js";
 

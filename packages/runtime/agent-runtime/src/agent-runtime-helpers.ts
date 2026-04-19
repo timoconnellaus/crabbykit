@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import type { AssistantMessage } from "@claw-for-cloudflare/ai";
+import type { AgentMessage } from "@crabbykit/agent-core";
+import type { AssistantMessage } from "@crabbykit/ai";
 
 /**
  * Match `pathname` against a `pattern` that may contain `/:name` wildcard

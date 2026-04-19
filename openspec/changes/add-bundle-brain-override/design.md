@@ -117,7 +117,7 @@ payload = { aid: string, sid: string, exp: number, nonce: string }
 
 ### 7. Sandbox container with read-only vendored snapshot and integrity verification
 
-**Decision:** The `SandboxContainer` Dockerfile vendors a snapshot of `@claw-for-cloudflare/*` bundle-authoring packages at `/opt/claw-sdk/`, mounted **read-only** at runtime. The image build generates `/opt/claw-sdk/INTEGRITY.json` with SHA-256 hashes of every vendored file. `bundle_build` verifies the integrity manifest before running `bun build`. `bundle_init` scaffolds `package.json` with `file:/opt/claw-sdk/...` references so `bun install --ignore-scripts` resolves offline.
+**Decision:** The `SandboxContainer` Dockerfile vendors a snapshot of `@crabbykit/*` bundle-authoring packages at `/opt/claw-sdk/`, mounted **read-only** at runtime. The image build generates `/opt/claw-sdk/INTEGRITY.json` with SHA-256 hashes of every vendored file. `bundle_build` verifies the integrity manifest before running `bun build`. `bundle_init` scaffolds `package.json` with `file:/opt/claw-sdk/...` references so `bun install --ignore-scripts` resolves offline.
 
 **Why read-only and integrity-checked:** an adversarial bundle has access to the sandbox container's filesystem via existing sandbox file tools. Without read-only and integrity checks, a malicious bundle could modify the vendored packages between builds, compromising any subsequent build. Read-only mount + hash verification + `--ignore-scripts` close this attack surface.
 

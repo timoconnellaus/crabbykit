@@ -29,7 +29,7 @@ The `examples/` and `e2e/` directories SHALL remain at the repository root, not 
 - **THEN** the package SHALL be placed at `packages/infra/<name>/`
 
 #### Scenario: Runtime engine package
-- **WHEN** a new package is created that is imported by `@claw-for-cloudflare/agent-runtime` or the bundle host dispatcher
+- **WHEN** a new package is created that is imported by `@crabbykit/agent-runtime` or the bundle host dispatcher
 - **THEN** the package SHALL be placed at `packages/runtime/<name>/`
 
 #### Scenario: Depth-one package rejected
@@ -60,19 +60,19 @@ The following import edges SHALL be forbidden:
 External dependencies (`@sinclair/typebox`, `cloudflare:workers`, etc.) are not bucketed and are unrestricted.
 
 #### Scenario: Runtime imports capability — forbidden
-- **WHEN** a file in `packages/runtime/agent-runtime/src/*.ts` contains `import { tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search"`
+- **WHEN** a file in `packages/runtime/agent-runtime/src/*.ts` contains `import { tavilyWebSearch } from "@crabbykit/tavily-web-search"`
 - **THEN** the dependency-direction CI check SHALL fail with an error identifying the source file, source bucket (`runtime`), target package, and target bucket (`capabilities`)
 
 #### Scenario: Capability imports infra — allowed
-- **WHEN** a file in `packages/capabilities/file-tools/src/capability.ts` contains `import type { AgentStorage } from "@claw-for-cloudflare/agent-storage"`
+- **WHEN** a file in `packages/capabilities/file-tools/src/capability.ts` contains `import type { AgentStorage } from "@crabbykit/agent-storage"`
 - **THEN** the dependency-direction CI check SHALL pass
 
 #### Scenario: UI imports transport types — allowed
-- **WHEN** a file in `packages/ui/agent-ui/src/hooks/*.ts` contains `import type { ServerMessage } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a file in `packages/ui/agent-ui/src/hooks/*.ts` contains `import type { ServerMessage } from "@crabbykit/agent-runtime"`
 - **THEN** the dependency-direction CI check SHALL pass (type-only imports from `runtime/agent-runtime` are explicitly permitted for the UI bucket)
 
 #### Scenario: Same-bucket import — always allowed
-- **WHEN** a file in `packages/capabilities/subagent-explorer/src/*.ts` imports from `@claw-for-cloudflare/subagent`
+- **WHEN** a file in `packages/capabilities/subagent-explorer/src/*.ts` imports from `@crabbykit/subagent`
 - **THEN** the dependency-direction CI check SHALL pass because both packages live in `capabilities/`
 
 ### Requirement: Dependency direction enforcement via CI script
@@ -82,13 +82,13 @@ The repository SHALL provide an executable script at `scripts/check-package-deps
 The script SHALL:
 
 1. Parse each source file's top-level import specifiers using a regex or lightweight AST walk (full TypeScript parser not required; package name extraction from import strings is sufficient).
-2. Resolve each `@claw-for-cloudflare/*` import specifier to a target package and look up its bucket via the filesystem layout (`packages/<bucket>/<package-name>/package.json`).
+2. Resolve each `@crabbykit/*` import specifier to a target package and look up its bucket via the filesystem layout (`packages/<bucket>/<package-name>/package.json`).
 3. Resolve the importing source file to its owning package and bucket via the filesystem path.
 4. Check the (source bucket → target bucket) pair against the allowed-direction table.
 5. On violation, print the source file path, source bucket, import specifier, target bucket, and the specific rule violated; then exit with status 1.
 6. On success, exit with status 0.
 
-The script SHALL ignore imports of external npm packages (anything not matching `@claw-for-cloudflare/*`) and imports of Node / Cloudflare built-ins (`cloudflare:*`, `node:*`).
+The script SHALL ignore imports of external npm packages (anything not matching `@crabbykit/*`) and imports of Node / Cloudflare built-ins (`cloudflare:*`, `node:*`).
 
 Test files (`packages/*/*/test/**/*.{ts,tsx}`, `packages/*/*/src/**/__tests__/**/*.{ts,tsx}`) SHALL be subject to the same rules as production source files.
 
@@ -101,7 +101,7 @@ Test files (`packages/*/*/test/**/*.{ts,tsx}`, `packages/*/*/src/**/__tests__/**
 - **THEN** the dependency-direction script SHALL exit zero with no output (or a one-line summary line)
 
 #### Scenario: Type-only import in UI bucket
-- **WHEN** `packages/ui/agent-ui/src/hooks/use-chat.ts` contains `import type { ClientMessage } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** `packages/ui/agent-ui/src/hooks/use-chat.ts` contains `import type { ClientMessage } from "@crabbykit/agent-runtime"`
 - **THEN** the script SHALL accept the import because `runtime/agent-runtime` is in the UI bucket's allowed-target set
 
 ### Requirement: Workspace glob and package discovery
@@ -128,18 +128,18 @@ Any new package added to the repository in a future change SHALL be added to `CL
 
 ### Requirement: Rename r2-storage to file-tools
 
-The package formerly at `packages/r2-storage/` SHALL be renamed to `file-tools` and relocated to `packages/capabilities/file-tools/`. The package identifier SHALL change from `@claw-for-cloudflare/r2-storage` to `@claw-for-cloudflare/file-tools`. The factory function formerly exported as `r2Storage` SHALL be renamed to `fileTools`. The options type formerly named `R2StorageOptions` SHALL be renamed to `FileToolsOptions`. The capability `id` formerly `"r2-storage"` SHALL become `"file-tools"`.
+The package formerly at `packages/r2-storage/` SHALL be renamed to `file-tools` and relocated to `packages/capabilities/file-tools/`. The package identifier SHALL change from `@crabbykit/r2-storage` to `@crabbykit/file-tools`. The factory function formerly exported as `r2Storage` SHALL be renamed to `fileTools`. The options type formerly named `R2StorageOptions` SHALL be renamed to `FileToolsOptions`. The capability `id` formerly `"r2-storage"` SHALL become `"file-tools"`.
 
 The package's tool surface (the nine file tools: `file_read`, `file_write`, `file_edit`, `file_delete`, `file_copy`, `file_move`, `file_list`, `file_tree`, `file_find`) and their behaviors SHALL be unchanged. The rename is a package and factory identifier change only.
 
 No deprecation alias or re-export package SHALL be introduced under the old name. The repository is greenfield and does not maintain legacy compatibility shims.
 
 #### Scenario: Consumer uses new name
-- **WHEN** an agent definition imports `import { fileTools } from "@claw-for-cloudflare/file-tools"` and calls `fileTools({ storage })`
+- **WHEN** an agent definition imports `import { fileTools } from "@crabbykit/file-tools"` and calls `fileTools({ storage })`
 - **THEN** the capability factory returns the same nine-tool capability that `r2Storage({ storage })` previously returned
 
 #### Scenario: Old name is unresolvable
-- **WHEN** code imports `@claw-for-cloudflare/r2-storage` after this change lands
+- **WHEN** code imports `@crabbykit/r2-storage` after this change lands
 - **THEN** module resolution SHALL fail — the old name is gone, not aliased
 
 #### Scenario: Capability id change surfaces in session entries

@@ -4,13 +4,10 @@
  * in pool-workers (which doesn't support it).
  */
 
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
-import {
-  CloudflareSandboxProvider,
-  SandboxContainer,
-} from "@claw-for-cloudflare/cloudflare-sandbox";
-import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
+import type { Capability } from "@crabbykit/agent-runtime";
+import type { AgentStorage } from "@crabbykit/agent-storage";
+import { CloudflareSandboxProvider, SandboxContainer } from "@crabbykit/cloudflare-sandbox";
+import { sandboxCapability } from "@crabbykit/sandbox";
 import { E2EAgent } from "./test-agent";
 
 interface DevEnv {

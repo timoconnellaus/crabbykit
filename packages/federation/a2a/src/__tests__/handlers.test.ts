@@ -1,4 +1,4 @@
-import type { CapabilityHttpContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityHttpContext, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { createCallbackHandler } from "../client/handlers.js";
 

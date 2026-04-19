@@ -2,7 +2,7 @@
 
 ### Requirement: Subagent mode definition
 
-The system SHALL support defining subagent modes using the shared `Mode` type from `@claw-for-cloudflare/agent-runtime/modes`. A subagent mode SHALL have: id (string), name (string), description (string), optional `systemPromptOverride` (string or function receiving parent's base prompt and the parent session's `AgentContext`), optional `tools` allow/deny filter (replacing the legacy `tools: string[]` allowlist), optional `capabilities` allow/deny filter, optional `capabilityConfig` override, and optional `model` (OpenRouter model ID string — null means inherit parent's model). When `systemPromptOverride` is a function, it SHALL receive the parent session's `AgentContext`, NOT the child session's — the child session does not yet exist at spawn resolution time. Subagent modes SHALL be registered via a `getSubagentModes()` method on AgentDO (replacing `getSubagentProfiles()`) or via the `subagentModes?:` slot on `defineAgent`.
+The system SHALL support defining subagent modes using the shared `Mode` type from `@crabbykit/agent-runtime/modes`. A subagent mode SHALL have: id (string), name (string), description (string), optional `systemPromptOverride` (string or function receiving parent's base prompt and the parent session's `AgentContext`), optional `tools` allow/deny filter (replacing the legacy `tools: string[]` allowlist), optional `capabilities` allow/deny filter, optional `capabilityConfig` override, and optional `model` (OpenRouter model ID string — null means inherit parent's model). When `systemPromptOverride` is a function, it SHALL receive the parent session's `AgentContext`, NOT the child session's — the child session does not yet exist at spawn resolution time. Subagent modes SHALL be registered via a `getSubagentModes()` method on AgentDO (replacing `getSubagentProfiles()`) or via the `subagentModes?:` slot on `defineAgent`.
 
 #### Scenario: Consumer registers custom subagent modes
 - **WHEN** a consumer implements `getSubagentModes()` returning an explorer and a researcher mode
@@ -66,7 +66,7 @@ The system SHALL forward child agent events to the parent session's WebSocket co
 
 ### Requirement: Subagent tool filtering via shared filterToolsAndSections
 
-Subagent tool and prompt-section filtering SHALL be performed by delegating to the shared low-level `filterToolsAndSections` function from `@claw-for-cloudflare/agent-runtime/modes`. The subagent package SHALL NOT call the higher-level `applyMode` (which is for the main-session path with `ResolvedCapabilities` plumbing). The legacy `resolveProfile` function SHALL be renamed to something that reflects its role as "resolve a subagent's system prompt and tools given a mode and parent state," and internally delegates to `filterToolsAndSections`.
+Subagent tool and prompt-section filtering SHALL be performed by delegating to the shared low-level `filterToolsAndSections` function from `@crabbykit/agent-runtime/modes`. The subagent package SHALL NOT call the higher-level `applyMode` (which is for the main-session path with `ResolvedCapabilities` plumbing). The legacy `resolveProfile` function SHALL be renamed to something that reflects its role as "resolve a subagent's system prompt and tools given a mode and parent state," and internally delegates to `filterToolsAndSections`.
 
 When a mode specifies `tools.allow`, the subagent SHALL only have access to tools whose names appear in the list. When `tools.deny` is specified, those tools SHALL be removed from the inherited set. When neither is specified, the subagent SHALL inherit all of the parent's resolved tools (base + capability tools).
 
@@ -80,7 +80,7 @@ When a mode specifies `tools.allow`, the subagent SHALL only have access to tool
 
 #### Scenario: Shared filter used by both paths
 - **WHEN** `packages/subagent/src/resolve.ts` is inspected
-- **THEN** it imports and delegates to `filterToolsAndSections` from `@claw-for-cloudflare/agent-runtime/modes` rather than implementing its own filter logic
+- **THEN** it imports and delegates to `filterToolsAndSections` from `@crabbykit/agent-runtime/modes` rather than implementing its own filter logic
 
 #### Scenario: Subagent path does not need ResolvedCapabilities
 - **WHEN** the subagent spawn path calls the shared filter

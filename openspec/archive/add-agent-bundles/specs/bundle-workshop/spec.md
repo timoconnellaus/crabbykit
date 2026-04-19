@@ -110,7 +110,7 @@ The system SHALL provide a `bundle_versions` tool that lists deployment history 
 
 ### Requirement: Container workspace package resolution
 
-The sandbox container image SHALL include a vendored snapshot of the `@claw-for-cloudflare/*` packages needed to author and build a bundle (`agent-runtime/bundle` subpath, `agent-runtime/spine` clients, the `client` and `schemas` subpaths of capability packages that have been split). The snapshot SHALL be mounted **read-only** at `/opt/claw-sdk/` to prevent supply-chain tampering by adversarial bundles. The scaffolded `package.json` produced by `bundle_init` SHALL reference these via `file:/opt/claw-sdk/...` paths so `bun install` resolves them offline. `bun install` SHALL be invoked with `--ignore-scripts` to disable lifecycle hooks.
+The sandbox container image SHALL include a vendored snapshot of the `@crabbykit/*` packages needed to author and build a bundle (`agent-runtime/bundle` subpath, `agent-runtime/spine` clients, the `client` and `schemas` subpaths of capability packages that have been split). The snapshot SHALL be mounted **read-only** at `/opt/claw-sdk/` to prevent supply-chain tampering by adversarial bundles. The scaffolded `package.json` produced by `bundle_init` SHALL reference these via `file:/opt/claw-sdk/...` paths so `bun install` resolves them offline. `bun install` SHALL be invoked with `--ignore-scripts` to disable lifecycle hooks.
 
 #### Scenario: Offline bundle build
 - **WHEN** `bundle_build` runs inside a sandbox container with no outbound network access

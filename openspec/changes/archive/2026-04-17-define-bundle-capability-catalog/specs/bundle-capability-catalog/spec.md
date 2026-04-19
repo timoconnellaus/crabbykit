@@ -6,7 +6,7 @@
 
 Bundles SHALL be able to declare the host-side capabilities they require via a `requiredCapabilities` field on the `BundleAgentSetup` object passed to `defineBundleAgent`. Each declaration is an object `{ id: string }`, where `id` matches a capability's canonical kebab-case identifier (e.g. `"tavily-web-search"`, `"file-tools"`).
 
-The `@claw-for-cloudflare/bundle-sdk` package SHALL export a `BundleCapabilityRequirement` type with the above shape. `BundleAgentSetup.requiredCapabilities` SHALL be optional; bundles that omit it behave identically to bundles that declare an empty array.
+The `@crabbykit/bundle-sdk` package SHALL export a `BundleCapabilityRequirement` type with the above shape. `BundleAgentSetup.requiredCapabilities` SHALL be optional; bundles that omit it behave identically to bundles that declare an empty array.
 
 The declaration SHALL be persisted into the built bundle's `BundleMetadata` as `BundleMetadata.requiredCapabilities`. This proposal SHALL NOT repurpose the existing `BundleMetadata.capabilityIds` field — that field retains its existing semantics of "capability ids registered on the agent." The bundle's `/metadata` HTTP endpoint SHALL return `requiredCapabilities` so host-side tooling can inspect declarations without instantiating the bundle isolate.
 

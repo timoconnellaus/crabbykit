@@ -1,8 +1,8 @@
 /**
- * `@claw-for-cloudflare/bundle-token` — verify-only capability token primitives.
+ * `@crabbykit/bundle-token` — verify-only capability token primitives.
  *
- * Shared between `@claw-for-cloudflare/bundle-host` (which also mints) and
- * `@claw-for-cloudflare/bundle-sdk` (which only verifies). The package
+ * Shared between `@crabbykit/bundle-host` (which also mints) and
+ * `@crabbykit/bundle-sdk` (which only verifies). The package
  * intentionally exposes NO mint functions — minting lives exclusively in
  * `bundle-host/src/security/mint.ts` behind a distinct package boundary.
  */

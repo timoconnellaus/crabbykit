@@ -1,15 +1,35 @@
 {
-  "name": "@claw-for-cloudflare/agent-ui",
+  "name": "@crabbykit/agent-ui",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/ui/agent-ui"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
+  "sideEffects": [
+    "./src/styles.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css"
   },
-  "sideEffects": [
-    "./src/styles.css"
+  "files": [
+    "dist"
   ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
     "@codemirror/commands": "^6.6.0",
     "@codemirror/lang-css": "^6.3.0",
@@ -31,6 +51,11 @@
     "remark-gfm": "^4.0.1",
     "shiki": "^3.4.2"
   },
+  "peerDependencies": {
+    "@crabbykit/agent-runtime": "workspace:^",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
     "@testing-library/jest-dom": "^6.0.0",
@@ -41,14 +66,14 @@
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
-  "peerDependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*",
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
-  },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./styles.css": "./dist/styles.css"
+    }
   }
 }

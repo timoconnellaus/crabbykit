@@ -1,9 +1,5 @@
-import { getAuthFromRequest, verifyToken } from "@claw-for-cloudflare/agent-auth";
-import type {
-  AgentMessage,
-  Capability,
-  CapabilityStorage,
-} from "@claw-for-cloudflare/agent-runtime";
+import { getAuthFromRequest, verifyToken } from "@crabbykit/agent-auth";
+import type { AgentMessage, Capability, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { getAttachedAgentId } from "./attach.js";
 import {
   createAgentAttachTool,

@@ -1,18 +1,18 @@
-import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { PeeringService } from "@claw-for-cloudflare/agent-peering";
-import type { AgentRecord, AgentRegistry } from "@claw-for-cloudflare/agent-registry";
+import { setAuthHeaders, signToken } from "@crabbykit/agent-auth";
+import type { PeeringService } from "@crabbykit/agent-peering";
+import type { AgentRecord, AgentRegistry } from "@crabbykit/agent-registry";
 import type {
   AgentContext,
   AgentMessage,
   CapabilityHookContext,
   CapabilityHttpContext,
   CapabilityStorage,
-} from "@claw-for-cloudflare/agent-runtime";
+} from "@crabbykit/agent-runtime";
 import {
   createMockStorage,
   textOf,
   TOOL_CTX as toolCtx,
-} from "@claw-for-cloudflare/agent-runtime/test-utils";
+} from "@crabbykit/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAttachedAgentId, getAttachedAgentId, setAttachedAgentId } from "../attach.js";
 import { agentFleet } from "../capability.js";

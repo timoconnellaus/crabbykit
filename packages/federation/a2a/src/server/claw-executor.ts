@@ -1,4 +1,4 @@
-import type { SessionStore } from "@claw-for-cloudflare/agent-runtime";
+import type { SessionStore } from "@crabbykit/agent-runtime";
 import type {
   AgentCard,
   AgentSkill,

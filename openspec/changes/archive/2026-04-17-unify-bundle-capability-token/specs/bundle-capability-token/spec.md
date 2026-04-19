@@ -26,7 +26,7 @@ Capability client subpaths (the `client` subpath pattern used by shape-2 capabil
 
 The unified capability token's decoded payload SHALL include a `scope: string[]` field alongside the existing `aid`, `sid`, `exp`, `nonce` fields. Scope entries SHALL identify which services and capabilities the token authorizes the bundle to call.
 
-The `@claw-for-cloudflare/bundle-token` package's `TokenPayload` type SHALL declare this field as required (not optional). Every mint SHALL populate it; every verify SHALL preserve it in `VerifyResult.payload`.
+The `@crabbykit/bundle-token` package's `TokenPayload` type SHALL declare this field as required (not optional). Every mint SHALL populate it; every verify SHALL preserve it in `VerifyResult.payload`.
 
 #### Scenario: Mint produces a payload with scope
 - **WHEN** `mintToken({ agentId, sessionId, scope: ["spine", "llm", "tavily-web-search"] }, subkey)` is called
@@ -135,7 +135,7 @@ The host SHALL derive the mint subkey from `AGENT_AUTH_KEY` via HKDF-SHA-256 wit
 
 The per-service labels used previously (`claw/spine-v1`, `claw/llm-v1`, `claw/tavily-v1`) SHALL NOT appear in production code. Domain separation between services is moved from the HKDF layer into the payload's `scope` field, enforced by per-service `requiredScope` checks.
 
-A single exported constant `BUNDLE_SUBKEY_LABEL = "claw/bundle-v1"` SHALL be re-exported from `@claw-for-cloudflare/bundle-host`'s barrel. All mint and verify call sites SHALL import this constant rather than hard-coding the string.
+A single exported constant `BUNDLE_SUBKEY_LABEL = "claw/bundle-v1"` SHALL be re-exported from `@crabbykit/bundle-host`'s barrel. All mint and verify call sites SHALL import this constant rather than hard-coding the string.
 
 #### Scenario: All services use the same subkey label
 - **WHEN** SpineService, LlmService, and TavilyService each derive their verify-only subkey

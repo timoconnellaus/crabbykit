@@ -3,8 +3,8 @@
  * Not for production use — state is lost on restart.
  */
 
-import { CapabilityMismatchError } from "@claw-for-cloudflare/agent-runtime";
-import { validateCatalogAgainstKnownIds } from "@claw-for-cloudflare/bundle-registry";
+import { CapabilityMismatchError } from "@crabbykit/agent-runtime";
+import { validateCatalogAgainstKnownIds } from "@crabbykit/bundle-registry";
 import type { BundleRegistry, SetActiveOptions } from "./bundle-config.js";
 import {
   ActionIdCollisionError,

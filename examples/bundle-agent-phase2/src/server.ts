@@ -12,8 +12,8 @@
  *   GET  /status        — show current bundle state
  */
 
-import { defineAgent } from "@claw-for-cloudflare/agent-runtime";
-import { InMemoryBundleRegistry } from "@claw-for-cloudflare/bundle-host";
+import { defineAgent } from "@crabbykit/agent-runtime";
+import { InMemoryBundleRegistry } from "@crabbykit/bundle-host";
 
 // Pre-compiled bundle loaded as text via wrangler rules
 // @ts-expect-error — text module import

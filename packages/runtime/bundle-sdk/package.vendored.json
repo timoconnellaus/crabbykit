@@ -1,5 +1,5 @@
 {
-  "name": "@claw-for-cloudflare/bundle-sdk",
+  "name": "@crabbykit/bundle-sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",

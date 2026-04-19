@@ -1,4 +1,4 @@
-import type { SqlResult, SqlStore } from "@claw-for-cloudflare/agent-runtime";
+import type { SqlResult, SqlStore } from "@crabbykit/agent-runtime";
 
 interface Row {
   [key: string]: unknown;

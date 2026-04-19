@@ -141,12 +141,12 @@ Keyed by capability ID. While the mode is active, these values merge into the ca
 
 **Alternative considered:** add `context.mode?: ModeInfo` to `AgentContext` so capabilities can branch on mode ID directly. **Rejected (for now)** because every capability author would need to learn a new context field, and config-merge already handles the behavioral cases. Can be added later non-breakingly if a concrete case surfaces.
 
-### D7. Subpath export: `@claw-for-cloudflare/agent-runtime/modes`
+### D7. Subpath export: `@crabbykit/agent-runtime/modes`
 
 `agent-runtime` already uses subpath exports (`./client`, `./test-utils`). Adding `./modes` is consistent with that pattern and signals modes as a layered opt-in:
 
 ```ts
-import { defineMode, planMode, type Mode } from "@claw-for-cloudflare/agent-runtime/modes";
+import { defineMode, planMode, type Mode } from "@crabbykit/agent-runtime/modes";
 ```
 
 Agents that don't use modes never import the file. Built-in modes (`planMode`) and the factory (`defineMode`) live at the same entry point for discoverability.

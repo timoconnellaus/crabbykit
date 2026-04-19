@@ -15,8 +15,8 @@
  * bundle-originated file mutations via the Phase 0 host-hook bridge.
  */
 
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
+import { defineTool } from "@crabbykit/agent-runtime";
 import {
   FILE_COPY_TOOL_DESCRIPTION,
   FILE_COPY_TOOL_NAME,

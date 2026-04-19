@@ -1,4 +1,4 @@
-import type { AgentContext, PromptScheduleConfig } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, PromptScheduleConfig } from "@crabbykit/agent-runtime";
 import { describe, expect, it } from "vitest";
 import { heartbeat } from "../capability.js";
 

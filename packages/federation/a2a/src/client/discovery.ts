@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { AgentCard } from "../types.js";
 
 const DEFAULT_CACHE_TTL_SECONDS = 300;

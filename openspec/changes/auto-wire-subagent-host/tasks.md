@@ -22,7 +22,7 @@
 
 ## 3. Auto-register subagent tools in collectAllTools
 
-- [ ] 3.1 Import subagent tool factories (`createCallSubagentTool`, `createStartSubagentTool`, `createCheckSubagentTool`, `createCancelSubagentTool`) from `@claw-for-cloudflare/subagent`
+- [ ] 3.1 Import subagent tool factories (`createCallSubagentTool`, `createStartSubagentTool`, `createCheckSubagentTool`, `createCancelSubagentTool`) from `@crabbykit/subagent`
 - [ ] 3.2 Add consumer-capability check: skip auto-registration if any registered capability has `id: "subagent"`
 - [ ] 3.3 When `getSubagentModes().length > 0` and no consumer subagent capability exists, build `SubagentToolDeps` using `this.asSubagentHost()`, `getSubagentModes()`, current context's tools and prompt
 - [ ] 3.4 Create a `PendingSubagentStore`-compatible storage from `this.kvStore` with `"subagent"` namespace

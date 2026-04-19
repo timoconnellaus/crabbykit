@@ -68,7 +68,7 @@ The rule: rename if the name causes a name collision or actively misleads. Other
 
 A README documenting the dependency direction rules would be ignored the moment someone is in a hurry. A CI lint rule catches the violation before merge, every time, without requiring reviewer vigilance.
 
-The rule is trivially implemented: walk every TypeScript source file under `packages/<bucket>/*/src/**`, extract imports matching `@claw-for-cloudflare/*`, resolve each import to its bucket, and fail if the cross-bucket direction is disallowed. A 50-line script. No parser more complex than a regex is required because package names are structured.
+The rule is trivially implemented: walk every TypeScript source file under `packages/<bucket>/*/src/**`, extract imports matching `@crabbykit/*`, resolve each import to its bucket, and fail if the cross-bucket direction is disallowed. A 50-line script. No parser more complex than a regex is required because package names are structured.
 
 The rule runs in `bun run lint` and in CI. It is not a Biome plugin (custom Biome plugins are still experimental and overkill here). It is a plain TypeScript script checked in at `scripts/check-package-deps.ts` and invoked from the lint command.
 
@@ -77,11 +77,11 @@ The rule runs in `bun run lint` and in CI. It is not a Biome plugin (custom Biom
 1. **Bun workspace glob.** `"packages/*"` → `"packages/*/*"`. Also applies to `wrangler.toml`/`wrangler.jsonc` alias blocks if any exist (none do today).
 2. **`tsconfig.json` project references.** Every root and per-package `references` array that points into `packages/<name>` updates to `packages/<bucket>/<name>`. Mechanically derivable from the rename map.
 3. **Biome glob includes** in `biome.json`. Same mechanical update.
-4. **`r2-storage` consumers.** `examples/basic-agent/src/capability-*.ts` and any other internal importers update `@claw-for-cloudflare/r2-storage` → `@claw-for-cloudflare/file-tools` and `r2Storage({ storage })` → `fileTools({ storage })`. Find-replace, not hand-editing.
+4. **`r2-storage` consumers.** `examples/basic-agent/src/capability-*.ts` and any other internal importers update `@crabbykit/r2-storage` → `@crabbykit/file-tools` and `r2Storage({ storage })` → `fileTools({ storage })`. Find-replace, not hand-editing.
 5. **Documentation.** CLAUDE.md package list is rewritten. README.md packages table is rewritten. Any architecture docs that reference `packages/` paths update.
 6. **Per-package internal README files** (where they exist). No updates needed — these reference package-local paths, not repo-global ones.
 
-Nothing else breaks. No runtime code, no test code, no wrangler config, no DO class registrations. The DO classes remain `@claw-for-cloudflare/agent-runtime`, which is still the same package name even though its directory moved.
+Nothing else breaks. No runtime code, no test code, no wrangler config, no DO class registrations. The DO classes remain `@crabbykit/agent-runtime`, which is still the same package name even though its directory moved.
 
 ## Risk
 
@@ -100,7 +100,7 @@ The change is also easy to bisect if something does break — the reorg is one c
 - **Rename to `@crabbykit/*` scope at the same time.** Would save one churn cycle. Rejected because it couples two unrelated mechanical changes (reorg + scope rename) into one proposal, and the scope rename has its own considerations (package registry publication, changelog, announcements) that don't belong here.
 - **Organize into finer-grained buckets** — e.g., split `capabilities/` into `capabilities/tools/`, `capabilities/hooks/`, `capabilities/runtime-internal/`. Rejected because 16 packages across 3 sub-buckets is less useful than 16 packages in one bucket — the sub-division invents distinctions that are fuzzy and will need re-litigation for every new capability.
 - **Keep `r2-storage` name.** Rejected because every new reader has been bitten by the ambiguity with `agent-storage`, and the rename cost is trivial.
-- **Add a deprecation alias package** (`@claw-for-cloudflare/r2-storage` re-exporting from `@claw-for-cloudflare/file-tools`). Rejected because the repo is greenfield and CLAUDE.md explicitly forbids legacy compat shims.
+- **Add a deprecation alias package** (`@crabbykit/r2-storage` re-exporting from `@crabbykit/file-tools`). Rejected because the repo is greenfield and CLAUDE.md explicitly forbids legacy compat shims.
 
 ## What this proposal deliberately does not decide
 

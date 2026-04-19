@@ -16,7 +16,7 @@ import {
   useSchedules,
   useSessions,
   useSkills,
-} from "@claw-for-cloudflare/agent-runtime/client";
+} from "@crabbykit/agent-runtime/client";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";

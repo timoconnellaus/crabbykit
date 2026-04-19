@@ -1,10 +1,5 @@
-import {
-  getAuthFromRequest,
-  setAuthHeaders,
-  signToken,
-  verifyToken,
-} from "@claw-for-cloudflare/agent-auth";
-import type { CapabilityHttpContext, HttpHandler } from "@claw-for-cloudflare/agent-runtime";
+import { getAuthFromRequest, setAuthHeaders, signToken, verifyToken } from "@crabbykit/agent-auth";
+import type { CapabilityHttpContext, HttpHandler } from "@crabbykit/agent-runtime";
 import { getInboundPeer, getOutboundPeer, setInboundPeer, setOutboundPeer } from "./peers.js";
 import type { PeeringOptions, PeerPolicy, PeerRecord } from "./types.js";
 

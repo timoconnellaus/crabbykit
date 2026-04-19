@@ -1,4 +1,4 @@
-import type { Capability, SqlStore } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability, SqlStore } from "@crabbykit/agent-runtime";
 import type { AuthChecker } from "./task-store.js";
 import { TaskStore } from "./task-store.js";
 import {

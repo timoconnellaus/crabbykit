@@ -1,9 +1,9 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
 import {
   createMockStorage,
   textOf,
   TOOL_CTX as toolCtx,
-} from "@claw-for-cloudflare/agent-runtime/test-utils";
+} from "@crabbykit/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it } from "vitest";
 import { credentialStore } from "../capability.js";
 import { decrypt, encrypt, generateKey } from "../crypto.js";

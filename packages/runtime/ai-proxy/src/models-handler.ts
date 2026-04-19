@@ -1,4 +1,4 @@
-import type { CapabilityHttpContext } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityHttpContext } from "@crabbykit/agent-runtime";
 import type { AiProxyOptions } from "./types.js";
 
 /**

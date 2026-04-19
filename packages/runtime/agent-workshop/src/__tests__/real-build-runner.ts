@@ -3,7 +3,7 @@
  * Subprocess runner that bundles a set of virtual files via `esbuild-wasm`
  * and writes the result as JSON to stdout. Exists because
  * `real-build.test.ts` needs to assert invariants over the REAL bundler
- * output (no unresolved `@claw-for-cloudflare/*` imports), and:
+ * output (no unresolved `@crabbykit/*` imports), and:
  *
  *   1. `@cloudflare/worker-bundler`'s bundled dist imports its wasm via
  *      `import esbuildWasm from "./esbuild.wasm"`. Bun returns the wasm
@@ -18,7 +18,7 @@
  * mirror what workshop's build path asks for (ESM target, externals for
  * `cloudflare:*`, bundle = true). The output passes through the same
  * invariant check as the production path, which is enough to catch an
- * unresolved `@claw-for-cloudflare/bundle-sdk` external.
+ * unresolved `@crabbykit/bundle-sdk` external.
  *
  * Input:  single JSON argv[2] of shape `{ files: Record<string,string>, entryPoint?: string }`
  * Output: JSON `{ ok: true, mainModule, modules }` or `{ ok: false, error }`
@@ -127,7 +127,7 @@ async function bundleViaEsbuild(input: BuildInput): Promise<BuildOutput> {
    * common conditional object shape with `import`/`default`/`browser`
    * conditions. Mirrors worker-bundler's use of `resolve.exports` at
    * the level of detail we need to faithfully reproduce the behavior
-   * that was leaking the `@claw-for-cloudflare/bundle-sdk`
+   * that was leaking the `@crabbykit/bundle-sdk`
    * import. Doesn't implement pattern matching — bundles we care about
    * use literal subpaths.
    */
@@ -191,7 +191,7 @@ async function bundleViaEsbuild(input: BuildInput): Promise<BuildOutput> {
   // relative or bare import cannot be found in the virtual files map,
   // it is marked EXTERNAL. That's the exact behavior that lets a
   // mistyped `./_claw/bundle-runtime.js` or a user-written
-  // `@claw-for-cloudflare/bundle-sdk` slip through build and
+  // `@crabbykit/bundle-sdk` slip through build and
   // blow up at runtime with "No such module". We replicate it here so
   // the test can grep the output for stray externals.
   const virtualPlugin = {

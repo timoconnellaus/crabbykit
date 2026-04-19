@@ -3,7 +3,7 @@
  * Bypasses pi-ai entirely to avoid partial-json CJS issue in Workers test pool.
  */
 
-import type { AgentEvent, AgentMessage, AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentEvent, AgentMessage, AgentTool } from "@crabbykit/agent-core";
 import { Type } from "@sinclair/typebox";
 import type { AgentConfig, AgentContext } from "../agent-do.js";
 import { AgentDO } from "../agent-do.js";
@@ -553,7 +553,7 @@ export class TestAgentDO extends AgentDO {
 
     // Register a pending A2A task for testing callback injection
     if (request.method === "POST" && url.pathname === "/register-pending-task") {
-      const { PendingTaskStore } = await import("@claw-for-cloudflare/a2a");
+      const { PendingTaskStore } = await import("@crabbykit/a2a");
       const { createCapabilityStorage } = await import("../capabilities/storage.js");
       const storage = createCapabilityStorage(this.kvStore, "a2a-client");
       const store = new PendingTaskStore(storage);

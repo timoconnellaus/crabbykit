@@ -1,6 +1,6 @@
 ## Why
 
-When a bundle runs inside a Worker Loader isolate, its brain-facing tool surface depends on two disjoint halves: the bundle-side clients it imports (e.g. `tavilyClient` from `@claw-for-cloudflare/tavily-web-search/client`) and the host-side services that actually carry credentials and do the work (e.g. `TavilyService`, a `WorkerEntrypoint` bound into the host worker's `wrangler.jsonc`). The bundle author ships the first half inside their bundle; the worker operator ships the second half as a deploy-time binding.
+When a bundle runs inside a Worker Loader isolate, its brain-facing tool surface depends on two disjoint halves: the bundle-side clients it imports (e.g. `tavilyClient` from `@crabbykit/tavily-web-search/client`) and the host-side services that actually carry credentials and do the work (e.g. `TavilyService`, a `WorkerEntrypoint` bound into the host worker's `wrangler.jsonc`). The bundle author ships the first half inside their bundle; the worker operator ships the second half as a deploy-time binding.
 
 There is currently no declaration, no validation, and no error story for when these two halves disagree. Concretely:
 
@@ -81,10 +81,10 @@ The catalog is also a prerequisite for several in-flight follow-up proposals. A 
 ### Added Capabilities
 
 - **`bundle-capability-catalog`** — declares the capabilities a bundle requires, validates them against the host's registered capabilities at pointer-flip time (primary) and as a dispatch-time guard (backup). Ownership:
-  - `@claw-for-cloudflare/bundle-sdk` owns the declaration authoring surface and build-time input validation.
-  - `@claw-for-cloudflare/agent-runtime` owns the `BundleRegistry` interface (at `src/bundle-config.ts`) and therefore owns the widened `SetActiveOptions` that carries catalog-validation fields. It also owns the `getBundleHostCapabilityIds()` method on `AgentRuntime` / `AgentDO`.
-  - `@claw-for-cloudflare/bundle-registry` implements catalog validation inside `D1BundleRegistry.setActive` against the interface owned by agent-runtime, and hosts the shared `validateCatalogAgainstKnownIds` helper.
-  - `@claw-for-cloudflare/bundle-host` implements catalog validation inside `InMemoryBundleRegistry.setActive` and contributes the dispatch-time guard inside `BundleDispatcher`.
+  - `@crabbykit/bundle-sdk` owns the declaration authoring surface and build-time input validation.
+  - `@crabbykit/agent-runtime` owns the `BundleRegistry` interface (at `src/bundle-config.ts`) and therefore owns the widened `SetActiveOptions` that carries catalog-validation fields. It also owns the `getBundleHostCapabilityIds()` method on `AgentRuntime` / `AgentDO`.
+  - `@crabbykit/bundle-registry` implements catalog validation inside `D1BundleRegistry.setActive` against the interface owned by agent-runtime, and hosts the shared `validateCatalogAgainstKnownIds` helper.
+  - `@crabbykit/bundle-host` implements catalog validation inside `InMemoryBundleRegistry.setActive` and contributes the dispatch-time guard inside `BundleDispatcher`.
 
 ### Modified Capabilities
 
@@ -97,7 +97,7 @@ None.
 ## Impact
 
 - **Modified packages**:
-  - `packages/runtime/bundle-sdk/` — `BundleAgentSetup` gains `requiredCapabilities?: BundleCapabilityRequirement[]`. `BundleMetadata` gains the same field. `defineBundleAgent` populates and input-validates it. Exports `BundleCapabilityRequirement`; re-exports `CapabilityMismatchError` from `@claw-for-cloudflare/agent-runtime` (the class is owned by agent-runtime, which owns `BundleRegistry` — see agent-runtime bullet below).
+  - `packages/runtime/bundle-sdk/` — `BundleAgentSetup` gains `requiredCapabilities?: BundleCapabilityRequirement[]`. `BundleMetadata` gains the same field. `defineBundleAgent` populates and input-validates it. Exports `BundleCapabilityRequirement`; re-exports `CapabilityMismatchError` from `@crabbykit/agent-runtime` (the class is owned by agent-runtime, which owns `BundleRegistry` — see agent-runtime bullet below).
   - `packages/runtime/agent-runtime/` — owns the `BundleRegistry` interface. Widens it by promoting the inline `setActive` option type into a named `SetActiveOptions` and adding `skipCatalogCheck?: boolean` + `knownCapabilityIds?: string[]`. Adds `getBundleHostCapabilityIds()` to `AgentRuntime` and a delegating method on `AgentDO`. Widens the `bundle_disabled` event type's `data` payload with the optional structured `reason`.
   - `packages/runtime/bundle-registry/` — migrates `D1BundleRegistry.setActive` to the new `SetActiveOptions` shape. Renames / relocates the existing `SetActiveOpts` interface: the authoritative option type becomes `SetActiveOptions` owned by `agent-runtime/src/bundle-config.ts`; `bundle-registry/src/types.ts` stops declaring its own copy and re-exports the widened type for backward compat with existing imports. Adds `validateCatalogAgainstKnownIds` helper at `src/validate.ts`.
   - `packages/runtime/bundle-host/` — `InMemoryBundleRegistry.setActive` implements the new contract. `BundleDispatcher` gains `getHostCapabilityIds: () => string[]` callback at construction, a `validatedVersionId` cache, a `dispatchTurn` preflight guard, and a `disableForCatalogMismatch` path that calls `setActive(..., null, { skipCatalogCheck: true })` and broadcasts the widened event.

@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AnyAgentTool } from "@crabbykit/agent-core";
 import type { TObject } from "@sinclair/typebox";
 import type {
   A2AClientOptions,
@@ -547,9 +547,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const getBundleSubkey = async (): Promise<CryptoKey> => {
       if (!bundleSubkeyPromise) {
         bundleSubkeyPromise = (async () => {
-          const { deriveMintSubkey, BUNDLE_SUBKEY_LABEL } = await import(
-            "@claw-for-cloudflare/bundle-host"
-          );
+          const { deriveMintSubkey, BUNDLE_SUBKEY_LABEL } = await import("@crabbykit/bundle-host");
           return deriveMintSubkey(masterKey, BUNDLE_SUBKEY_LABEL);
         })();
       }
@@ -572,7 +570,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         if (!bytes) {
           throw new Error(`Bundle bytes not found for version ${versionId}`);
         }
-        const { composeWorkerLoaderConfig } = await import("@claw-for-cloudflare/bundle-host");
+        const { composeWorkerLoaderConfig } = await import("@crabbykit/bundle-host");
         return composeWorkerLoaderConfig({
           bytes,
           projectedEnv: bundleConfig.bundleEnv(env),
@@ -640,7 +638,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
         validateCatalogAgainstKnownIds,
         validateBundleRoutesAgainstKnownRoutes,
         validateBundleActionIdsAgainstKnownIds,
-      } = await import("@claw-for-cloudflare/bundle-host");
+      } = await import("@crabbykit/bundle-host");
       if (!registry.getVersion) {
         validatedVersionId = versionId;
         return { valid: true };
@@ -860,7 +858,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       autoRebuildInFlight = (async () => {
         try {
           const { BUNDLE_RUNTIME_HASH, buildBundle, encodeEnvelope } = await import(
-            "@claw-for-cloudflare/bundle-host"
+            "@crabbykit/bundle-host"
           );
           const version = await registry.getVersion!(versionId);
           const storedHash = version?.metadata?.runtimeHash;
@@ -992,7 +990,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       try {
         const bundleSubkey = await getBundleSubkey();
-        const { mintToken } = await import("@claw-for-cloudflare/bundle-host");
+        const { mintToken } = await import("@crabbykit/bundle-host");
         const scope = await computeTokenScope(versionId);
         const bundleToken = await mintToken({ agentId, sessionId, scope }, bundleSubkey);
 
@@ -1093,7 +1091,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
       try {
         const bundleSubkey = await getBundleSubkey();
-        const { mintToken: mint } = await import("@claw-for-cloudflare/bundle-host");
+        const { mintToken: mint } = await import("@crabbykit/bundle-host");
         const scope = await computeTokenScope(versionId);
         const bundleToken = await mint({ agentId, sessionId, scope }, bundleSubkey);
 
@@ -1190,7 +1188,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           mintToken: mint,
           serializeRequestForBundle,
           deserializeResponseFromBundle,
-        } = await import("@claw-for-cloudflare/bundle-host");
+        } = await import("@crabbykit/bundle-host");
         const scope = await computeTokenScope(versionId);
         const bundleToken = await mint(
           { agentId, sessionId: sessionId ?? "", scope },
@@ -1261,7 +1259,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       try {
         const bundleSubkey = await getBundleSubkey();
         const { mintToken: mint, serializeActionForBundle } = await import(
-          "@claw-for-cloudflare/bundle-host"
+          "@crabbykit/bundle-host"
         );
         const scope = await computeTokenScope(versionId);
         const bundleToken = await mint({ agentId, sessionId, scope }, bundleSubkey);

@@ -4,7 +4,7 @@
 
 ### Requirement: Bundle dispatch SHALL gate on capability catalog validation at pointer-flip and dispatch time
 
-The `BundleDispatcher` contributed by `@claw-for-cloudflare/bundle-host` SHALL integrate catalog validation into the bundle dispatch lifecycle via two layers:
+The `BundleDispatcher` contributed by `@crabbykit/bundle-host` SHALL integrate catalog validation into the bundle dispatch lifecycle via two layers:
 
 1. **Primary validation at `BundleRegistry.setActive`** — every promotion path (workshop_deploy, admin RPC, test harness) validates the catalog before flipping the pointer. A mismatch throws `CapabilityMismatchError`; the pointer does not flip.
 2. **Dispatch-time guard in `dispatchTurn`** — before Worker Loader invocation, the dispatcher compares `state.activeVersionId` against `validatedVersionId`. If they differ, it re-validates against the current host capability set to catch out-of-band mutations that bypassed `setActive`.

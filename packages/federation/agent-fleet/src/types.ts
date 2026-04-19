@@ -1,5 +1,5 @@
-import type { PeeringService } from "@claw-for-cloudflare/agent-peering";
-import type { AgentRegistry } from "@claw-for-cloudflare/agent-registry";
+import type { PeeringService } from "@crabbykit/agent-peering";
+import type { AgentRegistry } from "@crabbykit/agent-registry";
 
 export interface FleetOptions {
   /** Agent registry for CRUD operations. */

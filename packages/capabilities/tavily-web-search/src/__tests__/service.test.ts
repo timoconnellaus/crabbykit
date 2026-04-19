@@ -10,7 +10,7 @@
  *  - schema drift rejection
  */
 
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL } from "@crabbykit/bundle-token";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";
 import type { TavilyServiceEnv } from "../service.js";

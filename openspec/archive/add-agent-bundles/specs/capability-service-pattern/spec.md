@@ -5,7 +5,7 @@
 Capability packages that hold secrets SHALL expose three subpath exports: `index` (the existing static-agent capability factory, unchanged for backwards compatibility), `service` (a `WorkerEntrypoint` class that holds secrets and implements tool execution), and `client` (a bundle-side capability factory that takes a `Service<T>` binding and produces a capability whose tools RPC into the service). Package `exports` in `package.json` SHALL enforce the separation physically. A fourth subpath `schemas` SHALL host the shared tool schema declarations imported by both `service` and `client`.
 
 #### Scenario: Tavily package exports four subpaths
-- **WHEN** a developer imports from `@claw-for-cloudflare/tavily-web-search`, `@claw-for-cloudflare/tavily-web-search/service`, `@claw-for-cloudflare/tavily-web-search/client`, and `@claw-for-cloudflare/tavily-web-search/schemas`
+- **WHEN** a developer imports from `@crabbykit/tavily-web-search`, `@crabbykit/tavily-web-search/service`, `@crabbykit/tavily-web-search/client`, and `@crabbykit/tavily-web-search/schemas`
 - **THEN** each import resolves to a distinct module: the legacy `tavilyWebSearch({apiKey})` factory, the `TavilyService` WorkerEntrypoint class, the `tavilyWebSearchClient({service})` factory, and the shared schema declarations
 
 ### Requirement: Service class holds secrets exclusively

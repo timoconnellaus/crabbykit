@@ -1,4 +1,4 @@
-import { useSkills } from "@claw-for-cloudflare/agent-runtime/client";
+import { useSkills } from "@crabbykit/agent-runtime/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { SkillsPanel } from "../../../components/skills-panel";
 import { useChatContext } from "../../../context/chat-context";

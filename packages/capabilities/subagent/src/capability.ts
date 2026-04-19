@@ -1,4 +1,4 @@
-import type { Capability, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability, CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { SubagentHost } from "./host.js";
 import { PendingSubagentStore } from "./pending-store.js";
 import {

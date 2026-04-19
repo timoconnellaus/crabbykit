@@ -1,5 +1,5 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import type { SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
+import type { SkillRegistry } from "@crabbykit/skill-registry";
 import { writeSkillToR2 } from "./r2.js";
 import {
   getInstalledSkill,

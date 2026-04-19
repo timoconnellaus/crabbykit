@@ -19,11 +19,7 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 import { SCHEMA_CONTENT_HASH } from "./schemas.js";
 
 /** Default maximum matches Vectorize is asked for when `maxResults` is omitted. */

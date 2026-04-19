@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { InstalledSkill, SkillConflict } from "./types.js";
 
 const INSTALLED_PREFIX = "installed:";

@@ -1,4 +1,4 @@
-import { useChatSession } from "@claw-for-cloudflare/agent-runtime/client";
+import { useChatSession } from "@crabbykit/agent-runtime/client";
 
 export function ThinkingIndicator() {
   const { agentStatus } = useChatSession();

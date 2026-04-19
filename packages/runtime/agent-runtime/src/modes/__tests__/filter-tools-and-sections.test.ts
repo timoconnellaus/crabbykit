@@ -1,4 +1,4 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@crabbykit/agent-core";
 import { describe, expect, it } from "vitest";
 import type { PromptSection } from "../../prompt/types.js";
 import { defineMode } from "../define-mode.js";

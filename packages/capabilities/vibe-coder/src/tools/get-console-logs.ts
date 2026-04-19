@@ -1,5 +1,5 @@
-import type { AgentContext, AgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, AgentTool } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 
 export function createGetConsoleLogsTool(
   context: AgentContext,

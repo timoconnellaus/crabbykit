@@ -33,7 +33,7 @@ The per-turn RPC budget accumulator used to cap spine calls per category (`sql`,
 
 ### Requirement: `SpineHost` methods accept a `SpineCaller` context
 
-Every method on the `SpineHost` interface SHALL accept a `SpineCaller` object as its first parameter, replacing the previous `sessionId: string` or equivalent first arguments. The `SpineCaller` type SHALL be declared in `@claw-for-cloudflare/agent-runtime` and exported from the package barrel.
+Every method on the `SpineHost` interface SHALL accept a `SpineCaller` object as its first parameter, replacing the previous `sessionId: string` or equivalent first arguments. The `SpineCaller` type SHALL be declared in `@crabbykit/agent-runtime` and exported from the package barrel.
 
 The `SpineCaller` interface SHALL declare at minimum:
 

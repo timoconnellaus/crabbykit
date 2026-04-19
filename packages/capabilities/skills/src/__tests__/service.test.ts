@@ -12,7 +12,7 @@
  *  - enabled skill returns frontmatter-stripped content
  */
 
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL } from "@crabbykit/bundle-token";
 import { describe, expect, it, vi } from "vitest";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";
 import type { SkillsServiceEnv } from "../service.js";

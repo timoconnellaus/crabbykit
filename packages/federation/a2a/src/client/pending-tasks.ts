@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { TaskState } from "../types.js";
 
 const TASK_KEY_PREFIX = "task:";

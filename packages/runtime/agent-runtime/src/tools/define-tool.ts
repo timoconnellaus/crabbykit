@@ -1,8 +1,4 @@
-import type {
-  AgentToolResult,
-  AnyAgentTool,
-  ToolExecuteContext,
-} from "@claw-for-cloudflare/agent-core";
+import type { AgentToolResult, AnyAgentTool, ToolExecuteContext } from "@crabbykit/agent-core";
 import { type Static, type TObject, type TSchema, Type } from "@sinclair/typebox";
 
 /** Return type accepted by `defineTool()` execute functions. */

@@ -1,4 +1,4 @@
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
 import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 

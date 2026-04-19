@@ -1,4 +1,4 @@
-import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
+import { useAgentConnection } from "@crabbykit/agent-runtime/client";
 import {
   AppPreview,
   BrowserPanel,
@@ -12,7 +12,7 @@ import {
   TaskBreadcrumb,
   TaskList,
   ThinkingIndicator,
-} from "@claw-for-cloudflare/agent-ui";
+} from "@crabbykit/agent-ui";
 import { useState } from "react";
 import { useChatContext } from "../context/chat-context";
 import { PendingTasksBanner } from "./pending-tasks";

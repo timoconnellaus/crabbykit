@@ -18,7 +18,7 @@ import {
   AgentConnectionProvider,
   type ServerMessage,
   useAgentConnection,
-} from "@claw-for-cloudflare/agent-runtime/client";
+} from "@crabbykit/agent-runtime/client";
 import { act, cleanup, render } from "@testing-library/react";
 import { type ReactNode, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -81,10 +81,10 @@ Non-DO platform base classes SHALL be able to call `handleAlarmFired()` from the
 The `Scheduler` type and `createCfScheduler` function SHALL be exported from the `agent-runtime` package barrel (`index.ts`).
 
 #### Scenario: Consumer imports Scheduler type
-- **WHEN** a consumer imports from `@claw-for-cloudflare/agent-runtime`
+- **WHEN** a consumer imports from `@crabbykit/agent-runtime`
 - **THEN** the `Scheduler` type SHALL be available as a named export
 
 #### Scenario: Consumer imports CF adapter
-- **WHEN** a consumer imports from `@claw-for-cloudflare/agent-runtime`
+- **WHEN** a consumer imports from `@crabbykit/agent-runtime`
 - **THEN** the `createCfScheduler` function SHALL be available as a named export
 

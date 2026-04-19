@@ -1,4 +1,4 @@
-import { decrypt, encrypt, generateKey } from "@claw-for-cloudflare/credential-store";
+import { decrypt, encrypt, generateKey } from "@crabbykit/credential-store";
 import { describe, expect, it } from "vitest";
 
 describe("crypto", () => {

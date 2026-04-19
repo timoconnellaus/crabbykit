@@ -1,5 +1,5 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
 import type { Modules } from "@cloudflare/worker-bundler";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { DbService } from "./db-service.js";
 
 const COMPATIBILITY_DATE = "2025-03-01";

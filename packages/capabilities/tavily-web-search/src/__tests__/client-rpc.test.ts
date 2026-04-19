@@ -10,10 +10,10 @@
  *  - result formatting
  */
 
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
-import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import type { AgentTool } from "@crabbykit/agent-core";
+import type { AgentContext } from "@crabbykit/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
+import { textOf } from "@crabbykit/agent-runtime/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { tavilyClient } from "../client.js";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";

@@ -35,18 +35,18 @@
 
 ## 2. Phase 1 — `skills` shape-2 split
 
-### 2a. Package: `@claw-for-cloudflare/skills`
+### 2a. Package: `@crabbykit/skills`
 
 - [x] 2.1 Create `packages/capabilities/skills/src/schemas.ts` exporting `SKILL_LOAD_TOOL_NAME`, `SKILL_LOAD_TOOL_DESCRIPTION`, `SkillLoadArgsSchema` (TypeBox), and `SCHEMA_CONTENT_HASH = "skills-schemas-v1"`
 - [x] 2.2 Create `packages/capabilities/skills/src/service.ts` exporting `SkillsService extends WorkerEntrypoint<SkillsServiceEnv>` with `load(token, args, schemaHash)` method; declare env: `AGENT_AUTH_KEY`, `SKILL_REGISTRY` (D1 binding), `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE` (string)
 - [x] 2.3 Implement lazy `getSubkey()` private method using `deriveVerifyOnlySubkey(env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL)` cached as `subkeyPromise` field
 - [x] 2.4 Implement `load`: schema-hash check → token verify (`requiredScope: "skills"`) → installed-skill record lookup (D1 via `SKILL_REGISTRY`) → not-found / not-enabled text response → R2 read of skill content → frontmatter strip → `{ content }` return
 - [x] 2.5 Create `packages/capabilities/skills/src/client.ts` exporting `skillsClient(options: { service: Service<SkillsService> }): Capability` with single `skill_load` tool that reads `env.__BUNDLE_TOKEN`, throws `Missing __BUNDLE_TOKEN` when undefined, calls `options.service.load(token, args, SCHEMA_CONTENT_HASH)`, returns service response as tool text
-- [x] 2.6 Update `packages/capabilities/skills/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*` to `dependencies`
+- [x] 2.6 Update `packages/capabilities/skills/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@crabbykit/bundle-token: workspace:*` to `dependencies`
 - [x] 2.7 Run `bun install` from repo root to refresh lockfile
 - [x] 2.8 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (no edits to the static `skills(...)` factory or its hooks)
 
-### 2b. Tests: `@claw-for-cloudflare/skills`
+### 2b. Tests: `@crabbykit/skills`
 
 - [x] 2.9 Add `src/__tests__/service.test.ts` covering: subkey lazy-derivation cached once; token without `"skills"` scope throws `ERR_SCOPE_DENIED`; missing `AGENT_AUTH_KEY` throws misconfiguration error; schema-hash mismatch throws `ERR_SCHEMA_VERSION`; unknown skill returns text not-found; disabled skill returns text not-enabled; enabled skill returns frontmatter-stripped content
 - [x] 2.10 Add `src/__tests__/client.test.ts` covering: returned capability `id === "skills"`; missing `__BUNDLE_TOKEN` throws; tool forwards `(token, args, SCHEMA_CONTENT_HASH)` to service; capability has no `hooks`/`httpHandlers`/`configNamespaces`/`onAction`/`promptSections`
@@ -70,7 +70,7 @@
 
 ## 3. Phase 2 — `vector-memory` shape-2 split
 
-### 3a. Package: `@claw-for-cloudflare/vector-memory`
+### 3a. Package: `@crabbykit/vector-memory`
 
 - [x] 3.1 Create `packages/capabilities/vector-memory/src/schemas.ts` exporting `MEMORY_SEARCH_TOOL_NAME`, `MEMORY_GET_TOOL_NAME`, descriptions, both `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "vector-memory-schemas-v1"`
 - [x] 3.2 Create `packages/capabilities/vector-memory/src/service.ts` exporting `VectorMemoryService extends WorkerEntrypoint<VectorMemoryServiceEnv>` with `search(token, args, schemaHash)` and `get(token, args, schemaHash)` methods; declare env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET` (R2), `STORAGE_NAMESPACE`, `MEMORY_INDEX` (Vectorize), `AI` (Workers AI)
@@ -78,11 +78,11 @@
 - [x] 3.4 Implement `search`: schema-hash check → token verify (`requiredScope: "vector-memory"`) → embed `args.query` via Workers AI default embedder → query Vectorize for top-`maxResults` (default 5) → fetch chunks from R2 → return `{ results }`
 - [x] 3.5 Implement `get`: schema-hash check → token verify → R2 read at namespaced key → byte-cap truncate (default 512KB) → return `{ content }`; missing file → `{ content: "" }` (no throw)
 - [x] 3.6 Create `packages/capabilities/vector-memory/src/client.ts` exporting `vectorMemoryClient(options): Capability` with `id: "vector-memory"`, two tools (`memory_search`, `memory_get`), and a content-only `promptSections` (functionally equivalent to the static section — auto-reindexing claim is now accurate via the bridge)
-- [x] 3.7 Update `packages/capabilities/vector-memory/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
+- [x] 3.7 Update `packages/capabilities/vector-memory/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@crabbykit/bundle-token: workspace:*`
 - [x] 3.8 Run `bun install` to refresh lockfile
 - [x] 3.9 Verify legacy `src/index.ts` and `src/capability.ts` are unchanged (the static `afterToolExecution` indexing hook stays where it is and now serves both static and bundle pipelines via the bridge)
 
-### 3b. Tests: `@claw-for-cloudflare/vector-memory`
+### 3b. Tests: `@crabbykit/vector-memory`
 
 - [x] 3.10 Add `src/__tests__/service.test.ts` covering: token-scope-deny; schema-hash-mismatch; `search` embeds via Workers AI default; `search` defaults `maxResults` to 5; empty-result-set path; `get` resolves namespace-prefixed R2 key; `get` returns empty for missing file; `get` truncates oversized content
 - [x] 3.11 Add `src/__tests__/client.test.ts` covering: `id === "vector-memory"`; bundle-side prompt section is content-only; missing `__BUNDLE_TOKEN` throws on each tool; capability has no `hooks` (bundle client does NOT register a duplicate indexing hook)
@@ -106,7 +106,7 @@
 
 ## 4. Phase 3 — `file-tools` shape-2 split
 
-### 4a. Package: `@claw-for-cloudflare/file-tools`
+### 4a. Package: `@crabbykit/file-tools`
 
 - [x] 4.1 Create `packages/capabilities/file-tools/src/schemas.ts` exporting tool-name + description constants for all nine tools (`file_read`, `file_write`, `file_edit`, `file_delete`, `file_copy`, `file_move`, `file_list`, `file_tree`, `file_find`), nine `Type.Object(...)` args schemas, and `SCHEMA_CONTENT_HASH = "file-tools-schemas-v1"`
 - [x] 4.2 Create `packages/capabilities/file-tools/src/service.ts` exporting `FileToolsService extends WorkerEntrypoint<FileToolsServiceEnv>` with nine methods (`read`, `write`, `edit`, `delete`, `copy`, `move`, `list`, `tree`, `find`); env: `AGENT_AUTH_KEY`, `STORAGE_BUCKET`, `STORAGE_NAMESPACE` (no `SPINE` binding required — broadcast handled by the static hook via the bridge)
@@ -114,11 +114,11 @@
 - [x] 4.4 Implement each method: schema-hash check → token verify (`requiredScope: "file-tools"`) → reuse existing R2 implementation logic from the corresponding `file-*.ts` modules (extract to a shared internal helper if needed; the namespaced-bucket logic stays identical to the static tools)
 - [x] 4.5 Confirm methods do NOT call `spine.broadcastGlobal` or any spine method directly — the service is a pure RPC executor; UI broadcast comes from the static capability's hook firing through the bridge
 - [x] 4.6 Create `packages/capabilities/file-tools/src/client.ts` exporting `fileToolsClient(options): Capability` with `id: "file-tools"` and nine tools; each tool reads `env.__BUNDLE_TOKEN`, throws on missing, calls `options.service.<method>(token, args, SCHEMA_CONTENT_HASH)`
-- [x] 4.7 Update `packages/capabilities/file-tools/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@claw-for-cloudflare/bundle-token: workspace:*`
+- [x] 4.7 Update `packages/capabilities/file-tools/package.json` `exports` to add `./service`, `./client`, `./schemas`; add `@crabbykit/bundle-token: workspace:*`
 - [x] 4.8 Run `bun install`
 - [x] 4.9 Verify legacy `src/index.ts`, `src/capability.ts`, `src/ui-bridge.ts` are unchanged (the static `broadcastAgentMutation` hook now also fires for bundle events via the bridge)
 
-### 4b. Tests: `@claw-for-cloudflare/file-tools`
+### 4b. Tests: `@crabbykit/file-tools`
 
 - [x] 4.10 Add `src/__tests__/service.test.ts` covering for each method: token-scope-deny; schema-hash-mismatch; path validation rejects traversal; happy-path R2 operation matches static-tool result shape
 - [x] 4.11 Add a test asserting service makes NO spine call (mock spine, expect zero invocations) when methods succeed — the broadcast comes from elsewhere  <!-- Service env has no SPINE by type (compile-time `_NoSpine` check), plus runtime test attaches a `SPINE = vi.fn()` to the env and asserts it was never called across all five mutation methods. -->

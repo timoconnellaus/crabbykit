@@ -14,9 +14,9 @@ export interface Env {
  * isolate when compiled via `bun build --target=browser --format=esm`.
  *
  * The bundle is compiled from bundle-src/index.ts which imports:
- * - Agent from @claw-for-cloudflare/agent-core
- * - getModel from @claw-for-cloudflare/ai
- * - AgentRuntime from @claw-for-cloudflare/agent-runtime
+ * - Agent from @crabbykit/agent-core
+ * - getModel from @crabbykit/ai
+ * - AgentRuntime from @crabbykit/agent-runtime
  *
  * The DO loads it via LOADER.get() and invokes its fetch handler to check
  * whether these imports resolved successfully inside the loader isolate.

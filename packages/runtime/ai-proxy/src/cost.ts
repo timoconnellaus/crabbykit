@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 
 const TOTAL_COST_KEY = "totalCost";
 const COST_LOG_KEY = "costLog";

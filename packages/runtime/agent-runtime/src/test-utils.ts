@@ -6,11 +6,11 @@
  *
  * @example
  * ```ts
- * import { createMockStorage, textOf, TOOL_CTX } from "@claw-for-cloudflare/agent-runtime/test-utils";
+ * import { createMockStorage, textOf, TOOL_CTX } from "@crabbykit/agent-runtime/test-utils";
  * ```
  */
 
-import type { ToolExecuteContext } from "@claw-for-cloudflare/agent-core";
+import type { ToolExecuteContext } from "@crabbykit/agent-core";
 import type { CapabilityStorage } from "./capabilities/storage.js";
 
 // ---------------------------------------------------------------------------

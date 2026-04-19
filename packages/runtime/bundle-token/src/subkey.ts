@@ -7,7 +7,7 @@
  * on top of the compile-time package-boundary guarantee.
  *
  * The mint-side variant (with `usages: ["sign"]`) lives in
- * `@claw-for-cloudflare/bundle-host/src/security/mint.ts`.
+ * `@crabbykit/bundle-host/src/security/mint.ts`.
  */
 
 /**

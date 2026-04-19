@@ -78,10 +78,10 @@
 ## 4. Phase 4 — Rename r2-storage to file-tools
 
 - [x] 4.1 `git mv packages/capabilities/r2-storage packages/capabilities/file-tools`
-- [x] 4.2 Update `packages/capabilities/file-tools/package.json`: `"name": "@claw-for-cloudflare/r2-storage"` → `"name": "@claw-for-cloudflare/file-tools"`
+- [x] 4.2 Update `packages/capabilities/file-tools/package.json`: `"name": "@crabbykit/r2-storage"` → `"name": "@crabbykit/file-tools"`
 - [x] 4.3 Update `packages/capabilities/file-tools/src/capability.ts`: rename the factory function `r2Storage` → `fileTools`, rename the options type `R2StorageOptions` → `FileToolsOptions`, update the capability `id` from `"r2-storage"` to `"file-tools"`, update the capability `name` and `description` to match
 - [x] 4.4 Update `packages/capabilities/file-tools/src/index.ts` re-exports (`r2Storage` → `fileTools`, `R2StorageOptions` → `FileToolsOptions`)
-- [x] 4.5 Grep the repo for remaining uses of `@claw-for-cloudflare/r2-storage` and replace with `@claw-for-cloudflare/file-tools`
+- [x] 4.5 Grep the repo for remaining uses of `@crabbykit/r2-storage` and replace with `@crabbykit/file-tools`
 - [x] 4.6 Grep the repo for remaining uses of `r2Storage(` and replace with `fileTools(`
 - [x] 4.7 Grep the repo for remaining uses of `R2StorageOptions` and replace with `FileToolsOptions`
 - [x] 4.8 Update `examples/basic-agent` capability wiring to use `fileTools`
@@ -95,7 +95,7 @@
 ## 5. Phase 5 — Dependency-direction CI check
 
 - [x] 5.1 Create `scripts/check-package-deps.ts` — a plain TypeScript script (run via `bun scripts/check-package-deps.ts`)
-- [x] 5.2 Implement: walk `packages/*/*/src/**/*.{ts,tsx}` and `packages/*/*/test/**/*.{ts,tsx}` (tests can be excluded if they legitimately cross-cut, but default to enforcing on tests too), parse each file's top-level import statements with a regex matching `from\s+["']@claw-for-cloudflare/([^"']+)["']`
+- [x] 5.2 Implement: walk `packages/*/*/src/**/*.{ts,tsx}` and `packages/*/*/test/**/*.{ts,tsx}` (tests can be excluded if they legitimately cross-cut, but default to enforcing on tests too), parse each file's top-level import statements with a regex matching `from\s+["']@crabbykit/([^"']+)["']`
 - [x] 5.3 Build a map of package name → bucket (derived from the filesystem location of each `packages/<bucket>/<name>/package.json`)
 - [x] 5.4 For each import, resolve source package (from file path) and target package (from import specifier) to their buckets; check the pair against the allowed-direction table
 - [x] 5.5 Encode the allowed-direction table as a constant at the top of the script — source bucket → set of allowed target buckets. Include self-imports within a bucket as always allowed.
@@ -113,7 +113,7 @@
 - [x] 6.1 Update `CLAUDE.md` "## Packages" section — replace the flat list with a bucketed list matching the new layout
 - [x] 6.2 Update `CLAUDE.md` "## Architecture Rules" — add a new "### Workspace layout" subsection describing the six buckets, their roles, and the dependency direction invariants
 - [x] 6.3 Update `README.md` packages table — match the new bucketed structure
-- [x] 6.4 Update `README.md` any example code that imports from `@claw-for-cloudflare/r2-storage` → `file-tools`
+- [x] 6.4 Update `README.md` any example code that imports from `@crabbykit/r2-storage` → `file-tools`
 - [x] 6.5 Search repo for any other markdown files (`docs/`, per-package READMEs) referencing the old flat layout or the old `r2-storage` name, update where necessary
 - [x] 6.6 Commit: "docs: update workspace layout and file-tools rename references"
 

@@ -18,11 +18,7 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 import { SCHEMA_CONTENT_HASH } from "./schemas.js";
 
 export interface SkillsServiceEnv {

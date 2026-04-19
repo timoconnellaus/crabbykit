@@ -1,4 +1,4 @@
-import type { AgentMessage, AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage, AnyAgentTool } from "@crabbykit/agent-core";
 import type { AgentContext } from "../agent-do.js";
 import type { Command } from "../commands/define-command.js";
 import type { McpServerConfig } from "../mcp/types.js";

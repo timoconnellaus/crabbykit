@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
-import { type Capability, type Static, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentMessage } from "@crabbykit/agent-core";
+import { type Capability, type Static, Type } from "@crabbykit/agent-runtime";
 
 const DEFAULT_MAX_TOKENS = 30_000;
 const CHARS_PER_TOKEN = 3.5;

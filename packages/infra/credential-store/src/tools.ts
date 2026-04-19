@@ -1,5 +1,5 @@
-import type { AgentContext } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import { encrypt } from "./crypto.js";
 import { getEncryptionKey, MAX_SECRET_SIZE, type StoredSecret } from "./storage.js";
 

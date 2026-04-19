@@ -12,8 +12,8 @@
  * bundle-originated events via the Phase 0 host-hook bridge.
  */
 
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
+import { defineTool } from "@crabbykit/agent-runtime";
 import {
   SCHEMA_CONTENT_HASH,
   SKILL_LOAD_TOOL_DESCRIPTION,

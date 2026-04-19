@@ -1,4 +1,4 @@
-import type { AgentContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentContext, CapabilityStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { browserbase } from "../capability.js";
 

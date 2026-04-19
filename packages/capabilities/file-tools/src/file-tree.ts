@@ -1,5 +1,5 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type } from "@claw-for-cloudflare/agent-runtime";
+import type { AnyAgentTool } from "@crabbykit/agent-runtime";
+import { defineTool, Type } from "@crabbykit/agent-runtime";
 import { validatePath } from "./paths.js";
 
 const MAX_DEPTH = 5;

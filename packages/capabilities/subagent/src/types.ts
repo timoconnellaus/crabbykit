@@ -1,5 +1,5 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { Mode } from "@claw-for-cloudflare/agent-runtime/modes";
+import type { AgentTool } from "@crabbykit/agent-core";
+import type { Mode } from "@crabbykit/agent-runtime/modes";
 
 export type { Mode };
 

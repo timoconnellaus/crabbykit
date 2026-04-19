@@ -1,4 +1,4 @@
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { cancelDeElevationTimer, resetDeElevationTimer, TIMER_ID } from "../timer.js";
 import type { SandboxConfig } from "../types.js";

@@ -1,7 +1,7 @@
-# @claw-for-cloudflare/channel-telegram
+# @crabbykit/channel-telegram
 
 Telegram channel reference implementation for the CLAW SDK. Built entirely
-via `defineChannel` — the factory defined in `@claw-for-cloudflare/agent-runtime`
+via `defineChannel` — the factory defined in `@crabbykit/agent-runtime`
 that enforces webhook verification, dual-bucket rate limiting, and correct
 `afterTurn` wiring at the TypeScript level. You cannot ship this channel
 without those pieces because the contract refuses to compile without them.
@@ -9,8 +9,8 @@ without those pieces because the contract refuses to compile without them.
 ## Quick start
 
 ```ts
-import { defineAgent } from "@claw-for-cloudflare/agent-runtime";
-import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
+import { defineAgent } from "@crabbykit/agent-runtime";
+import { defineTelegramChannel } from "@crabbykit/channel-telegram";
 
 export default defineAgent({
   model: "claude-opus-4-6",

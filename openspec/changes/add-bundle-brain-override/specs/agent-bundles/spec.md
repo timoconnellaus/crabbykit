@@ -4,7 +4,7 @@
 
 ### Requirement: Bundle authoring API and BundleEnv constraint
 
-The system SHALL provide a `defineBundleAgent<BundleEnv>(setup)` function exported from `@claw-for-cloudflare/agent-bundle/bundle` that accepts a setup object describing the agent's brain (`model`, `prompt`, `tools`, `capabilities`, optional `metadata`) and returns a bundle descriptor whose default export is a fetch handler. The system SHALL export a `BundleEnv` type constraint that excludes Cloudflare native binding types (`Ai`, `R2Bucket`, `DurableObjectNamespace`, `WorkerLoader`, `VectorizeIndex`, `D1Database`); only `Service<T>` service bindings and structurally-serializable values (strings, numbers, booleans, plain objects) SHALL be assignable to a type extending `BundleEnv`. A bundle's `model` function SHALL NOT accept an `apiKey` field — provider credentials are resolved host-side via LlmService.
+The system SHALL provide a `defineBundleAgent<BundleEnv>(setup)` function exported from `@crabbykit/agent-bundle/bundle` that accepts a setup object describing the agent's brain (`model`, `prompt`, `tools`, `capabilities`, optional `metadata`) and returns a bundle descriptor whose default export is a fetch handler. The system SHALL export a `BundleEnv` type constraint that excludes Cloudflare native binding types (`Ai`, `R2Bucket`, `DurableObjectNamespace`, `WorkerLoader`, `VectorizeIndex`, `D1Database`); only `Service<T>` service bindings and structurally-serializable values (strings, numbers, booleans, plain objects) SHALL be assignable to a type extending `BundleEnv`. A bundle's `model` function SHALL NOT accept an `apiKey` field — provider credentials are resolved host-side via LlmService.
 
 #### Scenario: Minimal bundle authoring
 - **WHEN** a developer writes `export default defineBundleAgent({ model: () => ({ provider: "openrouter", modelId: "anthropic/claude-sonnet-4" }), prompt: { agentName: "Helper" } })`
@@ -56,10 +56,10 @@ The bundle's small runtime SHALL use async interfaces throughout (`SessionStoreC
 
 ### Requirement: Bundle subpath export boundary
 
-The `@claw-for-cloudflare/agent-bundle` package SHALL physically separate bundle-authoring exports from host-side exports via `package.json` `exports` rules. The bundle-authoring entry (`/bundle`) SHALL NOT re-export `LlmService`, `SpineService`, or any host-side WorkerEntrypoint class. The host entry (`/host`) SHALL NOT re-export `defineBundleAgent` or the bundle-side runtime. Importing host-side symbols from the bundle entry SHALL fail at module resolution.
+The `@crabbykit/agent-bundle` package SHALL physically separate bundle-authoring exports from host-side exports via `package.json` `exports` rules. The bundle-authoring entry (`/bundle`) SHALL NOT re-export `LlmService`, `SpineService`, or any host-side WorkerEntrypoint class. The host entry (`/host`) SHALL NOT re-export `defineBundleAgent` or the bundle-side runtime. Importing host-side symbols from the bundle entry SHALL fail at module resolution.
 
 #### Scenario: Host-side import blocked from bundle entry
-- **WHEN** a bundle file imports `LlmService` from `@claw-for-cloudflare/agent-bundle/bundle`
+- **WHEN** a bundle file imports `LlmService` from `@crabbykit/agent-bundle/bundle`
 - **THEN** module resolution fails because `LlmService` is not exported from that subpath
 
 <!-- Section: Bundle dispatch on the host -->
@@ -192,7 +192,7 @@ Bundle-enabled DOs SHALL expose an HTTP endpoint at `POST /bundle/disable` that,
 
 ### Requirement: SpineService WorkerEntrypoint
 
-The bundle-enabled DO's host worker SHALL expose a `SpineService` class extending `WorkerEntrypoint`, exported from `@claw-for-cloudflare/agent-bundle/host`, that bridges between the bundle's async adapter clients and the DO's existing sync `SessionStore`, `KvStore`, `Scheduler`, and `Transport`. The class SHALL hold its HKDF-derived verify-only subkey in its own env and SHALL NOT have access to the master `AGENT_AUTH_KEY`. The DO's existing sync interfaces SHALL NOT change as part of adding this bridge.
+The bundle-enabled DO's host worker SHALL expose a `SpineService` class extending `WorkerEntrypoint`, exported from `@crabbykit/agent-bundle/host`, that bridges between the bundle's async adapter clients and the DO's existing sync `SessionStore`, `KvStore`, `Scheduler`, and `Transport`. The class SHALL hold its HKDF-derived verify-only subkey in its own env and SHALL NOT have access to the master `AGENT_AUTH_KEY`. The DO's existing sync interfaces SHALL NOT change as part of adding this bridge.
 
 #### Scenario: SpineService registered and callable
 - **WHEN** a host worker exports `class SpineService extends WorkerEntrypoint` and declares a service binding `{ binding: "SPINE", service: "host", entrypoint: "SpineService" }`
@@ -266,7 +266,7 @@ Each method SHALL bridge to the DO's existing sync `SessionStore` / `KvStore` / 
 
 ### Requirement: LlmService is the exclusive path to provider credentials
 
-The system SHALL provide an `LlmService` class extending `WorkerEntrypoint`, exported from `@claw-for-cloudflare/agent-bundle/host`. `LlmService` SHALL be the **only** mechanism by which a bundle reaches a credentialed LLM provider. The class SHALL hold provider credentials (`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, the native `AI` binding for Workers AI) and its HKDF-derived verify-only subkey in its own env. The class SHALL expose `infer(token, request)` that bundles invoke via service binding. Provider credentials SHALL NOT be accessible via `bundleEnv`, return values, error messages, or stack traces. Without `LlmService`, bundles SHALL have no path to call frontier-model providers — by design, this enforces the "secrets never in bundles" invariant for provider keys.
+The system SHALL provide an `LlmService` class extending `WorkerEntrypoint`, exported from `@crabbykit/agent-bundle/host`. `LlmService` SHALL be the **only** mechanism by which a bundle reaches a credentialed LLM provider. The class SHALL hold provider credentials (`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, the native `AI` binding for Workers AI) and its HKDF-derived verify-only subkey in its own env. The class SHALL expose `infer(token, request)` that bundles invoke via service binding. Provider credentials SHALL NOT be accessible via `bundleEnv`, return values, error messages, or stack traces. Without `LlmService`, bundles SHALL have no path to call frontier-model providers — by design, this enforces the "secrets never in bundles" invariant for provider keys.
 
 #### Scenario: Host registers LlmService
 - **WHEN** a host worker exports `class LlmService extends WorkerEntrypoint` and declares a service binding `{ binding: "LLM_SERVICE", service: "host", entrypoint: "LlmService" }`
@@ -323,7 +323,7 @@ The system SHALL provide an `LlmService` class extending `WorkerEntrypoint`, exp
 Capability packages that hold secrets SHALL expose four subpath exports: `index` (legacy static-agent factory, unchanged for backwards compatibility), `service` (host-side `WorkerEntrypoint` class holding credentials), `client` (bundle-side capability factory taking `Service<T>`), `schemas` (shared tool schemas with content hash for drift detection). Package `exports` in `package.json` SHALL physically enforce the separation. The `client` module SHALL NOT import from the `service` module. Capability packages without secrets SHALL follow a two-subpath pattern (`index` for static, `bundle` for bundles) sharing logic via a private internal module. The legacy `index` export SHALL continue to function identically for static-agent consumers; splitting a package SHALL NOT require any change to existing static consumers.
 
 #### Scenario: Tavily exposes four subpaths
-- **WHEN** a developer imports from `@claw-for-cloudflare/tavily-web-search`, `.../service`, `.../client`, and `.../schemas`
+- **WHEN** a developer imports from `@crabbykit/tavily-web-search`, `.../service`, `.../client`, and `.../schemas`
 - **THEN** each import resolves to a distinct module: legacy `tavilyWebSearch({apiKey})`, `TavilyService` WorkerEntrypoint, `tavilyClient({service})` factory, and shared schemas
 
 #### Scenario: Client module does not import service
@@ -331,7 +331,7 @@ Capability packages that hold secrets SHALL expose four subpath exports: `index`
 - **THEN** no import path resolves to `./service` or `./service.js`
 
 #### Scenario: compaction-summary exposes two subpaths
-- **WHEN** a developer imports `compactionSummary` from `@claw-for-cloudflare/compaction-summary` (static path) or `compactionSummaryBundle` from `@claw-for-cloudflare/compaction-summary/bundle`
+- **WHEN** a developer imports `compactionSummary` from `@crabbykit/compaction-summary` (static path) or `compactionSummaryBundle` from `@crabbykit/compaction-summary/bundle`
 - **THEN** each import resolves to a factory appropriate for its host runtime; both share their LLM-call logic via a private internal module
 
 #### Scenario: Static agent using tavilyWebSearch unaffected
@@ -568,7 +568,7 @@ The system SHALL provide a `bundle_disable` tool that clears the active bundle p
 
 ### Requirement: Sandbox container with read-only vendored snapshot
 
-The sandbox container image SHALL include vendored `@claw-for-cloudflare/*` bundle-authoring packages (the `bundle` and `client`/`schemas` subpaths only — never `service` or host-side WorkerEntrypoint classes) at `/opt/claw-sdk/`, mounted **read-only** at runtime. An integrity manifest at `/opt/claw-sdk/INTEGRITY.json` SHALL list SHA-256 hashes of every vendored file, generated at image build time. `bundle_init` and `bundle_build` SHALL operate against the agent's sandbox container filesystem via the existing `packages/sandbox` tooling. `bundle_init` SHALL invoke `bun install --ignore-scripts` to disable lifecycle hooks. The workshop SHALL require sandbox elevation as a precondition to its tools.
+The sandbox container image SHALL include vendored `@crabbykit/*` bundle-authoring packages (the `bundle` and `client`/`schemas` subpaths only — never `service` or host-side WorkerEntrypoint classes) at `/opt/claw-sdk/`, mounted **read-only** at runtime. An integrity manifest at `/opt/claw-sdk/INTEGRITY.json` SHALL list SHA-256 hashes of every vendored file, generated at image build time. `bundle_init` and `bundle_build` SHALL operate against the agent's sandbox container filesystem via the existing `packages/sandbox` tooling. `bundle_init` SHALL invoke `bun install --ignore-scripts` to disable lifecycle hooks. The workshop SHALL require sandbox elevation as a precondition to its tools.
 
 #### Scenario: Offline build
 - **WHEN** `bundle_build` runs inside a sandbox container with no outbound network
@@ -655,7 +655,7 @@ The bundle build pipeline SHALL produce deterministic output for the same source
 The introduction of the optional `bundle` config field SHALL NOT alter the behavior, performance, or API of `defineAgent` consumers who omit it. Static agents SHALL exhibit zero functional or performance regression. The same `defineAgent` function returns the same shape of DO class either way. Capabilities authored for static agents SHALL continue to use the existing sync `CapabilityHookContext` and the existing sync `SessionStore`. The static `AgentRuntime`, `SessionStore`, `Transport`, and `CapabilityHookContext` interfaces SHALL NOT change as part of this feature — there is no async refactor of any public surface used by static agents.
 
 #### Scenario: Static agent unaffected by feature presence
-- **WHEN** a worker imports `defineAgent` and creates an agent without `bundle` config, in a workspace where `@claw-for-cloudflare/agent-bundle` is also installed
+- **WHEN** a worker imports `defineAgent` and creates an agent without `bundle` config, in a workspace where `@crabbykit/agent-bundle` is also installed
 - **THEN** the agent runs identically to before the feature was added; no new code paths are exercised; no overhead is incurred; existing capabilities (compaction-summary, sandbox, subagent, etc.) work unchanged
 
 #### Scenario: Existing capability packages unaffected

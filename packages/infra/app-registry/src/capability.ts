@@ -1,8 +1,4 @@
-import type {
-  AnyAgentTool,
-  Capability,
-  CapabilityHookContext,
-} from "@claw-for-cloudflare/agent-runtime";
+import type { AnyAgentTool, Capability, CapabilityHookContext } from "@crabbykit/agent-runtime";
 import { AppStore } from "./app-store.js";
 import { createDeleteAppTool } from "./tools/delete-app.js";
 import { createDeployAppTool } from "./tools/deploy-app.js";

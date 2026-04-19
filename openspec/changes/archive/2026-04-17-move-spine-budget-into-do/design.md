@@ -123,7 +123,7 @@ If preferred, the relocation can be rolled into this proposal — say so during 
 
 `agent-runtime` currently does NOT import from `bundle-host`. The dep direction is one-way: `bundle-host → agent-runtime`. Adding `agent-runtime → bundle-host` for the `BudgetTracker` class type introduces a cross-edge.
 
-Is that a circular dep? No, because the import is type-only. `import type { BudgetTracker } from "@claw-for-cloudflare/bundle-host"` doesn't add a runtime dependency; TypeScript strips it at compile time. The dep-direction CI script (`scripts/check-package-deps.ts`) has a blanket exception for type-only imports (from P1) specifically to allow this pattern.
+Is that a circular dep? No, because the import is type-only. `import type { BudgetTracker } from "@crabbykit/bundle-host"` doesn't add a runtime dependency; TypeScript strips it at compile time. The dep-direction CI script (`scripts/check-package-deps.ts`) has a blanket exception for type-only imports (from P1) specifically to allow this pattern.
 
 Alternative: move the `BudgetTracker` file to `agent-runtime` now (option discussed above). This makes the dep direction clean without needing the type-only exception. Slightly more churn, slightly cleaner graph.
 

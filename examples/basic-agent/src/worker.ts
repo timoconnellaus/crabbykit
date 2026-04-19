@@ -1,41 +1,41 @@
-import { agentFleet } from "@claw-for-cloudflare/agent-fleet";
-import { agentPeering } from "@claw-for-cloudflare/agent-peering";
-import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
-import type { AgentTool } from "@claw-for-cloudflare/agent-runtime";
-import { defineAgent, defineTool, Type, Value } from "@claw-for-cloudflare/agent-runtime";
-import { defineMode } from "@claw-for-cloudflare/agent-runtime/modes";
-import { agentStorage } from "@claw-for-cloudflare/agent-storage";
-import { agentWorkshop } from "@claw-for-cloudflare/agent-workshop";
-import { AiService, aiProxy } from "@claw-for-cloudflare/ai-proxy";
-import { appRegistry } from "@claw-for-cloudflare/app-registry";
-import { batchTool } from "@claw-for-cloudflare/batch-tool";
-import { browserbase } from "@claw-for-cloudflare/browserbase";
-import { LlmService, SpineService } from "@claw-for-cloudflare/bundle-host";
-import { D1BundleRegistry } from "@claw-for-cloudflare/bundle-registry";
-import { defineTelegramChannel } from "@claw-for-cloudflare/channel-telegram";
+import { agentFleet } from "@crabbykit/agent-fleet";
+import { agentPeering } from "@crabbykit/agent-peering";
+import { D1AgentRegistry } from "@crabbykit/agent-registry";
+import type { AgentTool } from "@crabbykit/agent-runtime";
+import { defineAgent, defineTool, Type, Value } from "@crabbykit/agent-runtime";
+import { defineMode } from "@crabbykit/agent-runtime/modes";
+import { agentStorage } from "@crabbykit/agent-storage";
+import { agentWorkshop } from "@crabbykit/agent-workshop";
+import { AiService, aiProxy } from "@crabbykit/ai-proxy";
+import { appRegistry } from "@crabbykit/app-registry";
+import { batchTool } from "@crabbykit/batch-tool";
+import { browserbase } from "@crabbykit/browserbase";
+import { LlmService, SpineService } from "@crabbykit/bundle-host";
+import { D1BundleRegistry } from "@crabbykit/bundle-registry";
+import { defineTelegramChannel } from "@crabbykit/channel-telegram";
 import {
   CloudflareSandboxProvider,
   ContainerProxy,
   SandboxContainer,
-} from "@claw-for-cloudflare/cloudflare-sandbox";
-import { compactionSummary } from "@claw-for-cloudflare/compaction-summary";
-import { credentialStore } from "@claw-for-cloudflare/credential-store";
-import { doomLoopDetection } from "@claw-for-cloudflare/doom-loop-detection";
-import { fileTools } from "@claw-for-cloudflare/file-tools";
-import { FileToolsService } from "@claw-for-cloudflare/file-tools/service";
-import { HeartbeatConfigSchema, heartbeat } from "@claw-for-cloudflare/heartbeat";
-import { promptScheduler } from "@claw-for-cloudflare/prompt-scheduler";
-import { sandboxCapability } from "@claw-for-cloudflare/sandbox";
-import { D1SkillRegistry, parseSkillFile } from "@claw-for-cloudflare/skill-registry";
-import { skills } from "@claw-for-cloudflare/skills";
-import { SkillsService } from "@claw-for-cloudflare/skills/service";
-import { explorer } from "@claw-for-cloudflare/subagent-explorer";
-import { taskTracker } from "@claw-for-cloudflare/task-tracker";
-import { TavilyConfigSchema, tavilyWebSearch } from "@claw-for-cloudflare/tavily-web-search";
-import { toolOutputTruncation } from "@claw-for-cloudflare/tool-output-truncation";
-import { vectorMemory } from "@claw-for-cloudflare/vector-memory";
-import { VectorMemoryService } from "@claw-for-cloudflare/vector-memory/service";
-import { BackendStorage, DbService, vibeCoder } from "@claw-for-cloudflare/vibe-coder";
+} from "@crabbykit/cloudflare-sandbox";
+import { compactionSummary } from "@crabbykit/compaction-summary";
+import { credentialStore } from "@crabbykit/credential-store";
+import { doomLoopDetection } from "@crabbykit/doom-loop-detection";
+import { fileTools } from "@crabbykit/file-tools";
+import { FileToolsService } from "@crabbykit/file-tools/service";
+import { HeartbeatConfigSchema, heartbeat } from "@crabbykit/heartbeat";
+import { promptScheduler } from "@crabbykit/prompt-scheduler";
+import { sandboxCapability } from "@crabbykit/sandbox";
+import { D1SkillRegistry, parseSkillFile } from "@crabbykit/skill-registry";
+import { skills } from "@crabbykit/skills";
+import { SkillsService } from "@crabbykit/skills/service";
+import { explorer } from "@crabbykit/subagent-explorer";
+import { taskTracker } from "@crabbykit/task-tracker";
+import { TavilyConfigSchema, tavilyWebSearch } from "@crabbykit/tavily-web-search";
+import { toolOutputTruncation } from "@crabbykit/tool-output-truncation";
+import { vectorMemory } from "@crabbykit/vector-memory";
+import { VectorMemoryService } from "@crabbykit/vector-memory/service";
+import { BackendStorage, DbService, vibeCoder } from "@crabbykit/vibe-coder";
 import codeReviewSkillMd from "../skills/code-review/SKILL.md?raw";
 import debugSystematicSkillMd from "../skills/debug-systematic/SKILL.md?raw";
 import vibeWebappSkillMd from "../skills/vibe-webapp/SKILL.md?raw";
@@ -212,7 +212,7 @@ export const BasicAgent = defineAgent<Env>({
       }),
       tavilyWebSearch({
         tavilyApiKey: () => env.TAVILY_API_KEY,
-        config: (c) => c.search as import("@claw-for-cloudflare/tavily-web-search").TavilyConfig,
+        config: (c) => c.search as import("@crabbykit/tavily-web-search").TavilyConfig,
       }),
       fileTools({ storage }),
       vectorMemory({
@@ -223,7 +223,7 @@ export const BasicAgent = defineAgent<Env>({
       promptScheduler(),
       credentialStore(),
       heartbeat({
-        config: (c) => c.heartbeat as import("@claw-for-cloudflare/heartbeat").HeartbeatConfig,
+        config: (c) => c.heartbeat as import("@crabbykit/heartbeat").HeartbeatConfig,
       }),
       peering.capability,
       agentFleet({

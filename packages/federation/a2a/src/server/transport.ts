@@ -1,4 +1,4 @@
-import type { HttpHandler } from "@claw-for-cloudflare/agent-runtime";
+import type { HttpHandler } from "@crabbykit/agent-runtime";
 import {
   httpStatusForError,
   invalidRequestError,

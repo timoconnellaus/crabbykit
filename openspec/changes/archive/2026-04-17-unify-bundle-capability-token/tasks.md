@@ -46,8 +46,8 @@ Single-commit phase. All edits inside `packages/runtime/bundle-token/`.
   Position: AFTER signature/TTL/nonce checks, so earlier cheaper failures short-circuit and `ERR_SCOPE_DENIED` is only surfaced for tokens that are otherwise valid.
 - [x] 2.5 Update the `VerifyResult` JSDoc in `src/types.ts` to reflect that `payload` carries `scope`.
 - [x] 2.5b Rewrite the JSDoc on `verifyToken` itself (currently lines 27-30 in `src/verify.ts`) — the existing comment documents a positional `nonceTracker?: NonceTracker` third parameter that no longer exists. Replace with the new three-param contract: `token`, `subkey`, `options?: VerifyOptions`. Document each option field (`nonceTracker`, `requiredScope`) and the error codes the function returns. The outdated `@param nonceTracker` line is deleted.
-- [x] 2.5c Export `BUNDLE_SUBKEY_LABEL = "claw/bundle-v1"` from `@claw-for-cloudflare/bundle-token`. Concrete placement: add to `src/subkey.ts` (sibling to `deriveVerifyOnlySubkey`); re-export through `src/index.ts`. Rationale: both mint (bundle-host) and verify (every service) sides need the constant, and capabilities that verify SHOULD depend only on `bundle-token` (not `bundle-host`, which would pull the mint-side API into a package that only verifies). Placing the label in `bundle-token` keeps capabilities on a single `bundle-token` dep. See design decision 1 sub-point.
-- [x] 2.5d **Catalog validator: reject reserved scope strings.** Amend the `requiredCapabilities` entry validator in `@claw-for-cloudflare/bundle-sdk` (the build-time check inside `defineBundleAgent`) to reject ids equal to `"spine"` or `"llm"` with an error naming the reserved-scope collision. Mirror the same check in `@claw-for-cloudflare/bundle-registry`'s `setActive` catalog validation so that a metadata record bypassing build-time validation is still rejected at promotion time (the reserved-id check runs independently of `skipCatalogCheck` — see companion `specs/bundle-capability-catalog/spec.md`). Unit tests: declare `[{ id: "spine" }]` → throw; declare `[{ id: "llm" }]` → throw; declare `[{ id: "spine-like" }]` → accepted (prefix match only, not whole-string equality). Rationale: closes the collision loophole where a bundle could obtain a reserved-scope authorization via a capability declaration (see design decision 2 and spec requirement "Reserved scope strings SHALL NOT be used as capability ids").
+- [x] 2.5c Export `BUNDLE_SUBKEY_LABEL = "claw/bundle-v1"` from `@crabbykit/bundle-token`. Concrete placement: add to `src/subkey.ts` (sibling to `deriveVerifyOnlySubkey`); re-export through `src/index.ts`. Rationale: both mint (bundle-host) and verify (every service) sides need the constant, and capabilities that verify SHOULD depend only on `bundle-token` (not `bundle-host`, which would pull the mint-side API into a package that only verifies). Placing the label in `bundle-token` keeps capabilities on a single `bundle-token` dep. See design decision 1 sub-point.
+- [x] 2.5d **Catalog validator: reject reserved scope strings.** Amend the `requiredCapabilities` entry validator in `@crabbykit/bundle-sdk` (the build-time check inside `defineBundleAgent`) to reject ids equal to `"spine"` or `"llm"` with an error naming the reserved-scope collision. Mirror the same check in `@crabbykit/bundle-registry`'s `setActive` catalog validation so that a metadata record bypassing build-time validation is still rejected at promotion time (the reserved-id check runs independently of `skipCatalogCheck` — see companion `specs/bundle-capability-catalog/spec.md`). Unit tests: declare `[{ id: "spine" }]` → throw; declare `[{ id: "llm" }]` → throw; declare `[{ id: "spine-like" }]` → accepted (prefix match only, not whole-string equality). Rationale: closes the collision loophole where a bundle could obtain a reserved-scope authorization via a capability declaration (see design decision 2 and spec requirement "Reserved scope strings SHALL NOT be used as capability ids").
 - [x] 2.6 Unit tests in `src/__tests__/verify.test.ts` (or a new `scope.test.ts`):
   - Token with `scope: ["spine"]` verifies with `requiredScope: "spine"` → valid.
   - Token with `scope: ["spine"]` verifies with `requiredScope: "llm"` → `ERR_SCOPE_DENIED`.
@@ -83,9 +83,9 @@ Single-commit phase. All edits inside `packages/runtime/bundle-host/`.
     scope: opts.scope,
   };
   ```
-- [x] 3.3 `BUNDLE_SUBKEY_LABEL` is now defined in `@claw-for-cloudflare/bundle-token` (see task 2.5c). Re-export it from `@claw-for-cloudflare/bundle-host`'s barrel (`src/index.ts`) so existing host-side call sites that already import from `bundle-host` keep compiling — the authoritative definition is `bundle-token`, but host-side code can import it from either package.
+- [x] 3.3 `BUNDLE_SUBKEY_LABEL` is now defined in `@crabbykit/bundle-token` (see task 2.5c). Re-export it from `@crabbykit/bundle-host`'s barrel (`src/index.ts`) so existing host-side call sites that already import from `bundle-host` keep compiling — the authoritative definition is `bundle-token`, but host-side code can import it from either package.
 - [x] 3.4 Delete `SPINE_SUBKEY_LABEL` constant wherever it currently lives in `bundle-host/src/services/spine-service.ts` (line 36 as of this writing). Delete `LLM_SUBKEY_LABEL` in `bundle-host/src/services/llm-service.ts` (line 14). Delete the `SPINE_SUBKEY_LABEL` import in `bundle-host/src/dispatcher.ts` and the local redeclaration at line 15.
-- [x] 3.5 Already handled in 3.3. Capability services import `BUNDLE_SUBKEY_LABEL` directly from `@claw-for-cloudflare/bundle-token` (no `bundle-host` value dep needed at the capability layer). The inline dispatch closure in `agent-do.ts` may import from either; prefer `bundle-host` for symmetry with its `mintToken` / `deriveMintSubkey` imports.
+- [x] 3.5 Already handled in 3.3. Capability services import `BUNDLE_SUBKEY_LABEL` directly from `@crabbykit/bundle-token` (no `bundle-host` value dep needed at the capability layer). The inline dispatch closure in `agent-do.ts` may import from either; prefer `bundle-host` for symmetry with its `mintToken` / `deriveMintSubkey` imports.
 - [x] 3.6 Unit test in `src/security/__tests__/mint.test.ts` (or wherever existing mint tests live):
   - `mintToken({ agentId, sessionId, scope: ["spine"] }, subkey)` produces a token whose payload (decoded without verification for test purposes) contains `scope: ["spine"]`.
   - `mintToken` with empty `scope: []` succeeds (no implicit scope).
@@ -120,13 +120,13 @@ Single-commit phase. All edits inside `packages/runtime/bundle-host/`.
 
 This phase is best read as "Tavily ships a working token verify for the first time, under the unified token shape from day one." There is no working `claw/tavily-v1`-scoped token to migrate FROM: the service's current `verify` at `service.ts:38-39` is a stubbed comment above an empty check, and the client (`client.ts:33, 46, 70`) currently reads `__SPINE_TOKEN` opportunistically because no dedicated Tavily token was ever wired. Per CLAUDE.md's greenfield stance — no compat shims — the real-verify work and the unify work land in the same commit touching the same three lines of `service.ts`.
 
-- [x] 6.0 **Workspace dependency wiring (must run before any import work in 6.4/6.5).** Edit `packages/capabilities/tavily-web-search/package.json` — add `"@claw-for-cloudflare/bundle-token": "workspace:*"` to `dependencies`. Do NOT add a dep on `@claw-for-cloudflare/bundle-host` (capabilities are verify-only; the label and verify primitives both live in `bundle-token` per design decision 1 sub-point and task 2.5c). Run `bun install` from the repo root so the workspace symlink materializes before the `service.ts` imports resolve.
+- [x] 6.0 **Workspace dependency wiring (must run before any import work in 6.4/6.5).** Edit `packages/capabilities/tavily-web-search/package.json` — add `"@crabbykit/bundle-token": "workspace:*"` to `dependencies`. Do NOT add a dep on `@crabbykit/bundle-host` (capabilities are verify-only; the label and verify primitives both live in `bundle-token` per design decision 1 sub-point and task 2.5c). Run `bun install` from the repo root so the workspace symlink materializes before the `service.ts` imports resolve.
 - [x] 6.1 Open `packages/capabilities/tavily-web-search/src/service.ts`.
 - [x] 6.2 Update `TavilyServiceEnv`:
   - DELETE `TAVILY_SUBKEY: CryptoKey` — the field was declaratively present but never populated at runtime. Same pattern as the `SPINE_SUBKEY: CryptoKey` / `LLM_SUBKEY: CryptoKey` fields that the services already fixed by switching to `AGENT_AUTH_KEY: string` + lazy HKDF derivation.
   - ADD `AGENT_AUTH_KEY: string` with a JSDoc matching the SpineEnv / LlmEnv docs.
 - [x] 6.3 Add a private `subkeyPromise: Promise<CryptoKey> | null = null` field on `TavilyService`, mirroring the pattern in `SpineService.getSubkey()`.
-- [x] 6.4 Add a private `getSubkey()` method that lazy-derives via `deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL)`. Import both `deriveVerifyOnlySubkey` and `BUNDLE_SUBKEY_LABEL` from `@claw-for-cloudflare/bundle-token`. Do not import from `@claw-for-cloudflare/bundle-host` here — that would pull mint-side API into a capability that only verifies.
+- [x] 6.4 Add a private `getSubkey()` method that lazy-derives via `deriveVerifyOnlySubkey(this.env.AGENT_AUTH_KEY, BUNDLE_SUBKEY_LABEL)`. Import both `deriveVerifyOnlySubkey` and `BUNDLE_SUBKEY_LABEL` from `@crabbykit/bundle-token`. Do not import from `@crabbykit/bundle-host` here — that would pull mint-side API into a capability that only verifies.
 - [x] 6.5 Replace the stub comment ("Token verification would happen here via TAVILY_SUBKEY") and the empty verify at lines 38-39 with a real verify:
   ```ts
   const subkey = await this.getSubkey();
@@ -185,7 +185,7 @@ Acceptance gate: `bun run --cwd packages/runtime/bundle-sdk typecheck && bun run
   const getBundleSubkey = async (): Promise<CryptoKey> => {
     if (!bundleSubkeyPromise) {
       bundleSubkeyPromise = (async () => {
-        const { deriveMintSubkey, BUNDLE_SUBKEY_LABEL } = await import("@claw-for-cloudflare/bundle-host");
+        const { deriveMintSubkey, BUNDLE_SUBKEY_LABEL } = await import("@crabbykit/bundle-host");
         return deriveMintSubkey(masterKey, BUNDLE_SUBKEY_LABEL);
       })();
     }
@@ -195,7 +195,7 @@ Acceptance gate: `bun run --cwd packages/runtime/bundle-sdk typecheck && bun run
 - [x] 8.7 In `bundlePromptHandler` (the production turn handler, ~line 744), replace the two-mint block (lines 778-786) with one mint:
   ```ts
   const bundleSubkey = await getBundleSubkey();
-  const { mintToken } = await import("@claw-for-cloudflare/bundle-host");
+  const { mintToken } = await import("@crabbykit/bundle-host");
   const version = await registry.getVersion?.(versionId);
   const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(r => r.id);
   const scope = ["spine", "llm", ...catalogIds];

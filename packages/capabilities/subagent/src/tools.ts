@@ -1,6 +1,6 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { defineTool, Type, toolResult } from "@claw-for-cloudflare/agent-runtime";
+import type { AgentTool } from "@crabbykit/agent-core";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
+import { defineTool, Type, toolResult } from "@crabbykit/agent-runtime";
 import type { SubagentHost, SubagentRunResult } from "./host.js";
 import { PendingSubagentStore } from "./pending-store.js";
 import { resolveSubagentSpawn } from "./resolve.js";

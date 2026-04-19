@@ -1,5 +1,5 @@
-import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import { createMockStorage } from "@crabbykit/agent-runtime/test-utils";
+import type { SkillRecord, SkillRegistry } from "@crabbykit/skill-registry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getInstalledSkill, getSkillConflicts, putInstalledSkill } from "../storage.js";
 import { syncSkills } from "../sync.js";

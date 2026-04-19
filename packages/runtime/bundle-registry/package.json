@@ -1,13 +1,33 @@
 {
-  "name": "@claw-for-cloudflare/bundle-registry",
+  "name": "@crabbykit/bundle-registry",
   "version": "0.0.1",
-  "private": true,
+  "homepage": "https://github.com/crabbykit/claw#readme",
+  "bugs": {
+    "url": "https://github.com/crabbykit/claw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crabbykit/claw.git",
+    "directory": "packages/runtime/bundle-registry"
+  },
+  "license": "MIT",
+  "author": "Tim O'Connell",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "bun ../../../scripts/build-package.ts",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
-    "@claw-for-cloudflare/agent-runtime": "workspace:*"
+    "@crabbykit/agent-runtime": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.0",
@@ -16,9 +36,13 @@
     "vitest": "^3.2.0",
     "wrangler": "^4.0.0"
   },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   }
 }

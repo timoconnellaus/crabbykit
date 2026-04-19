@@ -13,10 +13,10 @@
  *      contains the TAVILY_API_KEY string.
  */
 
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
-import { textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
+import type { AgentTool } from "@crabbykit/agent-core";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
+import { textOf } from "@crabbykit/agent-runtime/test-utils";
+import { BUNDLE_SUBKEY_LABEL } from "@crabbykit/bundle-token";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyClient } from "../client.js";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";

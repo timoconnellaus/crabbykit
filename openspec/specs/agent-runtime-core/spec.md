@@ -4,7 +4,7 @@
 TBD - created by archiving change define-agent-factory. Update Purpose after archive.
 ## Requirements
 ### Requirement: AgentRuntime is a platform-agnostic abstract class
-The SDK SHALL define an abstract class `AgentRuntime<TEnv>` containing all agent business logic with zero imports from `cloudflare:workers` or other platform-specific modules. It SHALL be importable from `@claw-for-cloudflare/agent-runtime`.
+The SDK SHALL define an abstract class `AgentRuntime<TEnv>` containing all agent business logic with zero imports from `cloudflare:workers` or other platform-specific modules. It SHALL be importable from `@crabbykit/agent-runtime`.
 
 #### Scenario: AgentRuntime has no Cloudflare imports
 - **WHEN** `agent-runtime.ts` is inspected

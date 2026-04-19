@@ -1,6 +1,6 @@
-import { setAuthHeaders, signToken } from "@claw-for-cloudflare/agent-auth";
-import type { CapabilityHttpContext, CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { createMockStorage } from "@claw-for-cloudflare/agent-runtime/test-utils";
+import { setAuthHeaders, signToken } from "@crabbykit/agent-auth";
+import type { CapabilityHttpContext, CapabilityStorage } from "@crabbykit/agent-runtime";
+import { createMockStorage } from "@crabbykit/agent-runtime/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentPeering } from "../capability.js";
 import {

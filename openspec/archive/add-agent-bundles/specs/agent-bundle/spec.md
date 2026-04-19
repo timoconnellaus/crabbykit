@@ -2,7 +2,7 @@
 
 ### Requirement: Bundle authoring API
 
-The system SHALL provide a `defineAgentBundle<BundleEnv>(setup)` function exported from `@claw-for-cloudflare/agent-runtime/bundle` that accepts a bundle setup object with the same declarative shape as `defineAgent()` minus DO-specific fields (no `getConfig`, `getSubagentProfiles`, `validateAuth`, WebSocket lifecycle overrides, `a2a.getAgentStub`, or `getCommands`). The function SHALL return a bundle descriptor object whose default export is callable by the loader host as a fetch handler discriminating on URL path.
+The system SHALL provide a `defineAgentBundle<BundleEnv>(setup)` function exported from `@crabbykit/agent-runtime/bundle` that accepts a bundle setup object with the same declarative shape as `defineAgent()` minus DO-specific fields (no `getConfig`, `getSubagentProfiles`, `validateAuth`, WebSocket lifecycle overrides, `a2a.getAgentStub`, or `getCommands`). The function SHALL return a bundle descriptor object whose default export is callable by the loader host as a fetch handler discriminating on URL path.
 
 #### Scenario: Minimal bundle authoring
 - **WHEN** a developer writes `export default defineAgentBundle({ model: () => ({ provider: "workers-ai", modelId: "@cf/meta/llama-3.1-8b-instruct" }), prompt: { agentName: "Hello" } })`
@@ -49,7 +49,7 @@ A compiled bundle's default export SHALL be a fetch handler that discriminates o
 - `POST /tool-execute-smoke` — minimal smoke test invocation used by `bundle_deploy` pre-deploy verification
 - `POST /metadata` — return the bundle's declared metadata for registry storage
 
-The fetch handler SHALL construct an `AgentRuntime` (lazily, per invocation if needed) with spine-backed adapter clients reading the capability token from `env.__SPINE_TOKEN`, then dispatch to the appropriate runtime method based on the URL path. The contract SHALL be documented in `@claw-for-cloudflare/agent-runtime/bundle` type exports.
+The fetch handler SHALL construct an `AgentRuntime` (lazily, per invocation if needed) with spine-backed adapter clients reading the capability token from `env.__SPINE_TOKEN`, then dispatch to the appropriate runtime method based on the URL path. The contract SHALL be documented in `@crabbykit/agent-runtime/bundle` type exports.
 
 #### Scenario: Host invokes loaded bundle for a turn
 - **WHEN** the loader host loads a bundle and calls `worker.getEntrypoint().fetch(new Request("https://bundle/turn", {method: "POST", body: JSON.stringify({prompt})}))`
@@ -73,10 +73,10 @@ The fetch handler SHALL construct an `AgentRuntime` (lazily, per invocation if n
 
 ### Requirement: Bundle subpath export boundary
 
-The `@claw-for-cloudflare/agent-runtime/bundle` subpath export SHALL NOT re-export any type or value whose use requires access to a Cloudflare native binding or DO context. Attempting to import `AgentDO`, `defineAgent`, or CF-specific types from the bundle subpath SHALL fail at the module resolution level. The package's `exports` field SHALL physically enforce this separation.
+The `@crabbykit/agent-runtime/bundle` subpath export SHALL NOT re-export any type or value whose use requires access to a Cloudflare native binding or DO context. Attempting to import `AgentDO`, `defineAgent`, or CF-specific types from the bundle subpath SHALL fail at the module resolution level. The package's `exports` field SHALL physically enforce this separation.
 
 #### Scenario: DO-specific import blocked from bundle
-- **WHEN** a bundle file imports `AgentDO` from `@claw-for-cloudflare/agent-runtime/bundle`
+- **WHEN** a bundle file imports `AgentDO` from `@crabbykit/agent-runtime/bundle`
 - **THEN** TypeScript/bundler resolution fails because the symbol is not exported from that subpath
 
 ### Requirement: Bundle-side capability hook restriction
@@ -84,9 +84,9 @@ The `@claw-for-cloudflare/agent-runtime/bundle` subpath export SHALL NOT re-expo
 Capabilities consumed by a bundle SHALL be authored against the bundle-side capability interface, which permits `tools`, `promptSections`, `beforeInference`, `beforeToolExecution`, and `afterToolExecution` hooks. Hooks SHALL be plain async functions; they execute inside the loader isolate and have direct access to the bundle's local state. Capability factories that hold secrets or require host-side execution SHALL NOT be importable into a bundle — they must be rewritten as `client.ts` factories that proxy through a service binding (per the capability service pattern).
 
 #### Scenario: Bundle uses a client capability
-- **WHEN** a bundle imports `tavilyWebSearchClient` from `@claw-for-cloudflare/tavily-web-search/client` and instantiates it with `env.TAVILY`
+- **WHEN** a bundle imports `tavilyWebSearchClient` from `@crabbykit/tavily-web-search/client` and instantiates it with `env.TAVILY`
 - **THEN** the resulting capability's tools are available to the bundle's `AgentRuntime` and execute via RPC to the host-side `TavilyService`
 
 #### Scenario: Bundle attempts to import a service-side capability
-- **WHEN** a bundle imports `TavilyService` from `@claw-for-cloudflare/tavily-web-search/service`
+- **WHEN** a bundle imports `TavilyService` from `@crabbykit/tavily-web-search/service`
 - **THEN** the import either fails at module resolution (because `service` subpath is not in the bundle's allowed import set) or fails at type-check (because `WorkerEntrypoint` is not assignable inside a bundle)

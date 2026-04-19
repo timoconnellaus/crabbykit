@@ -1,7 +1,7 @@
 /**
  * Security invariant: the bundle SDK MUST NOT expose mint-side token
  * primitives. Host-side callers reach mint through
- * `@claw-for-cloudflare/bundle-host/src/security/mint.ts`; the SDK is
+ * `@crabbykit/bundle-host/src/security/mint.ts`; the SDK is
  * a verify-only boundary because bundles run inside an isolated
  * Worker Loader sandbox that must never be able to forge tokens for
  * any service binding.

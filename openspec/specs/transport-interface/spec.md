@@ -126,10 +126,10 @@ The `connectionRateLimits` Map SHALL use `string` keys (connection IDs from `Tra
 The `Transport`, `TransportConnection` types SHALL be exported from `agent-runtime`'s public barrel (`index.ts`). The `CfWebSocketTransport` class SHALL also be exported for consumers who need to create transports in custom DO classes.
 
 #### Scenario: Import types from package
-- **WHEN** a consumer writes `import type { Transport, TransportConnection } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a consumer writes `import type { Transport, TransportConnection } from "@crabbykit/agent-runtime"`
 - **THEN** the types resolve correctly
 
 #### Scenario: Import CF adapter from package
-- **WHEN** a consumer writes `import { CfWebSocketTransport } from "@claw-for-cloudflare/agent-runtime"`
+- **WHEN** a consumer writes `import { CfWebSocketTransport } from "@crabbykit/agent-runtime"`
 - **THEN** the class resolves correctly
 

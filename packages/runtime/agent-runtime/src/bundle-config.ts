@@ -2,10 +2,10 @@
  * Bundle brain override configuration shared by {@link AgentDO.initBundleDispatch}
  * and {@link defineAgent}'s `bundle` field.
  *
- * Inlined here (rather than imported from `@claw-for-cloudflare/bundle-host`)
+ * Inlined here (rather than imported from `@crabbykit/bundle-host`)
  * to avoid a circular workspace dependency: bundle-host depends on
  * agent-runtime for the DO surface, so agent-runtime cannot depend on
- * bundle-host for its public types. `@claw-for-cloudflare/bundle-host`
+ * bundle-host for its public types. `@crabbykit/bundle-host`
  * re-exports these types from its own `bundle-config.ts` barrel so
  * host-side consumers still import them from the host package.
  */
@@ -13,7 +13,7 @@
 /**
  * Metadata fields the auto-rebuild and catalog-validation paths read off
  * a bundle version. A subset of `BundleMetadata` from
- * `@claw-for-cloudflare/bundle-sdk` / `@claw-for-cloudflare/bundle-registry`,
+ * `@crabbykit/bundle-sdk` / `@crabbykit/bundle-registry`,
  * redeclared here to keep this package dependency-free.
  */
 export interface BundleVersionMetadata {
@@ -76,8 +76,8 @@ export interface CreateBundleVersionOpts {
 
 /**
  * Options accepted by `BundleRegistry.setActive`. Authoritative type for
- * both `D1BundleRegistry` (in `@claw-for-cloudflare/bundle-registry`) and
- * `InMemoryBundleRegistry` (in `@claw-for-cloudflare/bundle-host`).
+ * both `D1BundleRegistry` (in `@crabbykit/bundle-registry`) and
+ * `InMemoryBundleRegistry` (in `@crabbykit/bundle-host`).
  *
  * When `versionId !== null` AND `skipCatalogCheck !== true`, the registry
  * validates the bundle's `requiredCapabilities` declaration against
@@ -189,7 +189,7 @@ export interface BundleRegistry {
 
 /**
  * Narrow R2 surface required by the auto-rebuild path. Mirrors the
- * `BundleSourceBucket` type exported from `@claw-for-cloudflare/bundle-host`
+ * `BundleSourceBucket` type exported from `@crabbykit/bundle-host`
  * but kept local so this package has no import-time dependency on bundle-host.
  */
 export interface BundleSourceBucket {

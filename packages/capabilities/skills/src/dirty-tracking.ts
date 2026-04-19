@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import { parseFrontmatter } from "./parse-frontmatter.js";
 import { hashSkillContent, readSkillFromR2, skillIdFromR2Path } from "./r2.js";
 import {

@@ -16,7 +16,7 @@
  *  - `get` truncates when content exceeds MAX_CONTENT_BYTES
  */
 
-import { BUNDLE_SUBKEY_LABEL } from "@claw-for-cloudflare/bundle-token";
+import { BUNDLE_SUBKEY_LABEL } from "@crabbykit/bundle-token";
 import { describe, expect, it, vi } from "vitest";
 import { SCHEMA_CONTENT_HASH } from "../schemas.js";
 import type { VectorMemoryServiceEnv } from "../service.js";

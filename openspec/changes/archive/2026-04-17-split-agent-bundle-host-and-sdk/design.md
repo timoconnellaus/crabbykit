@@ -7,11 +7,11 @@ Three options were evaluated:
 ### Option 1: Subpath export from `bundle-host`
 
 ```
-@claw-for-cloudflare/bundle-host
+@crabbykit/bundle-host
   index.ts           → dispatcher, SpineService, LlmService, mint
   verify.ts          → verify-only surface (subpath export)
 
-@claw-for-cloudflare/bundle-sdk
+@crabbykit/bundle-sdk
   depends on bundle-host (for types + verify via subpath)
 ```
 
@@ -24,17 +24,17 @@ Bundle authors install `bundle-sdk`, which pulls in `bundle-host` as a transitiv
 ### Option 2: Third micro-package `bundle-token`
 
 ```
-@claw-for-cloudflare/bundle-token          ← new, tiny
+@crabbykit/bundle-token          ← new, tiny
   types.ts           → Token, TokenPayload, VerifyOutcome
   subkey.ts          → HKDF subkey derivation (verify-only)
   verify.ts          → verifyToken, NonceTracker
 
-@claw-for-cloudflare/bundle-host
+@crabbykit/bundle-host
   depends on bundle-token
   index.ts           → dispatcher, SpineService, LlmService
   mint.ts            → mintToken (uses bundle-token types)
 
-@claw-for-cloudflare/bundle-sdk
+@crabbykit/bundle-sdk
   depends on bundle-token (only — does NOT depend on bundle-host)
   index.ts           → defineBundleAgent, BundleContext, etc.
 ```
@@ -60,7 +60,7 @@ The micro-package is the right call. It is one additional package.json of overhe
 - An install footprint that actually matches the split's stated goal.
 - Future-proofing: if token format evolves (e.g., adopting biscuit-auth, switching to Ed25519, adding JWT claims), the change happens in one place and both halves pick it up.
 
-Name: `@claw-for-cloudflare/bundle-token`. Lives in `packages/runtime/bundle-token/` after the reorganize-packages-by-role proposal lands.
+Name: `@crabbykit/bundle-token`. Lives in `packages/runtime/bundle-token/` after the reorganize-packages-by-role proposal lands.
 
 Exports:
 - `mintToken` — NOT exported here; lives in `bundle-host`. `bundle-token` provides only the types and HKDF subkey helpers plus the verify-only surface.
@@ -78,11 +78,11 @@ Note the asymmetry: the HKDF derivation itself is duplicated between verify-only
 
 ## Package shapes
 
-### `@claw-for-cloudflare/bundle-token`
+### `@crabbykit/bundle-token`
 
 ```
 packages/runtime/bundle-token/
-  package.json       name: "@claw-for-cloudflare/bundle-token"
+  package.json       name: "@crabbykit/bundle-token"
                      exports: "." → src/index.ts
                      deps: none (uses Web Crypto SubtleCrypto from global)
   tsconfig.json
@@ -97,14 +97,14 @@ packages/runtime/bundle-token/
 
 Tiny. Maybe 200 lines total. No runtime deps. Substrate-neutral enough that if CrabbyKit ever goes multi-provider, this package moves to a provider-neutral location unchanged.
 
-### `@claw-for-cloudflare/bundle-sdk`
+### `@crabbykit/bundle-sdk`
 
 ```
 packages/runtime/bundle-sdk/
-  package.json       name: "@claw-for-cloudflare/bundle-sdk"
+  package.json       name: "@crabbykit/bundle-sdk"
                      exports: "." → src/index.ts
-                     deps: @claw-for-cloudflare/bundle-token,
-                           @claw-for-cloudflare/agent-runtime (type-only re-exports),
+                     deps: @crabbykit/bundle-token,
+                           @crabbykit/agent-runtime (type-only re-exports),
                            @sinclair/typebox
   tsconfig.json
   src/
@@ -129,16 +129,16 @@ The `src/bundle/` tree from `agent-bundle` moves here wholesale. Minimal renamin
 
 No `cloudflare:workers` imports. No native binding types. This package can be type-checked in a plain Node `tsconfig` without `@cloudflare/workers-types` being installed.
 
-### `@claw-for-cloudflare/bundle-host`
+### `@crabbykit/bundle-host`
 
 ```
 packages/runtime/bundle-host/
-  package.json       name: "@claw-for-cloudflare/bundle-host"
+  package.json       name: "@crabbykit/bundle-host"
                      exports: "." → src/index.ts
-                     deps: @claw-for-cloudflare/bundle-token,
-                           @claw-for-cloudflare/bundle-sdk (type-only for BundleExport contract),
-                           @claw-for-cloudflare/agent-runtime,
-                           @claw-for-cloudflare/bundle-registry
+                     deps: @crabbykit/bundle-token,
+                           @crabbykit/bundle-sdk (type-only for BundleExport contract),
+                           @crabbykit/agent-runtime,
+                           @crabbykit/bundle-registry
   tsconfig.json
   src/
     index.ts              barrel
@@ -183,7 +183,7 @@ This is a contract the DO implements, not a contract `bundle-host` owns. The sym
 The `bundle-host` SpineService then imports it from agent-runtime:
 
 ```ts
-import type { SpineHost } from "@claw-for-cloudflare/agent-runtime";
+import type { SpineHost } from "@crabbykit/agent-runtime";
 ```
 
 `agent-do.ts` in agent-runtime already implements every method on the interface (`spineAppendEntry`, `spineKvGet`, etc. exist as methods on `AgentDO`). Moving the type into agent-runtime makes the implementation relationship visible — the DO `implements SpineHost` structurally, and the check lives in the same package as the DO.
@@ -192,9 +192,9 @@ Arguably this should also grow a type-level assertion: `const _check: SpineHost 
 
 ## Deletion of the old package
 
-`@claw-for-cloudflare/agent-bundle` is deleted in this change. The `packages/runtime/agent-bundle/` directory is removed entirely. This is intentional per CLAUDE.md's "no legacy compat shims" rule and the repo's greenfield status.
+`@crabbykit/agent-bundle` is deleted in this change. The `packages/runtime/agent-bundle/` directory is removed entirely. This is intentional per CLAUDE.md's "no legacy compat shims" rule and the repo's greenfield status.
 
-Risk of this approach: any forgotten import breaks the build the moment it is touched. Mitigation: a grep pass for `@claw-for-cloudflare/agent-bundle` before the deletion commit, followed by `bun run typecheck` and `bun run test` in CI. If either fails, the import is updated and the commit re-run.
+Risk of this approach: any forgotten import breaks the build the moment it is touched. Mitigation: a grep pass for `@crabbykit/agent-bundle` before the deletion commit, followed by `bun run typecheck` and `bun run test` in CI. If either fails, the import is updated and the commit re-run.
 
 Alternative considered: a stub package that re-exports from the split packages and emits a deprecation warning. Rejected because:
 1. CLAUDE.md forbids legacy shims.
@@ -231,7 +231,7 @@ This is deliberately a no-semantic-change refactor. If any behavior difference a
 1. **Circular dependency discovery.** There is a small risk that `bundle-host` and `bundle-sdk` have a circular type dependency that wasn't visible while they lived in one package. Mitigation: `import type` for all cross-package references; add a package-level dep cycle check to CI via `madge` or similar.
 2. **`bundle-host` transitively forcing `cloudflare:workers` on `bundle-sdk`.** If any type in `bundle-sdk` references `Service<T>` (which it does, in `BundleEnv`), the type is from `cloudflare:workers`. `bundle-sdk` is not allowed to import `cloudflare:workers` directly per the portability-aware dep rules. Resolution: `Service<T>` is a generic structural type — `bundle-sdk` declares its own `Service<T> = { [K: string]: (...args: unknown[]) => Promise<unknown> }` stub OR imports the type from `@cloudflare/workers-types` as a devDependency (type-only, no runtime). The latter is cleaner because it keeps the type identical to what consumers use. Add `@cloudflare/workers-types` as a devDependency to `bundle-sdk` and use `import type { Service } from "@cloudflare/workers-types"` where needed.
 3. **Test coverage regression.** If test files are moved and renamed, coverage thresholds may temporarily drop. Mitigation: run coverage before and after the split and compare. If thresholds drop, investigate the specific uncovered lines.
-4. **Consumer surprise.** Anyone currently watching the repo may have an in-flight PR or local branch that imports `@claw-for-cloudflare/agent-bundle`. Mitigation: announce the split in commit messages; the clean break is fast to adapt to (update one import per consumer).
+4. **Consumer surprise.** Anyone currently watching the repo may have an in-flight PR or local branch that imports `@crabbykit/agent-bundle`. Mitigation: announce the split in commit messages; the clean break is fast to adapt to (update one import per consumer).
 
 ## Why this is the right time
 

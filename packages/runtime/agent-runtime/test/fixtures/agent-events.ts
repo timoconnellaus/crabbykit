@@ -1,10 +1,10 @@
 /**
  * Test fixtures for pi-agent-core event shapes.
- * These match the AssistantMessageEvent format from @claw-for-cloudflare/ai
- * and the AgentEvent format from @claw-for-cloudflare/agent-core.
+ * These match the AssistantMessageEvent format from @crabbykit/ai
+ * and the AgentEvent format from @crabbykit/agent-core.
  */
 
-import type { AgentEvent, AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentEvent, AgentMessage } from "@crabbykit/agent-core";
 
 export function createUserMessage(content: string): AgentMessage {
   return { role: "user", content, timestamp: Date.now() } as unknown as AgentMessage;

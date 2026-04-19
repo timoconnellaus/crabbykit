@@ -62,17 +62,17 @@ RUN cd /app && BUN_INSTALL=/tmp/bun-build bun install node-pty && \
     rm -rf /tmp/bun-build /tmp/.bun* /tmp/bun* && \
     apk del gcc musl-dev linux-headers python3 make g++ unzip
 
-# Install @claw-for-cloudflare/vite-plugin so vibe-coded apps can import it.
+# Install @crabbykit/vite-plugin so vibe-coded apps can import it.
 # Placed at /node_modules/ (root) so ESM resolution finds it from any project path.
 # (Committed prebuilt .js blob — not rebuilt from workspace TS at image build.)
 COPY packages/infra/cloudflare-sandbox/container/claw-vite-plugin/ /usr/local/lib/claw-vite-plugin/
-RUN mkdir -p /node_modules/@claw-for-cloudflare && \
-    ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@claw-for-cloudflare/vite-plugin
+RUN mkdir -p /node_modules/@crabbykit && \
+    ln -sf /usr/local/lib/claw-vite-plugin /node_modules/@crabbykit/vite-plugin
 
-# Install @claw-for-cloudflare/container-db so vibe-coded apps can import it.
+# Install @crabbykit/container-db so vibe-coded apps can import it.
 # Copies the workspace source directly — no intermediate staging.
 COPY packages/infra/container-db/src/index.ts /usr/local/lib/claw-container-db/index.ts
-RUN ln -sf /usr/local/lib/claw-container-db /node_modules/@claw-for-cloudflare/container-db
+RUN ln -sf /usr/local/lib/claw-container-db /node_modules/@crabbykit/container-db
 
 # Vendor bundle-authoring SDK packages at /opt/claw-sdk/ (read-only at runtime).
 # Only bundle-side subpaths are vendored — no host-side WorkerEntrypoints.
@@ -84,7 +84,7 @@ COPY packages/capabilities/tavily-web-search/src/client.ts /opt/claw-sdk/tavily-
 COPY packages/capabilities/tavily-web-search/src/schemas.ts /opt/claw-sdk/tavily-client/src/schemas.ts
 COPY packages/capabilities/tavily-web-search/package.vendored.json /opt/claw-sdk/tavily-client/package.json
 RUN chmod -R a-w /opt/claw-sdk/ && \
-    ln -sf /opt/claw-sdk/bundle-sdk /node_modules/@claw-for-cloudflare/bundle-sdk
+    ln -sf /opt/claw-sdk/bundle-sdk /node_modules/@crabbykit/bundle-sdk
 
 # Generate integrity manifest for vendored packages (SHA-256 per file).
 # workshop_build verifies this before running bun build to detect tampering.

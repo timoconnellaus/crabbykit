@@ -1,4 +1,4 @@
-import type { AnyAgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AnyAgentTool } from "@crabbykit/agent-core";
 import type { AgentContext } from "../agent-runtime.js";
 import type { ResolvedCapabilities } from "../capabilities/resolve.js";
 import type { Capability } from "../capabilities/types.js";

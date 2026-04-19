@@ -11,7 +11,7 @@ import type { Mode } from "../define-mode.js";
  * custom tool names that should be restricted:
  *
  * ```ts
- * import { defineMode, planMode } from "@claw-for-cloudflare/agent-runtime/modes";
+ * import { defineMode, planMode } from "@crabbykit/agent-runtime/modes";
  *
  * const myPlanMode = defineMode({
  *   ...planMode,

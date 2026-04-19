@@ -2,7 +2,7 @@
 
 <!-- Section: Package layout -->
 
-### Requirement: `@claw-for-cloudflare/vector-memory` SHALL expose four subpaths
+### Requirement: `@crabbykit/vector-memory` SHALL expose four subpaths
 
 The package SHALL expose its public API via four `package.json` `exports` entries: `.` (legacy static factory), `./service` (host-side `WorkerEntrypoint`), `./client` (bundle-side capability factory), and `./schemas` (shared schemas + drift hash). The legacy `.` export SHALL preserve the existing `vectorMemory(options: VectorMemoryOptions): Capability` factory unchanged.
 
@@ -11,14 +11,14 @@ The package SHALL expose its public API via four `package.json` `exports` entrie
 - **THEN** the `exports` object contains exactly the keys `"."`, `"./service"`, `"./client"`, `"./schemas"`
 
 #### Scenario: Legacy import behaviour is preserved
-- **WHEN** a consumer imports `{ vectorMemory }` from `@claw-for-cloudflare/vector-memory`
+- **WHEN** a consumer imports `{ vectorMemory }` from `@crabbykit/vector-memory`
 - **THEN** the function returned matches the pre-change `vectorMemory` factory signature and behavior
 
 <!-- Section: Service entrypoint -->
 
 ### Requirement: `VectorMemoryService` SHALL verify the unified bundle token with `requiredScope: "vector-memory"`
 
-The `WorkerEntrypoint` exported from `@claw-for-cloudflare/vector-memory/service` SHALL be a class named `VectorMemoryService`. Its env SHALL include `AGENT_AUTH_KEY: string`, `STORAGE_BUCKET: R2Bucket`, `STORAGE_NAMESPACE: string`, `MEMORY_INDEX: VectorizeIndex`, `AI: Ai`, and `SPINE`. The service SHALL lazily derive a verify-only HKDF subkey from `AGENT_AUTH_KEY` using `BUNDLE_SUBKEY_LABEL` and cache it for the entrypoint instance lifetime.
+The `WorkerEntrypoint` exported from `@crabbykit/vector-memory/service` SHALL be a class named `VectorMemoryService`. Its env SHALL include `AGENT_AUTH_KEY: string`, `STORAGE_BUCKET: R2Bucket`, `STORAGE_NAMESPACE: string`, `MEMORY_INDEX: VectorizeIndex`, `AI: Ai`, and `SPINE`. The service SHALL lazily derive a verify-only HKDF subkey from `AGENT_AUTH_KEY` using `BUNDLE_SUBKEY_LABEL` and cache it for the entrypoint instance lifetime.
 
 Every RPC method SHALL call `verifyToken(token, subkey, { requiredScope: "vector-memory" })` before doing other work and SHALL throw `new Error(verifyResult.code)` when verification fails.
 
@@ -77,7 +77,7 @@ Every RPC method SHALL call `verifyToken(token, subkey, { requiredScope: "vector
 
 ### Requirement: `vectorMemoryClient` factory SHALL return a `Capability` exposing `memory_search` and `memory_get` tools plus a content-only prompt section
 
-The function exported from `@claw-for-cloudflare/vector-memory/client` SHALL be `vectorMemoryClient(options: { service: Service<VectorMemoryService> }): Capability`. The returned capability SHALL have `id: "vector-memory"`, SHALL register exactly two tools (`memory_search`, `memory_get`), SHALL include a content-only `promptSections` describing the memory system, and SHALL NOT register `hooks`, `httpHandlers`, `configNamespaces`, or `onAction`.
+The function exported from `@crabbykit/vector-memory/client` SHALL be `vectorMemoryClient(options: { service: Service<VectorMemoryService> }): Capability`. The returned capability SHALL have `id: "vector-memory"`, SHALL register exactly two tools (`memory_search`, `memory_get`), SHALL include a content-only `promptSections` describing the memory system, and SHALL NOT register `hooks`, `httpHandlers`, `configNamespaces`, or `onAction`.
 
 The bundle-side `promptSections` text SHALL be functionally equivalent to the static capability's section. Auto-reindexing of `MEMORY.md` and `memory/*.md` files works for bundle agents via the `bundle-host-hook-bridging` mechanism (the static capability's `afterToolExecution` indexing hook fires against bundle-originated file mutation events through the bridge), so the prompt MAY accurately describe indexing as automatic.
 
@@ -97,7 +97,7 @@ Both tools' `execute` functions SHALL read `env.__BUNDLE_TOKEN`, throw an Error 
 
 <!-- Section: Shared schemas -->
 
-### Requirement: `@claw-for-cloudflare/vector-memory/schemas` SHALL export tool names, descriptions, args schemas, and a versioned content hash
+### Requirement: `@crabbykit/vector-memory/schemas` SHALL export tool names, descriptions, args schemas, and a versioned content hash
 
 The schemas subpath SHALL export named constants for both tool names + descriptions, TypeBox `Type.Object(...)` args schemas for each, and `SCHEMA_CONTENT_HASH: string`. The hash SHALL be initially `"vector-memory-schemas-v1"`.
 

@@ -22,7 +22,7 @@ The SKILL.md SHALL document the project directory structure, required files (ind
 - **THEN** it creates a valid Bun fullstack project structure
 
 ### Requirement: Skill content covers database access
-The SKILL.md SHALL document using `createDB()` from `@claw-for-cloudflare/container-db` for database access, including CREATE TABLE, CRUD patterns, and parameterized queries.
+The SKILL.md SHALL document using `createDB()` from `@crabbykit/container-db` for database access, including CREATE TABLE, CRUD patterns, and parameterized queries.
 
 #### Scenario: Agent creates app with database
 - **WHEN** the agent follows the database instructions

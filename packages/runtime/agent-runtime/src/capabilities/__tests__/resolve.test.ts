@@ -1,4 +1,4 @@
-import type { AgentTool } from "@claw-for-cloudflare/agent-core";
+import type { AgentTool } from "@crabbykit/agent-core";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentContext } from "../../agent-do.js";
 import { defineCommand } from "../../commands/define-command.js";

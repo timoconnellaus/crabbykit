@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-core";
+import type { AgentMessage } from "@crabbykit/agent-core";
 import { useCallback } from "react";
 import { useAgentConnection } from "../agent-connection-provider.js";
 import type { CommandInfo } from "../chat-reducer.js";

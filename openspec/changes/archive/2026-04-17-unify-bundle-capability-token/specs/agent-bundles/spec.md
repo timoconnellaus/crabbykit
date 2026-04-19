@@ -6,7 +6,7 @@
 
 The bundle env projected via `BundleConfig.bundleEnv(env)` SHALL be augmented by the dispatcher with a single `__BUNDLE_TOKEN: string` field carrying the per-turn unified capability token. The dispatcher SHALL NOT inject any other token-carrying env field.
 
-Previously-reserved token env fields (`__SPINE_TOKEN`, `__LLM_TOKEN`, `__TAVILY_TOKEN`) SHALL NOT appear in the projected env. Both the reference `BundleDispatcher` (in `@claw-for-cloudflare/bundle-host`) and the production inline dispatch closure (in `@claw-for-cloudflare/agent-runtime`'s `AgentDO._initBundleDispatch`) SHALL follow this shape identically.
+Previously-reserved token env fields (`__SPINE_TOKEN`, `__LLM_TOKEN`, `__TAVILY_TOKEN`) SHALL NOT appear in the projected env. Both the reference `BundleDispatcher` (in `@crabbykit/bundle-host`) and the production inline dispatch closure (in `@crabbykit/agent-runtime`'s `AgentDO._initBundleDispatch`) SHALL follow this shape identically.
 
 #### Scenario: Turn dispatch env has single token field
 - **WHEN** a bundle turn dispatches via `bundlePromptHandler`

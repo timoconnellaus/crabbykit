@@ -6,12 +6,8 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
-import type { VerifyOutcome } from "@claw-for-cloudflare/bundle-token";
-import {
-  BUNDLE_SUBKEY_LABEL,
-  deriveVerifyOnlySubkey,
-  verifyToken,
-} from "@claw-for-cloudflare/bundle-token";
+import type { VerifyOutcome } from "@crabbykit/bundle-token";
+import { BUNDLE_SUBKEY_LABEL, deriveVerifyOnlySubkey, verifyToken } from "@crabbykit/bundle-token";
 
 // --- Types ---
 

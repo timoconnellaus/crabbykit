@@ -1,6 +1,6 @@
 ## 1. Migrate TaskStore constructor
 
-- [ ] 1.1 Change `TaskStore` constructor in `packages/a2a/src/server/task-store.ts` to accept `SqlStore` (imported from `@claw-for-cloudflare/agent-runtime`) instead of `SqlStorage`
+- [ ] 1.1 Change `TaskStore` constructor in `packages/a2a/src/server/task-store.ts` to accept `SqlStore` (imported from `@crabbykit/agent-runtime`) instead of `SqlStorage`
 - [ ] 1.2 Remove the `SqlRow` base type and the `extends SqlRow` from `TaskRow`, `ArtifactRow`, and `PushConfigRow` interfaces (no longer needed without `SqlStorageValue` constraint)
 
 ## 2. Update AgentDO wiring

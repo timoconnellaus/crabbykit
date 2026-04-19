@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 import type { BrowserbaseClient } from "./browserbase-client.js";
 import { CDPClient } from "./cdp-client.js";
 import { mergeCookies } from "./cookie-merge.js";

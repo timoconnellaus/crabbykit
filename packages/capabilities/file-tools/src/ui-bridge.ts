@@ -1,4 +1,4 @@
-import type { CapabilityHookContext, ToolExecutionEvent } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityHookContext, ToolExecutionEvent } from "@crabbykit/agent-runtime";
 import { resolveListPrefix, toR2Key, validatePath } from "./paths.js";
 
 /**

@@ -1,6 +1,6 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
-import { createMockStorage, textOf } from "@claw-for-cloudflare/agent-runtime/test-utils";
-import type { SkillRecord, SkillRegistry } from "@claw-for-cloudflare/skill-registry";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
+import { createMockStorage, textOf } from "@crabbykit/agent-runtime/test-utils";
+import type { SkillRecord, SkillRegistry } from "@crabbykit/skill-registry";
 import { beforeEach, describe, expect, it } from "vitest";
 import { skills } from "../capability.js";
 import type { SkillsOptions } from "../types.js";

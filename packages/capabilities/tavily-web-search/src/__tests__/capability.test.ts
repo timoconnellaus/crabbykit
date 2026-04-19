@@ -1,4 +1,4 @@
-import { createNoopStorage } from "@claw-for-cloudflare/agent-runtime";
+import { createNoopStorage } from "@crabbykit/agent-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tavilyWebSearch } from "../capability.js";
 

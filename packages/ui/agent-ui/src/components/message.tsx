@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@claw-for-cloudflare/agent-runtime";
-import type { CommandResultTag } from "@claw-for-cloudflare/agent-runtime/client";
+import type { AgentMessage } from "@crabbykit/agent-runtime";
+import type { CommandResultTag } from "@crabbykit/agent-runtime/client";
 import { type ComponentPropsWithoutRef, useState } from "react";
 import { MarkdownContent } from "./markdown-content";
 import type { ToolResultInfo } from "./message-list";

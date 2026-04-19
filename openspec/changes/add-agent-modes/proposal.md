@@ -4,7 +4,7 @@ Agents that expose many tools suffer measurable performance degradation: tool de
 
 ## What Changes
 
-- **NEW**: `Mode` type + `defineMode()` factory at new subpath `@claw-for-cloudflare/agent-runtime/modes`. Carries capability allow/deny, tool allow/deny, `promptAppend`, `systemPromptOverride`, `capabilityConfig` merge, and `model` (subagent-only).
+- **NEW**: `Mode` type + `defineMode()` factory at new subpath `@crabbykit/agent-runtime/modes`. Carries capability allow/deny, tool allow/deny, `promptAppend`, `systemPromptOverride`, `capabilityConfig` merge, and `model` (subagent-only).
 - **NEW**: `planMode` reference export from the runtime — the one opinion-light built-in mode.
 - **NEW**: `modes?:` slot on `defineAgent` for current-session modes. Gated: `/mode`, `enter_mode`, and `exit_mode` are only registered when the agent has `>= 2` modes.
 - **NEW**: `getModes()` and `getSubagentModes()` override methods on `AgentDO` (subclass escape hatch).
@@ -37,7 +37,7 @@ Agents that expose many tools suffer measurable performance degradation: tool de
 
 - **NOT modified in v1**: bundle-brain dispatch path. See design Non-Goals — bundle turns bypass `ensureAgent` and therefore bypass `applyMode`. Static-brain fallback remains authoritative.
 - **Affected examples**: `examples/basic-agent` — update any references to `SubagentProfile` / `profile` tool parameter.
-- **Public API surface**: new subpath `@claw-for-cloudflare/agent-runtime/modes` added to `package.json` exports.
+- **Public API surface**: new subpath `@crabbykit/agent-runtime/modes` added to `package.json` exports.
 - **Wire format**: new `ServerMessage.type: "mode_event"` variant. Older clients silently ignore unknown variants (no default case in switch, forward-compat safe). `session_sync` payload gains optional `activeMode` field.
 - **Coverage**: all new `modes/` source files held to the 98/90/100/99 thresholds. `apply-mode.ts`, `exclude-sections.ts`, `define-mode.ts`, `resolve-active-mode.ts`, `commands.ts`, and `tools.ts` fully unit-tested; `index.ts` barrels excluded.
 - **Dependencies**: none added. Builds on existing `PromptSection` machinery from the just-merged rich-prompt-inspection work.

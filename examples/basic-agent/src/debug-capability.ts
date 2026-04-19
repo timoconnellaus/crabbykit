@@ -1,4 +1,4 @@
-import type { Capability } from "@claw-for-cloudflare/agent-runtime";
+import type { Capability } from "@crabbykit/agent-runtime";
 
 /**
  * Debug/inspection capability for the example app.

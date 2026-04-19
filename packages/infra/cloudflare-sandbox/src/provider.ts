@@ -1,4 +1,4 @@
-import type { AgentStorage } from "@claw-for-cloudflare/agent-storage";
+import type { AgentStorage } from "@crabbykit/agent-storage";
 import type {
   ExecStreamEvent,
   ProcessInfo,
@@ -6,7 +6,7 @@ import type {
   SandboxProvider,
   SessionInfo,
   SessionPollResult,
-} from "@claw-for-cloudflare/sandbox";
+} from "@crabbykit/sandbox";
 
 export interface CloudflareSandboxOptions {
   /**

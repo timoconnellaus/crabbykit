@@ -1,5 +1,5 @@
 import { env as rawEnv } from "cloudflare:workers";
-import { D1AgentRegistry } from "@claw-for-cloudflare/agent-registry";
+import { D1AgentRegistry } from "@crabbykit/agent-registry";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Env } from "../../worker";
 

@@ -1,4 +1,4 @@
-import { useSessions } from "@claw-for-cloudflare/agent-runtime/client";
+import { useSessions } from "@crabbykit/agent-runtime/client";
 import { type ComponentPropsWithoutRef, type MouseEvent, useEffect, useRef, useState } from "react";
 
 export interface SessionListProps extends ComponentPropsWithoutRef<"div"> {}

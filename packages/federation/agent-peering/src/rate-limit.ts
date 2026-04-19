@@ -1,4 +1,4 @@
-import type { CapabilityStorage } from "@claw-for-cloudflare/agent-runtime";
+import type { CapabilityStorage } from "@crabbykit/agent-runtime";
 
 const DEFAULT_MAX_PER_WINDOW = 10;
 const DEFAULT_WINDOW_MS = 60_000;

@@ -1,9 +1,4 @@
-import {
-  type AgentContext,
-  type AnyAgentTool,
-  defineTool,
-  Type,
-} from "@claw-for-cloudflare/agent-runtime";
+import { type AgentContext, type AnyAgentTool, defineTool, Type } from "@crabbykit/agent-runtime";
 
 const DEFAULT_MAX_FETCH_SIZE = 50_000;
 const DEFAULT_USER_AGENT = "ClawAgent/1.0";

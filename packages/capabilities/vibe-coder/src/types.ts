@@ -1,4 +1,4 @@
-import type { SandboxProvider } from "@claw-for-cloudflare/sandbox";
+import type { SandboxProvider } from "@crabbykit/sandbox";
 import type { DbService } from "./db-service.js";
 
 /** Configuration for the backend feature. */

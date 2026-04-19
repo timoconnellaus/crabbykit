@@ -1,9 +1,9 @@
-import { useAgentConnection } from "@claw-for-cloudflare/agent-runtime/client";
+import { useAgentConnection } from "@crabbykit/agent-runtime/client";
 import { useCallback } from "react";
 
 /**
  * UI-facing type for a stored Telegram account. Mirrors the
- * `TelegramAccountView` exported by `@claw-for-cloudflare/channel-telegram`
+ * `TelegramAccountView` exported by `@crabbykit/channel-telegram`
  * — redacted for broadcast, safe to render.
  *
  * Duplicated here (rather than imported) so `agent-ui` does not take a
