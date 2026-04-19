@@ -27,7 +27,7 @@ Packages are organised under `packages/<bucket>/<name>/` in seven role-based buc
 | `ai` | Model provider abstraction (internal, not published) |
 | `ai-proxy` | Host-side LLM inference proxy (`AiService` + `aiProxy`) |
 | `bundle-token` | Verify-only capability token primitives (`verifyToken`, `NonceTracker`, `deriveVerifyOnlySubkey`) shared by bundle-host and bundle-sdk |
-| `bundle-sdk` | Bundle authoring API — `defineBundleAgent`, prompt builders, bundle context types, runtime-source subpath (no path to mint code) |
+| `bundle-sdk` | Bundle authoring API — `defineBundleAgent` (model, prompt, tools, capabilities, lifecycle hooks `onAlarm`/`onSessionCreated`/`onClientEvent`), prompt builders, `BundleContext` (with `activeMode`), runtime-source subpath (no path to mint code). v2: full tool-execution loop, mode-aware dispatch, version-keyed inspection cache. |
 | `bundle-host` | Host-side dispatcher, `SpineService` RPC bridge, `LlmService` multi-provider proxy, bundle-builder auto-rebuild, mint-side token helpers |
 | `bundle-registry` | D1/KV bundle version store with content-addressed IDs, KV readback verification, atomic operations |
 | `agent-workshop` | Agent-facing bundle authoring tools (init, build, test, deploy, disable, rollback, versions) |
