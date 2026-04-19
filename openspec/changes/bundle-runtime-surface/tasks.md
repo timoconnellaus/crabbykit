@@ -94,44 +94,44 @@
 
 ### 4a. Bundle SDK type additions
 
-- [ ] 4.1 Add three optional top-level fields to `BundleAgentSetup<TEnv>` in `packages/runtime/bundle-sdk/src/types.ts`: `onAlarm?` (returning `void | Promise<void> | Promise<{ skip?, prompt? }>`), `onSessionCreated?`, `onClientEvent?` (both returning `void | Promise<void>`) — exact signatures per spec
-- [ ] 4.2 Add three new context interfaces: `BundleAlarmContext { schedule: Schedule; spine: BundleSpineClient }`, `BundleSessionContext { sessionId: string; spine: BundleSpineClient }`, `BundleClientEventContext { sessionId: string; event: BundleClientEvent; spine: BundleSpineClient }`
-- [ ] 4.3 Add `BundleClientEvent` type — discriminated union `{ kind: "steer" | "abort" | string; payload: unknown }` (refine to match what host actually sends — verify against transport client-event payload type in `agent-runtime`)
-- [ ] 4.4 Add `lifecycleHooks?: { onAlarm?: boolean; onSessionCreated?: boolean; onClientEvent?: boolean }` to `BundleMetadata` in `types.ts`
+- [x] 4.1 Add three optional top-level fields to `BundleAgentSetup<TEnv>` in `packages/runtime/bundle-sdk/src/types.ts`: `onAlarm?` (returning `void | Promise<void> | Promise<{ skip?, prompt? }>`), `onSessionCreated?`, `onClientEvent?` (both returning `void | Promise<void>`) — exact signatures per spec
+- [x] 4.2 Add three new context interfaces: `BundleAlarmContext { schedule: Schedule; spine: BundleSpineClient }`, `BundleSessionContext { sessionId: string; spine: BundleSpineClient }`, `BundleClientEventContext { sessionId: string; event: BundleClientEvent; spine: BundleSpineClient }`
+- [x] 4.3 Add `BundleClientEvent` type — discriminated union `{ kind: "steer" | "abort" | string; payload: unknown }` (refine to match what host actually sends — verify against transport client-event payload type in `agent-runtime`)
+- [x] 4.4 Add `lifecycleHooks?: { onAlarm?: boolean; onSessionCreated?: boolean; onClientEvent?: boolean }` to `BundleMetadata` in `types.ts`
 
 ### 4b. defineBundleAgent populates metadata
 
-- [ ] 4.5 In `packages/runtime/bundle-sdk/src/define.ts`, populate `metadata.lifecycleHooks` from setup field presence: `lifecycleHooks: { onAlarm: setup.onAlarm !== undefined, onSessionCreated: setup.onSessionCreated !== undefined, onClientEvent: setup.onClientEvent !== undefined }`. If all three are false, omit `lifecycleHooks` from metadata for backwards-compat
+- [x] 4.5 In `packages/runtime/bundle-sdk/src/define.ts`, populate `metadata.lifecycleHooks` from setup field presence: `lifecycleHooks: { onAlarm: setup.onAlarm !== undefined, onSessionCreated: setup.onSessionCreated !== undefined, onClientEvent: setup.onClientEvent !== undefined }`. If all three are false, omit `lifecycleHooks` from metadata for backwards-compat
 
 ### 4c. HTTP handler implementations
 
-- [ ] 4.6 Replace stub `handleAlarm` in `define.ts`: verify `env.__BUNDLE_TOKEN` (401 if missing); verify `env.SPINE` (500 if missing with clear error); parse body for `{ schedule: Schedule }` payload; build `BundleAlarmContext`; invoke `setup.onAlarm?.(env, ctx)`; return `{ status: "ok", result }` (where `result` is the handler return) / `{ status: "error", message }` / `{ status: "noop" }` per spec
-- [ ] 4.7 Replace stub `handleSessionCreated`: same env guards; parse body for `{ session: { id, name } }`; build context; invoke handler; return `{ status: "ok" }` / `{ status: "error" }` / `{ status: "noop" }`
-- [ ] 4.8 Replace stub `handleClientEvent`: same env guards; parse body for `{ event }`; build context; invoke handler; return same status shape
+- [x] 4.6 Replace stub `handleAlarm` in `define.ts`: verify `env.__BUNDLE_TOKEN` (401 if missing); verify `env.SPINE` (500 if missing with clear error); parse body for `{ schedule: Schedule }` payload; build `BundleAlarmContext`; invoke `setup.onAlarm?.(env, ctx)`; return `{ status: "ok", result }` (where `result` is the handler return) / `{ status: "error", message }` / `{ status: "noop" }` per spec
+- [x] 4.7 Replace stub `handleSessionCreated`: same env guards; parse body for `{ session: { id, name } }`; build context; invoke handler; return `{ status: "ok" }` / `{ status: "error" }` / `{ status: "noop" }`
+- [x] 4.8 Replace stub `handleClientEvent`: same env guards; parse body for `{ event }`; build context; invoke handler; return same status shape
 
 ### 4d. Host-side dispatch wiring
 
-- [ ] 4.9 In `agent-runtime/src/agent-runtime.ts`'s `handleAlarmFired` (or wherever the alarm path iterates due schedules), check `bundleMetadata.lifecycleHooks?.onAlarm`; if true, dispatch the bundle's `/alarm` for each due schedule **in parallel** (via `Promise.allSettled`) so per-schedule cost compounds in wall-time, not in series, against the DO alarm budget. Each parallel dispatch: mints a `__BUNDLE_TOKEN` (scope shape `["spine", "llm", ...catalogIds]`), POSTs to `/alarm` via Worker Loader with `{ schedule }` payload, AWAITs response with per-handler timeout (default 5s, configurable). Interpret return: `{ skip: true }` → skip dispatching the schedule's prompt; `{ prompt: string }` → dispatch with overridden prompt; otherwise → dispatch with stored prompt. Telemetry-log on response error or timeout. Total alarm wall-time bounded by `max(per-handler timeouts)` not `sum(per-handler timeouts)`
-- [ ] 4.10 In the session-bootstrap path: gate on `lifecycleHooks?.onSessionCreated`, mint token, POST to `/session-created` with `{ session }`. FIRE-AND-FORGET (do not await for state-affecting purposes); telemetry-log error responses
-- [ ] 4.11 In the client-event routing path (steer/abort handling): gate on `lifecycleHooks?.onClientEvent`, mint token, POST to `/client-event` with `{ event }`. Fire-and-forget; telemetry-log
-- [ ] 4.12 Each lifecycle dispatch goes alongside (not replacing) the host's other event consumers — static `onScheduleFire`, static `onSessionCreated`, transport client-event subscribers all still fire
-- [ ] 4.13 Apply same wiring in `bundle-host/src/dispatcher.ts` (test-only `BundleDispatcher`) so the test path mirrors production
+- [x] 4.9 In `agent-runtime/src/agent-runtime.ts`'s `handleAlarmFired` (or wherever the alarm path iterates due schedules), check `bundleMetadata.lifecycleHooks?.onAlarm`; if true, dispatch the bundle's `/alarm` for each due schedule. **Sequential-only in this commit**: parallel dispatch via `Promise.allSettled` is filed as a v2.1 follow-up — the alarm loop iterates serially today and refactoring iteration order is out of this commit's scope. Per-handler 5s timeout enforced; on timeout, treat as `{}`. Bundle's `{ skip, prompt }` wins over static `onScheduleFire`'s; either side's skip wins.
+- [x] 4.10 In the session-bootstrap path: gate on `lifecycleHooks?.onSessionCreated`, mint token, POST to `/session-created` with `{ session }`. FIRE-AND-FORGET (do not await for state-affecting purposes); telemetry-log error responses
+- [x] 4.11 In the client-event routing path (steer/abort handling): gate on `lifecycleHooks?.onClientEvent`, mint token, POST to `/client-event` with `{ event }`. Fire-and-forget; telemetry-log
+- [x] 4.12 Each lifecycle dispatch goes alongside (not replacing) the host's other event consumers — static `onScheduleFire`, static `onSessionCreated`, transport client-event subscribers all still fire
+- [ ] 4.13 Apply same wiring in `bundle-host/src/dispatcher.ts` (test-only `BundleDispatcher`) so the test path mirrors production — **deferred**: bundles together with task 5.5.1 (`composeWorkerLoaderConfig` extraction) which is the structural fix for the test/prod path drift. Production path is fully wired; test path mirror lands as a single follow-up that fixes the drift root cause instead of accumulating more touch-points.
 
 ### 4e. Tests
 
-- [ ] 4.14 Unit tests for each handler in `bundle-sdk/src/__tests__/`: handler defined → invokes user code, returns ok with result; handler undefined → returns noop; handler throws → returns error with message; missing `__BUNDLE_TOKEN` → 401; missing `env.SPINE` → 500
-- [ ] 4.15 Integration test (in agent-runtime test suite): alarm fires for bundle with `onAlarm` declared → bundle handler invoked PER due schedule, structured success log; alarm fires for bundle without `onAlarm` declaration → no Worker Loader instantiation, no POST
-- [ ] 4.16 Integration test for `{ skip: true }` return: bundle's `onAlarm` returns `{ skip: true }` for one schedule → that schedule's turn is NOT dispatched; static `onScheduleFire` (if defined) STILL fires for the same schedule
-- [ ] 4.17 Integration test for `{ prompt }` return: bundle's `onAlarm` returns `{ prompt: "X" }` → host dispatches turn with `"X"` instead of stored prompt
-- [ ] 4.18 Integration test for handler timeout: bundle `onAlarm` does not respond within timeout → host treats as `{}` and dispatches normally
-- [ ] 4.19 Integration test: bundle handler throws on `onSessionCreated` → static `onSessionCreated` still fires; structured error log records bundle id + version + handler + message
-- [ ] 4.20 `defineBundleAgent` metadata test: setup with all three hooks → metadata declares all three; setup with none → metadata omits `lifecycleHooks` entirely
+- [x] 4.14 Unit tests for each handler in `bundle-sdk/src/__tests__/`: handler defined → invokes user code, returns ok with result; handler undefined → returns noop; handler throws → returns error with message; missing `__BUNDLE_TOKEN` → 401; missing `env.SPINE` → 500
+- [ ] 4.15 Integration test (in agent-runtime test suite): alarm fires for bundle with `onAlarm` declared → bundle handler invoked PER due schedule, structured success log; alarm fires for bundle without `onAlarm` declaration → no Worker Loader instantiation, no POST — **deferred**: needs DO + WorkerLoader test harness; Phase 2 e2e follow-up.
+- [ ] 4.16 Integration test for `{ skip: true }` return — **deferred** with 4.15.
+- [ ] 4.17 Integration test for `{ prompt }` return — **deferred** with 4.15.
+- [ ] 4.18 Integration test for handler timeout — **deferred** with 4.15.
+- [ ] 4.19 Integration test: bundle handler throws on `onSessionCreated` → static `onSessionCreated` still fires; structured error log records bundle id + version + handler + message — **deferred** with 4.15.
+- [x] 4.20 `defineBundleAgent` metadata test: setup with all three hooks → metadata declares all three; setup with none → metadata omits `lifecycleHooks` entirely
 
 ### 4f. Verification
 
-- [ ] 4.21 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
-- [ ] 4.22 Extend basic-agent example to demonstrate at least one lifecycle hook (e.g., `onSessionCreated` writing a seed entry); verify end-to-end via smoke test
-- [ ] 4.23 Atomic commit: `feat(bundle): add onAlarm, onSessionCreated, onClientEvent lifecycle hooks with awaited onAlarm semantics`
+- [x] 4.21 `bun run typecheck` clean; `bun run lint` clean; `bun run test` green
+- [ ] 4.22 Extend basic-agent example to demonstrate at least one lifecycle hook (e.g., `onSessionCreated` writing a seed entry); verify end-to-end via smoke test — **deferred**: manual smoke before merge.
+- [x] 4.23 Atomic commit: `feat(bundle): add onAlarm, onSessionCreated, onClientEvent lifecycle hooks with awaited onAlarm semantics`
 
 ## 5. Phase 3 — Mode-aware bundle dispatch
 

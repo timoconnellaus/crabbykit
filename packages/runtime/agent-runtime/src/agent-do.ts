@@ -897,17 +897,23 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       }
     };
 
-    // Install the client event handler for steer/abort during bundle turns.
-    this.runtime.bundleClientEventHandler = async (
+    // Phase 2: shared lifecycle dispatcher used by /alarm,
+    // /session-created, /client-event. Mints a token, decodes the
+    // envelope, and POSTs the supplied body. Returns the parsed JSON
+    // response from the bundle (or null on transport error).
+    const dispatchLifecycle = async (
       sessionId: string,
-      event: unknown,
-    ): Promise<void> => {
+      path: "/alarm" | "/session-created" | "/client-event",
+      body: unknown,
+    ): Promise<Record<string, unknown> | null> => {
       const versionId = await checkActiveBundle();
-      if (!versionId) return;
+      if (!versionId) return null;
 
       try {
         const bundleSubkey = await getBundleSubkey();
-        const { mintToken: mint } = await import("@claw-for-cloudflare/bundle-host");
+        const { mintToken: mint, decodeBundlePayload } = await import(
+          "@claw-for-cloudflare/bundle-host"
+        );
         const version = await registry.getVersion?.(versionId);
         const catalogIds = (version?.metadata?.requiredCapabilities ?? []).map(
           (r: { id: string }) => r.id,
@@ -920,11 +926,12 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           const bytes = await registry.getBytes(versionId);
           if (!bytes) throw new Error("Bundle bytes not found");
           const source = new TextDecoder().decode(bytes);
+          const { mainModule, modules } = decodeBundlePayload(source);
           return {
             compatibilityDate: "2025-12-01",
             compatibilityFlags: ["nodejs_compat"],
-            mainModule: "bundle.js",
-            modules: { "bundle.js": source },
+            mainModule,
+            modules,
             env: {
               ...projectedEnv,
               __BUNDLE_TOKEN: bundleToken,
@@ -934,18 +941,74 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           };
         });
 
-        await worker.getEntrypoint().fetch(
-          new Request("https://bundle/client-event", {
+        const res = await worker.getEntrypoint().fetch(
+          new Request(`https://bundle${path}`, {
             method: "POST",
-            body: JSON.stringify(event),
+            body: JSON.stringify(body),
           }),
         );
+        if (!res.ok) {
+          this.runtime.logger.warn(`[BundleDispatch] ${path} returned ${res.status}`);
+          return null;
+        }
+        return (await res.json()) as Record<string, unknown>;
       } catch (err) {
-        // Client event delivery is best-effort
-        this.runtime.logger.warn("[BundleDispatch] Client event delivery failed", {
+        this.runtime.logger.warn(`[BundleDispatch] ${path} dispatch failed`, {
           error: err instanceof Error ? err.message : String(err),
         });
+        return null;
       }
+    };
+
+    // Read the bundle's lifecycleHooks declaration so we can skip
+    // Worker Loader instantiation entirely for hooks the bundle did
+    // not register (Phase 2 metadata gate).
+    const bundleHasLifecycleHook = async (
+      kind: "onAlarm" | "onSessionCreated" | "onClientEvent",
+    ): Promise<boolean> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return false;
+      const version = await registry.getVersion?.(versionId);
+      const hooks = version?.metadata?.lifecycleHooks;
+      if (!hooks) return false;
+      return hooks[kind] === true;
+    };
+
+    // Install the client event handler for steer/abort during bundle turns.
+    this.runtime.bundleClientEventHandler = async (
+      sessionId: string,
+      event: unknown,
+    ): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("onClientEvent"))) return;
+      await dispatchLifecycle(sessionId, "/client-event", { sessionId, event });
+    };
+
+    // Install the alarm handler. Per-handler 5s timeout bounds the
+    // worst case if a bundle handler hangs; on timeout we treat as
+    // `{}` (no skip, no prompt override) so the schedule's stored
+    // prompt dispatches normally.
+    this.runtime.bundleAlarmHandler = async (
+      schedule,
+    ): Promise<{ skip?: boolean; prompt?: string } | undefined> => {
+      if (!(await bundleHasLifecycleHook("onAlarm"))) return undefined;
+      const sessionId = `alarm-${schedule.id}`;
+      const dispatchPromise = dispatchLifecycle(sessionId, "/alarm", { schedule });
+      const timeoutMs = 5_000;
+      const result = await Promise.race([
+        dispatchPromise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+      ]);
+      if (!result || result.status !== "ok") return undefined;
+      const r = result.result as { skip?: boolean; prompt?: string } | undefined | null;
+      if (!r || typeof r !== "object") return undefined;
+      return r;
+    };
+
+    // Install the session-created handler. Fire-and-forget; static
+    // onSessionCreated still fires regardless of bundle outcome.
+    this.runtime.bundleSessionCreatedHandler = async (session): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("onSessionCreated"))) return;
+      await dispatchLifecycle(session.id, "/session-created", { session });
     };
 
     // Install the pre-fetch handler for bundle HTTP endpoints.

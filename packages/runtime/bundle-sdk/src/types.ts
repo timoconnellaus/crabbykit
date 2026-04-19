@@ -142,7 +142,115 @@ export interface BundleMetadata {
    * `meta.requiredCapabilities?.map(r => r.id) ?? []` at the call site.
    */
   requiredCapabilities?: BundleCapabilityRequirement[];
+  /**
+   * Build-time declaration of which lifecycle hook endpoints the bundle
+   * implements. Populated automatically by `defineBundleAgent` from
+   * `setup.{onAlarm,onSessionCreated,onClientEvent}` field presence.
+   * Host reads this at dispatch time and skips Worker Loader
+   * instantiation entirely for hooks the bundle does not declare —
+   * bundles published before Phase 2 (where this field is absent) are
+   * treated as all-false and receive no host-driven dispatches.
+   */
+  lifecycleHooks?: {
+    onAlarm?: boolean;
+    onSessionCreated?: boolean;
+    onClientEvent?: boolean;
+  };
 }
+
+// --- Bundle lifecycle hook contexts (Phase 2) ---
+
+/**
+ * Minimal Schedule shape exposed to bundle `onAlarm` handlers. Mirrors
+ * the host's `Schedule` from `agent-runtime/src/scheduling/types.ts`
+ * (kept as a structural duplicate to avoid a value edge from bundle-sdk
+ * into agent-runtime). Type-only imports from agent-runtime would also
+ * work but the bundle SDK keeps its own copy so type-checking inside
+ * the isolate has no cross-package dep.
+ */
+export interface BundleSchedule {
+  id: string;
+  name: string;
+  cron: string;
+  enabled: boolean;
+  handlerType: "prompt" | "callback" | "timer";
+  prompt: string | null;
+  sessionPrefix: string | null;
+  ownerId: string | null;
+  nextFireAt: string | null;
+  lastFiredAt: string | null;
+  timezone: string | null;
+  expiresAt: string | null;
+  status: "idle" | "running" | "failed";
+  lastError: string | null;
+  retention: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Discriminated union for bundle client events (steer/abort and
+ * future kinds). The wire shape is intentionally loose — handlers
+ * branch on `kind` and treat `payload` as kind-specific.
+ */
+export interface BundleClientEvent {
+  kind: "steer" | "abort" | string;
+  payload: unknown;
+}
+
+/** Context for `setup.onAlarm`. */
+export interface BundleAlarmContext {
+  schedule: BundleSchedule;
+  spine: BundleSpineClientLifecycle;
+}
+
+/** Context for `setup.onSessionCreated`. */
+export interface BundleSessionContext {
+  sessionId: string;
+  spine: BundleSpineClientLifecycle;
+}
+
+/** Context for `setup.onClientEvent`. */
+export interface BundleClientEventContext {
+  sessionId: string;
+  event: BundleClientEvent;
+  spine: BundleSpineClientLifecycle;
+}
+
+/**
+ * Minimal spine surface exposed to lifecycle hook contexts. Excludes
+ * `hookBridge` for semantic reasons (turn-loop concept; firing
+ * `recordToolExecution` outside a turn would generate a phantom event)
+ * — see Decision 8 in the bundle-runtime-surface design.
+ */
+export interface BundleSpineClientLifecycle {
+  appendEntry(entry: unknown): Promise<void>;
+  getEntries(options?: unknown): Promise<unknown[]>;
+  buildContext(): Promise<unknown>;
+  broadcast(event: unknown): Promise<void>;
+}
+
+export type OnAlarmReturn =
+  | void
+  | Promise<void>
+  | Promise<{ skip?: boolean; prompt?: string } | void>;
+
+export type OnAlarmHandler<TEnv extends BundleEnv> = (
+  env: TEnv,
+  ctx: BundleAlarmContext,
+) => OnAlarmReturn;
+
+export type OnSessionCreatedHandler<TEnv extends BundleEnv> = (
+  env: TEnv,
+  session: { id: string; name: string },
+  ctx: BundleSessionContext,
+) => void | Promise<void>;
+
+export type OnClientEventHandler<TEnv extends BundleEnv> = (
+  env: TEnv,
+  event: BundleClientEvent,
+  ctx: BundleClientEventContext,
+) => void | Promise<void>;
 
 // --- Bundle setup (input to defineBundleAgent) ---
 
@@ -186,6 +294,35 @@ export interface BundleAgentSetup<TEnv extends BundleEnv = BundleEnv> {
    * instances.
    */
   requiredCapabilities?: BundleCapabilityRequirement[];
+
+  /**
+   * Per-due-schedule alarm hook (Phase 2). Fires once per due
+   * schedule on the host's alarm wake. Return `{ skip: true }` to
+   * cancel that schedule's normal dispatch; return `{ prompt: "..." }`
+   * to override the stored prompt for the dispatched turn. Awaited
+   * with a per-handler timeout (default 5s, configurable host-side);
+   * timeouts are treated as `{}` and the schedule's stored prompt
+   * dispatches normally. Matches static `onScheduleFire` semantics —
+   * see Decision 6 in bundle-runtime-surface design.
+   */
+  onAlarm?: OnAlarmHandler<TEnv>;
+
+  /**
+   * Per-session-creation hook (Phase 2). Observation-only — the
+   * return value is ignored. The host fires this alongside any
+   * static `onSessionCreated` and proceeds regardless of bundle
+   * handler outcome. Errors surface in structured telemetry but
+   * never block host event handling.
+   */
+  onSessionCreated?: OnSessionCreatedHandler<TEnv>;
+
+  /**
+   * Per-client-event hook (Phase 2). Observation-only — the return
+   * value is ignored. Fires for every steer/abort event the host
+   * routes for an active bundle session, alongside the host's
+   * existing transport client-event subscribers.
+   */
+  onClientEvent?: OnClientEventHandler<TEnv>;
 
   /**
    * Optional metadata about this bundle.

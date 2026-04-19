@@ -433,6 +433,30 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   bundleClientEventHandler?: (sessionId: string, event: unknown) => Promise<void>;
 
   /**
+   * Optional bundle alarm handler (Phase 2). When set AND the bundle's
+   * metadata declares `lifecycleHooks.onAlarm`, the alarm path
+   * dispatches to the bundle's POST /alarm per due schedule and uses
+   * the returned `{ skip, prompt }` to influence dispatch — bundle's
+   * return wins over static `onScheduleFire`'s return on conflicts
+   * (bundle is the runtime brain).
+   *
+   * Installed by `defineAgent`'s `_initBundleDispatch` when the bundle
+   * declares the hook. Returns `undefined` for bundles without the
+   * declaration so the static path proceeds unchanged.
+   */
+  bundleAlarmHandler?: (
+    schedule: Schedule,
+  ) => Promise<{ skip?: boolean; prompt?: string } | undefined>;
+
+  /**
+   * Optional bundle session-created handler (Phase 2). Fire-and-forget
+   * dispatcher to the bundle's POST /session-created endpoint when the
+   * bundle declares `lifecycleHooks.onSessionCreated`. The static
+   * `onSessionCreated` (if defined) still fires regardless.
+   */
+  bundleSessionCreatedHandler?: (session: { id: string; name: string }) => Promise<void>;
+
+  /**
    * Optional bundle pointer refresher. When set, re-queries
    * `bundle-registry.getActiveForAgent(...)` and updates the per-DO
    * `activeBundleVersionId` cache + clears the consecutive failure counter.
@@ -1476,6 +1500,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         const session = this.sessionStore.create({ name: msg.name });
         connection.setSessionId(session.id);
         this.onSessionCreated?.({ id: session.id, name: session.name });
+        this.fireBundleSessionCreated(session.id, session.name);
         connection.send({
           type: "session_sync",
           sessionId: session.id,
@@ -2073,6 +2098,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const newSession = this.sessionStore.create({});
     connection.setSessionId(newSession.id);
     this.onSessionCreated?.({ id: newSession.id, name: newSession.name });
+    this.fireBundleSessionCreated(newSession.id, newSession.name);
 
     connection.send({
       type: "session_sync",
@@ -2773,14 +2799,33 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       const next = nextFireTime(schedule.cron, now, schedule.timezone ?? undefined);
       this.scheduleStore.update(schedule.id, { nextFireAt: next.toISOString() });
 
-      const hookResult = await this.onScheduleFire?.(schedule);
-      if (hookResult?.skip) continue;
+      const staticHookResult = await this.onScheduleFire?.(schedule);
+      // Phase 2: bundle's onAlarm fires alongside static onScheduleFire
+      // for the same schedule. Bundle's return value wins on conflict
+      // (`{ skip, prompt }`) — bundle is the runtime brain. If either
+      // side requested skip, the schedule is skipped (skip wins over
+      // prompt across both sides).
+      let bundleHookResult: { skip?: boolean; prompt?: string } | undefined;
+      if (this.bundleAlarmHandler) {
+        try {
+          bundleHookResult = await this.bundleAlarmHandler(schedule);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error(`[AgentRuntime] Bundle onAlarm handler failed`, {
+            scheduleId: schedule.id,
+            message,
+          });
+        }
+      }
+      const skip = staticHookResult?.skip || bundleHookResult?.skip;
+      if (skip) continue;
+      const overridePrompt = bundleHookResult?.prompt ?? staticHookResult?.prompt;
 
       this.scheduleStore.markRunning(schedule.id);
 
       try {
         if (schedule.handlerType === "prompt") {
-          const prompt = hookResult?.prompt ?? schedule.prompt;
+          const prompt = overridePrompt ?? schedule.prompt;
           if (prompt) {
             await this.executeScheduledPrompt(schedule, prompt);
           }
@@ -3766,6 +3811,25 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       if (!Array.isArray(sections)) return [];
       return sections;
     });
+  }
+
+  /**
+   * Fire the bundle's `onSessionCreated` handler if registered.
+   * Fire-and-forget per Decision 6 — host event handling proceeds
+   * regardless. Errors logged but never bubble.
+   */
+  private fireBundleSessionCreated(sessionId: string, sessionName: string): void {
+    if (!this.bundleSessionCreatedHandler) return;
+    const handler = this.bundleSessionCreatedHandler;
+    this.runtimeContext.waitUntil(
+      handler({ id: sessionId, name: sessionName }).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error("[AgentRuntime] Bundle onSessionCreated handler failed", {
+          sessionId,
+          message,
+        });
+      }),
+    );
   }
 
   /**

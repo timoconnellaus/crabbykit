@@ -32,6 +32,17 @@ export interface BundleVersionMetadata {
    * field landed — treated as "no requirements" (always passes).
    */
   requiredCapabilities?: Array<{ id: string }>;
+  /**
+   * Build-time declaration of which lifecycle hook endpoints the bundle
+   * implements (Phase 2). Absent on legacy bundles authored before the
+   * lifecycleHooks field landed — treated as all-false so the host
+   * skips all lifecycle dispatches for those bundles.
+   */
+  lifecycleHooks?: {
+    onAlarm?: boolean;
+    onSessionCreated?: boolean;
+    onClientEvent?: boolean;
+  };
 }
 
 /** Shape returned from `BundleRegistry.getVersion` used by drift detection. */
@@ -137,11 +148,7 @@ export interface BundleRegistry {
    * and `TypeError` when `versionId` is non-null, `skipCatalogCheck` is
    * not `true`, and `knownCapabilityIds` is missing.
    */
-  setActive(
-    agentId: string,
-    versionId: string | null,
-    options?: SetActiveOptions,
-  ): Promise<void>;
+  setActive(agentId: string, versionId: string | null, options?: SetActiveOptions): Promise<void>;
   getBytes(versionId: string): Promise<ArrayBuffer | null>;
   /**
    * Read the metadata row for a specific bundle version. Required for

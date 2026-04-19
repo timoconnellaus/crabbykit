@@ -117,20 +117,23 @@ describe("defineBundleAgent", () => {
   });
 
   describe("POST /client-event", () => {
-    it("acknowledges client events", async () => {
+    it("returns noop when no onClientEvent is registered (Phase 2)", async () => {
       const bundle = defineBundleAgent(minimalSetup);
 
       const res = await bundle.fetch(
         new Request("https://bundle/client-event", {
           method: "POST",
-          body: JSON.stringify({ type: "steer", content: "be concise" }),
+          body: JSON.stringify({
+            sessionId: "s",
+            event: { kind: "steer", payload: { content: "be concise" } },
+          }),
         }),
-        { __BUNDLE_TOKEN: "test-token" } as BundleEnv,
+        { __BUNDLE_TOKEN: "test-token", SPINE: {} } as unknown as BundleEnv,
       );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as Record<string, unknown>;
-      expect(body.status).toBe("acknowledged");
+      expect(body.status).toBe("noop");
     });
   });
 
