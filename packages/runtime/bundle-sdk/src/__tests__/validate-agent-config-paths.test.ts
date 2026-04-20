@@ -9,48 +9,40 @@ describe("validateAgentConfigPaths", () => {
 
   it("accepts path matching a local top-level namespace", () => {
     expect(() =>
-      validateAgentConfigPaths(
-        [{ id: "cap", agentConfigPath: "botConfig" }],
-        { botConfig: Type.Object({ x: Type.Number() }) } as Record<string, unknown>,
-      ),
+      validateAgentConfigPaths([{ id: "cap", agentConfigPath: "botConfig" }], {
+        botConfig: Type.Object({ x: Type.Number() }),
+      } as Record<string, unknown>),
     ).not.toThrow();
   });
 
   it("walks nested properties", () => {
     expect(() =>
-      validateAgentConfigPaths(
-        [{ id: "cap", agentConfigPath: "botConfig.rateLimit" }],
-        {
-          botConfig: Type.Object({ rateLimit: Type.Number() }),
-        } as Record<string, unknown>,
-      ),
+      validateAgentConfigPaths([{ id: "cap", agentConfigPath: "botConfig.rateLimit" }], {
+        botConfig: Type.Object({ rateLimit: Type.Number() }),
+      } as Record<string, unknown>),
     ).not.toThrow();
   });
 
   it("rejects missing nested property", () => {
     expect(() =>
-      validateAgentConfigPaths(
-        [{ id: "cap", agentConfigPath: "botConfig.missing" }],
-        {
-          botConfig: Type.Object({ rateLimit: Type.Number() }),
-        } as Record<string, unknown>,
-      ),
+      validateAgentConfigPaths([{ id: "cap", agentConfigPath: "botConfig.missing" }], {
+        botConfig: Type.Object({ rateLimit: Type.Number() }),
+      } as Record<string, unknown>),
     ).toThrow(/cap.*missing.*botConfig/);
   });
 
   it("tolerates cross-bundle first segment (deferred to dispatch-time)", () => {
     expect(() =>
-      validateAgentConfigPaths(
-        [{ id: "cap", agentConfigPath: "hostOnlyNs" }],
-        { localNs: Type.Object({}) } as Record<string, unknown>,
-      ),
+      validateAgentConfigPaths([{ id: "cap", agentConfigPath: "hostOnlyNs" }], {
+        localNs: Type.Object({}),
+      } as Record<string, unknown>),
     ).not.toThrow();
   });
 
   it("rejects empty agentConfigPath", () => {
-    expect(() =>
-      validateAgentConfigPaths([{ id: "cap", agentConfigPath: "" }], {}),
-    ).toThrow(/cap.*non-empty string/);
+    expect(() => validateAgentConfigPaths([{ id: "cap", agentConfigPath: "" }], {})).toThrow(
+      /cap.*non-empty string/,
+    );
   });
 });
 

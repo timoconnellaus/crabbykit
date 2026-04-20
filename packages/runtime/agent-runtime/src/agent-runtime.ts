@@ -18,9 +18,9 @@ import type { AssistantMessage, Message, Model } from "@crabbykit/ai";
 // The class itself stays in bundle-host/ for now; only its owner moved.
 import type { BudgetCategory, SpineBudgetConfig } from "@crabbykit/bundle-host";
 import { BudgetTracker } from "@crabbykit/bundle-host";
+import { evaluateAgentConfigPath } from "@crabbykit/bundle-sdk";
 import type { TObject } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import { evaluateAgentConfigPath } from "@crabbykit/bundle-sdk";
 import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
@@ -656,7 +656,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   bundleConfigNamespaceDispatcher?: {
     get: (namespace: string) => Promise<unknown>;
-    set: (namespace: string, value: unknown) => Promise<string | void>;
+    set: (namespace: string, value: unknown) => Promise<string | undefined>;
   };
 
   sessionStore: SessionStore;
@@ -1193,13 +1193,10 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           await bundleDispatch(entry.id, oldSlice, newSlice, ctxSessionId);
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          this.logger.error(
-            "[BundleDispatch] kind: \"agent_config_change\" dispatcher error",
-            {
-              capabilityId: entry.id,
-              message: error.message,
-            },
-          );
+          this.logger.error('[BundleDispatch] kind: "agent_config_change" dispatcher error', {
+            capabilityId: entry.id,
+            message: error.message,
+          });
           this.onError?.(error, { source: "hook", sessionId: ctxSessionId });
         }
       }
@@ -1253,13 +1250,10 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
             error: err instanceof Error ? err.message : String(err),
           });
         }
-        this.logger.warn(
-          "[BundleDispatch] kind: \"agent_config_orphan_detected\"",
-          {
-            namespace,
-            persistedShape: typeof stored,
-          },
-        );
+        this.logger.warn('[BundleDispatch] kind: "agent_config_orphan_detected"', {
+          namespace,
+          persistedShape: typeof stored,
+        });
       }
     }
     this.agentConfigLoaded = true;
@@ -2049,8 +2043,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       onAgentConfigSet: (namespace: string, oldValue: unknown, newValue: unknown) =>
         this.handleAgentConfigSet(namespace, oldValue, newValue, context.sessionId),
       bundleConfigChangeDispatcher: this.bundleConfigChangeDispatcher,
-      bundleCapabilityIds:
-        standIns.length > 0 ? new Set(standIns.map((c) => c.id)) : undefined,
+      bundleCapabilityIds: standIns.length > 0 ? new Set(standIns.map((c) => c.id)) : undefined,
     };
     const configTools = [
       createConfigGet(configContext),
@@ -2218,8 +2211,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
-      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
-      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
+          getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+          getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         };
         resolved = resolveCapabilities(
           capabilities,
@@ -2419,8 +2412,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
-      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
-      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
+          getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+          getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2845,8 +2838,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
-      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
-      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
+          getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+          getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -3106,8 +3099,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
-      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
-      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
+          getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+          getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         };
         // biome-ignore lint/style/noNonNullAssertion: `hooks` filter guaranteed cap.afterTurn is defined
         await cap.afterTurn!(capContext, sessionId, finalText);
@@ -3284,8 +3277,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
-      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
-      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
+          getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+          getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -4484,8 +4477,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * `knownConfigNamespaceIds`.
    */
   private buildBundleHostConfigNamespaceIdsGetter(): () => string[] {
-    return () =>
-      Array.from(new Set(this.getConfigNamespaces().map((n) => n.id)));
+    return () => Array.from(new Set(this.getConfigNamespaces().map((n) => n.id)));
   }
 
   broadcastCustomToAll(name: string, data: Record<string, unknown>): void {

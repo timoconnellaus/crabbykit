@@ -18,9 +18,9 @@ import type {
   BundleClientEventContext,
   BundleConfigNamespace,
   BundleContext,
-  BundleHookContext,
   BundleEnv,
   BundleExport,
+  BundleHookContext,
   BundleHttpContext,
   BundleHttpRequest,
   BundleHttpResponse,
@@ -753,7 +753,7 @@ async function handleHttp<TEnv extends BundleEnv>(
   const probeCtx = buildProbeContext(env);
   const capabilities = setup.capabilities(env) ?? [];
   const cap = capabilities.find((c) => c.id === capabilityId);
-  if (!cap || !cap.httpHandlers) {
+  if (!cap?.httpHandlers) {
     const body = `capability not found in bundle: ${capabilityId}`;
     return Response.json({
       status: 404,
@@ -878,7 +878,7 @@ async function handleAction<TEnv extends BundleEnv>(
 
   const capabilities = setup.capabilities(env) ?? [];
   const cap = capabilities.find((c) => c.id === capabilityId);
-  if (!cap || !cap.onAction) {
+  if (!cap?.onAction) {
     return Response.json({ status: "noop" });
   }
 
@@ -1034,7 +1034,7 @@ async function handleConfigChange<TEnv extends BundleEnv>(
 
   const capabilities = setup.capabilities(env) ?? [];
   const cap = capabilities.find((c) => c.id === capabilityId);
-  if (!cap || !cap.hooks?.onConfigChange) {
+  if (!cap?.hooks?.onConfigChange) {
     return Response.json({ status: "noop" });
   }
 
@@ -1103,7 +1103,7 @@ async function handleAgentConfigChange<TEnv extends BundleEnv>(
 
   const capabilities = setup.capabilities(env) ?? [];
   const cap = capabilities.find((c) => c.id === capabilityId);
-  if (!cap || !cap.hooks?.onAgentConfigChange) {
+  if (!cap?.hooks?.onAgentConfigChange) {
     return Response.json({ status: "noop" });
   }
 

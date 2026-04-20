@@ -19,7 +19,11 @@ describe("validateAgentConfigSchemas", () => {
   for (const reserved of ["session", "agent-config", "schedules", "queue"]) {
     it(`rejects reserved token "${reserved}"`, () => {
       expect(() =>
-        validateAgentConfigSchemas({ [reserved]: Type.Object({}) } as Record<string, unknown>, [], []),
+        validateAgentConfigSchemas(
+          { [reserved]: Type.Object({}) } as Record<string, unknown>,
+          [],
+          [],
+        ),
       ).toThrow(new RegExp(reserved));
     });
   }
@@ -56,11 +60,7 @@ describe("validateAgentConfigSchemas", () => {
 
   it("rejects Transform schema", () => {
     expect(() =>
-      validateAgentConfigSchemas(
-        { nsA: { Kind: "Transform" } } as Record<string, unknown>,
-        [],
-        [],
-      ),
+      validateAgentConfigSchemas({ nsA: { Kind: "Transform" } } as Record<string, unknown>, [], []),
     ).toThrow(/Transform/);
   });
 });

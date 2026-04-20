@@ -23,9 +23,9 @@ describe("validateConfigNamespaces", () => {
   }
 
   it("rejects pattern field", () => {
-    expect(() =>
-      validateConfigNamespaces([ns("prefix", { pattern: /^prefix:/ })], [], []),
-    ).toThrow(/pattern.*deferred/);
+    expect(() => validateConfigNamespaces([ns("prefix", { pattern: /^prefix:/ })], [], [])).toThrow(
+      /pattern.*deferred/,
+    );
   });
 
   it("rejects collision with agent-config namespace", () => {

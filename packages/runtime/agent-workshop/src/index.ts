@@ -603,10 +603,8 @@ export function agentWorkshop(
                   rationale: args.rationale ?? "workshop_deploy",
                   sessionId: context.sessionId,
                   knownCapabilityIds: hostIdsList,
-                  knownAgentConfigNamespaces:
-                    context.getBundleHostAgentConfigNamespaces?.(),
-                  knownConfigNamespaceIds:
-                    context.getBundleHostConfigNamespaceIds?.(),
+                  knownAgentConfigNamespaces: context.getBundleHostAgentConfigNamespaces?.(),
+                  knownConfigNamespaceIds: context.getBundleHostConfigNamespaceIds?.(),
                   knownCapabilityConfigIds: hostIdsList,
                 });
               }

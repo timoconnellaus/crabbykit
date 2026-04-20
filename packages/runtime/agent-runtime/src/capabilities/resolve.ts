@@ -48,7 +48,7 @@ export interface ResolvedCapabilities {
     (
       event: BeforeToolExecutionEvent,
       ctx: CapabilityHookContext,
-    ) => Promise<BeforeToolExecutionResult | void>
+    ) => Promise<BeforeToolExecutionResult | undefined>
   >;
   afterToolExecutionHooks: Array<
     (event: ToolExecutionEvent, ctx: CapabilityHookContext) => Promise<void>

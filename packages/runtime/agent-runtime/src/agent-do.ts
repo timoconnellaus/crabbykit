@@ -828,10 +828,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId: string,
     ): Promise<void> => {
       const rationale = `agent-config collision: bundle '${versionId}' declares agent-config namespace(s) overlapping host: ${collidingNamespaces.join(", ")}`;
-      this.runtime.logger.warn(
-        `[BundleDispatch] kind: "agent_config_collision_disable"`,
-        { agentId, versionId, collidingNamespaces },
-      );
+      this.runtime.logger.warn(`[BundleDispatch] kind: "agent_config_collision_disable"`, {
+        agentId,
+        versionId,
+        collidingNamespaces,
+      });
       try {
         await registry.setActive(agentId, null, {
           rationale,
@@ -866,10 +867,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId: string,
     ): Promise<void> => {
       const rationale = `config-namespace collision: bundle '${versionId}' declares config namespace id(s) overlapping host: ${collidingIds.join(", ")}`;
-      this.runtime.logger.warn(
-        `[BundleDispatch] kind: "config_namespace_collision_disable"`,
-        { agentId, versionId, collidingIds },
-      );
+      this.runtime.logger.warn(`[BundleDispatch] kind: "config_namespace_collision_disable"`, {
+        agentId,
+        versionId,
+        collidingIds,
+      });
       try {
         await registry.setActive(agentId, null, {
           rationale,
@@ -904,10 +906,11 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId: string,
     ): Promise<void> => {
       const rationale = `capability-config collision: bundle '${versionId}' declares config schemas for host-registered capability id(s): ${collidingIds.join(", ")}`;
-      this.runtime.logger.warn(
-        `[BundleDispatch] kind: "capability_config_collision_disable"`,
-        { agentId, versionId, collidingIds },
-      );
+      this.runtime.logger.warn(`[BundleDispatch] kind: "capability_config_collision_disable"`, {
+        agentId,
+        versionId,
+        collidingIds,
+      });
       try {
         await registry.setActive(agentId, null, {
           rationale,
@@ -944,10 +947,13 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId: string,
     ): Promise<void> => {
       const rationale = `agent-config path unresolvable: bundle '${versionId}' capability "${capabilityId}" declares agentConfigPath "${path}" with no matching namespace (known: ${knownNamespaces.join(", ") || "<empty>"})`;
-      this.runtime.logger.warn(
-        `[BundleDispatch] kind: "agent_config_path_unresolvable_disable"`,
-        { agentId, versionId, capabilityId, path, knownNamespaces },
-      );
+      this.runtime.logger.warn(`[BundleDispatch] kind: "agent_config_path_unresolvable_disable"`, {
+        agentId,
+        versionId,
+        capabilityId,
+        path,
+        knownNamespaces,
+      });
       try {
         await registry.setActive(agentId, null, {
           rationale,
@@ -1000,9 +1006,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           path: string;
           knownNamespaces: string[];
         } => {
-      const bundleAgentKeys = Object.keys(
-        this.runtime.bundleAgentConfigSchemaMetadata ?? {},
-      );
+      const bundleAgentKeys = Object.keys(this.runtime.bundleAgentConfigSchemaMetadata ?? {});
       const hostAgentKeys = Object.keys(this.runtime.getAgentConfigSchema());
       const agentClashes = bundleAgentKeys.filter((k) => hostAgentKeys.includes(k));
       if (agentClashes.length > 0) {
@@ -1070,17 +1074,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             sessionId,
           );
         } else if (configGuard.kind === "config-namespace") {
-          await disableForConfigNamespaceCollision(
-            configGuard.collidingIds,
-            versionId,
-            sessionId,
-          );
+          await disableForConfigNamespaceCollision(configGuard.collidingIds, versionId, sessionId);
         } else if (configGuard.kind === "capability-config") {
-          await disableForCapabilityConfigCollision(
-            configGuard.collidingIds,
-            versionId,
-            sessionId,
-          );
+          await disableForCapabilityConfigCollision(configGuard.collidingIds, versionId, sessionId);
         } else {
           await disableForAgentConfigPathUnresolvable(
             configGuard.capabilityId,
@@ -1122,7 +1118,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
           const { BUNDLE_RUNTIME_HASH, buildBundle, encodeEnvelope } = await import(
             "@crabbykit/bundle-host"
           );
-          const version = await registry.getVersion!(versionId);
+          const version = await registry.getVersion?.(versionId);
           const storedHash = version?.metadata?.runtimeHash;
           const sourceName = version?.metadata?.sourceName;
           if (!storedHash || storedHash === BUNDLE_RUNTIME_HASH) {
@@ -1142,15 +1138,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             currentHash: BUNDLE_RUNTIME_HASH,
           });
           const started = Date.now();
-          const autoBucket = bundleConfig.autoRebuild!.bucket(env);
-          const autoNamespace = bundleConfig.autoRebuild!.namespace(env);
+          const autoBucket = bundleConfig.autoRebuild?.bucket(env);
+          const autoNamespace = bundleConfig.autoRebuild?.namespace(env);
           const built = await buildBundle({
             bucket: autoBucket,
             namespace: autoNamespace,
             name: sourceName,
           });
           const envelope = encodeEnvelope(built.mainModule, built.modules);
-          const newVersion = await registry.createVersion!({
+          const newVersion = await registry.createVersion?.({
             bytes: envelope,
             createdBy: "system:auto-rebuild",
             metadata: {
@@ -1201,9 +1197,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     // expose the result on the runtime for the config tools and the
     // merged agent-config snapshot.
     const DEFAULT_CONFIG_HOOK_TIMEOUT_MS = 5_000;
-    const configHookTimeoutMs = (
-      bundleConfig as { configHookTimeoutMs?: number }
-    ).configHookTimeoutMs ?? DEFAULT_CONFIG_HOOK_TIMEOUT_MS;
+    const configHookTimeoutMs =
+      (bundleConfig as { configHookTimeoutMs?: number }).configHookTimeoutMs ??
+      DEFAULT_CONFIG_HOOK_TIMEOUT_MS;
 
     const rehydrateSchema = (schema: object): TObject => {
       // Deep-clone so the in-memory registry's shared metadata object
@@ -1227,26 +1223,24 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     } | null> => {
       if (!registry.getVersion) return null;
       const version = await registry.getVersion(versionId);
-      const meta = version?.metadata as
-        | {
-            capabilityConfigs?: Array<{
-              id: string;
-              schema: object;
-              default?: Record<string, unknown>;
-              agentConfigPath?: string;
-            }>;
-            agentConfigSchemas?: Record<string, object>;
-            configNamespaces?: Array<{
-              id: string;
-              description: string;
-              schema: object;
-            }>;
-            // agentConfigPath is declared per-capability on the bundle
-            // side. The metadata projection rolls it up alongside
-            // `capabilityConfigs` when present — an emitter-side detail
-            // documented in the `bundle-config-namespaces` design.
-          }
-        | null;
+      const meta = version?.metadata as {
+        capabilityConfigs?: Array<{
+          id: string;
+          schema: object;
+          default?: Record<string, unknown>;
+          agentConfigPath?: string;
+        }>;
+        agentConfigSchemas?: Record<string, object>;
+        configNamespaces?: Array<{
+          id: string;
+          description: string;
+          schema: object;
+        }>;
+        // agentConfigPath is declared per-capability on the bundle
+        // side. The metadata projection rolls it up alongside
+        // `capabilityConfigs` when present — an emitter-side detail
+        // documented in the `bundle-config-namespaces` design.
+      } | null;
       if (!meta) return null;
       const capabilityConfigs = (meta.capabilityConfigs ?? []).map((entry) => ({
         id: entry.id,
@@ -1328,7 +1322,10 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             timeoutMs: configHookTimeoutMs,
             durationMs: Date.now() - started,
           });
-          return { status: "error", message: `bundle ${path} timed out after ${configHookTimeoutMs}ms` };
+          return {
+            status: "error",
+            message: `bundle ${path} timed out after ${configHookTimeoutMs}ms`,
+          };
         }
         if (!result.ok) {
           this.runtime.logger.warn(`[BundleDispatch] ${path} returned ${result.status}`);
@@ -1346,14 +1343,9 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       }
     };
 
-    this.runtime.bundleConfigChangeDispatcher = async (
-      capabilityId,
-      oldCfg,
-      newCfg,
-      sessionId,
-    ) => {
+    this.runtime.bundleConfigChangeDispatcher = async (capabilityId, oldCfg, newCfg, sessionId) => {
       const declared = this.runtime.bundleCapabilityConfigMetadata;
-      if (!declared || !declared.some((c) => c.id === capabilityId)) {
+      if (!declared?.some((c) => c.id === capabilityId)) {
         return { ok: true };
       }
       const started = Date.now();
@@ -1381,7 +1373,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       sessionId,
     ) => {
       const declared = this.runtime.bundleCapabilityAgentConfigPaths;
-      if (!declared || !declared.some((d) => d.id === capabilityId)) return;
+      if (!declared?.some((d) => d.id === capabilityId)) return;
       const started = Date.now();
       const response = await dispatchConfigEndpoint(
         "/agent-config-change",
@@ -1401,11 +1393,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     this.runtime.bundleConfigNamespaceDispatcher = {
       get: async (namespace) => {
         const started = Date.now();
-        const response = await dispatchConfigEndpoint(
-          "/config-namespace-get",
-          { namespace },
-          "",
-        );
+        const response = await dispatchConfigEndpoint("/config-namespace-get", { namespace }, "");
         const status = response?.status ?? "unknown";
         this.runtime.logger.info(`[BundleDispatch] kind: "namespace_get"`, {
           namespace,
@@ -1873,7 +1861,7 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       if (!versionId) return false;
       const version = await registry.getVersion?.(versionId);
       const declared = version?.metadata?.surfaces?.actionCapabilityIds;
-      if (!declared || !declared.includes(capabilityId)) return false;
+      if (!declared?.includes(capabilityId)) return false;
       if (!(await runDispatchGuard(versionId, sessionId))) {
         return false;
       }

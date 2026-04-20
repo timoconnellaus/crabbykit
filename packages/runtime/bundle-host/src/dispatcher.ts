@@ -294,7 +294,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
       });
 
       // 3. Dispatch the turn
-      const res = await worker!.getEntrypoint().fetch(
+      const res = await worker?.getEntrypoint().fetch(
         new Request("https://bundle/turn", {
           method: "POST",
           body: JSON.stringify({ prompt }),
@@ -367,7 +367,7 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
         };
       });
 
-      await worker!.getEntrypoint().fetch(
+      await worker?.getEntrypoint().fetch(
         new Request("https://bundle/client-event", {
           method: "POST",
           body: JSON.stringify(event),

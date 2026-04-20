@@ -235,7 +235,7 @@ export interface Capability {
     beforeToolExecution?: (
       event: BeforeToolExecutionEvent,
       ctx: CapabilityHookContext,
-    ) => Promise<BeforeToolExecutionResult | void>;
+    ) => Promise<BeforeToolExecutionResult | undefined>;
 
     /**
      * Called after a tool finishes executing.

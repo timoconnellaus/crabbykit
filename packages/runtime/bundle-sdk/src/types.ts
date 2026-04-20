@@ -305,7 +305,7 @@ export interface BundleSpineClientLifecycle {
 export type OnAlarmReturn =
   | void
   | Promise<void>
-  | Promise<{ skip?: boolean; prompt?: string } | void>;
+  | Promise<{ skip?: boolean; prompt?: string } | undefined>;
 
 export type OnAlarmHandler<TEnv extends BundleEnv> = (
   env: TEnv,
@@ -672,7 +672,7 @@ export interface BundleConfigNamespace {
    * `config_set` tool output — same contract as static
    * `ConfigNamespace.set`.
    */
-  set: (namespace: string, value: unknown) => Promise<string | void>;
+  set: (namespace: string, value: unknown) => Promise<string | undefined>;
 }
 
 /**

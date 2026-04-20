@@ -10,9 +10,7 @@ import {
 
 describe("validateBundleAgentConfigsAgainstKnownIds", () => {
   it("accepts when declared empty", () => {
-    expect(
-      validateBundleAgentConfigsAgainstKnownIds(undefined, ["foo"]),
-    ).toEqual({ valid: true });
+    expect(validateBundleAgentConfigsAgainstKnownIds(undefined, ["foo"])).toEqual({ valid: true });
     expect(validateBundleAgentConfigsAgainstKnownIds([], ["foo"])).toEqual({ valid: true });
   });
 
@@ -23,9 +21,9 @@ describe("validateBundleAgentConfigsAgainstKnownIds", () => {
   });
 
   it("accepts when no collision", () => {
-    expect(
-      validateBundleAgentConfigsAgainstKnownIds(["botConfig"], ["tavily"]),
-    ).toEqual({ valid: true });
+    expect(validateBundleAgentConfigsAgainstKnownIds(["botConfig"], ["tavily"])).toEqual({
+      valid: true,
+    });
   });
 
   it("flags collision", () => {

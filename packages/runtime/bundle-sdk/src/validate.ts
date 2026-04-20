@@ -303,7 +303,9 @@ function assertSchemaKindsAllowed(schema: unknown, pathLabel: string): void {
     for (const key of ["anyOf", "allOf", "oneOf"] as const) {
       const arr = rec[key];
       if (Array.isArray(arr)) {
-        arr.forEach((entry, idx) => walk(entry, `${trail}.${key}[${idx}]`));
+        arr.forEach((entry, idx) => {
+          walk(entry, `${trail}.${key}[${idx}]`);
+        });
       }
     }
   };

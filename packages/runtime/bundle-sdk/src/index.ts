@@ -13,6 +13,7 @@
  * graph by construction.
  */
 
+export { evaluateAgentConfigPath } from "./config-path.js";
 export { defineBundleAgent } from "./define.js";
 export { createServiceLlmProvider } from "./llm/service-provider.js";
 // Single source of truth for the system-prompt builder, re-exported by
@@ -27,6 +28,7 @@ export {
 export { identitySection, runtimeSection, safetySection } from "./prompt/sections.js";
 export type { PromptOptions, PromptSection, PromptSectionSource } from "./prompt/types.js";
 export { buildBundleContext } from "./runtime.js";
+export { hydrateBundleSchema, serializeBundleSchema } from "./schema-serialize.js";
 export {
   createCostEmitter,
   createHookBridge,
@@ -67,8 +69,6 @@ export type {
   BundleSessionStoreClient,
   BundleToolExecutionEvent,
 } from "./types.js";
-export { evaluateAgentConfigPath } from "./config-path.js";
-export { hydrateBundleSchema, serializeBundleSchema } from "./schema-serialize.js";
 export {
   BundleMetadataExtractionError,
   type CapabilityConfigEntry,
