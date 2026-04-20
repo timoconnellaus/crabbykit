@@ -60,7 +60,9 @@ function collectPackages(): Pkg[] {
   return out;
 }
 
-function tryReadPackageJson(dir: string): { name: string; scripts?: Record<string, string> } | null {
+function tryReadPackageJson(
+  dir: string,
+): { name: string; scripts?: Record<string, string> } | null {
   const pkgPath = join(dir, "package.json");
   try {
     const raw = readFileSync(pkgPath, "utf8");
