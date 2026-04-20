@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 // the class inline rather than closing over a top-level binding (otherwise the
 // reference hits the temporal dead zone during hoist execution).
 // biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export name
-vi.mock("cloudflare:workers", () => ({ DurableObject: class MockDurableObject {} }));
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class MockDurableObject {},
+  WorkerEntrypoint: class MockWorkerEntrypoint {},
+}));
 
 const { taskTracker, createTaskStore } = await import("../capability.js");
 

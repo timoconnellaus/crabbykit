@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 // Mock cloudflare:workers to avoid resolution failure
-// biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export name
-vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
+// biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export names
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class {},
+  WorkerEntrypoint: class {},
+}));
 
 import type { CapabilityStorage, SqlStore } from "@crabbykit/agent-runtime";
 import { a2aServer } from "../server/capability.js";

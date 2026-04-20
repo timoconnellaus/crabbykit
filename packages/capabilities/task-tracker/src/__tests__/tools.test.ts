@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 // Mock cloudflare:workers to avoid resolution failure when importing agent-runtime barrel
 class MockDurableObject {}
-// biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export name
-vi.mock("cloudflare:workers", () => ({ DurableObject: MockDurableObject }));
+class MockWorkerEntrypoint {}
+// biome-ignore lint/style/useNamingConvention: Must match cloudflare:workers export names
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: MockDurableObject,
+  WorkerEntrypoint: MockWorkerEntrypoint,
+}));
 
 import { TaskStore } from "../task-store.js";
 

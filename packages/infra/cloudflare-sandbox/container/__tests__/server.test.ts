@@ -540,6 +540,7 @@ describe("session lifecycle", () => {
 // ──────────────────────────────────────────
 
 describe("session poll backoff", () => {
+  beforeEach(skipIfNoPty);
   it("increases retryAfterMs on consecutive empty polls", async () => {
     const { data: startData } = await post("/session-start", {
       command: "sleep 10",

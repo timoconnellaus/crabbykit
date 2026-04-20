@@ -363,7 +363,11 @@ describe("bundle dispatch: client event routing", () => {
     resetTestBundleHolders();
     clearMockResponses();
     registry = freshRegistry();
-    registry.seed("v-ref", REFERENCE_BUNDLE_SOURCE);
+    // lifecycleHooks.onClientEvent gate must be opted in — host
+    // skips Worker Loader instantiation otherwise.
+    registry.seed("v-ref", REFERENCE_BUNDLE_SOURCE, {
+      lifecycleHooks: { onClientEvent: true },
+    });
     clientEventSink = [];
     setTestBundleRegistry(registry);
     setTestBundleLoader(makeFakeWorkerLoader());
@@ -397,9 +401,13 @@ describe("bundle dispatch: client event routing", () => {
       clientEventSink.length,
       `bundle did not receive client event within 2s. Sink: ${JSON.stringify(clientEventSink)}`,
     ).toBeGreaterThan(0);
-    const received = clientEventSink[0] as { type: string; text?: string };
-    expect(received.type).toBe("steer");
-    expect(received.text).toBe("mid-turn-correction");
+    // Host posts `{ sessionId, event }` to the bundle's /client-event.
+    const received = clientEventSink[0] as {
+      sessionId: string;
+      event: { type: string; text?: string };
+    };
+    expect(received.event.type).toBe("steer");
+    expect(received.event.text).toBe("mid-turn-correction");
 
     socket.close();
   });
@@ -417,7 +425,7 @@ describe("bundle dispatch: client event routing", () => {
     }
 
     expect(clientEventSink.length).toBeGreaterThan(0);
-    expect((clientEventSink[0] as { type: string }).type).toBe("abort");
+    expect((clientEventSink[0] as { event: { type: string } }).event.type).toBe("abort");
 
     socket.close();
   });
