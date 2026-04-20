@@ -90,14 +90,17 @@ export class SlidingWindowRateLimiter implements RateLimiter {
   }
 
   private readBucket(key: string, kind: WindowKind): BucketRow | null {
-    const row = this.sql
+    // `.one()` throws on empty result — use `toArray()[0]` so a missing
+    // bucket returns null cleanly. The `(bucket_key, window_kind)` pair
+    // is the primary key, so at most one row can ever match.
+    const rows = this.sql
       .exec<BucketRow>(
         "SELECT window_start, count FROM rate_limit_buckets WHERE bucket_key = ? AND window_kind = ?",
         key,
         kind,
       )
-      .one();
-    return row ?? null;
+      .toArray();
+    return rows[0] ?? null;
   }
 
   private writeBucket(

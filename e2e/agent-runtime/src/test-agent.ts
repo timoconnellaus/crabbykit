@@ -51,8 +51,15 @@ export function clearMockResponses() {
 // Tests MUST call clearTelegramTestState in afterEach to avoid leakage.
 //
 
-import type { Capability as ChannelCapability } from "@crabbykit/agent-runtime";
-import { defineTelegramChannel, type TelegramAccount } from "@crabbykit/channel-telegram";
+import type {
+  CapabilityHttpContext,
+  Capability as ChannelCapability,
+} from "@crabbykit/agent-runtime";
+import {
+  defineTelegramChannel,
+  type TelegramAccount,
+  TelegramAccountStore,
+} from "@crabbykit/channel-telegram";
 
 let telegramAccounts: TelegramAccount[] | null = null;
 // biome-ignore lint/suspicious/noExplicitAny: test hook — accepts any fake client shape
@@ -96,11 +103,33 @@ export function clearExtraStaticCaps(): void {
 
 function buildTelegramCapability(): ChannelCapability | null {
   if (!telegramAccounts || telegramAccounts.length === 0) return null;
-  return defineTelegramChannel({
-    accountsFromEnv: () => telegramAccounts!,
+  const base = defineTelegramChannel({
     // biome-ignore lint/suspicious/noExplicitAny: test factory cast to real type
     clientFactory: (telegramClientFactory ?? (() => ({}) as any)) as any,
   });
+  // Account management moved from `accountsFromEnv` into CapabilityStorage —
+  // the production path adds accounts via `config_set` or `capability_action`.
+  // Tests want pre-seeded accounts but don't want to simulate the full CRUD
+  // flow, so we wrap the channel's `httpHandlers` with a seeder that mirrors
+  // the module-level `telegramAccounts` into storage on first webhook hit.
+  const wrappedHttpHandlers = base.httpHandlers;
+  if (!wrappedHttpHandlers) return base;
+  return {
+    ...base,
+    httpHandlers: (ctx: AgentContext) => {
+      const handlers = wrappedHttpHandlers(ctx);
+      return handlers.map((h) => ({
+        ...h,
+        handler: async (req: Request, hctx: CapabilityHttpContext) => {
+          const store = new TelegramAccountStore(hctx.storage);
+          for (const acc of telegramAccounts ?? []) {
+            if (!(await store.get(acc.id))) await store.put(acc);
+          }
+          return h.handler(req, hctx);
+        },
+      }));
+    },
+  };
 }
 
 /**
@@ -224,6 +253,7 @@ class MockPiAgent {
     }
     this.emit({ type: "message_end", message: assistantMsg } as AgentEvent);
     this._state.streamMessage = null;
+    this._state.messages.push(assistantMsg);
 
     // Handle tool calls
     if (response.toolCalls) {
