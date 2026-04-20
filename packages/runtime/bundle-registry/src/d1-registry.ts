@@ -309,7 +309,7 @@ export class D1BundleRegistry implements BundleRegistry {
 				FROM bundle_deployments d
 				LEFT JOIN bundle_versions v ON d.version_id = v.version_id
 				WHERE d.agent_id = ?
-				ORDER BY d.deployed_at DESC
+				ORDER BY d.deployed_at DESC, d.id DESC
 				LIMIT ?`,
       )
       .bind(agentId, capped)

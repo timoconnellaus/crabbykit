@@ -10,5 +10,5 @@ bun run lint
 echo "[pre-commit] typecheck..."
 bun run typecheck
 
-echo "[pre-commit] test:coverage..."
-bun run test:coverage
+echo "[pre-commit] test:coverage (serial — avoids workerd port contention)..."
+bun run test:coverage:serial

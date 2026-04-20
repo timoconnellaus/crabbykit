@@ -12,6 +12,7 @@
     "build": "bun run --filter '@crabbykit/*' build",
     "test": "bun run --filter '*' test",
     "test:coverage": "bun run --filter '*' test:coverage",
+    "test:coverage:serial": "bun scripts/test-coverage-serial.ts",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check . && bun scripts/check-package-deps.ts",
     "lint:fix": "biome check --write . && bun scripts/check-package-deps.ts",
