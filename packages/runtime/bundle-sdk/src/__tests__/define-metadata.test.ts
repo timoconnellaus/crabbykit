@@ -137,6 +137,11 @@ describe("defineBundleAgent — surfaces metadata", () => {
       onAlarm: true,
       onSessionCreated: false,
       onClientEvent: false,
+      afterTurn: false,
+      onConnect: false,
+      dispose: false,
+      onTurnEnd: false,
+      onAgentEnd: false,
     });
   });
 

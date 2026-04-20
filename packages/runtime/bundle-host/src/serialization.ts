@@ -118,3 +118,128 @@ export function serializeActionForBundle(args: {
     sessionId: args.sessionId,
   };
 }
+
+// --- Bundle lifecycle hook payload projection (bundle-lifecycle-hooks) ---
+
+/**
+ * Structurally-clonable projection of an agent-core tool-execution
+ * result. Duplicated from `@crabbykit/bundle-sdk`'s `BundleToolResult`
+ * — kept local to keep `bundle-host` free of a value import edge to the
+ * SDK.
+ */
+export interface BundleToolResultProjection {
+  toolName: string;
+  args: unknown;
+  content: string;
+  isError: boolean;
+}
+
+const PROJECTION_FAILED_SENTINEL: BundleToolResultProjection = {
+  toolName: "unknown",
+  args: null,
+  content: "<projection failed>",
+  isError: true,
+};
+
+/**
+ * Reduce each raw `event.toolResults` entry emitted by agent-core to a
+ * structured-clone-safe {@link BundleToolResultProjection}. Entries
+ * containing functions, class instances, stream readers, or other
+ * non-clonable values are replaced with a sentinel and a structured
+ * `[BundleDispatch] kind: "lifecycle_on_turn_end" outcome:
+ * "tool_result_projection_failed"` log is emitted per entry (callers
+ * supply the logger; this helper stays pure-functional).
+ *
+ * The current agent-core tool-result shape carries `{ toolName, args,
+ * content, isError }` — `content` may be a string or a structured
+ * block list. We stringify via JSON for the structured case to keep
+ * the bundle-side type simple (`content: string`). Shapes that can't
+ * be JSON-stringified (circular refs, BigInt, etc.) fall through to
+ * the sentinel.
+ */
+export function projectToolResultsForBundle(
+  toolResults: unknown[],
+  onProjectionFailure?: (entryIndex: number, reason: string) => void,
+): BundleToolResultProjection[] {
+  if (!Array.isArray(toolResults)) return [];
+  const out: BundleToolResultProjection[] = [];
+  for (let i = 0; i < toolResults.length; i++) {
+    const raw = toolResults[i];
+    const projected = projectOne(raw);
+    if (projected === null) {
+      onProjectionFailure?.(i, "non-projectable entry");
+      out.push(PROJECTION_FAILED_SENTINEL);
+      continue;
+    }
+    out.push(projected);
+  }
+  return out;
+}
+
+function projectOne(raw: unknown): BundleToolResultProjection | null {
+  if (raw === null || typeof raw !== "object") return null;
+  if (typeof (raw as { then?: unknown }).then === "function") return null;
+  const record = raw as Record<string, unknown>;
+  const toolName = typeof record.toolName === "string" ? record.toolName : null;
+  if (toolName === null) return null;
+  const isError = typeof record.isError === "boolean" ? record.isError : false;
+  const content = normalizeContent(record.content);
+  if (content === null) return null;
+  // Non-clonable args (class instances, functions, stream readers) mean
+  // the whole entry is non-projectable — return null so the caller
+  // substitutes the sentinel. Undefined/null args are acceptable.
+  if (record.args !== undefined && record.args !== null && !isClonableValue(record.args)) {
+    return null;
+  }
+  const args = record.args ?? null;
+  return { toolName, args, content, isError };
+}
+
+function normalizeContent(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    // agent-core renders content blocks as `{ type: "text", text }` —
+    // concat the text parts; reject arrays containing function refs.
+    const parts: string[] = [];
+    for (const block of value) {
+      if (typeof block === "string") {
+        parts.push(block);
+        continue;
+      }
+      if (typeof block === "object" && block !== null) {
+        const r = block as Record<string, unknown>;
+        if (r.type === "text" && typeof r.text === "string") {
+          parts.push(r.text);
+          continue;
+        }
+      }
+      if (typeof block === "function") return null;
+    }
+    return parts.join("");
+  }
+  if (value === null || value === undefined) return "";
+  if (typeof value === "function") return null;
+  try {
+    return JSON.stringify(value) ?? "";
+  } catch {
+    return null;
+  }
+}
+
+function isClonableValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return true;
+  if (t === "function") return false;
+  if (Array.isArray(value)) return value.every(isClonableValue);
+  if (t === "object") {
+    // Reject known non-clonable shapes (streams, readers, class instances).
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== null && proto !== Object.prototype) return false;
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      if (!isClonableValue(v)) return false;
+    }
+    return true;
+  }
+  return false;
+}

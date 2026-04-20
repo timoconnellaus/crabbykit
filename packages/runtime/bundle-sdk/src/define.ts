@@ -6,10 +6,19 @@
  * DO invokes via Worker Loader.
  */
 
-import { buildBundleContext, runBundleTurn } from "./runtime.js";
+import {
+  buildAfterTurnContext,
+  buildAgentEndContext,
+  buildBundleContext,
+  buildDisposeContext,
+  buildOnConnectContext,
+  buildTurnEndContext,
+  runBundleTurn,
+} from "./runtime.js";
 import { serializeBundleSchema } from "./schema-serialize.js";
 import { createCostEmitter, createKvStoreClient, createSessionChannel } from "./spine-clients.js";
 import type {
+  AgentMessage,
   BundleActionContext,
   BundleAgentSetup,
   BundleAlarmContext,
@@ -30,6 +39,7 @@ import type {
   BundleSchedule,
   BundleSessionContext,
   BundleSpineClientLifecycle,
+  BundleToolResult,
 } from "./types.js";
 import {
   BundleMetadataExtractionError,
@@ -131,6 +141,12 @@ interface ExtractedBundleSurfaces {
     schema: object;
   }>;
   agentConfigSchemas: Record<string, object>;
+  /** True if any capability declared top-level `afterTurn`. */
+  hasAfterTurnCapability: boolean;
+  /** True if any capability declared `hooks.onConnect`. */
+  hasOnConnectCapability: boolean;
+  /** True if any capability declared top-level `dispose`. */
+  hasDisposeCapability: boolean;
 }
 
 /**
@@ -171,6 +187,9 @@ function extractBundleSurfaces<TEnv extends BundleEnv>(
       capabilityConfigs,
       configNamespaces,
       agentConfigSchemas,
+      hasAfterTurnCapability: false,
+      hasOnConnectCapability: false,
+      hasDisposeCapability: false,
     };
   }
 
@@ -188,8 +207,15 @@ function extractBundleSurfaces<TEnv extends BundleEnv>(
   }
 
   const bundleCapIds: string[] = [];
+  let hasAfterTurnCapability = false;
+  let hasOnConnectCapability = false;
+  let hasDisposeCapability = false;
   for (const cap of capabilities ?? []) {
     bundleCapIds.push(cap.id);
+
+    if (typeof cap.afterTurn === "function") hasAfterTurnCapability = true;
+    if (typeof cap.hooks?.onConnect === "function") hasOnConnectCapability = true;
+    if (typeof cap.dispose === "function") hasDisposeCapability = true;
 
     if (cap.httpHandlers) {
       let declared: ReturnType<typeof cap.httpHandlers>;
@@ -275,6 +301,9 @@ function extractBundleSurfaces<TEnv extends BundleEnv>(
     capabilityConfigs,
     configNamespaces,
     agentConfigSchemas,
+    hasAfterTurnCapability,
+    hasOnConnectCapability,
+    hasDisposeCapability,
   };
 }
 
@@ -307,10 +336,12 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
   // Phase 2: declare which lifecycle hooks the bundle implements so
   // the host can skip Worker Loader instantiation for hooks the
   // bundle doesn't have.
-  const hasLifecycleHook =
-    setup.onAlarm !== undefined ||
-    setup.onSessionCreated !== undefined ||
-    setup.onClientEvent !== undefined;
+  //
+  // bundle-lifecycle-hooks extends the flag set with five more entries:
+  // `afterTurn`, `onConnect`, `dispose` (aggregated across capabilities)
+  // and `onTurnEnd` / `onAgentEnd` (setup-level).
+  const hasOnTurnEnd = typeof setup.onTurnEnd === "function";
+  const hasOnAgentEnd = typeof setup.onAgentEnd === "function";
 
   // bundle-http-and-ui-surface: walk `setup.capabilities(probeEnv)`
   // once with a minimal probe env to extract every declared HTTP route
@@ -329,11 +360,24 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
     capabilityConfigs,
     configNamespaces: bundleConfigNamespaces,
     agentConfigSchemas,
+    hasAfterTurnCapability,
+    hasOnConnectCapability,
+    hasDisposeCapability,
   } = extractBundleSurfaces(setup);
   const hasSurfaces = httpRoutes.length > 0 || actionCapabilityIds.length > 0;
   const hasCapabilityConfigs = capabilityConfigs.length > 0;
   const hasAgentConfigSchemas = Object.keys(agentConfigSchemas).length > 0;
   const hasConfigNamespaces = bundleConfigNamespaces.length > 0;
+
+  const hasLifecycleHook =
+    setup.onAlarm !== undefined ||
+    setup.onSessionCreated !== undefined ||
+    setup.onClientEvent !== undefined ||
+    hasAfterTurnCapability ||
+    hasOnConnectCapability ||
+    hasDisposeCapability ||
+    hasOnTurnEnd ||
+    hasOnAgentEnd;
 
   // When NEITHER lifecycleHooks nor surfaces is populated, omit both
   // so legacy bundles round-trip byte-identical to today's metadata.
@@ -345,6 +389,11 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
         onAlarm: setup.onAlarm !== undefined,
         onSessionCreated: setup.onSessionCreated !== undefined,
         onClientEvent: setup.onClientEvent !== undefined,
+        afterTurn: hasAfterTurnCapability,
+        onConnect: hasOnConnectCapability,
+        dispose: hasDisposeCapability,
+        onTurnEnd: hasOnTurnEnd,
+        onAgentEnd: hasOnAgentEnd,
       },
     };
   }
@@ -399,6 +448,21 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
 
         case "/config-namespace-set":
           return handleConfigNamespaceSet(request, env, setup);
+
+        case "/after-turn":
+          return handleAfterTurn(request, env, setup);
+
+        case "/on-connect":
+          return handleOnConnect(request, env, setup);
+
+        case "/dispose":
+          return handleDispose(request, env, setup);
+
+        case "/on-turn-end":
+          return handleOnTurnEnd(request, env, setup);
+
+        case "/on-agent-end":
+          return handleOnAgentEnd(request, env, setup);
 
         case "/smoke":
           return handleSmoke(env, resolveModel);
@@ -1299,6 +1363,230 @@ async function handleConfigNamespaceSet<TEnv extends BundleEnv>(
       message: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+// --- Lifecycle hook endpoints (bundle-lifecycle-hooks) ---
+
+interface AfterTurnEnvelope {
+  agentId?: string;
+  sessionId?: string;
+  finalText?: string;
+}
+
+interface OnConnectEnvelope {
+  agentId?: string;
+  sessionId?: string;
+}
+
+interface DisposeEnvelope {
+  agentId?: string;
+}
+
+interface OnTurnEndEnvelope {
+  agentId?: string;
+  sessionId?: string;
+  messages?: AgentMessage[];
+  toolResults?: BundleToolResult[];
+}
+
+interface OnAgentEndEnvelope {
+  agentId?: string;
+  messages?: AgentMessage[];
+}
+
+async function handleAfterTurn<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const guard = checkLifecycleEnv(env);
+  if (guard instanceof Response) return guard;
+  if (!setup.capabilities) return new Response(null, { status: 204 });
+
+  let body: AfterTurnEnvelope;
+  try {
+    body = (await request.json()) as AfterTurnEnvelope;
+  } catch {
+    return Response.json({ status: "error", message: "Invalid request body" }, { status: 400 });
+  }
+  const agentId = body.agentId;
+  const sessionId = body.sessionId;
+  const finalText = typeof body.finalText === "string" ? body.finalText : "";
+  if (typeof agentId !== "string" || typeof sessionId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include agentId and sessionId" },
+      { status: 400 },
+    );
+  }
+
+  const capabilities = setup.capabilities(env) ?? [];
+  for (const cap of capabilities) {
+    if (typeof cap.afterTurn !== "function") continue;
+    try {
+      const ctx = buildAfterTurnContext(cap.id, sessionId, agentId, env);
+      await cap.afterTurn(ctx, sessionId, finalText);
+    } catch (err) {
+      console.error(
+        `[BundleSDK] afterTurn failed for capability "${cap.id}":`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return new Response(null, { status: 204 });
+}
+
+async function handleOnConnect<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const guard = checkLifecycleEnv(env);
+  if (guard instanceof Response) return guard;
+  if (!setup.capabilities) return new Response(null, { status: 204 });
+
+  let body: OnConnectEnvelope;
+  try {
+    body = (await request.json()) as OnConnectEnvelope;
+  } catch {
+    return Response.json({ status: "error", message: "Invalid request body" }, { status: 400 });
+  }
+  const agentId = body.agentId;
+  const sessionId = body.sessionId;
+  if (typeof agentId !== "string" || typeof sessionId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include agentId and sessionId" },
+      { status: 400 },
+    );
+  }
+
+  const capabilities = setup.capabilities(env) ?? [];
+  for (const cap of capabilities) {
+    const hook = cap.hooks?.onConnect;
+    if (typeof hook !== "function") continue;
+    try {
+      const ctx = buildOnConnectContext(cap.id, sessionId, agentId, env);
+      await hook(ctx);
+    } catch (err) {
+      console.error(
+        `[BundleSDK] onConnect failed for capability "${cap.id}":`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return new Response(null, { status: 204 });
+}
+
+async function handleDispose<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const guard = checkLifecycleEnv(env);
+  if (guard instanceof Response) return guard;
+  if (!setup.capabilities) return new Response(null, { status: 204 });
+
+  let body: DisposeEnvelope;
+  try {
+    body = (await request.json()) as DisposeEnvelope;
+  } catch {
+    return Response.json({ status: "error", message: "Invalid request body" }, { status: 400 });
+  }
+  const agentId = body.agentId;
+  if (typeof agentId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include agentId" },
+      { status: 400 },
+    );
+  }
+
+  const capabilities = setup.capabilities(env) ?? [];
+  for (const cap of capabilities) {
+    if (typeof cap.dispose !== "function") continue;
+    try {
+      // Context is built per-cap but not passed to dispose() — static
+      // contract has no args either. Build nonetheless so invariants
+      // (token/spine presence) are checked up front.
+      buildDisposeContext(cap.id, agentId, env);
+      await cap.dispose();
+    } catch (err) {
+      console.error(
+        `[BundleSDK] dispose failed for capability "${cap.id}":`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return new Response(null, { status: 204 });
+}
+
+async function handleOnTurnEnd<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const guard = checkLifecycleEnv(env);
+  if (guard instanceof Response) return guard;
+
+  let body: OnTurnEndEnvelope;
+  try {
+    body = (await request.json()) as OnTurnEndEnvelope;
+  } catch {
+    return Response.json({ status: "error", message: "Invalid request body" }, { status: 400 });
+  }
+  const agentId = body.agentId;
+  const sessionId = body.sessionId;
+  if (typeof agentId !== "string" || typeof sessionId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include agentId and sessionId" },
+      { status: 400 },
+    );
+  }
+  if (typeof setup.onTurnEnd !== "function") return new Response(null, { status: 204 });
+
+  // Build context to validate token/spine presence; setup.onTurnEnd's
+  // signature takes (messages, toolResults) directly (no ctx arg —
+  // matches static AgentDelegate.onTurnEnd).
+  buildTurnEndContext(sessionId, agentId, env);
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const toolResults = Array.isArray(body.toolResults) ? body.toolResults : [];
+  try {
+    await setup.onTurnEnd(messages, toolResults);
+  } catch (err) {
+    console.error("[BundleSDK] onTurnEnd failed:", err instanceof Error ? err.message : err);
+  }
+  return new Response(null, { status: 204 });
+}
+
+async function handleOnAgentEnd<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const guard = checkLifecycleEnv(env);
+  if (guard instanceof Response) return guard;
+
+  let body: OnAgentEndEnvelope;
+  try {
+    body = (await request.json()) as OnAgentEndEnvelope;
+  } catch {
+    return Response.json({ status: "error", message: "Invalid request body" }, { status: 400 });
+  }
+  const agentId = body.agentId;
+  if (typeof agentId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include agentId" },
+      { status: 400 },
+    );
+  }
+  if (typeof setup.onAgentEnd !== "function") return new Response(null, { status: 204 });
+
+  buildAgentEndContext(agentId, env);
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  try {
+    await setup.onAgentEnd(messages);
+  } catch (err) {
+    console.error("[BundleSDK] onAgentEnd failed:", err instanceof Error ? err.message : err);
+  }
+  return new Response(null, { status: 204 });
 }
 
 async function handleSmoke<TEnv extends BundleEnv>(

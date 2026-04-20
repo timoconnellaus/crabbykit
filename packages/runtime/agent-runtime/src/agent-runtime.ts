@@ -472,6 +472,32 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   bundleSessionCreatedHandler?: (session: { id: string; name: string }) => Promise<void>;
 
   /**
+   * bundle-lifecycle-hooks callbacks. Each is optional and populated
+   * by `agent-do.ts` when bundle dispatch is initialized. The
+   * `agent-runtime` package does NOT import from `bundle-host` — these
+   * fields mirror the existing `bundleClientEventHandler` /
+   * `bundleAlarmHandler` / `bundleSessionCreatedHandler` shape so the
+   * CF shell's closure wiring is the sole caller.
+   *
+   * Failures in any handler MUST NOT count toward
+   * `BundleDispatcher.consecutiveFailures` — lifecycle hooks are
+   * observation-only (Decision 11 of bundle-lifecycle-hooks).
+   */
+  bundleAfterTurnHandler?: (
+    sessionId: string,
+    finalText: string,
+    capabilitiesSnapshot: Capability[],
+  ) => Promise<void>;
+  bundleOnConnectHandler?: (sessionId: string) => Promise<void>;
+  bundleDisposeHandler?: () => Promise<void>;
+  bundleOnTurnEndHandler?: (
+    sessionId: string,
+    messages: AgentMessage[],
+    toolResults: unknown[],
+  ) => Promise<void>;
+  bundleOnAgentEndHandler?: (messages: AgentMessage[]) => Promise<void>;
+
+  /**
    * Optional bundle HTTP dispatcher (`bundle-http-and-ui-surface`).
    * Installed by `initBundleDispatch` when the active bundle's metadata
    * declares `surfaces.httpRoutes`. `handleRequest` invokes it AFTER
@@ -2808,6 +2834,25 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       });
     }
     this.capabilityDisposers = [];
+
+    // bundle-lifecycle-hooks: queue bundle `/dispose` dispatch via
+    // `waitUntil` + `pendingAsyncOps`. Static disposes above are
+    // kicked off non-awaited; the bundle dispatch runs concurrently
+    // with in-flight static disposes. Decision 5 — the DO does not
+    // become eligible for hibernation until the bundle dispatch
+    // resolves. Decision 11 — handler failures caught locally, do
+    // NOT increment `BundleDispatcher.consecutiveFailures`.
+    if (this.bundleDisposeHandler) {
+      const handler = this.bundleDisposeHandler;
+      const disposePromise = handler().catch((err) => {
+        this.logger.error("[AgentRuntime] bundle dispose dispatch error", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
+      this.pendingAsyncOps.add(disposePromise);
+      disposePromise.finally(() => this.pendingAsyncOps.delete(disposePromise));
+      this.runtimeContext.waitUntil(disposePromise);
+    }
   }
 
   /** Fire onConnect hooks for all registered capabilities. */
@@ -2907,6 +2952,26 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         message: String(err),
       });
     }
+
+    // bundle-lifecycle-hooks: queue bundle `/on-connect` dispatch after
+    // the static per-cap walk completes. Each of `fireOnConnectHooks`'s
+    // four call sites invokes the function non-awaited (with `.catch`),
+    // so the bundle dispatch inherits fire-and-forget shape. The
+    // `pendingAsyncOps` + `waitUntil` registration keeps the DO alive
+    // until the bundle responds. Decision 11: handler failures caught
+    // locally, do NOT count toward `consecutiveFailures`.
+    if (this.bundleOnConnectHandler) {
+      const handler = this.bundleOnConnectHandler;
+      const connectPromise = handler(sessionId).catch((err) => {
+        this.logger.error("[AgentRuntime] bundle onConnect dispatch error", {
+          sessionId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
+      this.pendingAsyncOps.add(connectPromise);
+      connectPromise.finally(() => this.pendingAsyncOps.delete(connectPromise));
+      this.runtimeContext.waitUntil(connectPromise);
+    }
   }
 
   private convertToLlm(messages: AgentMessage[]): Message[] {
@@ -2995,6 +3060,26 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         this.logger.error("[AgentRuntime] onTurnEnd hook error", { message: error.message });
         this.onError?.(error, { source: "hook", sessionId });
       }
+
+      // bundle-lifecycle-hooks: queue bundle `/on-turn-end` dispatch
+      // AFTER kicking off the static delegate. Static + bundle run
+      // concurrently. `toolResults` is raw at this layer —
+      // `agent-do.ts`'s callback projects via
+      // `projectToolResultsForBundle` before forwarding.
+      if (this.bundleOnTurnEndHandler) {
+        const handler = this.bundleOnTurnEndHandler;
+        const turnEndPromise = handler(sessionId, [event.message], event.toolResults).catch(
+          (err) => {
+            this.logger.error("[AgentRuntime] bundle onTurnEnd dispatch error", {
+              sessionId,
+              message: err instanceof Error ? err.message : String(err),
+            });
+          },
+        );
+        this.pendingAsyncOps.add(turnEndPromise);
+        turnEndPromise.finally(() => this.pendingAsyncOps.delete(turnEndPromise));
+        this.runtimeContext.waitUntil(turnEndPromise);
+      }
     }
     if (event.type === "agent_end") {
       try {
@@ -3010,6 +3095,21 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
         const error = err instanceof Error ? err : new Error(String(err));
         this.logger.error("[AgentRuntime] onAgentEnd hook error", { message: error.message });
         this.onError?.(error, { source: "hook", sessionId });
+      }
+
+      // bundle-lifecycle-hooks: queue bundle `/on-agent-end` dispatch.
+      // Session-less envelope — agent_end is DO-wide. Static +
+      // bundle run concurrently.
+      if (this.bundleOnAgentEndHandler) {
+        const handler = this.bundleOnAgentEndHandler;
+        const agentEndPromise = handler(event.messages).catch((err) => {
+          this.logger.error("[AgentRuntime] bundle onAgentEnd dispatch error", {
+            message: err instanceof Error ? err.message : String(err),
+          });
+        });
+        this.pendingAsyncOps.add(agentEndPromise);
+        agentEndPromise.finally(() => this.pendingAsyncOps.delete(agentEndPromise));
+        this.runtimeContext.waitUntil(agentEndPromise);
       }
 
       // ----- afterTurn dispatch site ---------------------------------------
@@ -3069,9 +3169,12 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     // capabilities that ran the turn.
     const capabilities = this.capabilitiesCache ?? this.getCachedCapabilities();
 
-    // Fast path: skip all work when no capability defines afterTurn.
     const hooks = capabilities.filter((c) => typeof c.afterTurn === "function");
-    if (hooks.length === 0) return;
+    // Fast path: when neither static nor bundle has an afterTurn handler,
+    // skip all work. Checking `bundleAfterTurnHandler` AND the cheap
+    // build-time flag means zero overhead for bundles that didn't
+    // declare afterTurn.
+    if (hooks.length === 0 && !this.bundleAfterTurnHandler) return;
 
     const finalText = extractFinalAssistantText(messages);
 
@@ -3112,6 +3215,24 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           message: error.message,
         });
         this.onError?.(error, { source: "hook", sessionId });
+      }
+    }
+
+    // bundle-lifecycle-hooks: dispatch into the bundle AFTER the static
+    // walk completes. Both static and bundle execution are covered by
+    // the caller's existing `dispatchPromise` (registered with
+    // `runtimeContext.waitUntil(...)`) — no new waitUntil needed.
+    // Decision 11: handler failures caught locally and do NOT
+    // increment `BundleDispatcher.consecutiveFailures` (observation-only).
+    if (this.bundleAfterTurnHandler) {
+      try {
+        await this.bundleAfterTurnHandler(sessionId, finalText, capabilities);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error("[AgentRuntime] bundle afterTurn dispatch error", {
+          sessionId,
+          message: error.message,
+        });
       }
     }
   }
@@ -3924,17 +4045,22 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     caller: SpineCaller,
     entry: { type: SessionEntryType; data: Record<string, unknown> },
   ): Promise<unknown> {
-    return this.withSpineBudget(caller, "sql", () =>
-      this.sessionStore.appendEntry(caller.sid, entry),
-    );
+    // SpineService's `requireSession` guard gates session-scoped DO
+    // methods before dispatch, so `caller.sid` is non-null here in
+    // practice. `?? ""` preserves TS narrowing without changing
+    // runtime behavior.
+    const sid = caller.sid ?? "";
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.appendEntry(sid, entry));
   }
 
   spineGetEntries(caller: SpineCaller, _options?: unknown): Promise<unknown[]> {
-    return this.withSpineBudget(caller, "sql", () => this.sessionStore.getEntries(caller.sid));
+    const sid = caller.sid ?? "";
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.getEntries(sid));
   }
 
   spineGetSession(caller: SpineCaller): Promise<unknown> {
-    return this.withSpineBudget(caller, "sql", () => this.sessionStore.get(caller.sid));
+    const sid = caller.sid ?? "";
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.get(sid));
   }
 
   spineCreateSession(
@@ -3949,19 +4075,21 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   }
 
   spineBuildContext(caller: SpineCaller): Promise<unknown> {
-    return this.withSpineBudget(caller, "sql", () => this.sessionStore.buildContext(caller.sid));
+    const sid = caller.sid ?? "";
+    return this.withSpineBudget(caller, "sql", () => this.sessionStore.buildContext(sid));
   }
 
   spineBroadcast(caller: SpineCaller, event: unknown): Promise<void> {
     return this.withSpineBudget(caller, "broadcast", () => {
+      const sid = caller.sid ?? "";
       // Stamp sessionId from the verified token payload — bundles cannot
       // target another session's transport even if they tried to forge one
       // into the event body.
       const msg = {
         ...(event as Record<string, unknown>),
-        sessionId: caller.sid,
+        sessionId: sid,
       } as unknown as ServerMessage;
-      this.broadcastToSession(caller.sid, msg);
+      this.broadcastToSession(sid, msg);
     });
   }
 
@@ -3974,8 +4102,9 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
   spineEmitCost(caller: SpineCaller, costEvent: unknown): Promise<void> {
     // Cost emission appends a session entry via handleCostEvent — counts
     // against the `sql` bucket to match pre-change SpineService accounting.
+    const sid = caller.sid ?? "";
     return this.withSpineBudget(caller, "sql", () => {
-      this.handleCostEvent(costEvent as CostEvent, caller.sid);
+      this.handleCostEvent(costEvent as CostEvent, sid);
     });
   }
 
@@ -4044,12 +4173,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     // the TS depth limiter when Workers' DurableObjectStub<SpineHost>
     // materializes method signatures; we narrow here at the DO boundary.
     const toolEvent = event as ToolExecutionEvent;
+    const sid = caller.sid ?? "";
     return this.withSpineBudget(caller, "hook_after_tool", async () => {
-      await this.ensureCapabilityHooksResolved(caller.sid);
+      await this.ensureCapabilityHooksResolved(sid);
       const hookContext: CapabilityHookContext = {
         agentId: this.runtimeContext.agentId,
         publicUrl: this.publicUrl,
-        sessionId: caller.sid,
+        sessionId: sid,
         sessionStore: this.sessionStore,
         storage: createNoopStorage(),
         capabilityIds: this.getCapabilityIds(),
@@ -4064,7 +4194,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           });
           this.onError?.(error, {
             source: "hook",
-            sessionId: caller.sid,
+            sessionId: sid,
             toolName: toolEvent.toolName,
           });
         }
@@ -4079,12 +4209,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * shape, same error-swallowing semantics.
    */
   spineProcessBeforeInference(caller: SpineCaller, messages: unknown[]): Promise<unknown[]> {
+    const sid = caller.sid ?? "";
     return this.withSpineBudget(caller, "hook_before_inference", async () => {
-      await this.ensureCapabilityHooksResolved(caller.sid);
+      await this.ensureCapabilityHooksResolved(sid);
       const hookContext: CapabilityHookContext = {
         agentId: this.runtimeContext.agentId,
         publicUrl: this.publicUrl,
-        sessionId: caller.sid,
+        sessionId: sid,
         sessionStore: this.sessionStore,
         storage: createNoopStorage(),
         broadcastState: () => {},
@@ -4099,7 +4230,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           this.logger.error("[AgentRuntime] beforeInference hook error (bridge)", {
             message: error.message,
           });
-          this.onError?.(error, { source: "hook", sessionId: caller.sid });
+          this.onError?.(error, { source: "hook", sessionId: sid });
         }
       }
       return result;
@@ -4124,12 +4255,13 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   spineProcessBeforeToolExecution(caller: SpineCaller, event: unknown): Promise<unknown> {
     const btcEvent = event as BeforeToolExecutionEvent;
+    const sid = caller.sid ?? "";
     return this.withSpineBudget(caller, "hook_before_tool", async () => {
-      await this.ensureCapabilityHooksResolved(caller.sid);
+      await this.ensureCapabilityHooksResolved(sid);
       const hookContext: CapabilityHookContext = {
         agentId: this.runtimeContext.agentId,
         publicUrl: this.publicUrl,
-        sessionId: caller.sid,
+        sessionId: sid,
         sessionStore: this.sessionStore,
         storage: createNoopStorage(),
         capabilityIds: this.getCapabilityIds(),
@@ -4151,7 +4283,7 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           });
           this.onError?.(error, {
             source: "hook",
-            sessionId: caller.sid,
+            sessionId: sid,
             toolName: btcEvent.toolName,
           });
         }
@@ -4283,8 +4415,9 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    * `CompactionEntryData` shape (summary, firstKeptEntryId, tokensBefore).
    */
   spineGetCompactionCheckpoint(caller: SpineCaller): Promise<unknown> {
+    const sid = caller.sid ?? "";
     return this.withSpineBudget(caller, "sql", () => {
-      const entries = this.sessionStore.getEntries(caller.sid);
+      const entries = this.sessionStore.getEntries(sid);
       for (let i = entries.length - 1; i >= 0; i--) {
         const entry = entries[i];
         if (entry.type === "compaction") {

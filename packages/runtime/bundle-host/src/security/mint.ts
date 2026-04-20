@@ -66,7 +66,20 @@ export async function deriveMintSubkey(masterKey: string, label: string): Promis
 
 export interface MintOptions {
   agentId: string;
-  sessionId: string;
+  /**
+   * Session identifier bound to the token. `null` encodes a session-less
+   * dispatch path (e.g. the `/dispose` lifecycle endpoint, which fires
+   * per-DO rather than per-session). Session-scoped spine methods throw
+   * `ERR_SESSION_REQUIRED` when `caller.sid === null`.
+   *
+   * Accepts either `sid` (preferred) or the legacy `sessionId` (kept for
+   * one release cycle so bundle-SDK / bundle-host upgrades can roll out
+   * independently). Exactly one SHOULD be supplied; `sid` wins when
+   * both are.
+   */
+  sid?: string | null;
+  /** @deprecated Use `sid` — retained for one release cycle. */
+  sessionId?: string;
   /**
    * Scopes this token authorizes. Reserved core scopes `"spine"` and `"llm"`
    * are unconditionally prepended by the dispatcher; additional entries come
@@ -85,9 +98,16 @@ export interface MintOptions {
  * Format: `base64url(payload).base64url(hmac_sha256(subkey, base64url(payload)))`
  */
 export async function mintToken(opts: MintOptions, subkey: CryptoKey): Promise<string> {
+  const resolvedSid: string | null = opts.sid !== undefined ? opts.sid : (opts.sessionId ?? null);
   const payload: TokenPayload = {
     aid: opts.agentId,
-    sid: opts.sessionId,
+    sid: resolvedSid,
+    // Mirror to the legacy `sessionId` field for one release cycle so
+    // bundle-SDKs reading the older shape continue to see a value
+    // (only when the session is non-null — session-less dispatch
+    // intentionally omits the legacy alias so older verifiers surface
+    // the absence as a structural error).
+    ...(typeof resolvedSid === "string" ? { sessionId: resolvedSid } : {}),
     exp: Date.now() + (opts.ttlMs ?? DEFAULT_TTL_MS),
     nonce: crypto.randomUUID(),
     scope: opts.scope,

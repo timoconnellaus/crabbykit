@@ -2,9 +2,30 @@
  * Shared Worker Loader config builder for every host → bundle dispatch
  * path. Centralizing the envelope decode + env composition here is the
  * single-helper enforcement of the "kept in sync convention" the
- * `bundle-runtime-surface` design called out: drift between
- * `bundlePromptHandler`, `dispatchLifecycle`, `dispatchHttp`, and
- * `dispatchAction` is now a structural impossibility.
+ * `bundle-runtime-surface` design called out: drift between dispatch
+ * paths is now a structural impossibility.
+ *
+ * Every dispatch path currently routed through this helper:
+ *   - POST /turn                     (bundlePromptHandler)
+ *   - POST /alarm                    (dispatchLifecycle, bundle-runtime-surface)
+ *   - POST /session-created          (dispatchLifecycle)
+ *   - POST /client-event             (BundleDispatcher.dispatchClientEvent + dispatchLifecycle)
+ *   - POST /http                     (dispatchHttp, bundle-http-and-ui-surface)
+ *   - POST /action                   (dispatchAction)
+ *   - POST /after-turn               (bundle-lifecycle-hooks)
+ *   - POST /on-connect               (bundle-lifecycle-hooks)
+ *   - POST /dispose                  (bundle-lifecycle-hooks, session-less)
+ *   - POST /on-turn-end              (bundle-lifecycle-hooks)
+ *   - POST /on-agent-end             (bundle-lifecycle-hooks, session-less)
+ *   - POST /config-change            (bundle-config-namespaces)
+ *   - POST /agent-config-change      (bundle-config-namespaces)
+ *   - POST /config-namespace-get     (bundle-config-namespaces)
+ *   - POST /config-namespace-set     (bundle-config-namespaces)
+ *
+ * Adding a new dispatch path means calling this helper from the new
+ * site — anything else fails to land the required env projection
+ * (`__BUNDLE_TOKEN`, `__BUNDLE_VERSION_ID`, optional
+ * `__BUNDLE_PUBLIC_URL` / `__BUNDLE_ACTIVE_MODE`).
  */
 
 import { type BundlePayload, decodeBundlePayload } from "./dispatcher.js";

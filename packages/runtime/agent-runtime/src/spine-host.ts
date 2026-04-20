@@ -49,9 +49,14 @@ export interface SpineCaller {
   /**
    * Verified session id (from token payload `sid`). May be empty for
    * agent-scoped methods such as `spineCreateSession` / `spineListSessions`
-   * that do not bind to a specific session.
+   * that do not bind to a specific session. `null` encodes a session-less
+   * dispatch path (e.g. `/dispose`); session-scoped spine methods in
+   * SpineService call `requireSession(caller)` and throw
+   * `ERR_SESSION_REQUIRED` before the DO method is invoked, so DO-side
+   * handlers never observe `null` for session-scoped methods — they may
+   * still observe empty string for the agent-scoped methods above.
    */
-  readonly sid: string;
+  readonly sid: string | null;
   /**
    * Verified nonce (from token payload `nonce`). Used as the per-turn
    * budget accumulator key — every spine call made with the same nonce

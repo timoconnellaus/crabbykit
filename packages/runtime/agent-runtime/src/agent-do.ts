@@ -1628,6 +1628,86 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       }
     };
 
+    // bundle-lifecycle-hooks: shared dispatcher for the five new
+    // lifecycle hook endpoints (`/after-turn`, `/on-connect`,
+    // `/dispose`, `/on-turn-end`, `/on-agent-end`). Accepts
+    // `sessionId: string | null` — dispatch paths that are session-less
+    // (`/dispose`, `/on-agent-end`) mint with `sid: null`, which
+    // `SpineService`'s `requireSession(caller)` catches if the bundle
+    // tries to call a session-scoped spine method. Race against
+    // `BundleConfig.lifecycleHookTimeoutMs` (default 5 000 ms);
+    // timeout / error / missing-flag emit structured `[BundleDispatch]`
+    // logs under `kind: "lifecycle_*"`. Decision 11 — failures do NOT
+    // count toward `consecutiveFailures` (observation-only).
+    const LIFECYCLE_HOOK_DEFAULT_TIMEOUT_MS = 5_000;
+    const MAX_ERROR_MESSAGE_LEN = 500;
+
+    const dispatchLifecycleHook = async (args: {
+      kind:
+        | "lifecycle_after_turn"
+        | "lifecycle_on_connect"
+        | "lifecycle_dispose"
+        | "lifecycle_on_turn_end"
+        | "lifecycle_on_agent_end";
+      path: "/after-turn" | "/on-connect" | "/dispose" | "/on-turn-end" | "/on-agent-end";
+      sessionId: string | null;
+      body: Record<string, unknown>;
+    }): Promise<void> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return;
+
+      const timeoutMs = bundleConfig.lifecycleHookTimeoutMs ?? LIFECYCLE_HOOK_DEFAULT_TIMEOUT_MS;
+      const logBase: Record<string, unknown> = {
+        kind: args.kind,
+        agentId,
+        bundleVersionId: versionId,
+      };
+      if (args.sessionId !== null) logBase.sessionId = args.sessionId;
+
+      let outcome: "ok" | "timeout" | "error" = "error";
+      let errorMessage: string | undefined;
+      try {
+        const bundleSubkey = await getBundleSubkey();
+        const { mintToken: mint } = await import("@crabbykit/bundle-host");
+        const scope = await computeTokenScope(versionId);
+        const bundleToken = await mint({ agentId, sid: args.sessionId, scope }, bundleSubkey);
+        const worker = loader.get(versionId, buildLoaderConfigGetter(versionId, bundleToken));
+
+        const fetchPromise = worker.getEntrypoint().fetch(
+          new Request(`https://bundle${args.path}`, {
+            method: "POST",
+            body: JSON.stringify(args.body),
+          }),
+        );
+        const race = await Promise.race<Response | null>([
+          fetchPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+        ]);
+        if (race === null) {
+          outcome = "timeout";
+        } else if (!race.ok) {
+          outcome = "error";
+          errorMessage = `status ${race.status}`;
+        } else {
+          outcome = "ok";
+        }
+      } catch (err) {
+        outcome = "error";
+        errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage.length > MAX_ERROR_MESSAGE_LEN) {
+          errorMessage = errorMessage.slice(0, MAX_ERROR_MESSAGE_LEN);
+        }
+      }
+
+      const payload: Record<string, unknown> = { ...logBase, outcome };
+      if (errorMessage) payload.error = errorMessage;
+      if (outcome === "ok") {
+        this.runtime.logger.info("[BundleDispatch]", payload);
+      } else {
+        this.runtime.logger.warn("[BundleDispatch]", payload);
+      }
+    };
+
     // bundle-http-and-ui-surface: HTTP dispatch into the bundle.
     // Mirrors `dispatchLifecycle` but adds:
     //  - a body cap check (413 on exceed, default 256 KiB, configurable
@@ -1870,9 +1950,19 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
 
     // Read the bundle's lifecycleHooks declaration so we can skip
     // Worker Loader instantiation entirely for hooks the bundle did
-    // not register (Phase 2 metadata gate).
+    // not register (Phase 2 metadata gate). bundle-lifecycle-hooks
+    // extends the flag set with afterTurn/onConnect/dispose/onTurnEnd/
+    // onAgentEnd.
     const bundleHasLifecycleHook = async (
-      kind: "onAlarm" | "onSessionCreated" | "onClientEvent",
+      kind:
+        | "onAlarm"
+        | "onSessionCreated"
+        | "onClientEvent"
+        | "afterTurn"
+        | "onConnect"
+        | "dispose"
+        | "onTurnEnd"
+        | "onAgentEnd",
     ): Promise<boolean> => {
       const versionId = await checkActiveBundle();
       if (!versionId) return false;
@@ -1917,6 +2007,82 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     this.runtime.bundleSessionCreatedHandler = async (session): Promise<void> => {
       if (!(await bundleHasLifecycleHook("onSessionCreated"))) return;
       await dispatchLifecycle(session.id, "/session-created", { session });
+    };
+
+    // bundle-lifecycle-hooks: wire the five new handlers. Each gates
+    // on the metadata flag (zero overhead when absent), then delegates
+    // to `dispatchLifecycleHook` which handles mint, loader config,
+    // timeout race, and structured logging.
+    this.runtime.bundleAfterTurnHandler = async (
+      sessionId: string,
+      finalText: string,
+      _capabilities,
+    ): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("afterTurn"))) return;
+      await dispatchLifecycleHook({
+        kind: "lifecycle_after_turn",
+        path: "/after-turn",
+        sessionId,
+        body: { agentId, sessionId, finalText },
+      });
+    };
+
+    this.runtime.bundleOnConnectHandler = async (sessionId: string): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("onConnect"))) return;
+      await dispatchLifecycleHook({
+        kind: "lifecycle_on_connect",
+        path: "/on-connect",
+        sessionId,
+        body: { agentId, sessionId },
+      });
+    };
+
+    this.runtime.bundleDisposeHandler = async (): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("dispose"))) return;
+      await dispatchLifecycleHook({
+        kind: "lifecycle_dispose",
+        path: "/dispose",
+        sessionId: null,
+        body: { agentId },
+      });
+    };
+
+    this.runtime.bundleOnTurnEndHandler = async (
+      sessionId: string,
+      messages,
+      toolResults,
+    ): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("onTurnEnd"))) return;
+      const { projectToolResultsForBundle } = await import("@crabbykit/bundle-host");
+      const projected = projectToolResultsForBundle(
+        Array.isArray(toolResults) ? toolResults : [],
+        (entryIndex, reason) => {
+          this.runtime.logger.warn("[BundleDispatch]", {
+            kind: "lifecycle_on_turn_end",
+            agentId,
+            sessionId,
+            outcome: "tool_result_projection_failed",
+            entryIndex,
+            reason,
+          });
+        },
+      );
+      await dispatchLifecycleHook({
+        kind: "lifecycle_on_turn_end",
+        path: "/on-turn-end",
+        sessionId,
+        body: { agentId, sessionId, messages, toolResults: projected },
+      });
+    };
+
+    this.runtime.bundleOnAgentEndHandler = async (messages): Promise<void> => {
+      if (!(await bundleHasLifecycleHook("onAgentEnd"))) return;
+      await dispatchLifecycleHook({
+        kind: "lifecycle_on_agent_end",
+        path: "/on-agent-end",
+        sessionId: null,
+        body: { agentId, messages },
+      });
     };
 
     // Install the pre-fetch handler for bundle HTTP endpoints.

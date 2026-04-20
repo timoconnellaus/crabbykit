@@ -8,7 +8,13 @@
  */
 
 import { validateCatalogAgainstKnownIds } from "@crabbykit/bundle-registry";
-import type { BundleConfig, BundleDispatchState, BundleRegistry } from "./bundle-config.js";
+import type {
+  BundleConfig,
+  BundleDispatchState,
+  BundleRegistry,
+  BundleVersionMetadata,
+} from "./bundle-config.js";
+import { composeWorkerLoaderConfig } from "./loader-config.js";
 import { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "./security/mint.js";
 
 const DEFAULT_MAX_LOAD_FAILURES = 3;
@@ -348,23 +354,25 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
       );
       const scope = ["spine", "llm", ...catalogIds];
       const token = await mintToken(
-        { agentId: this.agentId, sessionId, scope },
+        { agentId: this.agentId, sid: sessionId, scope },
         this.bundleSubkey!,
       );
 
+      // Reuse the shared loader-config helper so this dispatch path
+      // stays in lockstep with `agent-do.ts`'s dispatchLifecycle /
+      // dispatchHttp / dispatchAction / lifecycle-hook dispatchers.
+      // Drift between hand-rolled configs is now a structural
+      // impossibility.
       const bundleEnv = this.config.bundleEnv(this.env);
       const worker = this.loader?.get(versionId, async () => {
         const bytes = await this.registry?.getBytes(versionId);
         if (!bytes) throw new Error("Bundle bytes not found");
-        const source = new TextDecoder().decode(bytes);
-        return {
-          compatibilityDate: "2025-12-01",
-          compatibilityFlags: ["nodejs_compat"],
-          mainModule: "bundle.js",
-          modules: { "bundle.js": source },
-          env: { ...bundleEnv, __BUNDLE_TOKEN: token },
-          globalOutbound: null,
-        };
+        return composeWorkerLoaderConfig({
+          bytes,
+          projectedEnv: bundleEnv,
+          bundleToken: token,
+          versionId,
+        });
       });
 
       await worker!.getEntrypoint().fetch(
@@ -378,6 +386,28 @@ export class BundleDispatcher<TEnv = Record<string, unknown>> {
       // under isolate restart)
       console.error("[BundleDispatcher] Client event delivery failed:", err);
     }
+  }
+
+  /**
+   * Snapshot of the active bundle's `lifecycleHooks` flags, or `null`
+   * when no bundle is active. Consumed by the five lifecycle callbacks
+   * wired in `agent-do.ts` (`bundleAfterTurnHandler`,
+   * `bundleOnConnectHandler`, `bundleDisposeHandler`,
+   * `bundleOnTurnEndHandler`, `bundleOnAgentEndHandler`) so they can
+   * short-circuit before Worker Loader instantiation when the bundle
+   * did not declare the hook at build time.
+   *
+   * Metadata is read lazily via `registry.getVersion?.(versionId)`;
+   * registries without `getVersion` surface as `null` flags (treat
+   * as all-false, skip all lifecycle dispatches).
+   */
+  async getActiveLifecycleFlags(): Promise<BundleVersionMetadata["lifecycleHooks"] | null> {
+    await this.ensureInitialized();
+    const versionId = this.state.activeVersionId;
+    if (!versionId) return null;
+    if (!this.registry?.getVersion) return null;
+    const version = await this.registry.getVersion(versionId);
+    return version?.metadata?.lifecycleHooks ?? null;
   }
 
   /**

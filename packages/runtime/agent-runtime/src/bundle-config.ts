@@ -42,6 +42,12 @@ export interface BundleVersionMetadata {
     onAlarm?: boolean;
     onSessionCreated?: boolean;
     onClientEvent?: boolean;
+    /** `bundle-lifecycle-hooks` flags — see bundle-sdk/types.ts. */
+    afterTurn?: boolean;
+    onConnect?: boolean;
+    dispose?: boolean;
+    onTurnEnd?: boolean;
+    onAgentEnd?: boolean;
   };
   /**
    * Build-time declaration of HTTP routes and `onAction`-bearing
@@ -315,6 +321,16 @@ export interface BundleConfig<TEnv = Record<string, unknown>> {
    * can raise the knob.
    */
   configHookTimeoutMs?: number;
+  /**
+   * Per-dispatch timeout for bundle lifecycle hooks
+   * (`bundle-lifecycle-hooks`) — `/after-turn`, `/on-connect`,
+   * `/dispose`, `/on-turn-end`, `/on-agent-end`. Default 5 000 ms —
+   * matches the `configHookTimeoutMs` precedent for non-turn UX-bound
+   * dispatches. Worker Loader fetch is NOT cancelled on timeout (Workers
+   * runtime constraint); the host abandons the dispatch result and
+   * logs `outcome: "timeout"`.
+   */
+  lifecycleHookTimeoutMs?: number;
   /**
    * Optional auto-rebuild support. When present, stale bundles (those built
    * against an older runtime source) are regenerated on DO startup from the

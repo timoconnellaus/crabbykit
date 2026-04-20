@@ -7,8 +7,11 @@
  * for non-serializable values.
  */
 
+import type { AgentMessage } from "@crabbykit/agent-core";
 import type { TObject } from "@sinclair/typebox";
 import type { PromptOptions, PromptSection } from "./prompt/types.js";
+
+export type { AgentMessage };
 
 // --- BundleEnv constraint ---
 
@@ -155,6 +158,37 @@ export interface BundleMetadata {
     onAlarm?: boolean;
     onSessionCreated?: boolean;
     onClientEvent?: boolean;
+    /**
+     * True if any capability returned by `setup.capabilities(probeEnv)`
+     * declared a top-level `afterTurn` handler. The host skips
+     * `/after-turn` dispatch entirely when this flag is `false` or
+     * absent — zero overhead for bundles that did not opt in at build
+     * time. Dispatch-time mode-filter does NOT re-check; a bundle
+     * whose only afterTurn-bearing capability is filtered out still
+     * incurs the dispatch cost (documented honest cost).
+     */
+    afterTurn?: boolean;
+    /**
+     * True if any capability declared `hooks.onConnect`. Host
+     * `bundleOnConnectHandler` callback short-circuits when this
+     * flag is false/absent.
+     */
+    onConnect?: boolean;
+    /**
+     * True if any capability declared a top-level `dispose`. Host
+     * `bundleDisposeHandler` callback short-circuits when false/absent.
+     */
+    dispose?: boolean;
+    /**
+     * True if `setup.onTurnEnd` is defined. Setup-level — no per-cap
+     * walk. Host `bundleOnTurnEndHandler` short-circuits when false.
+     */
+    onTurnEnd?: boolean;
+    /**
+     * True if `setup.onAgentEnd` is defined. Setup-level. Host
+     * `bundleOnAgentEndHandler` short-circuits when false.
+     */
+    onAgentEnd?: boolean;
   };
   /**
    * Build-time declaration of which HTTP routes and `onAction`-bearing
@@ -302,6 +336,94 @@ export interface BundleSpineClientLifecycle {
   broadcast(event: unknown): Promise<void>;
 }
 
+/**
+ * Projected tool-execution result handed to bundle `setup.onTurnEnd`.
+ * Host projects `event.toolResults` via `projectToolResultsForBundle`
+ * before crossing the isolate boundary — functions, class instances,
+ * stream readers, and other non-clonable values are replaced with a
+ * sentinel `{ toolName: "unknown", args: null, content: "<projection
+ * failed>", isError: true }` and a per-entry
+ * `[BundleDispatch] outcome: "tool_result_projection_failed"` log
+ * fires so drift is visible.
+ */
+export interface BundleToolResult {
+  toolName: string;
+  args: unknown;
+  content: string;
+  isError: boolean;
+}
+
+/**
+ * Context for a bundle capability's `afterTurn` handler. Fresh type
+ * (does NOT extend `BundleHookContext` / `BundleContext`) so the
+ * turn-loop `hookBridge` cannot leak into non-turn dispatches. Carries
+ * the slim {@link BundleSpineClientLifecycle} surface.
+ *
+ * v1 parity gaps relative to static `AgentContext`: no `schedules`,
+ * no `rateLimit`, no `requestFromClient`, no `broadcastToAll`, no
+ * `notifyBundlePointerChanged`. Bundle authors needing them have
+ * alternatives documented in the bundle authoring guide.
+ */
+export interface BundleAfterTurnContext {
+  agentId: string;
+  sessionId: string;
+  capabilityId: string;
+  kvStore: BundleKvStoreClient;
+  channel: BundleSessionChannel;
+  spine: BundleSpineClientLifecycle;
+  publicUrl?: string;
+  emitCost: (cost: BundleCostEvent) => Promise<void>;
+  /** Capability's mapped slice of the agent-level config snapshot. */
+  agentConfig?: unknown;
+}
+
+/**
+ * Context for a bundle capability's `hooks.onConnect` handler. Fires
+ * on initial connect, hibernation-restore, session-switch, new-session.
+ * Same v1 parity gaps as {@link BundleAfterTurnContext}.
+ */
+export interface BundleOnConnectContext {
+  agentId: string;
+  sessionId: string;
+  capabilityId: string;
+  kvStore: BundleKvStoreClient;
+  channel: BundleSessionChannel;
+  spine: BundleSpineClientLifecycle;
+  publicUrl?: string;
+  emitCost: (cost: BundleCostEvent) => Promise<void>;
+  agentConfig?: unknown;
+}
+
+/**
+ * Context for a bundle capability's `dispose` handler. Intentionally
+ * sparse — dispose is connectionless (per-DO, not per-session) so
+ * session-scoped surfaces are NOT exposed. `spine.appendEntry` / etc.
+ * throw `ERR_SESSION_REQUIRED` when called from dispose — use
+ * capability-scoped `kvStore` for cleanup persistence instead.
+ */
+export interface BundleDisposeContext {
+  agentId: string;
+  capabilityId: string;
+  kvStore: BundleKvStoreClient;
+  spine: BundleSpineClientLifecycle;
+  publicUrl?: string;
+}
+
+/** Context for `setup.onTurnEnd`. Setup-level — no capabilityId. */
+export interface BundleTurnEndContext {
+  agentId: string;
+  sessionId: string;
+  spine: BundleSpineClientLifecycle;
+  publicUrl?: string;
+}
+
+/** Context for `setup.onAgentEnd`. No sessionId — agent_end is DO-wide. */
+export interface BundleAgentEndContext {
+  agentId: string;
+  spine: BundleSpineClientLifecycle;
+  publicUrl?: string;
+}
+
 export type OnAlarmReturn =
   | void
   | Promise<void>
@@ -413,6 +535,23 @@ export interface BundleAgentSetup<TEnv extends BundleEnv = BundleEnv> {
   onClientEvent?: OnClientEventHandler<TEnv>;
 
   /**
+   * Matches static `AgentDelegate.onTurnEnd`. Fires once per turn
+   * completion. `toolResults` crosses the isolate boundary as
+   * {@link BundleToolResult}[] — the host projects the raw
+   * agent-core payload via `projectToolResultsForBundle` before
+   * dispatch. Non-projectable entries (functions, class instances,
+   * stream readers) are replaced with a sentinel and a per-entry
+   * `outcome: "tool_result_projection_failed"` log fires.
+   */
+  onTurnEnd?: (messages: AgentMessage[], toolResults: BundleToolResult[]) => void | Promise<void>;
+
+  /**
+   * Matches static `AgentDelegate.onAgentEnd`. Fires once at agent_end
+   * (DO-wide). No sessionId — agent_end is not session-scoped.
+   */
+  onAgentEnd?: (messages: AgentMessage[]) => void | Promise<void>;
+
+  /**
    * Optional metadata about this bundle.
    */
   metadata?: BundleMetadata;
@@ -508,6 +647,22 @@ export interface BundleCapability {
    * guards prevent declared-id collisions with host capabilities.
    */
   onAction?: (action: string, data: unknown, ctx: BundleActionContext) => Promise<void>;
+  /**
+   * Per-turn-completion hook matching static `Capability.afterTurn`.
+   * Fires AFTER the host's static `dispatchAfterTurn` walk completes
+   * (static-runs-first inside `dispatchAfterTurn`). Per-cap errors are
+   * caught and logged — one failing handler does NOT block siblings or
+   * propagate to the host.
+   */
+  afterTurn?: (ctx: BundleAfterTurnContext, sessionId: string, finalText: string) => Promise<void>;
+  /**
+   * Cleanup hook matching static `Capability.dispose`. Fires once per
+   * capability instance — PER-DO, not per-session. No sessionId in the
+   * dispatch envelope, no channel/emitCost/agentConfig on the context.
+   * Session-scoped spine methods throw `ERR_SESSION_REQUIRED` inside
+   * this handler. Per-cap errors are caught and logged.
+   */
+  dispose?: () => Promise<void>;
 }
 
 /**
@@ -621,6 +776,13 @@ export interface BundlePromptSection {
 export interface BundleCapabilityHooks {
   beforeInference?: (messages: unknown[], ctx: BundleHookContext) => Promise<unknown[]>;
   afterToolExecution?: (event: unknown, ctx: BundleHookContext) => Promise<void>;
+  /**
+   * Fires on WebSocket connect / hibernation-restore / session-switch /
+   * new-session — matches static `Capability.hooks.onConnect` semantics.
+   * Dispatch is queued by the host via `runtimeContext.waitUntil` after
+   * the static per-cap walk completes inside `fireOnConnectHooks`.
+   */
+  onConnect?: (ctx: BundleOnConnectContext) => Promise<void>;
   /**
    * Fires after the host's `config_set` validates a new value against
    * this capability's `configSchema` but BEFORE the value is persisted
@@ -867,8 +1029,17 @@ export interface BundleHookBridge {
  * - POST /client-event — handle a WebSocket message routed from host
  * - POST /alarm — handle an alarm fire
  * - POST /session-created — handle session initialization
+ * - POST /after-turn — fire per-capability afterTurn after static walk
+ * - POST /on-connect — fire per-capability hooks.onConnect
+ * - POST /dispose — fire per-capability dispose (session-less)
+ * - POST /on-turn-end — fire setup.onTurnEnd with projected toolResults
+ * - POST /on-agent-end — fire setup.onAgentEnd (session-less)
  * - POST /http — handle a bundle-routed HTTP request
  * - POST /action — handle a bundle-routed `capability_action` dispatch
+ * - POST /config-change — capability config change dispatch
+ * - POST /agent-config-change — agent-level config change dispatch
+ * - POST /config-namespace-get — read custom config namespace
+ * - POST /config-namespace-set — write custom config namespace
  * - POST /smoke — load-time smoke test
  * - POST /metadata — return declared metadata as JSON
  */

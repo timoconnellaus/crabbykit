@@ -25,13 +25,19 @@ import {
 } from "./spine-clients.js";
 import type {
   BundleActiveModeEnv,
+  BundleAfterTurnContext,
+  BundleAgentEndContext,
   BundleAgentSetup,
   BundleCapability,
   BundleCapabilityHooks,
   BundleContext,
+  BundleDisposeContext,
   BundleEnv,
   BundleHookContext,
+  BundleOnConnectContext,
   BundlePromptSection,
+  BundleSpineClientLifecycle,
+  BundleTurnEndContext,
 } from "./types.js";
 
 interface SpineBinding {
@@ -769,6 +775,166 @@ async function persistToolResult(
     // Persistence failure is logged host-side; the in-memory
     // conversation still carries the result for the next iteration.
   }
+}
+
+// --- Lifecycle hook context builders (bundle-lifecycle-hooks) ---
+
+interface LifecycleSpineFetcher {
+  appendEntry(token: string, entry: unknown): Promise<unknown>;
+  getEntries(token: string, options?: unknown): Promise<unknown[]>;
+  buildContext(token: string): Promise<unknown>;
+  broadcast(token: string, event: unknown): Promise<void>;
+}
+
+/**
+ * Read the SPINE binding from the lifecycle env. Throws if absent — the
+ * caller (endpoint handler) already validates this, but context builders
+ * may be invoked in isolation from tests.
+ */
+function requireLifecycleSpine<TEnv extends BundleEnv>(env: TEnv): LifecycleSpineFetcher {
+  const spine = (env as Record<string, unknown>).SPINE as LifecycleSpineFetcher | undefined;
+  if (!spine) {
+    throw new Error(
+      "Missing env.SPINE service binding — bundle lifecycle handler cannot reach host state",
+    );
+  }
+  return spine;
+}
+
+function requireLifecycleToken<TEnv extends BundleEnv>(env: TEnv): string {
+  const token = env.__BUNDLE_TOKEN;
+  if (!token) throw new Error("Missing __BUNDLE_TOKEN in bundle env");
+  return token;
+}
+
+function readPublicUrl<TEnv extends BundleEnv>(env: TEnv): string | undefined {
+  const pu = (env as Record<string, unknown>).__BUNDLE_PUBLIC_URL;
+  return typeof pu === "string" && pu.length > 0 ? pu : undefined;
+}
+
+/**
+ * Build the slim {@link BundleSpineClientLifecycle} surface used by
+ * every new lifecycle hook context. Excludes `hookBridge` per
+ * bundle-runtime-surface Decision 8 — non-turn dispatch firing a
+ * turn-loop concept would generate phantom host events.
+ *
+ * `appendEntry`/`getEntries`/`buildContext`/`broadcast` invoked from
+ * `/dispose` surface `ERR_SESSION_REQUIRED` as a typed error up the
+ * stack when the minted token carries `sid: null`. The spine client
+ * does NOT wrap or swallow the error — bundle authors typed-catch.
+ */
+function buildSlimLifecycleSpine(
+  spine: LifecycleSpineFetcher,
+  getToken: () => string,
+): BundleSpineClientLifecycle {
+  return {
+    appendEntry: (entry) => spine.appendEntry(getToken(), entry).then(() => {}),
+    getEntries: (options) => spine.getEntries(getToken(), options),
+    buildContext: () => spine.buildContext(getToken()),
+    broadcast: (event) => spine.broadcast(getToken(), event),
+  };
+}
+
+export function buildAfterTurnContext<TEnv extends BundleEnv>(
+  capabilityId: string,
+  sessionId: string,
+  agentId: string,
+  env: TEnv,
+): BundleAfterTurnContext {
+  const spine = requireLifecycleSpine(env);
+  const token = requireLifecycleToken(env);
+  const getToken = (): string => token;
+  const publicUrl = readPublicUrl(env);
+  return {
+    agentId,
+    sessionId,
+    capabilityId,
+    kvStore: createKvStoreClient(spine as never, getToken),
+    channel: createSessionChannel(spine as never, getToken),
+    spine: buildSlimLifecycleSpine(spine, getToken),
+    emitCost: createCostEmitter(spine as never, getToken),
+    ...(publicUrl ? { publicUrl } : {}),
+  };
+}
+
+export function buildOnConnectContext<TEnv extends BundleEnv>(
+  capabilityId: string,
+  sessionId: string,
+  agentId: string,
+  env: TEnv,
+): BundleOnConnectContext {
+  const spine = requireLifecycleSpine(env);
+  const token = requireLifecycleToken(env);
+  const getToken = (): string => token;
+  const publicUrl = readPublicUrl(env);
+  return {
+    agentId,
+    sessionId,
+    capabilityId,
+    kvStore: createKvStoreClient(spine as never, getToken),
+    channel: createSessionChannel(spine as never, getToken),
+    spine: buildSlimLifecycleSpine(spine, getToken),
+    emitCost: createCostEmitter(spine as never, getToken),
+    ...(publicUrl ? { publicUrl } : {}),
+  };
+}
+
+/**
+ * Dispose context is session-less — no sessionId, no channel, no
+ * emitCost, no agentConfig. Session-scoped spine methods invoked
+ * through `spine.*` throw `ERR_SESSION_REQUIRED` (host-side
+ * `requireSession(caller)` guard fires). Bundle handlers writing
+ * cleanup state must use `kvStore` (capability-scoped, agent-level,
+ * not session-scoped).
+ */
+export function buildDisposeContext<TEnv extends BundleEnv>(
+  capabilityId: string,
+  agentId: string,
+  env: TEnv,
+): BundleDisposeContext {
+  const spine = requireLifecycleSpine(env);
+  const token = requireLifecycleToken(env);
+  const getToken = (): string => token;
+  const publicUrl = readPublicUrl(env);
+  return {
+    agentId,
+    capabilityId,
+    kvStore: createKvStoreClient(spine as never, getToken),
+    spine: buildSlimLifecycleSpine(spine, getToken),
+    ...(publicUrl ? { publicUrl } : {}),
+  };
+}
+
+export function buildTurnEndContext<TEnv extends BundleEnv>(
+  sessionId: string,
+  agentId: string,
+  env: TEnv,
+): BundleTurnEndContext {
+  const spine = requireLifecycleSpine(env);
+  const token = requireLifecycleToken(env);
+  const getToken = (): string => token;
+  const publicUrl = readPublicUrl(env);
+  return {
+    agentId,
+    sessionId,
+    spine: buildSlimLifecycleSpine(spine, getToken),
+    ...(publicUrl ? { publicUrl } : {}),
+  };
+}
+
+export function buildAgentEndContext<TEnv extends BundleEnv>(
+  agentId: string,
+  env: TEnv,
+): BundleAgentEndContext {
+  const spine = requireLifecycleSpine(env);
+  const token = requireLifecycleToken(env);
+  const getToken = (): string => token;
+  const publicUrl = readPublicUrl(env);
+  return {
+    agentId,
+    spine: buildSlimLifecycleSpine(spine, getToken),
+    ...(publicUrl ? { publicUrl } : {}),
+  };
 }
 
 /**

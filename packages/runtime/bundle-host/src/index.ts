@@ -58,16 +58,18 @@ export { BUNDLE_SUBKEY_LABEL, deriveMintSubkey, mintToken } from "./security/min
 export {
   type BundleActionResponseEnvelope,
   type BundleHttpResponseEnvelope,
+  type BundleToolResultProjection,
   deserializeResponseFromBundle,
   type HostActionEnvelope,
   type HostHttpEnvelope,
+  projectToolResultsForBundle,
   serializeActionForBundle,
   serializeRequestForBundle,
 } from "./serialization.js";
 export type { InferRequest, InferResponse, LlmEnv } from "./services/llm-service.js";
 export { LlmService } from "./services/llm-service.js";
 export type { SpineEnv, SpineErrorCode, SpineHost } from "./services/spine-service.js";
-export { SpineError, SpineService } from "./services/spine-service.js";
+export { requireSession, SpineError, SpineService } from "./services/spine-service.js";
 export {
   AgentConfigCollisionError,
   type AgentConfigValidationResult,

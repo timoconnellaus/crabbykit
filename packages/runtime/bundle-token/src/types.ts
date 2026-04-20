@@ -17,8 +17,21 @@
 export interface TokenPayload {
   /** Agent ID */
   aid: string;
-  /** Session ID */
-  sid: string;
+  /**
+   * Session ID. `null` encodes a session-less dispatch (e.g. the
+   * `/dispose` lifecycle endpoint, which fires per-DO not per-session).
+   * Session-scoped spine methods call `requireSession(caller)` and throw
+   * `ERR_SESSION_REQUIRED` when `sid === null`.
+   */
+  sid: string | null;
+  /**
+   * Legacy alias for `sid`. Bundle SDKs published before the
+   * `bundle-lifecycle-hooks` extension read `sessionId` directly; the
+   * host emits both fields for one release cycle so a host upgrade does
+   * not force a simultaneous bundle-SDK upgrade. TODO: remove after
+   * one release cycle.
+   */
+  sessionId?: string;
   /** Expiration timestamp (ms since epoch) */
   exp: number;
   /** Unique nonce for replay protection and budget keying */

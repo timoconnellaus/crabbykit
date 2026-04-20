@@ -63,7 +63,31 @@ export type SpineErrorCode =
   | "ERR_BUDGET_EXCEEDED"
   | "ERR_NOT_FOUND"
   | "ERR_INVALID_ARGUMENT"
+  /**
+   * Token was minted without a session id (session-less dispatch, e.g.
+   * `/dispose`) and a session-scoped spine method was invoked. Surfaced
+   * when `caller.sid === null`. Propagated unchanged through
+   * `sanitize` so bundle handlers can typed-catch.
+   */
+  | "ERR_SESSION_REQUIRED"
   | "ERR_INTERNAL";
+
+/**
+ * Narrow `caller.sid` from `string | null` to `string`. Throws
+ * `ERR_SESSION_REQUIRED` when the token was minted for a session-less
+ * dispatch (e.g. `/dispose`) — bundle-lifecycle-hooks Decision 4. Call
+ * as the first line of every session-scoped spine method's body.
+ */
+export function requireSession(
+  caller: SpineCaller,
+): asserts caller is SpineCaller & { sid: string } {
+  if (caller.sid === null) {
+    throw new SpineError(
+      "ERR_SESSION_REQUIRED",
+      "Spine method requires a session — token was minted with sid: null",
+    );
+  }
+}
 
 export class SpineError extends Error {
   readonly code: SpineErrorCode;
@@ -168,6 +192,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async appendEntry(token: string, entry: unknown): Promise<unknown> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineAppendEntry(caller, entry);
     } catch (err) {
@@ -177,6 +202,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async getEntries(token: string, options?: unknown): Promise<unknown[]> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineGetEntries(caller, options);
     } catch (err) {
@@ -186,6 +212,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async getSession(token: string): Promise<unknown> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineGetSession(caller);
     } catch (err) {
@@ -194,6 +221,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   }
 
   async createSession(token: string, init?: unknown): Promise<unknown> {
+    // Agent-scoped — session may be absent; no requireSession gate.
     const caller = await this.verify(token);
     try {
       return await this.getHost(caller.aid).spineCreateSession(caller, init);
@@ -203,6 +231,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   }
 
   async listSessions(token: string, filter?: unknown): Promise<unknown[]> {
+    // Agent-scoped — no requireSession gate.
     const caller = await this.verify(token);
     try {
       return await this.getHost(caller.aid).spineListSessions(caller, filter);
@@ -213,6 +242,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async buildContext(token: string): Promise<unknown> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineBuildContext(caller);
     } catch (err) {
@@ -222,6 +252,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async getCompactionCheckpoint(token: string): Promise<unknown> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineGetCompactionCheckpoint(caller);
     } catch (err) {
@@ -232,6 +263,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   // --- KV store methods ---
 
   async kvGet(token: string, capabilityId: string, key: string): Promise<unknown> {
+    // KV is capability-scoped, not session-scoped — callable from dispose.
     const caller = await this.verify(token);
     try {
       return await this.getHost(caller.aid).spineKvGet(caller, capabilityId, key);
@@ -324,6 +356,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async broadcast(token: string, event: unknown): Promise<void> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       await this.getHost(caller.aid).spineBroadcast(caller, event);
     } catch (err) {
@@ -332,6 +365,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
   }
 
   async broadcastGlobal(token: string, event: unknown): Promise<void> {
+    // Global broadcast is DO-wide; no session gate.
     const caller = await this.verify(token);
     try {
       await this.getHost(caller.aid).spineBroadcastGlobal(caller, event);
@@ -344,6 +378,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async emitCost(token: string, costEvent: unknown): Promise<void> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       await this.getHost(caller.aid).spineEmitCost(caller, costEvent);
     } catch (err) {
@@ -362,6 +397,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async recordToolExecution(token: string, event: ToolExecutionEvent): Promise<void> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       await this.getHost(caller.aid).spineRecordToolExecution(caller, event);
     } catch (err) {
@@ -371,6 +407,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
 
   async processBeforeInference(token: string, messages: AgentMessage[]): Promise<AgentMessage[]> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineProcessBeforeInference(caller, messages);
     } catch (err) {
@@ -394,6 +431,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     event: BeforeToolExecutionEvent,
   ): Promise<BeforeToolExecutionResult | undefined> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return (await this.getHost(caller.aid).spineProcessBeforeToolExecution(caller, event)) as
         | BeforeToolExecutionResult
@@ -419,6 +457,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     bundleVersionId: string,
   ): Promise<void> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       await this.getHost(caller.aid).spineRecordBundlePromptSections(
         caller,
@@ -437,6 +476,7 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
     bundleVersionId?: string,
   ): Promise<unknown[]> {
     const caller = await this.verify(token);
+    requireSession(caller);
     try {
       return await this.getHost(caller.aid).spineGetBundlePromptSections(
         caller,
@@ -479,6 +519,9 @@ export class SpineService extends WorkerEntrypoint<SpineEnv> {
       }
       if (msgStr.includes("ERR_SCOPE_DENIED:") || shape.code === "ERR_SCOPE_DENIED") {
         return new SpineError("ERR_SCOPE_DENIED", msgStr || "Scope denied");
+      }
+      if (msgStr.includes("ERR_SESSION_REQUIRED") || shape.code === "ERR_SESSION_REQUIRED") {
+        return new SpineError("ERR_SESSION_REQUIRED", msgStr || "Session required");
       }
     }
 

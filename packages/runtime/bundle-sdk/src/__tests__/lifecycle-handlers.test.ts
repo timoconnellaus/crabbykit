@@ -55,6 +55,11 @@ describe("Phase 2 — lifecycle handlers", () => {
         onAlarm: true,
         onSessionCreated: false,
         onClientEvent: false,
+        afterTurn: false,
+        onConnect: false,
+        dispose: false,
+        onTurnEnd: false,
+        onAgentEnd: false,
       });
     });
 
@@ -74,6 +79,11 @@ describe("Phase 2 — lifecycle handlers", () => {
         onAlarm: true,
         onSessionCreated: true,
         onClientEvent: true,
+        afterTurn: false,
+        onConnect: false,
+        dispose: false,
+        onTurnEnd: false,
+        onAgentEnd: false,
       });
     });
 

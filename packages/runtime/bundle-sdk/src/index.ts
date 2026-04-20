@@ -38,8 +38,11 @@ export {
   createSessionStoreClient,
 } from "./spine-clients.js";
 export type {
+  AgentMessage,
   BundleActionContext,
+  BundleAfterTurnContext,
   BundleAgentConfigChangeEvent,
+  BundleAgentEndContext,
   BundleAgentSetup,
   BundleBeforeToolExecutionEvent,
   BundleBeforeToolExecutionResult,
@@ -50,6 +53,7 @@ export type {
   BundleConfigNamespace,
   BundleContext,
   BundleCostEvent,
+  BundleDisposeContext,
   BundleEnv,
   BundleExport,
   BundleHookBridge,
@@ -61,6 +65,7 @@ export type {
   BundleKvStoreClient,
   BundleMetadata,
   BundleModelConfig,
+  BundleOnConnectContext,
   BundlePromptOptions,
   BundlePromptSection,
   BundleRouteDeclaration,
@@ -68,6 +73,8 @@ export type {
   BundleSessionChannel,
   BundleSessionStoreClient,
   BundleToolExecutionEvent,
+  BundleToolResult,
+  BundleTurnEndContext,
 } from "./types.js";
 export {
   BundleMetadataExtractionError,
