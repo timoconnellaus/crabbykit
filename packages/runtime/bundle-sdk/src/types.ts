@@ -175,6 +175,40 @@ export interface BundleMetadata {
     /** Capability ids whose `BundleCapability` declared an `onAction` handler. */
     actionCapabilityIds?: string[];
   };
+  /**
+   * Per-capability config schemas (+ optional defaults) extracted at build
+   * time from each `BundleCapability.configSchema` / `configDefault`. Host
+   * uses these to surface synthetic config stand-ins to the `config_get`
+   * / `config_set` / `config_schema` tools for bundle-declared capability
+   * ids. Schemas are plain JSON (TypeBox `Kind` symbol dropped during
+   * JSON.parse(JSON.stringify(...)) serialization). Omitted when empty so
+   * legacy bundles remain byte-identical.
+   */
+  capabilityConfigs?: Array<{
+    id: string;
+    schema: object;
+    default?: Record<string, unknown>;
+  }>;
+  /**
+   * Agent-level config namespace schemas declared via
+   * `BundleAgentSetup.config`. Merged host-side into
+   * `getCachedAgentConfigSchema()` and exposed through `config_schema` /
+   * the agent-config UI bridge. Host wins on key conflict; dispatch-time
+   * guard fires `ERR_AGENT_CONFIG_COLLISION` on mismatch.
+   */
+  agentConfigSchemas?: Record<string, object>;
+  /**
+   * Custom config namespaces declared via
+   * `BundleCapability.configNamespaces(ctx)`. Only the metadata
+   * projection (id, description, schema) is emitted — `get`/`set` stay
+   * in bundle code and execute via cross-isolate RPC to
+   * `/config-namespace-get` / `/config-namespace-set`.
+   */
+  configNamespaces?: Array<{
+    id: string;
+    description: string;
+    schema: object;
+  }>;
 }
 
 /**
@@ -299,6 +333,22 @@ export interface BundleAgentSetup<TEnv extends BundleEnv = BundleEnv> {
   model: BundleModelConfig | (() => BundleModelConfig);
 
   /**
+   * Agent-level config schemas. Each top-level key declares an
+   * agent-level config namespace whose value persists under
+   * `config:agent:{namespace}` on the host. Host merges these with its
+   * own `getAgentConfigSchema()` record; both contribute to `config_schema`
+   * output and to the UI bridge `capability_action { capabilityId:
+   * "agent-config", action: "set" }`.
+   *
+   * Namespace ids MUST NOT be `session`, `agent-config`, `schedules`, or
+   * `queue`, MUST NOT start with `capability:`, and MUST NOT collide
+   * with the bundle's own `BundleCapability.id` set or
+   * `surfaces.actionCapabilityIds`. Validation runs at
+   * `defineBundleAgent` time and throws on violation.
+   */
+  config?: Record<string, TObject>;
+
+  /**
    * Prompt configuration or a full string replacement.
    */
   prompt?: string | PromptOptions;
@@ -375,12 +425,56 @@ export interface BundleCapability {
   name: string;
   description: string;
   /**
-   * @deferred — no consumer in v2; planned for the
-   * `bundle-config-namespaces` follow-up. Field is kept on the type so
-   * forward-looking bundle authors who already populate it do not break
-   * when the consumer lands.
+   * TypeBox schema for per-capability configuration. Bundle authors can
+   * declare a schema the host surfaces via `config_schema` and validates
+   * on `config_set`. Persisted under the existing
+   * `config:capability:{id}` key — same shape as static `Capability`.
+   *
+   * Extracted at build time into `BundleMetadata.capabilityConfigs` via
+   * JSON.parse(JSON.stringify(...)) serialization. Transform / Constructor
+   * / Function TypeBox kinds are rejected because their runtime closures
+   * cannot survive JSON serialization — the bundle-side `Decode` /
+   * `Encode` function would be silently dropped host-side.
    */
   configSchema?: TObject;
+  /**
+   * Default configuration value. Returned by `config_get` when no value
+   * is persisted, WITHOUT dispatching to the bundle isolate. Must
+   * validate against `configSchema` at `defineBundleAgent` time.
+   */
+  configDefault?: Record<string, unknown>;
+  /**
+   * Dotted-path expression evaluated host-side against the agent-config
+   * snapshot to derive this capability's mapped slice (e.g.
+   * `"botConfig"` or `"botConfig.rateLimit"`). Replaces the static
+   * `agentConfigMapping: (snapshot) => slice` function, which cannot
+   * serialize across the isolate boundary.
+   *
+   * Safe-traversal: `evaluateAgentConfigPath(snapshot, path)` returns
+   * `undefined` on any miss rather than throwing. Bundle authors MUST
+   * branch on `ctx.agentConfig === undefined` — same defensive contract
+   * as the static mapping returning `undefined`.
+   *
+   * The first dotted segment is validated at build time against the
+   * bundle's own `setup.config` schemas; when the first segment doesn't
+   * resolve locally, the dispatch-time guard checks the merged (bundle
+   * + host) schema set and fires `ERR_AGENT_CONFIG_PATH_UNRESOLVABLE`
+   * on total miss.
+   */
+  agentConfigPath?: string;
+  /**
+   * Custom config namespaces contributed by this capability. Exposed
+   * via `config_get` / `config_set` / `config_schema`. Each namespace's
+   * `get`/`set` handlers execute inside the bundle isolate via
+   * cross-isolate RPC — the host mints `__BUNDLE_TOKEN`, POSTs to
+   * `/config-namespace-get` or `/config-namespace-set`, and surfaces
+   * the bundle's response.
+   *
+   * v1 does NOT support `pattern`-matched namespaces (regex-based, like
+   * static `ConfigNamespace.pattern`) — declaring `pattern` throws at
+   * build time. See proposal Non-Goals.
+   */
+  configNamespaces?: (context: BundleContext) => BundleConfigNamespace[];
   tools?: (context: BundleContext) => unknown[];
   /**
    * Per-turn prompt sections. Phase 1 widens the return type to also
@@ -527,6 +621,84 @@ export interface BundlePromptSection {
 export interface BundleCapabilityHooks {
   beforeInference?: (messages: unknown[], ctx: BundleHookContext) => Promise<unknown[]>;
   afterToolExecution?: (event: unknown, ctx: BundleHookContext) => Promise<void>;
+  /**
+   * Fires after the host's `config_set` validates a new value against
+   * this capability's `configSchema` but BEFORE the value is persisted
+   * to `ConfigStore`. Throwing aborts the write — matches static
+   * `config-set.ts:103-117` ordering. The host surfaces the thrown
+   * message in `config_set`'s tool error.
+   */
+  onConfigChange?: (
+    oldConfig: Record<string, unknown>,
+    newConfig: Record<string, unknown>,
+    ctx: BundleHookContext,
+  ) => Promise<void>;
+  /**
+   * Fires after `applyAgentConfigSet` persists a successful agent-level
+   * config write AND the capability's `agentConfigPath` resolves to a
+   * slice that changed. Agent-level dispatch is fire-and-await —
+   * handler errors are logged but persistence is not reversed (matches
+   * static `handleAgentConfigSet` semantics).
+   */
+  onAgentConfigChange?: (
+    oldSlice: unknown,
+    newSlice: unknown,
+    ctx: BundleHookContext,
+  ) => Promise<void>;
+}
+
+/**
+ * Custom config namespace declared by a `BundleCapability.configNamespaces`
+ * factory. Mirrors the static `ConfigNamespace` shape minus the
+ * `pattern` field (regex-based pattern-matched namespaces are a
+ * Non-Goal for v1 — see proposal).
+ */
+export interface BundleConfigNamespace {
+  /** Namespace identifier. Must not collide with reserved tokens or the
+   *  bundle's own capability/agent-namespace ids. */
+  id: string;
+  /** Human-readable description surfaced by `config_schema`. */
+  description: string;
+  /** TypeBox schema. Validated host-side on `config_set` before dispatch. */
+  schema: TObject;
+  /**
+   * Read the current value. Invoked via cross-isolate RPC when the
+   * host's `config_get` resolves a bundle-declared namespace.
+   */
+  get: (namespace: string) => Promise<unknown>;
+  /**
+   * Write a new value. Value has already been validated against
+   * `schema` host-side. Return string is surfaced to the agent as the
+   * `config_set` tool output — same contract as static
+   * `ConfigNamespace.set`.
+   */
+  set: (namespace: string, value: unknown) => Promise<string | void>;
+}
+
+/**
+ * Event payload host-side dispatchers POST to the bundle's
+ * `/config-change` endpoint. Consumers: the bundle SDK's fetch handler
+ * switch looks up the matching capability's `hooks.onConfigChange` and
+ * invokes it with `(oldCfg, newCfg, ctx)`.
+ */
+export interface BundleConfigChangeEvent {
+  capabilityId: string;
+  oldCfg: Record<string, unknown>;
+  newCfg: Record<string, unknown>;
+  sessionId: string;
+}
+
+/**
+ * Event payload host-side dispatchers POST to the bundle's
+ * `/agent-config-change` endpoint. Consumers: the bundle SDK invokes
+ * the matching capability's `hooks.onAgentConfigChange` with the
+ * pre/post slices projected through `agentConfigPath`.
+ */
+export interface BundleAgentConfigChangeEvent {
+  capabilityId: string;
+  oldSlice: unknown;
+  newSlice: unknown;
+  sessionId: string;
 }
 
 // --- Bundle context (async, spine-backed) ---
@@ -573,6 +745,22 @@ export interface BundleActiveModeEnv {
 
 export interface BundleHookContext extends BundleContext {
   capabilityId: string;
+  /**
+   * Capability's mapped slice of the agent-level config snapshot.
+   * Populated when the capability declared `agentConfigPath` — host
+   * evaluates the path against the snapshot and passes the result as
+   * part of the config-change bridge dispatch. `undefined` when no
+   * path was declared or the path does not resolve (safe-traversal
+   * contract).
+   */
+  agentConfig?: unknown;
+  /**
+   * Public base URL of the host worker, when configured. Sourced from
+   * the runtime's `PUBLIC_URL` and propagated through
+   * `__BUNDLE_PUBLIC_URL`. Consumers building webhook URLs should read
+   * this rather than accept a per-capability option.
+   */
+  publicUrl?: string;
 }
 
 // --- Async adapter clients (bundle-side) ---

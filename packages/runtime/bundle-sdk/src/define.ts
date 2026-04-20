@@ -7,14 +7,18 @@
  */
 
 import { buildBundleContext, runBundleTurn } from "./runtime.js";
+import { serializeBundleSchema } from "./schema-serialize.js";
 import { createCostEmitter, createKvStoreClient, createSessionChannel } from "./spine-clients.js";
 import type {
   BundleActionContext,
   BundleAgentSetup,
   BundleAlarmContext,
+  BundleCapability,
   BundleClientEvent,
   BundleClientEventContext,
+  BundleConfigNamespace,
   BundleContext,
+  BundleHookContext,
   BundleEnv,
   BundleExport,
   BundleHttpContext,
@@ -30,6 +34,11 @@ import type {
 import {
   BundleMetadataExtractionError,
   validateActionCapabilityIds,
+  validateAgentConfigPaths,
+  validateAgentConfigSchemas,
+  validateBundleCapabilityConfigsAgainstBundleCaps,
+  validateCapabilityConfigs,
+  validateConfigNamespaces,
   validateHttpRoutes,
   validateRequirements,
 } from "./validate.js";
@@ -103,27 +112,72 @@ function buildProbeContext<TEnv extends BundleEnv>(probeEnv: TEnv): BundleContex
 }
 
 /**
+ * Collected output of the probe-env capability walk. Drives metadata
+ * emission for every bundle sub-surface (HTTP routes, action ids,
+ * capability configs, custom namespaces) plus the agent-level config
+ * schemas projected from `setup.config`.
+ */
+interface ExtractedBundleSurfaces {
+  httpRoutes: BundleRouteDeclaration[];
+  actionCapabilityIds: string[];
+  capabilityConfigs: Array<{
+    id: string;
+    schema: object;
+    default?: Record<string, unknown>;
+  }>;
+  configNamespaces: Array<{
+    id: string;
+    description: string;
+    schema: object;
+  }>;
+  agentConfigSchemas: Record<string, object>;
+}
+
+/**
  * Walk `setup.capabilities(probeEnv)` once to collect every declared
- * HTTP route and every capability id that hosts an `onAction`. Validates
- * the collected lists via `validateHttpRoutes` and
- * `validateActionCapabilityIds` before returning. Throws
- * `BundleMetadataExtractionError` when a capability factory throws —
- * including when its `httpHandlers(ctx)` reads a missing env field.
+ * HTTP route, `onAction` capability id, per-capability config schema +
+ * default, and custom configNamespace declaration. Also projects
+ * `setup.config` into `agentConfigSchemas`. Runs every bundle-side
+ * validator before returning. Throws `BundleMetadataExtractionError`
+ * when a capability factory throws — including when its
+ * `httpHandlers(ctx)` / `configNamespaces(ctx)` reads a missing env
+ * field.
  */
 function extractBundleSurfaces<TEnv extends BundleEnv>(
   setup: BundleAgentSetup<TEnv>,
-): { httpRoutes: BundleRouteDeclaration[]; actionCapabilityIds: string[] } {
+): ExtractedBundleSurfaces {
+  const httpRoutes: BundleRouteDeclaration[] = [];
+  const actionCapabilityIds: string[] = [];
+  const capabilityConfigs: ExtractedBundleSurfaces["capabilityConfigs"] = [];
+  const configNamespaces: ExtractedBundleSurfaces["configNamespaces"] = [];
+  const agentConfigPathEntries: Array<{ id: string; agentConfigPath?: string }> = [];
+  const agentConfigSchemas: Record<string, object> = {};
+
+  // setup.config is static — serialize unconditionally so validators
+  // see the JSON shape (Kind mirror) that will land in metadata.
+  if (setup.config) {
+    for (const [namespace, schema] of Object.entries(setup.config)) {
+      agentConfigSchemas[namespace] = serializeBundleSchema(schema) as object;
+    }
+  }
+
   if (!setup.capabilities) {
-    return { httpRoutes: [], actionCapabilityIds: [] };
+    // Nothing to walk; agent-config schemas still validate (empty
+    // bundle capability set, empty action id set).
+    validateAgentConfigSchemas(agentConfigSchemas, [], []);
+    return {
+      httpRoutes,
+      actionCapabilityIds,
+      capabilityConfigs,
+      configNamespaces,
+      agentConfigSchemas,
+    };
   }
 
   const probeEnv = {} as TEnv;
   const probeCtx = buildProbeContext(probeEnv);
 
-  const httpRoutes: BundleRouteDeclaration[] = [];
-  const actionCapabilityIds: string[] = [];
-
-  let capabilities: ReturnType<NonNullable<typeof setup.capabilities>>;
+  let capabilities: BundleCapability[] | undefined;
   try {
     capabilities = setup.capabilities(probeEnv);
   } catch (err) {
@@ -133,7 +187,10 @@ function extractBundleSurfaces<TEnv extends BundleEnv>(
     });
   }
 
+  const bundleCapIds: string[] = [];
   for (const cap of capabilities ?? []) {
+    bundleCapIds.push(cap.id);
+
     if (cap.httpHandlers) {
       let declared: ReturnType<typeof cap.httpHandlers>;
       try {
@@ -155,12 +212,70 @@ function extractBundleSurfaces<TEnv extends BundleEnv>(
     if (cap.onAction) {
       actionCapabilityIds.push(cap.id);
     }
+    if (cap.configSchema) {
+      // Validate against the LIVE TypeBox schema (Kind symbol present)
+      // before serialization — the Value.Check fast path needs the
+      // symbol. Emit the serialized form into metadata.
+      validateCapabilityConfigs([
+        {
+          id: cap.id,
+          schema: cap.configSchema,
+          default: cap.configDefault,
+        },
+      ]);
+      const entry: ExtractedBundleSurfaces["capabilityConfigs"][number] = {
+        id: cap.id,
+        schema: serializeBundleSchema(cap.configSchema) as object,
+      };
+      if (cap.configDefault !== undefined) {
+        entry.default = cap.configDefault;
+      }
+      capabilityConfigs.push(entry);
+    }
+    agentConfigPathEntries.push({ id: cap.id, agentConfigPath: cap.agentConfigPath });
+    if (cap.configNamespaces) {
+      let declared: BundleConfigNamespace[];
+      try {
+        declared = cap.configNamespaces(probeCtx) ?? [];
+      } catch (err) {
+        throw new BundleMetadataExtractionError({
+          capabilityId: cap.id,
+          cause: err,
+        });
+      }
+      for (const ns of declared) {
+        configNamespaces.push({
+          id: ns.id,
+          description: ns.description,
+          schema: serializeBundleSchema(ns.schema) as object,
+        });
+      }
+    }
   }
 
   validateHttpRoutes(httpRoutes);
   validateActionCapabilityIds(actionCapabilityIds);
+  // `validateCapabilityConfigs` already fired per-capability against
+  // the live TypeBox schema above (pre-serialization) so Value.Check
+  // dispatches through the Kind fast path. Agent-config and config-
+  // namespace schemas pass serialized (post `serializeBundleSchema`)
+  // — they are not default-checked, only walked for rejected Kinds.
+  validateAgentConfigSchemas(agentConfigSchemas, bundleCapIds, actionCapabilityIds);
+  validateConfigNamespaces(
+    configNamespaces as Array<{ id: string; description: string; schema: unknown }>,
+    Object.keys(agentConfigSchemas),
+    bundleCapIds,
+  );
+  validateAgentConfigPaths(agentConfigPathEntries, agentConfigSchemas);
+  validateBundleCapabilityConfigsAgainstBundleCaps(capabilityConfigs, bundleCapIds);
 
-  return { httpRoutes, actionCapabilityIds };
+  return {
+    httpRoutes,
+    actionCapabilityIds,
+    capabilityConfigs,
+    configNamespaces,
+    agentConfigSchemas,
+  };
 }
 
 /**
@@ -202,8 +317,23 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
   // and every capability id that hosts an `onAction`. The host reads
   // these on dispatch to decide whether to forward an incoming request
   // / `capability_action` into the bundle isolate.
-  const { httpRoutes, actionCapabilityIds } = extractBundleSurfaces(setup);
+  //
+  // bundle-config-namespaces: same walk also collects per-capability
+  // config schemas, custom configNamespace declarations, and projects
+  // `setup.config` into `agentConfigSchemas`. Each new field emits
+  // only when non-empty so legacy bundles without config remain
+  // byte-identical.
+  const {
+    httpRoutes,
+    actionCapabilityIds,
+    capabilityConfigs,
+    configNamespaces: bundleConfigNamespaces,
+    agentConfigSchemas,
+  } = extractBundleSurfaces(setup);
   const hasSurfaces = httpRoutes.length > 0 || actionCapabilityIds.length > 0;
+  const hasCapabilityConfigs = capabilityConfigs.length > 0;
+  const hasAgentConfigSchemas = Object.keys(agentConfigSchemas).length > 0;
+  const hasConfigNamespaces = bundleConfigNamespaces.length > 0;
 
   // When NEITHER lifecycleHooks nor surfaces is populated, omit both
   // so legacy bundles round-trip byte-identical to today's metadata.
@@ -223,6 +353,15 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
     if (httpRoutes.length > 0) surfaces.httpRoutes = httpRoutes;
     if (actionCapabilityIds.length > 0) surfaces.actionCapabilityIds = actionCapabilityIds;
     metadata = { ...metadata, surfaces };
+  }
+  if (hasCapabilityConfigs) {
+    metadata = { ...metadata, capabilityConfigs };
+  }
+  if (hasAgentConfigSchemas) {
+    metadata = { ...metadata, agentConfigSchemas };
+  }
+  if (hasConfigNamespaces) {
+    metadata = { ...metadata, configNamespaces: bundleConfigNamespaces };
   }
 
   return {
@@ -248,6 +387,18 @@ export function defineBundleAgent<TEnv extends BundleEnv = BundleEnv>(
 
         case "/action":
           return handleAction(request, env, setup);
+
+        case "/config-change":
+          return handleConfigChange(request, env, setup);
+
+        case "/agent-config-change":
+          return handleAgentConfigChange(request, env, setup);
+
+        case "/config-namespace-get":
+          return handleConfigNamespaceGet(request, env, setup);
+
+        case "/config-namespace-set":
+          return handleConfigNamespaceSet(request, env, setup);
 
         case "/smoke":
           return handleSmoke(env, resolveModel);
@@ -759,6 +910,389 @@ async function handleAction<TEnv extends BundleEnv>(
   try {
     await cap.onAction(action, data, actionCtx);
     return Response.json({ status: "ok" });
+  } catch (err) {
+    return Response.json({
+      status: "error",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+// --- Config endpoints (bundle-config-namespaces) ---
+
+interface ConfigChangeEnvelope {
+  capabilityId?: string;
+  oldCfg?: Record<string, unknown>;
+  newCfg?: Record<string, unknown>;
+  sessionId?: string;
+  agentConfig?: unknown;
+}
+
+interface AgentConfigChangeEnvelope {
+  capabilityId?: string;
+  oldSlice?: unknown;
+  newSlice?: unknown;
+  sessionId?: string;
+}
+
+interface ConfigNamespaceGetEnvelope {
+  namespace?: string;
+  sessionId?: string;
+}
+
+interface ConfigNamespaceSetEnvelope {
+  namespace?: string;
+  value?: unknown;
+  sessionId?: string;
+}
+
+/**
+ * Build a `BundleHookContext` for host→bundle config-change dispatches.
+ * Mirrors the bundle-runtime-surface hook context shape but intentionally
+ * omits the heavy adapter clients that would require a real session
+ * context — `sessionStore`, `scheduler`, and `hookBridge` throw on
+ * invocation. Handlers that need them should treat config hooks as
+ * observe-and-react only.
+ */
+function buildConfigHookContext<TEnv extends BundleEnv>(
+  env: TEnv,
+  spine: Parameters<typeof createKvStoreClient>[0],
+  token: string,
+  capabilityId: string,
+  agentId: string,
+  sessionId: string,
+  publicUrl: string | undefined,
+  agentConfig: unknown,
+): BundleHookContext {
+  const getToken = (): string => token;
+  const reject = (): never => {
+    throw new Error("Bundle config hook context — operation not available");
+  };
+  return {
+    agentId,
+    sessionId,
+    env,
+    capabilityId,
+    publicUrl,
+    agentConfig,
+    sessionStore: {
+      appendEntry: reject,
+      getEntries: reject,
+      getSession: reject,
+      createSession: reject,
+      listSessions: reject,
+      buildContext: reject,
+      getCompactionCheckpoint: reject,
+    },
+    kvStore: createKvStoreClient(spine, getToken),
+    scheduler: {
+      create: reject,
+      update: reject,
+      delete: reject,
+      list: reject,
+      setAlarm: reject,
+    },
+    channel: createSessionChannel(spine, getToken),
+    emitCost: createCostEmitter(spine, getToken),
+    hookBridge: {
+      recordToolExecution: reject,
+      processBeforeInference: reject,
+      processBeforeToolExecution: reject,
+    },
+  };
+}
+
+async function handleConfigChange<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const httpEnv = env as TEnv & HttpActionEnv;
+  if (!httpEnv.__BUNDLE_TOKEN) {
+    return Response.json({ status: "error", message: "Missing __BUNDLE_TOKEN" }, { status: 401 });
+  }
+  if (!setup.capabilities) {
+    return Response.json({ status: "noop" });
+  }
+
+  let envelope: ConfigChangeEnvelope;
+  try {
+    envelope = (await request.json()) as ConfigChangeEnvelope;
+  } catch {
+    return Response.json(
+      { status: "error", message: "Invalid /config-change envelope JSON" },
+      { status: 200 },
+    );
+  }
+  const { capabilityId, oldCfg, newCfg, sessionId } = envelope;
+  if (typeof capabilityId !== "string" || typeof sessionId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include capabilityId and sessionId" },
+      { status: 200 },
+    );
+  }
+
+  const capabilities = setup.capabilities(env) ?? [];
+  const cap = capabilities.find((c) => c.id === capabilityId);
+  if (!cap || !cap.hooks?.onConfigChange) {
+    return Response.json({ status: "noop" });
+  }
+
+  const spine = httpEnv.SPINE as unknown as Parameters<typeof createKvStoreClient>[0] | undefined;
+  if (!spine) {
+    return Response.json(
+      { status: "error", message: "Missing env.SPINE service binding" },
+      { status: 200 },
+    );
+  }
+  const token = httpEnv.__BUNDLE_TOKEN;
+  const agentId = decodeAgentIdFromToken(token);
+  const publicUrl =
+    typeof httpEnv.__BUNDLE_PUBLIC_URL === "string" ? httpEnv.__BUNDLE_PUBLIC_URL : undefined;
+
+  const ctx = buildConfigHookContext(
+    env,
+    spine,
+    token,
+    capabilityId,
+    agentId,
+    sessionId,
+    publicUrl,
+    envelope.agentConfig,
+  );
+  try {
+    await cap.hooks.onConfigChange(oldCfg ?? {}, newCfg ?? {}, ctx);
+    return Response.json({ status: "ok" });
+  } catch (err) {
+    return Response.json({
+      status: "error",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function handleAgentConfigChange<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const httpEnv = env as TEnv & HttpActionEnv;
+  if (!httpEnv.__BUNDLE_TOKEN) {
+    return Response.json({ status: "error", message: "Missing __BUNDLE_TOKEN" }, { status: 401 });
+  }
+  if (!setup.capabilities) {
+    return Response.json({ status: "noop" });
+  }
+
+  let envelope: AgentConfigChangeEnvelope;
+  try {
+    envelope = (await request.json()) as AgentConfigChangeEnvelope;
+  } catch {
+    return Response.json(
+      { status: "error", message: "Invalid /agent-config-change envelope JSON" },
+      { status: 200 },
+    );
+  }
+  const { capabilityId, oldSlice, newSlice, sessionId } = envelope;
+  if (typeof capabilityId !== "string" || typeof sessionId !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include capabilityId and sessionId" },
+      { status: 200 },
+    );
+  }
+
+  const capabilities = setup.capabilities(env) ?? [];
+  const cap = capabilities.find((c) => c.id === capabilityId);
+  if (!cap || !cap.hooks?.onAgentConfigChange) {
+    return Response.json({ status: "noop" });
+  }
+
+  const spine = httpEnv.SPINE as unknown as Parameters<typeof createKvStoreClient>[0] | undefined;
+  if (!spine) {
+    return Response.json(
+      { status: "error", message: "Missing env.SPINE service binding" },
+      { status: 200 },
+    );
+  }
+  const token = httpEnv.__BUNDLE_TOKEN;
+  const agentId = decodeAgentIdFromToken(token);
+  const publicUrl =
+    typeof httpEnv.__BUNDLE_PUBLIC_URL === "string" ? httpEnv.__BUNDLE_PUBLIC_URL : undefined;
+
+  const ctx = buildConfigHookContext(
+    env,
+    spine,
+    token,
+    capabilityId,
+    agentId,
+    sessionId,
+    publicUrl,
+    newSlice,
+  );
+  try {
+    await cap.hooks.onAgentConfigChange(oldSlice, newSlice, ctx);
+    return Response.json({ status: "ok" });
+  } catch (err) {
+    return Response.json({
+      status: "error",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Locate a bundle-declared `BundleConfigNamespace` by id and produce
+ * a builder for a fresh `BundleContext`. Returns `null` when no
+ * capability declares the namespace or the bundle has no capabilities.
+ */
+function resolveConfigNamespace<TEnv extends BundleEnv>(
+  setup: BundleAgentSetup<TEnv>,
+  env: TEnv,
+  sessionId: string,
+  namespace: string,
+  spine: Parameters<typeof createKvStoreClient>[0],
+  token: string,
+): { ns: BundleConfigNamespace; ctx: BundleContext } | null {
+  if (!setup.capabilities) return null;
+  const capabilities = setup.capabilities(env) ?? [];
+  for (const cap of capabilities) {
+    if (!cap.configNamespaces) continue;
+    const agentId = decodeAgentIdFromToken(token);
+    const ctx = buildBundleContext(
+      env,
+      spine as unknown as Parameters<typeof buildBundleContext>[1],
+      agentId,
+      sessionId,
+    );
+    let declared: BundleConfigNamespace[];
+    try {
+      declared = cap.configNamespaces(ctx) ?? [];
+    } catch {
+      continue;
+    }
+    const match = declared.find((n) => n.id === namespace);
+    if (match) return { ns: match, ctx };
+  }
+  return null;
+}
+
+async function handleConfigNamespaceGet<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const httpEnv = env as TEnv & HttpActionEnv;
+  if (!httpEnv.__BUNDLE_TOKEN) {
+    return Response.json({ status: "error", message: "Missing __BUNDLE_TOKEN" }, { status: 401 });
+  }
+
+  let envelope: ConfigNamespaceGetEnvelope;
+  try {
+    envelope = (await request.json()) as ConfigNamespaceGetEnvelope;
+  } catch {
+    return Response.json(
+      { status: "error", message: "Invalid /config-namespace-get envelope JSON" },
+      { status: 200 },
+    );
+  }
+  const { namespace, sessionId } = envelope;
+  if (typeof namespace !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include namespace" },
+      { status: 200 },
+    );
+  }
+
+  const spine = httpEnv.SPINE as unknown as Parameters<typeof createKvStoreClient>[0] | undefined;
+  if (!spine) {
+    return Response.json(
+      { status: "error", message: "Missing env.SPINE service binding" },
+      { status: 200 },
+    );
+  }
+
+  const resolved = resolveConfigNamespace(
+    setup,
+    env,
+    typeof sessionId === "string" ? sessionId : "",
+    namespace,
+    spine,
+    httpEnv.__BUNDLE_TOKEN,
+  );
+  if (!resolved) {
+    return Response.json({
+      status: "error",
+      message: `Unknown bundle config namespace: ${namespace}`,
+    });
+  }
+
+  try {
+    const value = await resolved.ns.get(namespace);
+    return Response.json({ status: "ok", value });
+  } catch (err) {
+    return Response.json({
+      status: "error",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function handleConfigNamespaceSet<TEnv extends BundleEnv>(
+  request: Request,
+  env: TEnv,
+  setup: BundleAgentSetup<TEnv>,
+): Promise<Response> {
+  const httpEnv = env as TEnv & HttpActionEnv;
+  if (!httpEnv.__BUNDLE_TOKEN) {
+    return Response.json({ status: "error", message: "Missing __BUNDLE_TOKEN" }, { status: 401 });
+  }
+
+  let envelope: ConfigNamespaceSetEnvelope;
+  try {
+    envelope = (await request.json()) as ConfigNamespaceSetEnvelope;
+  } catch {
+    return Response.json(
+      { status: "error", message: "Invalid /config-namespace-set envelope JSON" },
+      { status: 200 },
+    );
+  }
+  const { namespace, value, sessionId } = envelope;
+  if (typeof namespace !== "string") {
+    return Response.json(
+      { status: "error", message: "Envelope must include namespace" },
+      { status: 200 },
+    );
+  }
+
+  const spine = httpEnv.SPINE as unknown as Parameters<typeof createKvStoreClient>[0] | undefined;
+  if (!spine) {
+    return Response.json(
+      { status: "error", message: "Missing env.SPINE service binding" },
+      { status: 200 },
+    );
+  }
+
+  const resolved = resolveConfigNamespace(
+    setup,
+    env,
+    typeof sessionId === "string" ? sessionId : "",
+    namespace,
+    spine,
+    httpEnv.__BUNDLE_TOKEN,
+  );
+  if (!resolved) {
+    return Response.json({
+      status: "error",
+      message: `Unknown bundle config namespace: ${namespace}`,
+    });
+  }
+
+  try {
+    const display = await resolved.ns.set(namespace, value);
+    return Response.json({
+      status: "ok",
+      display: typeof display === "string" ? display : undefined,
+    });
   } catch (err) {
     return Response.json({
       status: "error",

@@ -591,10 +591,23 @@ export function agentWorkshop(
                   skipCatalogCheck: true,
                 });
               } else {
+                // bundle-config-namespaces: pass the host's current
+                // agent-config namespace / config-namespace / capability
+                // id snapshots so setActive's three new collision
+                // guards can catch declared/registered overlaps at
+                // promotion time. Accessors are optional on
+                // `AgentContext` — fall back to undefined for consumers
+                // that haven't been updated (skips the check,
+                // dispatch-time guard catches).
                 await options.registry.setActive(agentId, version.versionId, {
                   rationale: args.rationale ?? "workshop_deploy",
                   sessionId: context.sessionId,
                   knownCapabilityIds: hostIdsList,
+                  knownAgentConfigNamespaces:
+                    context.getBundleHostAgentConfigNamespaces?.(),
+                  knownConfigNamespaceIds:
+                    context.getBundleHostConfigNamespaceIds?.(),
+                  knownCapabilityConfigIds: hostIdsList,
                 });
               }
             } catch (err) {

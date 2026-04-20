@@ -7,6 +7,14 @@ import { CapabilityMismatchError } from "@crabbykit/agent-runtime";
 import { validateCatalogAgainstKnownIds } from "@crabbykit/bundle-registry";
 import type { BundleRegistry, SetActiveOptions } from "./bundle-config.js";
 import {
+  AgentConfigCollisionError,
+  CapabilityConfigCollisionError,
+  ConfigNamespaceCollisionError,
+  validateBundleAgentConfigsAgainstKnownIds,
+  validateBundleCapabilityConfigsAgainstKnownIds,
+  validateBundleConfigNamespacesAgainstKnownIds,
+} from "./validate-config.js";
+import {
   ActionIdCollisionError,
   RouteCollisionError,
   validateBundleActionIdsAgainstKnownIds,
@@ -159,6 +167,61 @@ export class InMemoryBundleRegistry implements BundleRegistry {
             });
           }
         }
+
+        // bundle-config-namespaces: three new promotion-time
+        // collision checks. Each runs only when the version declared
+        // the corresponding bundle metadata field AND the caller
+        // supplied the matching `known*` snapshot (opt-out by
+        // passing undefined for cross-deployment promotions).
+        const configMeta = version?.metadata as
+          | {
+              agentConfigSchemas?: Record<string, unknown>;
+              configNamespaces?: Array<{ id: string }>;
+              capabilityConfigs?: Array<{ id: string }>;
+            }
+          | undefined;
+
+        if (configMeta?.agentConfigSchemas) {
+          const declared = Object.keys(configMeta.agentConfigSchemas);
+          const result = validateBundleAgentConfigsAgainstKnownIds(
+            declared,
+            options.knownAgentConfigNamespaces,
+          );
+          if (!result.valid) {
+            throw new AgentConfigCollisionError({
+              collidingNamespaces: result.collidingNamespaces,
+              versionId,
+            });
+          }
+        }
+
+        if (configMeta?.configNamespaces) {
+          const declared = configMeta.configNamespaces.map((n) => n.id);
+          const result = validateBundleConfigNamespacesAgainstKnownIds(
+            declared,
+            options.knownConfigNamespaceIds,
+          );
+          if (!result.valid) {
+            throw new ConfigNamespaceCollisionError({
+              collidingIds: result.collidingIds,
+              versionId,
+            });
+          }
+        }
+
+        if (configMeta?.capabilityConfigs) {
+          const declared = configMeta.capabilityConfigs.map((c) => c.id);
+          const result = validateBundleCapabilityConfigsAgainstKnownIds(
+            declared,
+            options.knownCapabilityConfigIds,
+          );
+          if (!result.valid) {
+            throw new CapabilityConfigCollisionError({
+              collidingIds: result.collidingIds,
+              versionId,
+            });
+          }
+        }
       }
     }
 
@@ -199,6 +262,13 @@ export class InMemoryBundleRegistry implements BundleRegistry {
         httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
         actionCapabilityIds?: string[];
       };
+      capabilityConfigs?: Array<{
+        id: string;
+        schema: object;
+        default?: Record<string, unknown>;
+      }>;
+      agentConfigSchemas?: Record<string, object>;
+      configNamespaces?: Array<{ id: string; description: string; schema: object }>;
     } | null;
   } | null> {
     const entry = this.versions.get(versionId);
@@ -218,6 +288,13 @@ export class InMemoryBundleRegistry implements BundleRegistry {
             httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
             actionCapabilityIds?: string[];
           };
+          capabilityConfigs?: Array<{
+            id: string;
+            schema: object;
+            default?: Record<string, unknown>;
+          }>;
+          agentConfigSchemas?: Record<string, object>;
+          configNamespaces?: Array<{ id: string; description: string; schema: object }>;
         }
       | undefined;
     return { versionId, metadata: meta ?? null };

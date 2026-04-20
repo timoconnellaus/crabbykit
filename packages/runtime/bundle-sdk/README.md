@@ -103,3 +103,119 @@ Promotion-time and dispatch-time guards reject collisions with the host's curren
 ### Metadata extraction constraint
 
 `defineBundleAgent` walks `setup.capabilities(probeEnv)` once at build time with a minimal probe env (`{} as BundleEnv`) to populate `BundleMetadata.surfaces`. A capability whose `httpHandlers(ctx)` factory throws while reading a missing env field surfaces as `BundleMetadataExtractionError` naming the offending capability id. Bundle metadata is the source of truth — runtime-conditional routes that depend on env at probe time will not dispatch.
+
+## Bundle config (`bundle-config-namespaces`)
+
+Bundles get the same three-layer config model as static capabilities — per-capability config, agent-level config namespaces, custom configNamespaces. All schemas serialize into `BundleMetadata` at build time; host-side validation + persistence reuses the existing `config_set` / `config_get` / `config_schema` tools.
+
+### Per-capability config
+
+```ts
+import { Type } from "@sinclair/typebox";
+import type { BundleCapability } from "@crabbykit/bundle-sdk";
+
+const search: BundleCapability = {
+  id: "bundle-search",
+  name: "Search",
+  description: "",
+  configSchema: Type.Object({
+    defaultDepth: Type.Union([Type.Literal("basic"), Type.Literal("advanced")]),
+    maxResults: Type.Number({ minimum: 1, maximum: 50 }),
+  }),
+  configDefault: { defaultDepth: "basic", maxResults: 5 },
+  hooks: {
+    onConfigChange: async (oldCfg, newCfg, ctx) => {
+      // Fires BEFORE persistence. Throw to reject the write.
+      await ctx.channel.broadcast({
+        type: "state_event",
+        capabilityId: "bundle-search",
+        event: "config_changed",
+        data: { oldCfg, newCfg },
+      });
+    },
+  },
+};
+```
+
+Persisted under `config:capability:bundle-search` — same key shape as static. Host surfaces the schema + default through `config_schema { namespace: "capability:bundle-search" }` and validates `config_set` input before dispatching `onConfigChange`.
+
+### Agent-level config
+
+```ts
+import { Type } from "@sinclair/typebox";
+import { defineBundleAgent, type BundleCapability } from "@crabbykit/bundle-sdk";
+
+const cap: BundleCapability = {
+  id: "search",
+  name: "Search",
+  description: "",
+  agentConfigPath: "botConfig",        // dotted-path projection
+  hooks: {
+    onAgentConfigChange: async (oldSlice, newSlice, ctx) => {
+      // ctx.agentConfig === newSlice (may be undefined — see safe-traversal)
+    },
+  },
+};
+
+export default defineBundleAgent({
+  model: { provider: "openrouter", modelId: "anthropic/claude-sonnet-4" },
+  config: {
+    botConfig: Type.Object({
+      rateLimit: Type.Number(),
+      persona: Type.String(),
+    }),
+  },
+  capabilities: () => [cap],
+});
+```
+
+- `setup.config` maps top-level namespace id → TypeBox schema. Persisted under `config:agent:{ns}`.
+- `BundleCapability.agentConfigPath` is a dotted-path expression evaluated host-side via `evaluateAgentConfigPath(snapshot, path)`. **Safe-traversal:** a missing intermediate segment returns `undefined`. Bundle authors MUST handle `ctx.agentConfig === undefined` defensively — the contract diverges from the static `agentConfigMapping: (s) => s.a.b.c` function, which would throw on a missing intermediate.
+- The UI bridge `capability_action { capabilityId: "agent-config", action: "set", data: { namespace, value } }` works identically for bundle-declared and host-declared namespaces.
+
+### Custom configNamespaces
+
+```ts
+const accounts: BundleCapability = {
+  id: "bundle-telegram",
+  name: "Telegram",
+  description: "",
+  configNamespaces: (ctx) => [
+    {
+      id: "telegram-accounts",
+      description: "Telegram bot tokens keyed by account id",
+      schema: Type.Object({ list: Type.Array(Type.String()) }),
+      get: async () => (await ctx.kvStore.get("bundle-telegram", "accounts")) ?? { list: [] },
+      set: async (_ns, value) => {
+        await ctx.kvStore.put("bundle-telegram", "accounts", value);
+        return "accounts saved";
+      },
+    },
+  ],
+};
+```
+
+Host validates the written value against `schema` BEFORE dispatching `set` to the bundle. Return type `string | void` matches the static `ConfigNamespace.set` contract — string becomes the tool output.
+
+### Hook ordering
+
+`onConfigChange` fires BEFORE `ConfigStore.setCapabilityConfig`. On `{ status: "error", message }` the tool returns the error and persistence is SKIPPED — matches static `config-set.ts:103-117` ordering. `onAgentConfigChange` fires AFTER `applyAgentConfigSet` persists — handler errors are logged but do NOT reverse persistence. Both dispatchers apply `BundleConfig.configHookTimeoutMs` (default 5 000 ms).
+
+### Reserved values
+
+Build-time validation rejects:
+
+- **Reserved agent-config namespace ids:** `session`, `agent-config`, `schedules`, `queue`, anything starting with `capability:`, anything colliding with bundle-declared capability ids or `surfaces.actionCapabilityIds`.
+- **Reserved configNamespace ids:** same reserved tokens; also rejects collisions with the bundle's own agent-config namespaces and capability ids.
+- **`pattern` field on a configNamespace entry** — regex-based pattern-matched namespaces are a v1 Non-Goal. Use a single namespace with structured value (`{ schedules: { [id]: {...} } }`) instead.
+- **TypeBox `Transform` / `Constructor` / `Function` Kinds** — runtime closures that cannot survive JSON serialization.
+
+Promotion-time and dispatch-time guards reject collisions with the host's currently-resolved config surface: `ERR_AGENT_CONFIG_COLLISION`, `ERR_CONFIG_NAMESPACE_COLLISION`, `ERR_CAPABILITY_CONFIG_COLLISION`, `ERR_AGENT_CONFIG_PATH_UNRESOLVABLE`. Each clears the bundle pointer and broadcasts `bundle_disabled` with a structured reason.
+
+### Schema migration is the bundle author's responsibility
+
+The framework does not auto-migrate `config:capability:{id}` or `config:agent:{ns}` payloads across schema changes. A bundle that renames `botConfig.rate` → `botConfig.rateLimit` ships its own migration (read old key in `onConfigChange`, write new shape, delete old). On a bundle-vs-host collision-disable, the persisted payload is retained under `config:agent:__orphans` so an operator can roll back and recover.
+
+### Dual-API state: `agentConfigMapping` (static function) vs `agentConfigPath` (bundle declarative)
+
+Static `Capability.agentConfigMapping: (snapshot) => slice` is a function — it can do arbitrary projection. Bundle `BundleCapability.agentConfigPath: string` is declarative — it covers simple projections (which is ~100% of observed use cases). If your bundle needs a transform, declare a derived agent-config namespace and project through it in a host-side capability. Documented asymmetry, not a parity break.

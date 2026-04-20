@@ -56,6 +56,34 @@ export interface BundleVersionMetadata {
     httpRoutes?: Array<{ method: string; path: string; capabilityId?: string }>;
     actionCapabilityIds?: string[];
   };
+  /**
+   * Per-capability config schemas declared by the bundle
+   * (`bundle-config-namespaces`). Each entry carries the serialized
+   * JSON Schema (`Kind` mirrored as a plain string prop so
+   * `hydrateBundleSchema` can restore the symbol host-side) and an
+   * optional default value.
+   */
+  capabilityConfigs?: Array<{
+    id: string;
+    schema: object;
+    default?: Record<string, unknown>;
+  }>;
+  /**
+   * Agent-level config namespace schemas declared by the bundle.
+   * Host merges these with its own `getAgentConfigSchema()` at
+   * dispatch time.
+   */
+  agentConfigSchemas?: Record<string, object>;
+  /**
+   * Custom config namespaces declared by bundle capabilities. Only
+   * the metadata projection is emitted; `get`/`set` stay in bundle
+   * code and run via cross-isolate RPC.
+   */
+  configNamespaces?: Array<{
+    id: string;
+    description: string;
+    schema: object;
+  }>;
 }
 
 /** Shape returned from `BundleRegistry.getVersion` used by drift detection. */
@@ -110,6 +138,32 @@ export interface SetActiveOptions {
    * skips the check (cross-deployment promotion path).
    */
   knownHttpRoutes?: Array<{ method: string; path: string }>;
+  /**
+   * Pre-computed snapshot of the host's currently-resolved agent-level
+   * config schema key set. When provided AND the version's metadata
+   * declares `agentConfigSchemas`, the registry validates the bundle's
+   * namespace keys do not collide; throws `AgentConfigCollisionError`
+   * on mismatch. Undefined skips (cross-deployment promotion).
+   */
+  knownAgentConfigNamespaces?: string[];
+  /**
+   * Pre-computed snapshot of the host's currently-resolved custom
+   * config namespace id set. When provided AND the version's metadata
+   * declares `configNamespaces`, the registry validates the bundle's
+   * ids do not collide; throws `ConfigNamespaceCollisionError`.
+   * Undefined skips (cross-deployment promotion).
+   */
+  knownConfigNamespaceIds?: string[];
+  /**
+   * Pre-computed snapshot of the host's currently-resolved capability
+   * id set. Distinct from {@link knownCapabilityIds} (which gates
+   * `requiredCapabilities`). When provided AND the version's metadata
+   * declares `capabilityConfigs`, the registry validates the bundle's
+   * declared `capabilityConfigs.id` set does not collide with host
+   * capabilities; throws `CapabilityConfigCollisionError`. Undefined
+   * skips (cross-deployment promotion).
+   */
+  knownCapabilityConfigIds?: string[];
   /**
    * Skip catalog validation. Supported use cases:
    *
@@ -251,6 +305,16 @@ export interface BundleConfig<TEnv = Record<string, unknown>> {
    * Default 30 000 ms. Returns 504 Gateway Timeout on expiry.
    */
   httpDispatchTimeoutMs?: number;
+  /**
+   * Per-dispatch timeout for bundle config hooks
+   * (`bundle-config-namespaces`) — `/config-change`,
+   * `/agent-config-change`, `/config-namespace-get`,
+   * `/config-namespace-set`. Default 5 000 ms — deliberately tighter
+   * than `httpDispatchTimeoutMs` because config UX expects
+   * sub-second feedback. Bundle authors whose handlers need longer
+   * can raise the knob.
+   */
+  configHookTimeoutMs?: number;
   /**
    * Optional auto-rebuild support. When present, stale bundles (those built
    * against an older runtime source) are regenerated on DO startup from the

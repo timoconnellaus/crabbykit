@@ -37,12 +37,15 @@ export {
 } from "./spine-clients.js";
 export type {
   BundleActionContext,
+  BundleAgentConfigChangeEvent,
   BundleAgentSetup,
   BundleBeforeToolExecutionEvent,
   BundleBeforeToolExecutionResult,
   BundleCapability,
   BundleCapabilityHooks,
   BundleCapabilityRequirement,
+  BundleConfigChangeEvent,
+  BundleConfigNamespace,
   BundleContext,
   BundleCostEvent,
   BundleEnv,
@@ -64,9 +67,17 @@ export type {
   BundleSessionStoreClient,
   BundleToolExecutionEvent,
 } from "./types.js";
+export { evaluateAgentConfigPath } from "./config-path.js";
+export { hydrateBundleSchema, serializeBundleSchema } from "./schema-serialize.js";
 export {
   BundleMetadataExtractionError,
+  type CapabilityConfigEntry,
   validateActionCapabilityIds,
+  validateAgentConfigPaths,
+  validateAgentConfigSchemas,
+  validateBundleCapabilityConfigsAgainstBundleCaps,
+  validateCapabilityConfigs,
+  validateConfigNamespaces,
   validateHttpRoutes,
   validateRequirements,
 } from "./validate.js";

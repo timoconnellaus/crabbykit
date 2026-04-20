@@ -81,6 +81,31 @@ export function createConfigSet(ctx: ConfigContext) {
           );
         }
 
+        // bundle-config-namespaces: if this id is a bundle-declared
+        // stand-in, dispatch through the bundle bridge BEFORE persist.
+        // On `{ok: false, error}` the tool returns the error and
+        // persistence is SKIPPED (matches static
+        // `onConfigChange`'s fail-closed ordering).
+        if (ctx.bundleCapabilityIds?.has(id) && ctx.bundleConfigChangeDispatcher) {
+          const oldCfgForBundle =
+            (await ctx.configStore.getCapabilityConfig<Record<string, unknown>>(id)) ??
+            cap.configDefault ??
+            {};
+          const dispatchResult = await ctx.bundleConfigChangeDispatcher(
+            id,
+            oldCfgForBundle,
+            value as Record<string, unknown>,
+            ctx.sessionId,
+          );
+          if (!dispatchResult.ok) {
+            return toolResult.error(
+              dispatchResult.error ?? `Bundle "${id}" rejected config change`,
+            );
+          }
+          await ctx.configStore.setCapabilityConfig(id, value);
+          return toolResult.text(`Configuration updated: ${namespace}`);
+        }
+
         // Fire onConfigChange if the capability defines it
         if (cap.hooks?.onConfigChange) {
           const oldConfig =

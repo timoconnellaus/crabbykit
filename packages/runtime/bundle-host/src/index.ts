@@ -69,6 +69,17 @@ export { LlmService } from "./services/llm-service.js";
 export type { SpineEnv, SpineErrorCode, SpineHost } from "./services/spine-service.js";
 export { SpineError, SpineService } from "./services/spine-service.js";
 export {
+  AgentConfigCollisionError,
+  type AgentConfigValidationResult,
+  CapabilityConfigCollisionError,
+  type CapabilityConfigValidationResult,
+  ConfigNamespaceCollisionError,
+  type ConfigNamespaceValidationResult,
+  validateBundleAgentConfigsAgainstKnownIds,
+  validateBundleCapabilityConfigsAgainstKnownIds,
+  validateBundleConfigNamespacesAgainstKnownIds,
+} from "./validate-config.js";
+export {
   ActionIdCollisionError,
   type ActionIdValidationResult,
   RouteCollisionError,

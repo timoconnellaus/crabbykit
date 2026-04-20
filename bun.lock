@@ -92,9 +92,10 @@
     "examples/bundle-agent-phase2": {
       "name": "bundle-agent-phase2",
       "dependencies": {
-        "@crabbykit/agent-runtime": "workspace:*",
-        "@crabbykit/bundle-host": "workspace:*",
-        "@crabbykit/bundle-sdk": "workspace:*",
+        "@crabbykit/agent-runtime": "workspace:^",
+        "@crabbykit/bundle-host": "workspace:^",
+        "@crabbykit/bundle-sdk": "workspace:^",
+        "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20250109.0",

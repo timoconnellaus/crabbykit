@@ -48,4 +48,24 @@ export interface ConfigContext {
    * broadcast/hook machinery isn't wired up.
    */
   onAgentConfigSet?: (namespace: string, oldValue: unknown, newValue: unknown) => Promise<void>;
+  /**
+   * Bundle per-capability config dispatcher invoked by `config_set`
+   * BEFORE `setCapabilityConfig` when the resolved capability was
+   * surfaced as a bundle-declared stand-in. Mirrors the static
+   * `onConfigChange` ordering: on `{ok: false, error}` the tool
+   * returns the error and persistence is skipped.
+   */
+  bundleConfigChangeDispatcher?: (
+    capabilityId: string,
+    oldCfg: Record<string, unknown>,
+    newCfg: Record<string, unknown>,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Set of bundle-declared capability ids whose config `config_set`
+   * should route through {@link bundleConfigChangeDispatcher} instead
+   * of the capability's own `hooks.onConfigChange`. Stand-ins never
+   * carry host hooks; this set gates the dispatch.
+   */
+  bundleCapabilityIds?: ReadonlySet<string>;
 }

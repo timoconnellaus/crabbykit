@@ -208,6 +208,28 @@ export interface BundleDisabledMessage {
           code: "ERR_ACTION_ID_COLLISION";
           collidingIds: string[];
           versionId: string;
+        }
+      | {
+          code: "ERR_AGENT_CONFIG_COLLISION";
+          collidingNamespaces: string[];
+          versionId: string;
+        }
+      | {
+          code: "ERR_CONFIG_NAMESPACE_COLLISION";
+          collidingIds: string[];
+          versionId: string;
+        }
+      | {
+          code: "ERR_CAPABILITY_CONFIG_COLLISION";
+          collidingIds: string[];
+          versionId: string;
+        }
+      | {
+          code: "ERR_AGENT_CONFIG_PATH_UNRESOLVABLE";
+          capabilityId: string;
+          path: string;
+          knownNamespaces: string[];
+          versionId: string;
         };
   };
 }

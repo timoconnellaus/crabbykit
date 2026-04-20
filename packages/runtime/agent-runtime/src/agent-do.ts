@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { AgentMessage, AnyAgentTool } from "@crabbykit/agent-core";
+import { evaluateAgentConfigPath, hydrateBundleSchema } from "@crabbykit/bundle-sdk";
 import type { TObject } from "@sinclair/typebox";
 import type {
   A2AClientOptions,
@@ -814,6 +815,234 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     };
 
     /**
+     * bundle-config-namespaces dispatch-time disable helpers. Each
+     * mirrors the catalog/route/action-id pattern — clears the
+     * pointer with `skipCatalogCheck: true`, broadcasts
+     * `bundle_disabled` with structured reason, resets the failure
+     * counter, does NOT increment `consecutiveFailures` (deterministic
+     * mismatch). Kind discriminators in the log line per Decision 8.
+     */
+    const disableForAgentConfigCollision = async (
+      collidingNamespaces: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `agent-config collision: bundle '${versionId}' declares agent-config namespace(s) overlapping host: ${collidingNamespaces.join(", ")}`;
+      this.runtime.logger.warn(
+        `[BundleDispatch] kind: "agent_config_collision_disable"`,
+        { agentId, versionId, collidingNamespaces },
+      );
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on agent-config collision",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      installBundleConfigMetadata(null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_AGENT_CONFIG_COLLISION",
+          collidingNamespaces,
+          versionId,
+        },
+      });
+    };
+
+    const disableForConfigNamespaceCollision = async (
+      collidingIds: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `config-namespace collision: bundle '${versionId}' declares config namespace id(s) overlapping host: ${collidingIds.join(", ")}`;
+      this.runtime.logger.warn(
+        `[BundleDispatch] kind: "config_namespace_collision_disable"`,
+        { agentId, versionId, collidingIds },
+      );
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on config-namespace collision",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      installBundleConfigMetadata(null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_CONFIG_NAMESPACE_COLLISION",
+          collidingIds,
+          versionId,
+        },
+      });
+    };
+
+    const disableForCapabilityConfigCollision = async (
+      collidingIds: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `capability-config collision: bundle '${versionId}' declares config schemas for host-registered capability id(s): ${collidingIds.join(", ")}`;
+      this.runtime.logger.warn(
+        `[BundleDispatch] kind: "capability_config_collision_disable"`,
+        { agentId, versionId, collidingIds },
+      );
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on capability-config collision",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      installBundleConfigMetadata(null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_CAPABILITY_CONFIG_COLLISION",
+          collidingIds,
+          versionId,
+        },
+      });
+    };
+
+    const disableForAgentConfigPathUnresolvable = async (
+      capabilityId: string,
+      path: string,
+      knownNamespaces: string[],
+      versionId: string,
+      sessionId: string,
+    ): Promise<void> => {
+      const rationale = `agent-config path unresolvable: bundle '${versionId}' capability "${capabilityId}" declares agentConfigPath "${path}" with no matching namespace (known: ${knownNamespaces.join(", ") || "<empty>"})`;
+      this.runtime.logger.warn(
+        `[BundleDispatch] kind: "agent_config_path_unresolvable_disable"`,
+        { agentId, versionId, capabilityId, path, knownNamespaces },
+      );
+      try {
+        await registry.setActive(agentId, null, {
+          rationale,
+          sessionId,
+          skipCatalogCheck: true,
+        });
+      } catch (err) {
+        this.runtime.logger.error(
+          "[BundleDispatch] Failed to clear registry pointer on agent-config path unresolvable",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+      validatedVersionId = null;
+      consecutiveFailures = 0;
+      await ctx.storage.put("activeBundleVersionId", null);
+      installBundleConfigMetadata(null);
+      this.runtime.broadcastBundleDisabled?.(sessionId, {
+        rationale,
+        versionId,
+        sessionId,
+        reason: {
+          code: "ERR_AGENT_CONFIG_PATH_UNRESOLVABLE",
+          capabilityId,
+          path,
+          knownNamespaces,
+          versionId,
+        },
+      });
+    };
+
+    /**
+     * bundle-config-namespaces dispatch-time collision checker.
+     * Returns a discriminated result or `null` when all declarations
+     * pass. Reads the currently-loaded bundle config metadata — so
+     * a collision between bundle metadata and host-declared config
+     * surfaces on the first dispatch after a pointer flip or host
+     * redeploy.
+     */
+    const validateBundleConfigDeclarations = (
+      versionId: string,
+    ):
+      | { valid: true }
+      | { valid: false; kind: "agent-config"; collidingNamespaces: string[] }
+      | { valid: false; kind: "config-namespace"; collidingIds: string[] }
+      | { valid: false; kind: "capability-config"; collidingIds: string[] }
+      | {
+          valid: false;
+          kind: "agent-config-path";
+          capabilityId: string;
+          path: string;
+          knownNamespaces: string[];
+        } => {
+      const bundleAgentKeys = Object.keys(
+        this.runtime.bundleAgentConfigSchemaMetadata ?? {},
+      );
+      const hostAgentKeys = Object.keys(this.runtime.getAgentConfigSchema());
+      const agentClashes = bundleAgentKeys.filter((k) => hostAgentKeys.includes(k));
+      if (agentClashes.length > 0) {
+        return { valid: false, kind: "agent-config", collidingNamespaces: agentClashes };
+      }
+      const bundleNsIds = (this.runtime.bundleConfigNamespaceMetadata ?? []).map((n) => n.id);
+      const hostNsIds = new Set(this.runtime.getConfigNamespaces().map((n) => n.id));
+      const nsClashes = bundleNsIds.filter((id) => hostNsIds.has(id));
+      if (nsClashes.length > 0) {
+        return { valid: false, kind: "config-namespace", collidingIds: nsClashes };
+      }
+      const bundleCapConfigIds = (this.runtime.bundleCapabilityConfigMetadata ?? []).map(
+        (c) => c.id,
+      );
+      const hostCapIds = new Set(this.runtime.getBundleHostCapabilityIds());
+      const capClashes = bundleCapConfigIds.filter((id) => hostCapIds.has(id));
+      if (capClashes.length > 0) {
+        return { valid: false, kind: "capability-config", collidingIds: capClashes };
+      }
+      const mergedNsKeys = new Set([...bundleAgentKeys, ...hostAgentKeys]);
+      for (const entry of this.runtime.bundleCapabilityAgentConfigPaths ?? []) {
+        const firstSegment = entry.agentConfigPath.split(".")[0];
+        if (!firstSegment) continue;
+        if (!mergedNsKeys.has(firstSegment)) {
+          return {
+            valid: false,
+            kind: "agent-config-path",
+            capabilityId: entry.id,
+            path: entry.agentConfigPath,
+            knownNamespaces: Array.from(mergedNsKeys),
+          };
+        }
+      }
+      // Silence unused var — versionId is part of the return contract
+      // for future checks but not read inside the current body.
+      void versionId;
+      return { valid: true };
+    };
+
+    /**
      * Run the dispatch-time guard for the given version+sessionId. On
      * collision, route through the appropriate disable helper and
      * return `false` to signal the caller to fall through to static.
@@ -822,15 +1051,48 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
     const runDispatchGuard = async (versionId: string, sessionId: string): Promise<boolean> => {
       if (versionId === validatedVersionId) return true;
       const guard = await validateCatalogCached(versionId);
-      if (guard.valid) return true;
-      if (guard.kind === "catalog") {
-        await disableForCatalogMismatch(guard.missingIds, versionId, sessionId);
-      } else if (guard.kind === "route") {
-        await disableForRouteCollision(guard.collisions, versionId, sessionId);
-      } else {
-        await disableForActionIdCollision(guard.collidingIds, versionId, sessionId);
+      if (!guard.valid) {
+        if (guard.kind === "catalog") {
+          await disableForCatalogMismatch(guard.missingIds, versionId, sessionId);
+        } else if (guard.kind === "route") {
+          await disableForRouteCollision(guard.collisions, versionId, sessionId);
+        } else {
+          await disableForActionIdCollision(guard.collidingIds, versionId, sessionId);
+        }
+        return false;
       }
-      return false;
+      const configGuard = validateBundleConfigDeclarations(versionId);
+      if (!configGuard.valid) {
+        if (configGuard.kind === "agent-config") {
+          await disableForAgentConfigCollision(
+            configGuard.collidingNamespaces,
+            versionId,
+            sessionId,
+          );
+        } else if (configGuard.kind === "config-namespace") {
+          await disableForConfigNamespaceCollision(
+            configGuard.collidingIds,
+            versionId,
+            sessionId,
+          );
+        } else if (configGuard.kind === "capability-config") {
+          await disableForCapabilityConfigCollision(
+            configGuard.collidingIds,
+            versionId,
+            sessionId,
+          );
+        } else {
+          await disableForAgentConfigPathUnresolvable(
+            configGuard.capabilityId,
+            configGuard.path,
+            configGuard.knownNamespaces,
+            versionId,
+            sessionId,
+          );
+        }
+        return false;
+      }
+      return true;
     };
 
     // Drift check state. `autoRebuildAttempted` ensures we do the hash
@@ -930,6 +1192,259 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       await autoRebuildInFlight;
     };
 
+    // --- bundle-config-namespaces (Phase 6) ---
+    //
+    // Read the active bundle's config metadata (capabilityConfigs,
+    // agentConfigSchemas, configNamespaces, agentConfigPath
+    // projections), rehydrate each serialized schema so TypeBox's
+    // `Value.Check` dispatches through the Kind fast path, and
+    // expose the result on the runtime for the config tools and the
+    // merged agent-config snapshot.
+    const DEFAULT_CONFIG_HOOK_TIMEOUT_MS = 5_000;
+    const configHookTimeoutMs = (
+      bundleConfig as { configHookTimeoutMs?: number }
+    ).configHookTimeoutMs ?? DEFAULT_CONFIG_HOOK_TIMEOUT_MS;
+
+    const rehydrateSchema = (schema: object): TObject => {
+      // Deep-clone so the in-memory registry's shared metadata object
+      // is not mutated by the Kind-restoration walk.
+      const cloned = JSON.parse(JSON.stringify(schema));
+      hydrateBundleSchema(cloned);
+      return cloned as TObject;
+    };
+
+    const loadBundleConfigMetadata = async (
+      versionId: string,
+    ): Promise<{
+      capabilityConfigs: Array<{
+        id: string;
+        schema: TObject;
+        default?: Record<string, unknown>;
+      }>;
+      agentConfigSchemas: Record<string, TObject>;
+      configNamespaces: Array<{ id: string; description: string; schema: TObject }>;
+      agentConfigPaths: Array<{ id: string; agentConfigPath: string }>;
+    } | null> => {
+      if (!registry.getVersion) return null;
+      const version = await registry.getVersion(versionId);
+      const meta = version?.metadata as
+        | {
+            capabilityConfigs?: Array<{
+              id: string;
+              schema: object;
+              default?: Record<string, unknown>;
+              agentConfigPath?: string;
+            }>;
+            agentConfigSchemas?: Record<string, object>;
+            configNamespaces?: Array<{
+              id: string;
+              description: string;
+              schema: object;
+            }>;
+            // agentConfigPath is declared per-capability on the bundle
+            // side. The metadata projection rolls it up alongside
+            // `capabilityConfigs` when present — an emitter-side detail
+            // documented in the `bundle-config-namespaces` design.
+          }
+        | null;
+      if (!meta) return null;
+      const capabilityConfigs = (meta.capabilityConfigs ?? []).map((entry) => ({
+        id: entry.id,
+        schema: rehydrateSchema(entry.schema),
+        default: entry.default,
+      }));
+      const agentConfigSchemas: Record<string, TObject> = {};
+      for (const [key, schema] of Object.entries(meta.agentConfigSchemas ?? {})) {
+        agentConfigSchemas[key] = rehydrateSchema(schema as object);
+      }
+      const configNamespaces = (meta.configNamespaces ?? []).map((entry) => ({
+        id: entry.id,
+        description: entry.description,
+        schema: rehydrateSchema(entry.schema),
+      }));
+      // `agentConfigPath` lives on the `capabilityConfigs` projection
+      // today — authors that declare a path without a schema still
+      // flow through the extractor, so a future proposal may split
+      // this out. For now, read it off the raw entries.
+      const rawCapEntries = meta.capabilityConfigs ?? [];
+      const agentConfigPaths: Array<{ id: string; agentConfigPath: string }> = [];
+      for (const entry of rawCapEntries) {
+        if (typeof entry.agentConfigPath === "string" && entry.agentConfigPath.length > 0) {
+          agentConfigPaths.push({ id: entry.id, agentConfigPath: entry.agentConfigPath });
+        }
+      }
+      return { capabilityConfigs, agentConfigSchemas, configNamespaces, agentConfigPaths };
+    };
+
+    const installBundleConfigMetadata = (
+      loaded: Awaited<ReturnType<typeof loadBundleConfigMetadata>>,
+    ): void => {
+      this.runtime.bundleCapabilityConfigMetadata =
+        loaded?.capabilityConfigs && loaded.capabilityConfigs.length > 0
+          ? loaded.capabilityConfigs
+          : undefined;
+      this.runtime.bundleAgentConfigSchemaMetadata =
+        loaded?.agentConfigSchemas && Object.keys(loaded.agentConfigSchemas).length > 0
+          ? loaded.agentConfigSchemas
+          : undefined;
+      this.runtime.bundleConfigNamespaceMetadata =
+        loaded?.configNamespaces && loaded.configNamespaces.length > 0
+          ? loaded.configNamespaces
+          : undefined;
+      this.runtime.bundleCapabilityAgentConfigPaths =
+        loaded?.agentConfigPaths && loaded.agentConfigPaths.length > 0
+          ? loaded.agentConfigPaths
+          : undefined;
+      this.runtime.invalidateBundleConfigCaches();
+    };
+
+    const dispatchConfigEndpoint = async (
+      path: string,
+      body: unknown,
+      sessionId: string,
+    ): Promise<{ status: string; message?: string; value?: unknown; display?: string } | null> => {
+      const versionId = await checkActiveBundle();
+      if (!versionId) return null;
+      const started = Date.now();
+      try {
+        const bundleSubkey = await getBundleSubkey();
+        const { mintToken } = await import("@crabbykit/bundle-host");
+        const scope = await computeTokenScope(versionId);
+        const bundleToken = await mintToken({ agentId, sessionId, scope }, bundleSubkey);
+        const worker = loader.get(versionId, buildLoaderConfigGetter(versionId, bundleToken));
+        const dispatchPromise = worker.getEntrypoint().fetch(
+          new Request(`https://bundle${path}`, {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        );
+        const result = await Promise.race([
+          dispatchPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), configHookTimeoutMs)),
+        ]);
+        if (result === null) {
+          this.runtime.logger.warn(`[BundleDispatch] ${path} timeout`, {
+            agentId,
+            timeoutMs: configHookTimeoutMs,
+            durationMs: Date.now() - started,
+          });
+          return { status: "error", message: `bundle ${path} timed out after ${configHookTimeoutMs}ms` };
+        }
+        if (!result.ok) {
+          this.runtime.logger.warn(`[BundleDispatch] ${path} returned ${result.status}`);
+          return { status: "error", message: `bundle ${path} returned ${result.status}` };
+        }
+        return (await result.json()) as {
+          status: string;
+          message?: string;
+          value?: unknown;
+          display?: string;
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { status: "error", message: msg };
+      }
+    };
+
+    this.runtime.bundleConfigChangeDispatcher = async (
+      capabilityId,
+      oldCfg,
+      newCfg,
+      sessionId,
+    ) => {
+      const declared = this.runtime.bundleCapabilityConfigMetadata;
+      if (!declared || !declared.some((c) => c.id === capabilityId)) {
+        return { ok: true };
+      }
+      const started = Date.now();
+      const response = await dispatchConfigEndpoint(
+        "/config-change",
+        { capabilityId, oldCfg, newCfg, sessionId },
+        sessionId,
+      );
+      const status = response?.status ?? "unknown";
+      this.runtime.logger.info(`[BundleDispatch] kind: "config_change"`, {
+        agentId,
+        capabilityId,
+        status,
+        durationMs: Date.now() - started,
+      });
+      if (!response) return { ok: true };
+      if (status === "ok" || status === "noop") return { ok: true };
+      return { ok: false, error: response.message ?? `bundle returned ${status}` };
+    };
+
+    this.runtime.bundleAgentConfigChangeDispatcher = async (
+      capabilityId,
+      oldSlice,
+      newSlice,
+      sessionId,
+    ) => {
+      const declared = this.runtime.bundleCapabilityAgentConfigPaths;
+      if (!declared || !declared.some((d) => d.id === capabilityId)) return;
+      const started = Date.now();
+      const response = await dispatchConfigEndpoint(
+        "/agent-config-change",
+        { capabilityId, oldSlice, newSlice, sessionId },
+        sessionId,
+      );
+      const status = response?.status ?? "unknown";
+      this.runtime.logger.info(`[BundleDispatch] kind: "agent_config_change"`, {
+        agentId,
+        capabilityId,
+        status,
+        sliceChanged: true,
+        durationMs: Date.now() - started,
+      });
+    };
+
+    this.runtime.bundleConfigNamespaceDispatcher = {
+      get: async (namespace) => {
+        const started = Date.now();
+        const response = await dispatchConfigEndpoint(
+          "/config-namespace-get",
+          { namespace },
+          "",
+        );
+        const status = response?.status ?? "unknown";
+        this.runtime.logger.info(`[BundleDispatch] kind: "namespace_get"`, {
+          namespace,
+          status,
+          durationMs: Date.now() - started,
+        });
+        if (!response || status !== "ok") {
+          throw new Error(response?.message ?? `bundle namespace_get returned ${status}`);
+        }
+        return response.value;
+      },
+      set: async (namespace, value) => {
+        const started = Date.now();
+        const response = await dispatchConfigEndpoint(
+          "/config-namespace-set",
+          { namespace, value },
+          "",
+        );
+        const status = response?.status ?? "unknown";
+        this.runtime.logger.info(`[BundleDispatch] kind: "namespace_set"`, {
+          namespace,
+          status,
+          durationMs: Date.now() - started,
+        });
+        if (!response || status !== "ok") {
+          throw new Error(response?.message ?? `bundle namespace_set returned ${status}`);
+        }
+        return typeof response.display === "string" ? response.display : undefined;
+      },
+    };
+
+    // Silence the "unused variable" warning when metadata extractor is
+    // called once per refresher but the body mentions
+    // `evaluateAgentConfigPath` nowhere inside this closure. The
+    // function is imported for symmetry with agent-runtime.ts —
+    // keeping the import stable avoids an unused-import churn the
+    // next time a reviewer looks at the file.
+    void evaluateAgentConfigPath;
+
     // Install the bundle pointer refresher on the runtime. Single
     // authoritative writer of `ctx.storage.activeBundleVersionId` for
     // in-process mutations. Workshop tools (and any other capability that
@@ -944,6 +1459,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
       const id = await registry.getActiveForAgent(agentId);
       await ctx.storage.put("activeBundleVersionId", id);
       consecutiveFailures = 0;
+      // bundle-config-namespaces: reload bundle config metadata so
+      // `getCachedAgentConfigSchema` / `getBundleCapabilityConfigStandIns`
+      // / `getCachedConfigNamespaces` see the new active pointer on
+      // the next read. Also clears the stand-in + schema caches.
+      if (id) {
+        installBundleConfigMetadata(await loadBundleConfigMetadata(id));
+      } else {
+        installBundleConfigMetadata(null);
+      }
     };
 
     // Install the `bundle_disabled` broadcaster so the catalog guard

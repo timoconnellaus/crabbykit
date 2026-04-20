@@ -245,6 +245,323 @@ export function validateActionCapabilityIds(ids: string[]): void {
  * metadata extraction." Capability authors should make `httpHandlers`
  * return a static list keyed only on capability id / declared paths.
  */
+// --- Config validators (bundle-config-namespaces) ---
+
+/**
+ * Reserved namespace ids rejected by `validateAgentConfigSchemas` and
+ * `validateConfigNamespaces`. These correspond to:
+ *
+ * - `session` — dispatched to the session rename handler in
+ *   `config-set.ts` (cannot route through agent-config).
+ * - `agent-config`, `schedules`, `queue` — host built-in
+ *   `capability_action` ids (routing collision would make the bundle's
+ *   action invisible; likewise an agent-config write under `agent-config`
+ *   would shadow the UI bridge).
+ */
+const RESERVED_CONFIG_NAMESPACE_IDS = new Set(["session", "agent-config", "schedules", "queue"]);
+
+/**
+ * TypeBox `Kind` strings whose JSON-Schema serialization loses
+ * behavior: the runtime closures (Decode/Encode, constructor refs,
+ * callable refs) cannot survive `JSON.parse(JSON.stringify(...))`.
+ * Rejected at build time so bundle authors don't silently ship a
+ * schema that validates host-side but skips the decoder.
+ */
+const REJECTED_SCHEMA_KINDS = new Set(["Transform", "Constructor", "Function"]);
+
+/**
+ * Recursive schema walker — descends into `properties`, `items`,
+ * `anyOf`, `allOf`, `oneOf` — throwing when any node carries a
+ * rejected TypeBox `Kind`. The walker reads the JSON-compatible
+ * representation (the `Kind` field TypeBox writes into its schemas is
+ * a regular enumerable string, separate from the `Symbol(TypeBox.Kind)`
+ * runtime marker that drops on JSON round-trip).
+ *
+ * `pathLabel` is used purely for the error message — describes the
+ * capability/namespace/field the schema is attached to so authors can
+ * locate the problem without decoding JSON pointers.
+ */
+function assertSchemaKindsAllowed(schema: unknown, pathLabel: string): void {
+  const walk = (node: unknown, trail: string): void => {
+    if (!node || typeof node !== "object") return;
+    const rec = node as Record<string, unknown>;
+    const kind = rec.Kind ?? rec.kind;
+    if (typeof kind === "string" && REJECTED_SCHEMA_KINDS.has(kind)) {
+      throw new TypeError(
+        `${pathLabel} schema contains unsupported TypeBox Kind "${kind}" at ${trail || "<root>"} — Transform/Constructor/Function kinds carry runtime closures that cannot survive JSON serialization into bundle metadata. Remove the transform or move it to bundle-side execution.`,
+      );
+    }
+    const properties = rec.properties;
+    if (properties && typeof properties === "object") {
+      for (const [key, prop] of Object.entries(properties)) {
+        walk(prop, trail ? `${trail}.${key}` : key);
+      }
+    }
+    if (rec.items !== undefined) {
+      walk(rec.items, trail ? `${trail}[]` : "[]");
+    }
+    for (const key of ["anyOf", "allOf", "oneOf"] as const) {
+      const arr = rec[key];
+      if (Array.isArray(arr)) {
+        arr.forEach((entry, idx) => walk(entry, `${trail}.${key}[${idx}]`));
+      }
+    }
+  };
+  walk(schema, "");
+}
+
+/**
+ * Capability config metadata entry as collected by `defineBundleAgent`.
+ * Intentionally loose (not `BundleCapability`) so validators operate
+ * on the serialized JSON-Schema form that will be written into
+ * `BundleMetadata.capabilityConfigs`.
+ */
+export interface CapabilityConfigEntry {
+  id: string;
+  schema: unknown;
+  default?: Record<string, unknown>;
+}
+
+/**
+ * Validate every declared capability-config entry:
+ *
+ * - Reject schemas carrying Transform / Constructor / Function kinds
+ *   (recursive walker over `properties`, `items`, `anyOf`, `allOf`,
+ *   `oneOf`).
+ * - When `configDefault` is present, MUST validate against the
+ *   capability's `configSchema` via `Value.Check`.
+ *
+ * Throws with a descriptive message naming the capability id and
+ * the failing condition.
+ */
+export function validateCapabilityConfigs(
+  entries: CapabilityConfigEntry[],
+  // Optional runtime validator injection — host passes TypeBox's
+  // `Value.Check` so `configDefault` can be verified against
+  // `configSchema` at build time. Bundle-side callers (inside the
+  // bundle isolate) pass `undefined` so we don't pull
+  // `@sinclair/typebox/value` into the inlined bundle runtime
+  // (would leak as an external in scaffolded builds). The host
+  // revalidates any `configDefault` at promotion time where the
+  // live TypeBox symbol is still on the schema.
+  checkValue?: (schema: unknown, value: unknown) => boolean,
+): void {
+  for (const entry of entries) {
+    assertSchemaKindsAllowed(entry.schema, `capability "${entry.id}"`);
+    if (entry.default === undefined) continue;
+    if (!checkValue) continue;
+    if (!checkValue(entry.schema, entry.default)) {
+      throw new TypeError(
+        `Bundle capability "${entry.id}" configDefault does not validate against configSchema`,
+      );
+    }
+  }
+}
+
+/**
+ * Validate agent-config namespace schemas declared via
+ * `BundleAgentSetup.config`:
+ *
+ * - Reject ids equal to `session`, `agent-config`, `schedules`, `queue`.
+ * - Reject ids starting with `capability:` (collides with
+ *   per-capability routing in `config_set`).
+ * - Reject ids colliding with the bundle's own `BundleCapability.id`s.
+ * - Reject ids colliding with the bundle's own
+ *   `surfaces.actionCapabilityIds`.
+ * - Reject schemas with Transform/Constructor/Function kinds.
+ */
+export function validateAgentConfigSchemas(
+  schemas: Record<string, unknown>,
+  bundleCapabilityIds: readonly string[],
+  actionCapabilityIds: readonly string[],
+): void {
+  const capabilitySet = new Set(bundleCapabilityIds);
+  const actionSet = new Set(actionCapabilityIds);
+  for (const [namespace, schema] of Object.entries(schemas)) {
+    if (RESERVED_CONFIG_NAMESPACE_IDS.has(namespace)) {
+      throw new TypeError(
+        `Bundle agent-config namespace "${namespace}" collides with a reserved token (one of: ${Array.from(
+          RESERVED_CONFIG_NAMESPACE_IDS,
+        ).join(", ")})`,
+      );
+    }
+    if (namespace.startsWith("capability:")) {
+      throw new TypeError(
+        `Bundle agent-config namespace "${namespace}" starts with reserved prefix "capability:" — reserved for per-capability config routing`,
+      );
+    }
+    if (capabilitySet.has(namespace)) {
+      throw new TypeError(
+        `Bundle agent-config namespace "${namespace}" collides with a bundle-declared capability id — both would route under the same namespace shape`,
+      );
+    }
+    if (actionSet.has(namespace)) {
+      throw new TypeError(
+        `Bundle agent-config namespace "${namespace}" collides with a bundle-declared onAction capability id — config_set and capability_action would route ambiguously`,
+      );
+    }
+    assertSchemaKindsAllowed(schema, `agent-config namespace "${namespace}"`);
+  }
+}
+
+/**
+ * Validate custom `configNamespaces` declared by bundle capabilities:
+ *
+ * - Reject ids matching reserved tokens (`session`, `agent-config`,
+ *   `schedules`, `queue`).
+ * - Reject ids colliding with the bundle's own agent-config namespace
+ *   ids.
+ * - Reject ids colliding with the bundle's own capability ids.
+ * - Reject any namespace declaring a `pattern` field (regex-based
+ *   pattern-matched namespaces are a v1 Non-Goal).
+ * - Reject schemas with Transform/Constructor/Function kinds.
+ */
+export function validateConfigNamespaces(
+  namespaces: Array<{
+    id: string;
+    description: string;
+    schema: unknown;
+    pattern?: unknown;
+  }>,
+  agentNamespaceIds: readonly string[],
+  bundleCapabilityIds: readonly string[],
+): void {
+  const agentSet = new Set(agentNamespaceIds);
+  const capabilitySet = new Set(bundleCapabilityIds);
+  const seen = new Set<string>();
+  for (const ns of namespaces) {
+    if (typeof ns.id !== "string" || ns.id.length === 0) {
+      throw new TypeError("Bundle config namespace must declare a non-empty string id");
+    }
+    if (RESERVED_CONFIG_NAMESPACE_IDS.has(ns.id)) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" collides with a reserved token (one of: ${Array.from(
+          RESERVED_CONFIG_NAMESPACE_IDS,
+        ).join(", ")})`,
+      );
+    }
+    if (ns.id.startsWith("capability:")) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" starts with reserved prefix "capability:"`,
+      );
+    }
+    if (agentSet.has(ns.id)) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" collides with a bundle-declared agent-config namespace`,
+      );
+    }
+    if (capabilitySet.has(ns.id)) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" collides with a bundle-declared capability id`,
+      );
+    }
+    if (seen.has(ns.id)) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" is declared twice — namespace ids must be unique`,
+      );
+    }
+    seen.add(ns.id);
+    if ((ns as { pattern?: unknown }).pattern !== undefined) {
+      throw new TypeError(
+        `Bundle config namespace "${ns.id}" declares a "pattern" field — pattern-matched namespaces are deferred; see proposal Non-Goals`,
+      );
+    }
+    assertSchemaKindsAllowed(ns.schema, `config namespace "${ns.id}"`);
+  }
+}
+
+/**
+ * Validate `agentConfigPath` entries against the bundle's OWN
+ * `agentConfigSchemas`. For every capability with a declared path:
+ *
+ * - The first dotted segment either matches a top-level namespace in
+ *   the bundle's own `agentConfigSchemas` (structural walk continues
+ *   through `properties`, terminating at `additionalProperties: true`)
+ *   OR is left for the dispatch-time guard — build-time emits nothing
+ *   for cross-bundle paths because the host namespace set is not
+ *   visible here.
+ *
+ * Invalid structural resolution within the bundle's own schemas
+ * throws with a descriptive message naming the capability and path.
+ */
+export function validateAgentConfigPaths(
+  capabilityEntries: Array<{ id: string; agentConfigPath?: string }>,
+  agentConfigSchemas: Record<string, unknown>,
+): void {
+  for (const entry of capabilityEntries) {
+    if (entry.agentConfigPath === undefined) continue;
+    const path = entry.agentConfigPath;
+    if (typeof path !== "string" || path.length === 0) {
+      throw new TypeError(
+        `Bundle capability "${entry.id}" agentConfigPath must be a non-empty string`,
+      );
+    }
+    const segments = path.split(".");
+    const first = segments[0];
+    if (!first) {
+      throw new TypeError(
+        `Bundle capability "${entry.id}" agentConfigPath "${path}" has empty leading segment`,
+      );
+    }
+    const localSchema = agentConfigSchemas[first];
+    if (!localSchema) {
+      // Defer to dispatch-time guard — bundle may legitimately target a
+      // host-declared namespace it cannot see at build time.
+      continue;
+    }
+    // Walk remaining segments through the schema's `properties`.
+    let cursor: Record<string, unknown> = localSchema as Record<string, unknown>;
+    for (let i = 1; i < segments.length; i++) {
+      const segment = segments[i];
+      if (!segment) {
+        throw new TypeError(
+          `Bundle capability "${entry.id}" agentConfigPath "${path}" has empty segment at position ${i}`,
+        );
+      }
+      if (cursor.additionalProperties === true) {
+        // Open object — cannot validate further segments structurally.
+        return;
+      }
+      const props = cursor.properties as Record<string, unknown> | undefined;
+      const next = props?.[segment];
+      if (!next || typeof next !== "object") {
+        throw new TypeError(
+          `Bundle capability "${entry.id}" agentConfigPath "${path}" segment "${segment}" does not exist in the bundle's declared schema for namespace "${first}"`,
+        );
+      }
+      cursor = next as Record<string, unknown>;
+    }
+  }
+}
+
+/**
+ * Validate every `BundleMetadata.capabilityConfigs` entry corresponds
+ * to an actual `BundleCapability.id` in `setup.capabilities(probeEnv)`.
+ * Catches typos where the metadata extraction would otherwise list a
+ * config schema for a capability the bundle doesn't declare.
+ */
+export function validateBundleCapabilityConfigsAgainstBundleCaps(
+  capabilityConfigs: ReadonlyArray<{ id: string }>,
+  bundleCapIds: readonly string[],
+): void {
+  const capSet = new Set(bundleCapIds);
+  for (const entry of capabilityConfigs) {
+    if (!capSet.has(entry.id)) {
+      throw new TypeError(
+        `Bundle capabilityConfigs declares schema for "${entry.id}" but no BundleCapability with that id appears in setup.capabilities(...)`,
+      );
+    }
+  }
+}
+
+/**
+ * Re-export for runtime consumers that want the dotted-path evaluator
+ * alongside the validators. Host dispatch reads this via
+ * `@crabbykit/bundle-sdk` to project agent-config slices when
+ * firing `onAgentConfigChange` on bundle capabilities.
+ */
+export { evaluateAgentConfigPath } from "./config-path.js";
+
 export class BundleMetadataExtractionError extends Error {
   readonly capabilityId: string;
   readonly cause?: unknown;

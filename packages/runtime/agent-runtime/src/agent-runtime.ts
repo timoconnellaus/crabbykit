@@ -20,6 +20,7 @@ import type { BudgetCategory, SpineBudgetConfig } from "@crabbykit/bundle-host";
 import { BudgetTracker } from "@crabbykit/bundle-host";
 import type { TObject } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
+import { evaluateAgentConfigPath } from "@crabbykit/bundle-sdk";
 import { extractFinalAssistantText, matchPathPattern } from "./agent-runtime-helpers.js";
 import type { ResolvedCapabilities } from "./capabilities/resolve.js";
 import { resolveCapabilities } from "./capabilities/resolve.js";
@@ -285,6 +286,20 @@ export interface AgentContext {
    * unit tests — callers should fall back to `[]` when absent.
    */
   getBundleHostCapabilityIds?: () => string[];
+  /**
+   * Snapshot of the host's currently-resolved agent-level config
+   * namespace key set. Workshop tools pass this to
+   * `BundleRegistry.setActive` as `knownAgentConfigNamespaces` for the
+   * bundle-config-namespaces collision guard. Absence = skip check
+   * (cross-deployment). Deduplicated.
+   */
+  getBundleHostAgentConfigNamespaces?: () => string[];
+  /**
+   * Snapshot of the host's currently-resolved custom config
+   * namespace ids. Workshop tools pass this to
+   * `BundleRegistry.setActive` as `knownConfigNamespaceIds`.
+   */
+  getBundleHostConfigNamespaceIds?: () => string[];
 }
 
 /**
@@ -536,9 +551,113 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
             code: "ERR_ACTION_ID_COLLISION";
             collidingIds: string[];
             versionId: string;
+          }
+        | {
+            code: "ERR_AGENT_CONFIG_COLLISION";
+            collidingNamespaces: string[];
+            versionId: string;
+          }
+        | {
+            code: "ERR_CONFIG_NAMESPACE_COLLISION";
+            collidingIds: string[];
+            versionId: string;
+          }
+        | {
+            code: "ERR_CAPABILITY_CONFIG_COLLISION";
+            collidingIds: string[];
+            versionId: string;
+          }
+        | {
+            code: "ERR_AGENT_CONFIG_PATH_UNRESOLVABLE";
+            capabilityId: string;
+            path: string;
+            knownNamespaces: string[];
+            versionId: string;
           };
     },
   ) => void;
+
+  /**
+   * Bundle-declared per-capability config schemas (+ optional defaults)
+   * resolved from the active bundle's `BundleMetadata.capabilityConfigs`.
+   * Populated by `AgentDO.initBundleDispatch`'s pointer refresher and
+   * cleared on disable. Read by `getBundleCapabilityConfigStandIns()`.
+   */
+  bundleCapabilityConfigMetadata?: Array<{
+    id: string;
+    schema: TObject;
+    default?: Record<string, unknown>;
+  }>;
+
+  /**
+   * Bundle-declared agent-level config schemas resolved from the active
+   * bundle's `BundleMetadata.agentConfigSchemas`. Merged with
+   * {@link getAgentConfigSchema} in {@link getCachedAgentConfigSchema};
+   * host wins on key conflict.
+   */
+  bundleAgentConfigSchemaMetadata?: Record<string, TObject>;
+
+  /**
+   * Bundle-declared custom config namespaces resolved from the active
+   * bundle's `BundleMetadata.configNamespaces`. Surfaced through
+   * {@link getCachedConfigNamespaces} as proxies that dispatch
+   * `get`/`set` through the bundle via
+   * {@link bundleConfigNamespaceDispatcher}.
+   */
+  bundleConfigNamespaceMetadata?: Array<{
+    id: string;
+    description: string;
+    schema: TObject;
+  }>;
+
+  /**
+   * Per-capability agent-config path declarations resolved from bundle
+   * metadata. Read by {@link handleAgentConfigSet} to compute which
+   * bundle capabilities receive `onAgentConfigChange` dispatch (and
+   * with what slice). Distinct from
+   * {@link bundleCapabilityConfigMetadata} because `agentConfigPath`
+   * is a per-capability field separate from `configSchema`.
+   */
+  bundleCapabilityAgentConfigPaths?: Array<{ id: string; agentConfigPath: string }>;
+
+  /**
+   * Host→bundle config-change dispatcher. Installed by
+   * `AgentDO.initBundleDispatch` when bundle config metadata is
+   * present. Fires BEFORE `ConfigStore.setCapabilityConfig` in
+   * `config/config-set.ts` — on `{ok: false, error}` the tool returns
+   * the error and SKIPS persistence (matches static
+   * `onConfigChange`'s ordering).
+   */
+  bundleConfigChangeDispatcher?: (
+    capabilityId: string,
+    oldCfg: Record<string, unknown>,
+    newCfg: Record<string, unknown>,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+
+  /**
+   * Host→bundle agent-config-change dispatcher. Invoked by
+   * {@link handleAgentConfigSet} for each bundle capability whose
+   * `agentConfigPath`-evaluated slice changed. Fire-and-await —
+   * errors logged but do not reverse persistence.
+   */
+  bundleAgentConfigChangeDispatcher?: (
+    capabilityId: string,
+    oldSlice: unknown,
+    newSlice: unknown,
+    sessionId: string,
+  ) => Promise<void>;
+
+  /**
+   * Host→bundle custom namespace dispatcher. The proxies installed on
+   * {@link getCachedConfigNamespaces} funnel through this surface to
+   * invoke bundle-side `get`/`set` handlers. `set` returns `string |
+   * void` matching the static `ConfigNamespace.set` contract.
+   */
+  bundleConfigNamespaceDispatcher?: {
+    get: (namespace: string) => Promise<unknown>;
+    set: (namespace: string, value: unknown) => Promise<string | void>;
+  };
 
   sessionStore: SessionStore;
   scheduleStore: ScheduleStore;
@@ -860,9 +979,96 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
 
   getCachedAgentConfigSchema(): Record<string, TObject> {
     if (!this.cachedAgentConfigSchema) {
-      this.cachedAgentConfigSchema = this.getAgentConfigSchema();
+      const hostSchema = this.getAgentConfigSchema();
+      const bundleSchema = this.bundleAgentConfigSchemaMetadata;
+      if (!bundleSchema || Object.keys(bundleSchema).length === 0) {
+        this.cachedAgentConfigSchema = hostSchema;
+      } else {
+        // Host wins on key conflict — defense in depth. Promotion-time
+        // guards reject collisions; this catches the narrow window
+        // where a refresher populated bundle metadata before a
+        // dispatch-time guard fires.
+        const merged: Record<string, TObject> = { ...bundleSchema, ...hostSchema };
+        this.cachedAgentConfigSchema = merged;
+      }
     }
     return this.cachedAgentConfigSchema;
+  }
+
+  /**
+   * Lazily-built synthetic `Capability` entries mirroring the active
+   * bundle's `capabilityConfigs` — carries `id`, `name`, `description`,
+   * `configSchema`, `configDefault` ONLY so the existing config tools
+   * (`config_set` / `config_get` / `config_schema`) can discover
+   * bundle-declared capability config without leaking phantom
+   * capabilities into prompt resolution, hook iteration, MCP merging,
+   * schedule enumeration, or inspection. See Decision 9 in
+   * openspec/changes/bundle-config-namespaces/design.md.
+   */
+  private cachedBundleStandIns: Capability[] | null = null;
+
+  getBundleCapabilityConfigStandIns(): Capability[] {
+    if (this.cachedBundleStandIns) return this.cachedBundleStandIns;
+    const meta = this.bundleCapabilityConfigMetadata;
+    if (!meta || meta.length === 0) {
+      this.cachedBundleStandIns = [];
+      return this.cachedBundleStandIns;
+    }
+    this.cachedBundleStandIns = meta.map((entry) => ({
+      id: entry.id,
+      name: entry.id,
+      description: "Bundle-declared capability config",
+      configSchema: entry.schema,
+      configDefault: entry.default,
+    }));
+    return this.cachedBundleStandIns;
+  }
+
+  /**
+   * Invalidate the caches populated by this class that depend on
+   * bundle metadata. Called from `AgentDO.initBundleDispatch`'s
+   * `bundlePointerRefresher` so a pointer flip is immediately visible
+   * to `config_schema` / `config_set` / `config_get` and the
+   * agent-config UI bridge.
+   */
+  invalidateBundleConfigCaches(): void {
+    this.cachedAgentConfigSchema = null;
+    this.cachedBundleStandIns = null;
+  }
+
+  /**
+   * Construct a {@link ConfigNamespace} proxy for a bundle-declared
+   * custom namespace. Validation (via `Value.Check(schema, value)`)
+   * runs inside `config_set` BEFORE `set` is invoked — the proxy's
+   * `set` is only reached for values that passed schema validation.
+   */
+  private buildBundleConfigNamespaceProxy(entry: {
+    id: string;
+    description: string;
+    schema: TObject;
+  }): ConfigNamespace {
+    const dispatcher = this.bundleConfigNamespaceDispatcher;
+    return {
+      id: entry.id,
+      description: entry.description,
+      schema: entry.schema,
+      get: async (namespace) => {
+        if (!dispatcher) {
+          throw new Error(
+            `bundleConfigNamespaceDispatcher not installed — cannot resolve bundle namespace "${namespace}"`,
+          );
+        }
+        return dispatcher.get(namespace);
+      },
+      set: async (namespace, value) => {
+        if (!dispatcher) {
+          throw new Error(
+            `bundleConfigNamespaceDispatcher not installed — cannot resolve bundle namespace "${namespace}"`,
+          );
+        }
+        return dispatcher.set(namespace, value);
+      },
+    };
   }
 
   /**
@@ -940,13 +1146,12 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     // Snapshot was already updated in place by config_set before this
     // fires, so capability mappings see the new value.
     const capabilities = this.getCachedCapabilities();
+    // Compute the pre-change snapshot once — both static and bundle
+    // capabilities project their slice against the same shape.
+    const priorSnapshot: Record<string, unknown> = { ...this.agentConfigSnapshot };
+    priorSnapshot[namespace] = _oldValue;
     for (const cap of capabilities) {
       if (!cap.agentConfigMapping || !cap.hooks?.onAgentConfigChange) continue;
-      // Compute old slice against a snapshot where this namespace holds
-      // the previous value. Clone shallowly and overwrite the one key
-      // so the mapping function sees the pre-change state.
-      const priorSnapshot: Record<string, unknown> = { ...this.agentConfigSnapshot };
-      priorSnapshot[namespace] = _oldValue;
       const oldSlice = cap.agentConfigMapping(priorSnapshot);
       const newSlice = cap.agentConfigMapping(this.agentConfigSnapshot);
       if (sliceEqual(oldSlice, newSlice)) continue;
@@ -971,6 +1176,35 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       }
     }
 
+    // bundle-config-namespaces: iterate bundle capabilities declaring
+    // `agentConfigPath`. For each one whose path-evaluated slice
+    // differs across the old/new snapshot, dispatch via the installed
+    // bundle bridge. Agent-level dispatch is fire-and-await —
+    // matches static semantics where capability hook errors do not
+    // reverse persistence.
+    const bundlePaths = this.bundleCapabilityAgentConfigPaths;
+    const bundleDispatch = this.bundleAgentConfigChangeDispatcher;
+    if (bundlePaths && bundlePaths.length > 0 && bundleDispatch) {
+      for (const entry of bundlePaths) {
+        const oldSlice = evaluateAgentConfigPath(priorSnapshot, entry.agentConfigPath);
+        const newSlice = evaluateAgentConfigPath(this.agentConfigSnapshot, entry.agentConfigPath);
+        if (sliceEqual(oldSlice, newSlice)) continue;
+        try {
+          await bundleDispatch(entry.id, oldSlice, newSlice, ctxSessionId);
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.logger.error(
+            "[BundleDispatch] kind: \"agent_config_change\" dispatcher error",
+            {
+              capabilityId: entry.id,
+              message: error.message,
+            },
+          );
+          this.onError?.(error, { source: "hook", sessionId: ctxSessionId });
+        }
+      }
+    }
+
     // Re-sync capability schedules in case heartbeat-style capabilities
     // reshape a cron on change. Cheap when nothing changed.
     if (this.resolvedCapabilitiesCache?.schedules?.length) {
@@ -986,7 +1220,47 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
     const schema = this.getCachedAgentConfigSchema();
     for (const [namespace, nsSchema] of Object.entries(schema)) {
       const stored = await this.configStore.getAgentConfig(namespace);
-      this.agentConfigSnapshot[namespace] = stored !== undefined ? stored : Value.Create(nsSchema);
+      if (stored === undefined) {
+        this.agentConfigSnapshot[namespace] = Value.Create(nsSchema);
+        continue;
+      }
+      // bundle-config-namespaces (Decision 10): the persisted value may
+      // have been written under a different schema (bundle declared
+      // this namespace, then was disabled by collision with a newly-
+      // deployed host static namespace). Refuse to stuff a
+      // schema-incompatible value into the snapshot, record it as an
+      // orphan so operators can introspect, and keep the raw payload
+      // intact so a rollback restores the data.
+      if (Value.Check(nsSchema, stored)) {
+        this.agentConfigSnapshot[namespace] = stored;
+      } else {
+        this.agentConfigSnapshot[namespace] = Value.Create(nsSchema);
+        try {
+          const existingOrphans = (await this.configStore.getAgentConfig("__orphans")) as
+            | Record<string, unknown>
+            | undefined;
+          const orphans: Record<string, unknown> =
+            existingOrphans && typeof existingOrphans === "object" ? { ...existingOrphans } : {};
+          orphans[namespace] = {
+            persistedValue: stored,
+            recordedAt: new Date().toISOString(),
+            schemaCheckFailed: true,
+          };
+          await this.configStore.setAgentConfig("__orphans", orphans);
+        } catch (err) {
+          this.logger.error("[BundleDispatch] failed to record agent config orphan", {
+            namespace,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        this.logger.warn(
+          "[BundleDispatch] kind: \"agent_config_orphan_detected\"",
+          {
+            namespace,
+            persistedShape: typeof stored,
+          },
+        );
+      }
     }
     this.agentConfigLoaded = true;
   }
@@ -1745,18 +2019,38 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       (cap) => cap.configNamespaces?.(context) ?? [],
     );
     const consumerNamespaces = this.getConfigNamespaces();
+    // bundle-config-namespaces: bundle-declared custom configNamespaces
+    // surface as proxies that dispatch `get`/`set` through the
+    // installed `bundleConfigNamespaceDispatcher` back into the bundle
+    // isolate. Host `config_set` still validates values against the
+    // proxy's schema BEFORE calling `set`.
+    const bundleNamespaceProxies: ConfigNamespace[] =
+      this.bundleConfigNamespaceMetadata && this.bundleConfigNamespaceDispatcher
+        ? this.bundleConfigNamespaceMetadata.map((entry) =>
+            this.buildBundleConfigNamespaceProxy(entry),
+          )
+        : [];
+    // bundle-config-namespaces: stand-ins are composed ONLY into the
+    // config-tool surface. `getCachedCapabilities()` continues to
+    // return host capabilities only so prompt resolution, hook
+    // iteration, MCP merging, schedule enumeration, and the
+    // inspection panel never see phantom capabilities.
+    const standIns = this.getBundleCapabilityConfigStandIns();
     const configContext = {
       agentId: this.runtimeContext.agentId,
       publicUrl: this.publicUrl,
       sessionId: context.sessionId,
       sessionStore: this.sessionStore,
       configStore: this.configStore,
-      capabilities,
-      namespaces: [...capabilityNamespaces, ...consumerNamespaces],
+      capabilities: standIns.length > 0 ? [...capabilities, ...standIns] : capabilities,
+      namespaces: [...capabilityNamespaces, ...consumerNamespaces, ...bundleNamespaceProxies],
       agentConfigSchema: this.getCachedAgentConfigSchema(),
       agentConfigSnapshot: this.agentConfigSnapshot,
       onAgentConfigSet: (namespace: string, oldValue: unknown, newValue: unknown) =>
         this.handleAgentConfigSet(namespace, oldValue, newValue, context.sessionId),
+      bundleConfigChangeDispatcher: this.bundleConfigChangeDispatcher,
+      bundleCapabilityIds:
+        standIns.length > 0 ? new Set(standIns.map((c) => c.id)) : undefined,
     };
     const configTools = [
       createConfigGet(configContext),
@@ -1891,6 +2185,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
       getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
     };
   }
 
@@ -1922,6 +2218,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         };
         resolved = resolveCapabilities(
           capabilities,
@@ -2121,6 +2419,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2286,6 +2586,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
       getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
     };
     // biome-ignore lint/suspicious/noExplicitAny: pi-ai getModel has overly narrow provider type (KnownProvider)
     const model = getModel(config.provider as any, config.modelId);
@@ -2458,6 +2760,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
       getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
     };
 
     const resolved = resolveCapabilities(
@@ -2541,6 +2845,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -2800,6 +3106,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         };
         // biome-ignore lint/style/noNonNullAssertion: `hooks` filter guaranteed cap.afterTurn is defined
         await cap.afterTurn!(capContext, sessionId, finalText);
@@ -2976,6 +3284,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
           rateLimit: this.rateLimiter,
           notifyBundlePointerChanged: this.buildBundleNotifier(),
           getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
         },
         (capId) => createCapabilityStorage(this.kvStore, capId),
         undefined,
@@ -3091,6 +3401,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
       getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
     };
 
     const resolved = resolveCapabilities(
@@ -3717,6 +4029,8 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
       rateLimit: this.rateLimiter,
       notifyBundlePointerChanged: this.buildBundleNotifier(),
       getBundleHostCapabilityIds: this.buildBundleHostCapabilityIdsGetter(),
+      getBundleHostAgentConfigNamespaces: this.buildBundleHostAgentConfigNamespacesGetter(),
+      getBundleHostConfigNamespaceIds: this.buildBundleHostConfigNamespaceIdsGetter(),
     };
     const resolved = resolveCapabilities(
       this.getCachedCapabilities(),
@@ -4152,6 +4466,26 @@ export abstract class AgentRuntime<TEnv = Record<string, unknown>> {
    */
   private buildBundleHostCapabilityIdsGetter(): () => string[] {
     return () => this.getBundleHostCapabilityIds();
+  }
+
+  /**
+   * Host agent-config namespace key set (host-declared only — excludes
+   * bundle-merged keys). Consumers: workshop_deploy → setActive's
+   * `knownAgentConfigNamespaces` for the bundle-config-namespaces
+   * collision guard.
+   */
+  private buildBundleHostAgentConfigNamespacesGetter(): () => string[] {
+    return () => Object.keys(this.getAgentConfigSchema());
+  }
+
+  /**
+   * Host consumer-declared custom config namespace ids (excludes
+   * capability-contributed). Consumers: workshop_deploy → setActive's
+   * `knownConfigNamespaceIds`.
+   */
+  private buildBundleHostConfigNamespaceIdsGetter(): () => string[] {
+    return () =>
+      Array.from(new Set(this.getConfigNamespaces().map((n) => n.id)));
   }
 
   broadcastCustomToAll(name: string, data: Record<string, unknown>): void {
