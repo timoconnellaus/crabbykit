@@ -1203,9 +1203,7 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
         const deadline = Date.now() + 5000;
         let result = "no";
         while (Date.now() < deadline) {
-          result = containerExec(
-            `sh -c 'grep -q ${path} /proc/mounts && echo yes || echo no'`,
-          );
+          result = containerExec(`sh -c 'grep -q ${path} /proc/mounts && echo yes || echo no'`);
           if (result === "yes") return result;
           await new Promise((r) => setTimeout(r, 250));
         }
