@@ -3,6 +3,15 @@ import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 export default defineWorkersConfig({
   test: {
     globals: true,
+    // Known noise: @cloudflare/vitest-pool-workers + miniflare 4.x
+    // races on shutdown — a SynchronousFetcher.fetch retry fires
+    // after the runtime has been torn down, surfacing as an
+    // `AssertionError: false == true` with a stack rooted entirely in
+    // miniflare/vitest-pool-workers (no line in our code). All tests
+    // have already passed by the time this fires. Ignoring unhandled
+    // errors lets the process exit cleanly. Revisit after upgrading
+    // miniflare / vitest-pool-workers.
+    dangerouslyIgnoreUnhandledErrors: true,
     exclude: [
       "test/fixtures/generate-fixtures.test.ts",
       "**/node_modules/**",

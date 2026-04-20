@@ -11,5 +11,12 @@ export default defineWorkersConfig({
 				},
 			},
 		},
+		coverage: {
+			// workerd lacks node:inspector, so the default v8 provider throws
+			// on load. istanbul is the supported provider for pool-workers.
+			provider: "istanbul",
+			include: ["src/**/*.ts"],
+			exclude: ["src/**/*.test.ts", "src/index.ts"],
+		},
 	},
 });

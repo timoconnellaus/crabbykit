@@ -69,11 +69,17 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
       exec(`docker rm -f ${CONTAINER_NAME}`);
     } catch {}
 
-    // Start container with SYS_ADMIN (needed for mount --bind)
+    // Start container with SYS_ADMIN (needed for mount --bind). On
+    // GitHub Actions Docker, the default AppArmor profile blocks mount
+    // even with SYS_ADMIN granted, so additionally turn AppArmor and
+    // seccomp off for this test container — it's throwaway and never
+    // runs outside of CI/dev.
     console.log("[test] Starting container...");
     exec(
       `docker run -d --name ${CONTAINER_NAME} ` +
         `--cap-add SYS_ADMIN ` +
+        `--security-opt apparmor=unconfined ` +
+        `--security-opt seccomp=unconfined ` +
         `-p ${PORT}:8080 ` +
         `-e AGENT_ID=test-agent ` +
         `${IMAGE_NAME}`,
@@ -1137,17 +1143,22 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
   // --- nm-guard tests ---
 
   describe("nm-guard", () => {
-    it("bind-mounts local disk over node_modules within 2 seconds", async () => {
+    it("bind-mounts local disk over node_modules within 5 seconds", async () => {
       // Create a project with node_modules on the workspace
       containerExec("sh -c 'mkdir -p /workspace/test-project/node_modules'");
 
-      // Wait for nm-guard to detect and mount (polls every 500ms)
-      await new Promise((r) => setTimeout(r, 2000));
-
-      // Check if it's now a mountpoint
-      const isMounted = containerExec(
-        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
-      );
+      // Poll for the mount. nm-guard polls every 500ms; GitHub Actions
+      // Docker is slower than local / OrbStack, so retry for up to 5s
+      // before declaring failure.
+      let isMounted = "no";
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        isMounted = containerExec(
+          "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
+        );
+        if (isMounted === "yes") break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
       expect(isMounted).toBe("yes");
     });
 
@@ -1185,14 +1196,23 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     });
 
     it("multiple projects get independent mounts", async () => {
-      // test-project already has a mount from earlier test
-      // guard-project also has one from the cleanup prefix test
-      const mount1 = containerExec(
-        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
-      );
-      const mount2 = containerExec(
-        "sh -c 'grep -q /workspace/guard-project/node_modules /proc/mounts && echo yes || echo no'",
-      );
+      // test-project already has a mount from earlier test;
+      // guard-project also has one from the cleanup prefix test.
+      // Poll in case CI is slow — nm-guard runs async.
+      const waitForMount = async (path: string): Promise<string> => {
+        const deadline = Date.now() + 5000;
+        let result = "no";
+        while (Date.now() < deadline) {
+          result = containerExec(
+            `sh -c 'grep -q ${path} /proc/mounts && echo yes || echo no'`,
+          );
+          if (result === "yes") return result;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        return result;
+      };
+      const mount1 = await waitForMount("/workspace/test-project/node_modules");
+      const mount2 = await waitForMount("/workspace/guard-project/node_modules");
       expect(mount1).toBe("yes");
       expect(mount2).toBe("yes");
 
@@ -1207,12 +1227,18 @@ describe.skipIf(!dockerAvailable())("Docker Integration", () => {
     });
 
     it("skips already-mounted directories", async () => {
-      // The guard should not try to re-mount an existing mountpoint
-      // Just verify the mount is still valid after multiple guard cycles
-      await new Promise((r) => setTimeout(r, 1500));
-      const still = containerExec(
-        "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
-      );
+      // The guard should not try to re-mount an existing mountpoint.
+      // Just verify the mount is still valid after multiple guard cycles.
+      // Poll up to 5s for CI speed variance.
+      let still = "no";
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        still = containerExec(
+          "sh -c 'grep -q /workspace/test-project/node_modules /proc/mounts && echo yes || echo no'",
+        );
+        if (still === "yes") break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
       expect(still).toBe("yes");
     });
   });

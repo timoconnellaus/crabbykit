@@ -79,14 +79,24 @@ type BuildResult = BuildOk | BuildErr;
  */
 function runRealBuild(files: Record<string, string>): BuildResult {
   const payload = JSON.stringify({ files });
-  const proc = spawnSync("bun", [RUNNER_PATH, payload], {
+  // Prefer the current process's executable (usually bun when vitest is
+  // invoked via `bun run test`). Falls back to "bun" on PATH so the test
+  // still works under `node node_modules/.bin/vitest`.
+  const bunPath = process.execPath.endsWith("/bun") ? process.execPath : "bun";
+  const proc = spawnSync(bunPath, [RUNNER_PATH, payload], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
+  if (proc.error) {
+    return {
+      ok: false,
+      error: `failed to spawn ${bunPath}: ${proc.error.message}`,
+    };
+  }
   if (proc.status !== 0) {
     return {
       ok: false,
-      error: `runner exited with ${proc.status}: ${proc.stderr}`,
+      error: `runner exited with status=${proc.status} signal=${proc.signal} stderr=${proc.stderr ?? "<none>"}`,
     };
   }
   if (!proc.stdout) {

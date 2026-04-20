@@ -9,24 +9,30 @@ describe("tavilyClient", () => {
     expect(typeof SCHEMA_CONTENT_HASH).toBe("string");
   });
 
-  it("client module does not import from service module", async () => {
-    // Structural test: the client should not import the service.
-    // We verify by checking the client module source doesn't contain
-    // direct service implementation imports.
-    const clientModule = await import("../client.js");
-    expect(clientModule.tavilyClient).toBeDefined();
-    expect(typeof clientModule.tavilyClient).toBe("function");
+  it(
+    "client module does not import from service module",
+    async () => {
+      // Structural test: the client should not import the service.
+      // We verify by checking the client module source doesn't contain
+      // direct service implementation imports.
+      const clientModule = await import("../client.js");
+      expect(clientModule.tavilyClient).toBeDefined();
+      expect(typeof clientModule.tavilyClient).toBe("function");
 
-    // The client creates a capability — verify its shape
-    const mockService = {
-      search: vi.fn().mockResolvedValue({ results: [] }),
-      extract: vi.fn().mockResolvedValue({ content: "" }),
-    };
+      // The client creates a capability — verify its shape
+      const mockService = {
+        search: vi.fn().mockResolvedValue({ results: [] }),
+        extract: vi.fn().mockResolvedValue({ content: "" }),
+      };
 
-    const cap = clientModule.tavilyClient({ service: mockService as never });
-    expect(cap.id).toBe("tavily-web-search");
-    expect(cap.tools).toBeDefined();
-  });
+      const cap = clientModule.tavilyClient({ service: mockService as never });
+      expect(cap.id).toBe("tavily-web-search");
+      expect(cap.tools).toBeDefined();
+    },
+    // First-time dynamic import on CI can take 5-10s when the package graph
+    // is cold. Default 5s timeout is too tight.
+    15_000,
+  );
 
   it("client tools read token from env, not from LLM arguments", () => {
     // Contract: the client reads __BUNDLE_TOKEN from env, never from
