@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fail fast: lint + typecheck + coverage must pass before a commit lands.
+# Fast local gate: lint + typecheck. Tests run on pre-push; CI owns coverage + build.
 # Bypass with `git commit --no-verify` in emergencies.
 
 set -e
@@ -9,6 +9,3 @@ bun run lint
 
 echo "[pre-commit] typecheck..."
 bun run typecheck
-
-echo "[pre-commit] test:coverage (serial — avoids workerd port contention)..."
-bun run test:coverage:serial

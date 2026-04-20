@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Run the full test (with coverage) + build suite before publishing commits.
+# Catch real bugs before they hit remote. CI owns coverage thresholds + build + Docker.
 # Bypass with `git push --no-verify` in emergencies.
 
 set -e
 
-echo "[pre-push] test:coverage (serial — avoids workerd port contention)..."
-bun run test:coverage:serial
-
-echo "[pre-push] build..."
-bun run build
+echo "[pre-push] test (serial — parallel fan-out starves workerd of loopback ports)..."
+bun run test:serial
