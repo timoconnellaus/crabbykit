@@ -27,7 +27,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build": "bun ../../../scripts/build-package.ts",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@crabbykit/agent-runtime": "workspace:^",
@@ -42,7 +43,8 @@
     "@cloudflare/workers-types": "^4.0.0",
     "@vitest/coverage-istanbul": "^3.2.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "@vitest/coverage-v8": "^3.2.0"
   },
   "publishConfig": {
     "access": "public",

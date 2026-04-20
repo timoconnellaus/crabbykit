@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Run the full test + build suite before publishing commits to origin.
+# Run the full test (with coverage) + build suite before publishing commits.
 # Bypass with `git push --no-verify` in emergencies.
 
 set -e
 
-echo "[pre-push] test..."
-bun run test
+echo "[pre-push] test:coverage..."
+bun run test:coverage
 
 echo "[pre-push] build..."
 bun run build

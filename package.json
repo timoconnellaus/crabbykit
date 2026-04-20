@@ -11,6 +11,7 @@
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "bun run --filter '@crabbykit/*' build",
     "test": "bun run --filter '*' test",
+    "test:coverage": "bun run --filter '*' test:coverage",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check . && bun scripts/check-package-deps.ts",
     "lint:fix": "biome check --write . && bun scripts/check-package-deps.ts",
