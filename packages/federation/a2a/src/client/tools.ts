@@ -51,7 +51,7 @@ function resolveClient(targetAgent: string, options: A2AToolOptions): A2AHttpCli
     return new A2AHttpClient(
       targetAgent,
       fetch,
-      options.authHeaders ? () => options.authHeaders?.(targetAgent) : undefined,
+      options.authHeaders ? () => options.authHeaders!(targetAgent) : undefined,
     );
   }
 
@@ -61,7 +61,7 @@ function resolveClient(targetAgent: string, options: A2AToolOptions): A2AHttpCli
   return new A2AHttpClient(
     "https://agent",
     stub.fetch.bind(stub) as typeof fetch,
-    options.authHeaders ? () => options.authHeaders?.(targetAgent) : undefined,
+    options.authHeaders ? () => options.authHeaders!(targetAgent) : undefined,
   );
 }
 

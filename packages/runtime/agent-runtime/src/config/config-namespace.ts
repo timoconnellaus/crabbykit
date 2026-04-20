@@ -36,5 +36,5 @@ export interface ConfigNamespace {
    * @param value - The value to write (null for delete operations).
    * @returns Optional display string for the agent.
    */
-  set: (namespace: string, value: unknown) => Promise<string | undefined>;
+  set: (namespace: string, value: unknown) => Promise<string | void>;
 }

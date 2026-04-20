@@ -1138,15 +1138,15 @@ export abstract class AgentDO<TEnv = Record<string, unknown>>
             currentHash: BUNDLE_RUNTIME_HASH,
           });
           const started = Date.now();
-          const autoBucket = bundleConfig.autoRebuild?.bucket(env);
-          const autoNamespace = bundleConfig.autoRebuild?.namespace(env);
+          const autoBucket = bundleConfig.autoRebuild!.bucket(env);
+          const autoNamespace = bundleConfig.autoRebuild!.namespace(env);
           const built = await buildBundle({
             bucket: autoBucket,
             namespace: autoNamespace,
             name: sourceName,
           });
           const envelope = encodeEnvelope(built.mainModule, built.modules);
-          const newVersion = await registry.createVersion?.({
+          const newVersion = await registry.createVersion!({
             bytes: envelope,
             createdBy: "system:auto-rebuild",
             metadata: {

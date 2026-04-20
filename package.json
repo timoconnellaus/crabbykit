@@ -8,6 +8,7 @@
     "spike/*"
   ],
   "scripts": {
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "bun run --filter '@crabbykit/*' build",
     "test": "bun run --filter '*' test",
     "typecheck": "bun run --filter '*' typecheck",

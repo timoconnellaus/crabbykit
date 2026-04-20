@@ -141,7 +141,7 @@ export class A2AHttpClient {
   }
 
   private async *parseSSEStream(response: Response): AsyncGenerator<StreamEvent> {
-    const reader = response.body?.getReader();
+    const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
 

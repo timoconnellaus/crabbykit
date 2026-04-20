@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fail fast: lint + typecheck must pass before a commit lands.
+# Bypass with `git commit --no-verify` in emergencies.
+
+set -e
+
+echo "[pre-commit] biome check + dep graph..."
+bun run lint
+
+echo "[pre-commit] typecheck..."
+bun run typecheck

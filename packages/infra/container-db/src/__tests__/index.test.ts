@@ -56,7 +56,7 @@ describe("exec", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB();
     const result = await db.exec("SELECT * FROM items");
@@ -80,7 +80,7 @@ describe("exec", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB();
     await db.exec("INSERT INTO items (name) VALUES (?)", ["Item A"]);
@@ -103,7 +103,7 @@ describe("exec", () => {
       .mockResolvedValue(
         new Response(JSON.stringify({ error: "Table not found" }), { status: 500 }),
       );
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB();
     await expect(db.exec("SELECT * FROM nonexistent")).rejects.toThrow("Table not found");
@@ -114,7 +114,7 @@ describe("exec", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB({ backendId: "custom-id" });
     await db.exec("SELECT 1");
@@ -154,7 +154,7 @@ describe("batch", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify(mockResult), { status: 200 }));
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB();
     const statements = [
@@ -177,7 +177,7 @@ describe("batch", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ error: "Batch failed" }), { status: 500 }));
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const db = createDB();
     await expect(db.batch([{ sql: "INVALID SQL" }])).rejects.toThrow("Batch failed");
